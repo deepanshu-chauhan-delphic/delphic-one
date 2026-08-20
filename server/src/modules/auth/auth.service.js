@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 const env = require('../../config/env');
 
 function signAccessToken(user) {
@@ -16,7 +16,7 @@ function signRefreshToken(user) {
 }
 
 async function login(email, password) {
-  const user = await db('users').where({ email }).first();
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.active) return null;
 
   const matches = await bcrypt.compare(password, user.password_hash);
@@ -37,7 +37,7 @@ async function refresh(refreshToken) {
     return null;
   }
 
-  const user = await db('users').where({ id: payload.sub }).first();
+  const user = await prisma.user.findUnique({ where: { id: payload.sub } });
   if (!user || !user.active) return null;
 
   return {
@@ -47,14 +47,14 @@ async function refresh(refreshToken) {
 }
 
 async function changePassword(userId, currentPassword, newPassword) {
-  const user = await db('users').where({ id: userId }).first();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return { ok: false, reason: 'not_found' };
 
   const matches = await bcrypt.compare(currentPassword, user.password_hash);
   if (!matches) return { ok: false, reason: 'invalid_current' };
 
   const password_hash = await bcrypt.hash(newPassword, 10);
-  await db('users').where({ id: userId }).update({ password_hash, updated_at: db.fn.now() });
+  await prisma.user.update({ where: { id: userId }, data: { password_hash } });
   return { ok: true };
 }
 

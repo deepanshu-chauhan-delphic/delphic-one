@@ -3,7 +3,7 @@ const { z } = require('zod');
 const { authenticate } = require('../../middleware/auth');
 const { ok, created, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 
 const createSchema = z.object({
   entity_type: z.enum(['account', 'requirement', 'submission']),
@@ -20,23 +20,13 @@ router.get(
     const { entity_type, entity_id } = req.query;
     if (!entity_type || !entity_id) return fail(res, 422, 'entity_type and entity_id are required');
 
-    const rows = await db('comments as c')
-      .join('users as u', 'u.id', 'c.user_id')
-      .select('c.id', 'c.entity_type', 'c.entity_id', 'c.body', 'c.created_at', 'u.id as user_id', 'u.name as user_name', 'u.role as user_role')
-      .where({ 'c.entity_type': entity_type, 'c.entity_id': entity_id })
-      .orderBy('c.created_at', 'asc');
+    const rows = await prisma.comment.findMany({
+      where: { entity_type, entity_id },
+      orderBy: { created_at: 'asc' },
+      include: { user: { select: { id: true, name: true, role: true } } },
+    });
 
-    return ok(
-      res,
-      rows.map((r) => ({
-        id: r.id,
-        entity_type: r.entity_type,
-        entity_id: r.entity_id,
-        body: r.body,
-        created_at: r.created_at,
-        user: { id: r.user_id, name: r.user_name, role: r.user_role },
-      }))
-    );
+    return ok(res, rows);
   })
 );
 
@@ -44,8 +34,11 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
-    const [row] = await db('comments').insert({ ...body, user_id: req.user.id }).returning('*');
-    return created(res, { ...row, user: { id: req.user.id, name: req.user.name, role: req.user.role } });
+    const row = await prisma.comment.create({
+      data: { ...body, user_id: req.user.id },
+      include: { user: { select: { id: true, name: true, role: true } } },
+    });
+    return created(res, row);
   })
 );
 

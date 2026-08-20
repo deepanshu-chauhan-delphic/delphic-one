@@ -3,13 +3,13 @@ const { z } = require('zod');
 const { authenticate, authorize } = require('../../middleware/auth');
 const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 
-const ENTITY_TABLES = {
-  account: 'accounts',
-  requirement: 'requirements',
-  seat: 'requirement_seats',
-  submission: 'submissions',
+const ENTITY_MODELS = {
+  account: 'account',
+  requirement: 'requirement',
+  seat: 'requirementSeat',
+  submission: 'submission',
 };
 
 const bodySchema = z.object({ reason: z.string().min(1) });
@@ -21,24 +21,26 @@ router.post(
   '/:entity_type/:entity_id/unlock',
   asyncHandler(async (req, res) => {
     const { entity_type, entity_id } = req.params;
-    const table = ENTITY_TABLES[entity_type];
-    if (!table) return fail(res, 422, 'Invalid entity_type');
+    const model = ENTITY_MODELS[entity_type];
+    if (!model) return fail(res, 422, 'Invalid entity_type');
 
     const { reason } = bodySchema.parse(req.body);
 
-    const result = await db.transaction(async (trx) => {
-      const row = await trx(table).where({ id: entity_id }).first();
+    const result = await prisma.$transaction(async (tx) => {
+      const row = await tx[model].findUnique({ where: { id: entity_id } });
       if (!row) return { error: 'not_found' };
       if (!row.is_locked) return { error: 'not_locked' };
 
-      await trx(table).where({ id: entity_id }).update({ is_locked: false });
-      await trx('stage_history').insert({
-        entity_type,
-        entity_id,
-        from_stage: null,
-        to_stage: 'unlocked',
-        changed_by: req.user.id,
-        reason,
+      await tx[model].update({ where: { id: entity_id }, data: { is_locked: false } });
+      await tx.stageHistory.create({
+        data: {
+          entity_type,
+          entity_id,
+          from_stage: null,
+          to_stage: 'unlocked',
+          changed_by: req.user.id,
+          reason,
+        },
       });
 
       return { ok: true };

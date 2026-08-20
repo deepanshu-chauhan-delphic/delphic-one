@@ -5,7 +5,7 @@ Internal requirement/recruitment pipeline dashboard. See [docs/Requirement-Dashb
 ## Stack
 
 - **Client:** React + Vite + Tailwind CSS
-- **Server:** Node.js / Express + Knex (PostgreSQL)
+- **Server:** Node.js / Express + Prisma ORM (PostgreSQL)
 - **Deploy:** Nginx + PM2 on a single VPS
 
 ## Branching
@@ -22,8 +22,8 @@ npm install --workspaces
 cp server/.env.example server/.env
 # edit server/.env with your local DATABASE_URL and JWT secrets
 
-npm run migrate
-npm run seed
+npm run migrate      # prisma migrate dev — creates the DB schema
+npm run seed         # prisma db seed equivalent (prisma/seed.js)
 
 npm run dev:server   # http://localhost:4000
 npm run dev:client   # http://localhost:5173

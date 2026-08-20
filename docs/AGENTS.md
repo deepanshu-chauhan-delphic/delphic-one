@@ -12,7 +12,7 @@ API contract + build plan: [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-
 ## Stack
 
 - **Client:** React + Vite + Tailwind CSS (`client/`)
-- **Server:** Node.js / Express + Knex on PostgreSQL (`server/`)
+- **Server:** Node.js / Express + Prisma ORM on PostgreSQL (`server/`)
 - **Deploy:** Nginx + PM2 on a single VPS, GitHub Actions on push to `main`
 
 ## Repo layout
@@ -28,10 +28,12 @@ client/src/
 
 server/src/
   modules/<domain>/      # <domain>.routes.js, .controller.js, .service.js, .validation.js
-  db/migrations/         # numbered knex migrations (000-011 so far)
-  db/seeds/               # seed data (001_seed_users)
   middleware/            # auth, errorHandler, lockCheck
-  config/                # db.js, env.js
+  config/                # db.js (Prisma client singleton), env.js
+
+server/prisma/
+  schema.prisma          # single schema — all 11 tables as Prisma models
+  seed.js                 # seed data (admin, sales, bda, 2 recruiters)
 ```
 
 Domain modules follow a consistent 4-file pattern: `routes` → `controller` → `service` → `validation`. Some modules (admin, comments, dashboard, documents) currently have only a `routes.js` — check whether they need controller/service split before extending them.

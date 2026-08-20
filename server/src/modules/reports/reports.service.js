@@ -1,38 +1,42 @@
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 
 async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
-  const recruiters = recruiter_id
-    ? await db('users').where({ id: recruiter_id, role: 'recruiter' })
-    : await db('users').where({ role: 'recruiter' });
+  const recruiters = await prisma.user.findMany({
+    where: { role: 'recruiter', ...(recruiter_id ? { id: recruiter_id } : {}) },
+  });
+
+  const from = new Date(date_from);
+  const to = new Date(date_to);
 
   return Promise.all(
     recruiters.map(async (r) => {
-      const profilesQuery = db('profiles').where({ added_by: r.id }).whereBetween('created_at', [date_from, date_to]);
-      const bySource = await profilesQuery.clone().select('source').count({ c: '*' }).groupBy('source');
-      const sourceMap = Object.fromEntries(bySource.map((x) => [x.source, Number(x.c)]));
+      const profiles = await prisma.profile.findMany({
+        where: { added_by: r.id, created_at: { gte: from, lte: to } },
+      });
+      const sourceMap = profiles.reduce((acc, p) => {
+        acc[p.source] = (acc[p.source] || 0) + 1;
+        return acc;
+      }, {});
 
-      const submissions = await db('submissions')
-        .where({ submitted_by: r.id })
-        .whereBetween('created_at', [date_from, date_to]);
+      const submissions = await prisma.submission.findMany({
+        where: { submitted_by: r.id, created_at: { gte: from, lte: to } },
+        include: { seat: { select: { requirement_id: true } } },
+      });
 
       const byStage = submissions.reduce((acc, s) => {
         acc[s.stage] = (acc[s.stage] || 0) + 1;
         return acc;
       }, {});
 
-      const closures = submissions.filter((s) => s.actual_joining_date && s.actual_joining_date >= date_from && s.actual_joining_date <= date_to);
-      const backouts = submissions.filter((s) => s.stage === 'backout').length;
-
-      const requirementIds = new Set(
-        (
-          await db('requirement_seats')
-            .whereIn('id', submissions.map((s) => s.requirement_seat_id))
-        ).map((s) => s.requirement_id)
+      const closures = submissions.filter(
+        (s) => s.actual_joining_date && s.actual_joining_date >= from && s.actual_joining_date <= to
       );
+      const backouts = submissions.filter((s) => s.stage === 'backout').length;
+      const requirementIds = new Set(submissions.map((s) => s.seat.requirement_id));
 
       return {
         recruiter: { id: r.id, name: r.name },
-        profiles_sourced: Number((await profilesQuery.clone().count({ c: '*' }).first()).c),
+        profiles_sourced: profiles.length,
         profiles_sourced_by_source: {
           internal: sourceMap.internal || 0,
           vendor: sourceMap.vendor || 0,
@@ -61,28 +65,29 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
 }
 
 async function salesPerformance({ date_from, date_to, sales_id }) {
-  const salesUsers = sales_id ? await db('users').where({ id: sales_id, role: 'sales' }) : await db('users').where({ role: 'sales' });
+  const salesUsers = await prisma.user.findMany({ where: { role: 'sales', ...(sales_id ? { id: sales_id } : {}) } });
+  const from = new Date(date_from);
+  const to = new Date(date_to);
 
   return Promise.all(
     salesUsers.map(async (s) => {
-      const leads = await db('accounts').where({ owner_id: s.id, type: 'client' }).whereBetween('created_at', [date_from, date_to]);
+      const leads = await prisma.account.findMany({
+        where: { owner_id: s.id, type: 'client', created_at: { gte: from, lte: to } },
+      });
       const leads_converted_active = leads.filter((l) => l.stage === 'active').length;
       const leads_dropped = leads.filter((l) => l.stage === 'dropped').length;
 
-      const requirements = await db('requirements').where({ sales_owner_id: s.id }).whereBetween('created_at', [date_from, date_to]);
+      const requirements = await prisma.requirement.findMany({
+        where: { sales_owner_id: s.id, created_at: { gte: from, lte: to } },
+      });
       const requirements_closed = requirements.filter((r) => r.status === 'closed');
       const requirements_dropped = requirements.filter((r) => r.status === 'dropped').length;
       const requirements_in_progress = requirements.filter((r) => r.status === 'in_progress').length;
 
-      const closedSeatIds = (
-        await db('requirement_seats').whereIn(
-          'requirement_id',
-          requirements_closed.map((r) => r.id)
-        )
-      ).map((s2) => s2.id);
-
-      const closedSubmissions = closedSeatIds.length
-        ? await db('submissions').whereIn('requirement_seat_id', closedSeatIds).where({ stage: 'closed' })
+      const closedSubmissions = requirements_closed.length
+        ? await prisma.submission.findMany({
+            where: { seat: { requirement_id: { in: requirements_closed.map((r) => r.id) } }, stage: 'closed' },
+          })
         : [];
 
       const total_closed_revenue = closedSubmissions.reduce((sum, x) => sum + Number(x.final_agreed_rate || 0), 0);
@@ -91,14 +96,13 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
       const openRequirements = requirements.filter((r) => r.status === 'open' || r.status === 'in_progress');
       const total_budget_pipeline = openRequirements.reduce((sum, r) => sum + Number(r.budget_max || 0), 0);
 
-      const clients_active = await db('accounts').where({ owner_id: s.id, type: 'client', stage: 'active' }).count({ c: '*' }).first();
+      const clients_active = await prisma.account.count({ where: { owner_id: s.id, type: 'client', stage: 'active' } });
 
       let avg_closure_days = null;
-      if (requirements_closed.length) {
-        const days = requirements_closed
-          .filter((r) => r.closed_at)
-          .map((r) => (new Date(r.closed_at) - new Date(r.created_at)) / 86400000);
-        avg_closure_days = days.length ? Number((days.reduce((a, b) => a + b, 0) / days.length).toFixed(1)) : null;
+      const closedWithDates = requirements_closed.filter((r) => r.closed_at);
+      if (closedWithDates.length) {
+        const days = closedWithDates.map((r) => (new Date(r.closed_at) - new Date(r.created_at)) / 86400000);
+        avg_closure_days = Number((days.reduce((a, b) => a + b, 0) / days.length).toFixed(1));
       }
 
       return {
@@ -115,23 +119,22 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
         total_budget_pipeline,
         total_closed_revenue,
         total_margin_generated,
-        clients_active: Number(clients_active.c),
+        clients_active,
       };
     })
   );
 }
 
 async function vendorPerformance({ date_from, date_to, vendor_id }) {
-  const vendors = vendor_id
-    ? await db('accounts').where({ id: vendor_id, type: 'vendor' })
-    : await db('accounts').where({ type: 'vendor' });
+  const vendors = await prisma.account.findMany({ where: { type: 'vendor', ...(vendor_id ? { id: vendor_id } : {}) } });
+  const from = new Date(date_from);
+  const to = new Date(date_to);
 
   return Promise.all(
     vendors.map(async (v) => {
-      const profileIds = (await db('profiles').where({ vendor_account_id: v.id })).map((p) => p.id);
-      const submissions = profileIds.length
-        ? await db('submissions').whereIn('profile_id', profileIds).whereBetween('created_at', [date_from, date_to])
-        : [];
+      const submissions = await prisma.submission.findMany({
+        where: { profile: { vendor_account_id: v.id }, created_at: { gte: from, lte: to } },
+      });
 
       const shortlisted = submissions.filter((s) => !['sourced', 'internal_screening'].includes(s.stage)).length;
       const interviewed = submissions.filter((s) => ['interview_scheduled', 'interview_result', 'offer', 'bgv', 'closed'].includes(s.stage)).length;
@@ -163,31 +166,29 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
 async function aging({ threshold_days = 7 }) {
   const cutoff = new Date(Date.now() - threshold_days * 86400000);
 
-  const stuckLeadsRaw = await db('accounts as a')
-    .join('users as u', 'u.id', 'a.owner_id')
-    .select('a.id', 'a.name', 'a.stage', 'a.updated_at', 'u.id as owner_id', 'u.name as owner_name')
-    .whereIn('a.stage', ['lead', 'meeting_scheduled', 'rescheduled'])
-    .where('a.updated_at', '<=', cutoff);
+  const stuckLeadsRaw = await prisma.account.findMany({
+    where: { stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] }, updated_at: { lte: cutoff } },
+    include: { owner: { select: { id: true, name: true } } },
+  });
 
-  const stuckReqsRaw = await db('requirements as r')
-    .join('users as u', 'u.id', 'r.sales_owner_id')
-    .select('r.id', 'r.title', 'r.status', 'r.priority', 'r.created_at', 'u.id as owner_id', 'u.name as owner_name')
-    .whereIn('r.status', ['open', 'in_progress'])
-    .where('r.created_at', '<=', cutoff);
+  const stuckReqsRaw = await prisma.requirement.findMany({
+    where: { status: { in: ['open', 'in_progress'] }, created_at: { lte: cutoff } },
+    include: { sales_owner: { select: { id: true, name: true } }, seats: true },
+  });
 
   const stuckReqs = await Promise.all(
     stuckReqsRaw.map(async (r) => {
-      const seatIds = (await db('requirement_seats').where({ requirement_id: r.id })).map((s) => s.id);
+      const seatIds = r.seats.map((s) => s.id);
       const submissions_count = seatIds.length
-        ? Number((await db('submissions').whereIn('requirement_seat_id', seatIds).count({ c: '*' }).first()).c)
+        ? await prisma.submission.count({ where: { requirement_seat_id: { in: seatIds } } })
         : 0;
       const lastSubmission = seatIds.length
-        ? await db('submissions').whereIn('requirement_seat_id', seatIds).orderBy('created_at', 'desc').first()
+        ? await prisma.submission.findFirst({ where: { requirement_seat_id: { in: seatIds } }, orderBy: { created_at: 'desc' } })
         : null;
 
       return {
         requirement: { id: r.id, title: r.title, status: r.status, priority: r.priority },
-        sales_owner: { id: r.owner_id, name: r.owner_name },
+        sales_owner: r.sales_owner,
         days_open: Math.floor((Date.now() - new Date(r.created_at)) / 86400000),
         submissions_count,
         last_submission_date: lastSubmission ? lastSubmission.created_at : null,
@@ -195,32 +196,32 @@ async function aging({ threshold_days = 7 }) {
     })
   );
 
-  const stuckSubmissionsRaw = await db('submissions as s')
-    .join('requirement_seats as rs', 'rs.id', 's.requirement_seat_id')
-    .join('requirements as r', 'r.id', 'rs.requirement_id')
-    .join('profiles as p', 'p.id', 's.profile_id')
-    .join('users as u', 'u.id', 's.submitted_by')
-    .select('s.id', 's.stage', 's.updated_at', 'p.id as profile_id', 'p.name as profile_name', 'r.id as req_id', 'r.title as req_title', 'u.id as recruiter_id', 'u.name as recruiter_name')
-    .whereNotIn('s.stage', ['closed', 'rejected', 'backout'])
-    .where('s.updated_at', '<=', cutoff);
+  const stuckSubmissionsRaw = await prisma.submission.findMany({
+    where: { stage: { notIn: ['closed', 'rejected', 'backout'] }, updated_at: { lte: cutoff } },
+    include: {
+      profile: { select: { id: true, name: true } },
+      seat: { include: { requirement: { select: { id: true, title: true } } } },
+      submitted_by_user: { select: { id: true, name: true } },
+    },
+  });
 
-  const pastSlaRaw = await db('requirements')
-    .whereNotNull('sla_days')
-    .whereIn('status', ['open', 'in_progress']);
+  const pastSlaRaw = await prisma.requirement.findMany({
+    where: { sla_days: { not: null }, status: { in: ['open', 'in_progress'] } },
+  });
 
   return {
     stuck_leads: stuckLeadsRaw.map((l) => ({
       account: { id: l.id, name: l.name, stage: l.stage },
-      owner: { id: l.owner_id, name: l.owner_name },
+      owner: l.owner,
       days_in_stage: Math.floor((Date.now() - new Date(l.updated_at)) / 86400000),
       last_activity: l.updated_at,
     })),
     stuck_requirements: stuckReqs,
     stuck_submissions: stuckSubmissionsRaw.map((s) => ({
       submission: { id: s.id, stage: s.stage },
-      profile: { id: s.profile_id, name: s.profile_name },
-      requirement: { id: s.req_id, title: s.req_title },
-      recruiter: { id: s.recruiter_id, name: s.recruiter_name },
+      profile: s.profile,
+      requirement: s.seat.requirement,
+      recruiter: s.submitted_by_user,
       days_in_current_stage: Math.floor((Date.now() - new Date(s.updated_at)) / 86400000),
     })),
     past_sla_requirements: pastSlaRaw
@@ -233,24 +234,19 @@ async function aging({ threshold_days = 7 }) {
 }
 
 async function closure({ date_from, date_to, group_by = 'month' }) {
-  const rows = await db('submissions as s')
-    .join('requirement_seats as rs', 'rs.id', 's.requirement_seat_id')
-    .join('requirements as r', 'r.id', 'rs.requirement_id')
-    .join('accounts as a', 'a.id', 'r.account_id')
-    .join('profiles as p', 'p.id', 's.profile_id')
-    .join('users as u', 'u.id', 's.submitted_by')
-    .select(
-      's.id', 's.actual_joining_date', 's.final_agreed_rate', 's.margin', 's.created_at',
-      'r.id as req_id', 'r.title as req_title', 'a.id as client_id', 'a.name as client_name',
-      'p.id as profile_id', 'p.name as profile_name', 'u.id as recruiter_id', 'u.name as recruiter_name'
-    )
-    .where({ 's.stage': 'closed' })
-    .whereBetween('s.actual_joining_date', [date_from, date_to]);
+  const rows = await prisma.submission.findMany({
+    where: { stage: 'closed', actual_joining_date: { gte: new Date(date_from), lte: new Date(date_to) } },
+    include: {
+      seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
+      profile: { select: { id: true, name: true } },
+      submitted_by_user: { select: { id: true, name: true } },
+    },
+  });
 
   const groupKey = (row) => {
     const d = new Date(row.actual_joining_date);
-    if (group_by === 'client') return row.client_name;
-    if (group_by === 'recruiter') return row.recruiter_name;
+    if (group_by === 'client') return row.seat.requirement.account.name;
+    if (group_by === 'recruiter') return row.submitted_by_user.name;
     if (group_by === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
     return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
   };
@@ -275,13 +271,13 @@ async function closure({ date_from, date_to, group_by = 'month' }) {
       total_margin,
       avg_cycle_days,
       details: items.map((x) => ({
-        requirement: { id: x.req_id, title: x.req_title },
-        client: { id: x.client_id, name: x.client_name },
-        profile: { id: x.profile_id, name: x.profile_name },
+        requirement: { id: x.seat.requirement.id, title: x.seat.requirement.title },
+        client: x.seat.requirement.account,
+        profile: x.profile,
         joined_at: x.actual_joining_date,
         final_agreed_rate: x.final_agreed_rate,
         margin: x.margin,
-        recruiter: { id: x.recruiter_id, name: x.recruiter_name },
+        recruiter: x.submitted_by_user,
       })),
     };
   });

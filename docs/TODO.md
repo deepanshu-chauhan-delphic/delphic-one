@@ -4,8 +4,9 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 ## Backend
 
-- [ ] Flesh out `admin`, `comments`, `dashboard`, `documents` modules to the standard routes/controller/service/validation pattern (currently routes-only).
-- [ ] Verify all migrations run cleanly end-to-end (`npm run migrate`) and seed data matches what the client list pages expect.
+- [ ] **Run `npm install` and `npm run migrate` for real** — the Knex → Prisma migration (`server/prisma/schema.prisma`, all service files rewritten) has never actually been installed or executed. This is the top-priority next step; nothing below matters until this is confirmed working.
+- [ ] `server/prisma/schema.prisma` pins no exact Prisma version — `package.json` uses `^5.18.0` for both `prisma` and `@prisma/client`. Confirm that resolves and generates cleanly; the schema uses the traditional `datasource { url = env(...) }` syntax (Prisma 5/6-style), not the newer `prisma.config.ts` pattern.
+- [ ] Flesh out `admin`, `comments`, `dashboard`, `documents` modules to the standard routes/controller/service/validation pattern (currently routes-only, direct Prisma calls in the route file).
 - [ ] Confirm auth middleware + lockCheck middleware are wired into every module route that needs them.
 - [ ] Cross-check implemented routes against [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md) for gaps.
 

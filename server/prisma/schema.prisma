@@ -1,0 +1,522 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  bda
+  sales
+  recruiter
+  admin
+}
+
+enum AccountType {
+  client
+  vendor
+}
+
+enum AccountStage {
+  lead
+  meeting_scheduled
+  active
+  rescheduled
+  dropped
+}
+
+enum CompanySize {
+  startup
+  small
+  mid
+  enterprise
+}
+
+enum MeetingMode {
+  online
+  offline
+}
+
+enum Currency {
+  INR
+  USD
+  AED
+  SAR
+  EUR
+  GBP
+}
+
+enum ProfileCurrency {
+  INR
+  USD
+  AED
+  SAR
+}
+
+enum ReqType {
+  project
+  developer
+}
+
+enum RequirementStatus {
+  open
+  in_progress
+  on_hold
+  closed
+  dropped
+}
+
+enum WorkMode {
+  remote
+  onsite
+  hybrid
+}
+
+enum EngagementType {
+  full_time
+  part_time
+  contract
+}
+
+enum BudgetType {
+  monthly
+  hourly
+  annual
+  fixed_project
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum SeatStatus {
+  open
+  interviewing
+  offer
+  bgv
+  closed
+  dropped
+}
+
+enum AssignmentRole {
+  sales
+  recruiter
+}
+
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum ProfileSource {
+  internal
+  vendor
+  linkedin
+}
+
+enum SubmissionStage {
+  sourced
+  internal_screening
+  submitted_to_client
+  interview_scheduled
+  interview_result
+  offer
+  bgv
+  closed
+  backout
+  rejected
+}
+
+enum RateType {
+  monthly
+  hourly
+  annual
+}
+
+enum BgvStatus {
+  pending
+  in_progress
+  cleared
+  failed
+}
+
+enum RoundType {
+  internal
+  client_l1
+  client_l2
+  client_hr
+  client_final
+}
+
+enum RoundResult {
+  pending
+  pass
+  fail
+  no_show
+  rescheduled
+}
+
+enum HistoryEntityType {
+  account
+  requirement
+  seat
+  submission
+}
+
+enum DocumentEntityType {
+  account
+  requirement
+  profile
+  submission
+}
+
+enum CommentEntityType {
+  account
+  requirement
+  submission
+}
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  email         String   @unique
+  password_hash String
+  role          UserRole
+  phone         String?
+  active        Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+
+  owned_accounts        Account[]              @relation("AccountOwner")
+  sales_requirements     Requirement[]          @relation("RequirementSalesOwner")
+  assignments            RequirementAssignment[] @relation("AssignmentUser")
+  assignments_made       RequirementAssignment[] @relation("AssignmentAssignedBy")
+  profiles_added         Profile[]              @relation("ProfileAddedBy")
+  submissions_created    Submission[]           @relation("SubmissionSubmittedBy")
+  stage_history_changes  StageHistory[]
+  documents_uploaded     Document[]
+  comments               Comment[]
+
+  @@map("users")
+}
+
+model Account {
+  id       String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type     AccountType
+  name     String
+  stage    AccountStage @default(lead)
+
+  industry          String?
+  company_size      CompanySize?
+  website           String?
+  location_city     String?
+  location_country  String?
+  gst_or_tax_id     String?
+
+  poc_name        String?
+  poc_email       String?
+  poc_phone       String?
+  poc_designation String?
+
+  additional_contacts Json @default("[]")
+
+  source        String?
+  meeting_mode  MeetingMode?
+  meeting_date  DateTime?
+  meeting_notes String?
+
+  vendor_specializations String[]
+  vendor_rate_range      Json?
+  vendor_payment_terms   String?
+  vendor_agreement_url   String?
+
+  client_billing_currency Currency?
+  client_payment_terms    String?
+  client_agreement_url    String?
+
+  owner_id  String   @db.Uuid
+  owner     User     @relation("AccountOwner", fields: [owner_id], references: [id])
+  is_locked Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  requirements    Requirement[]
+  vendor_profiles Profile[]      @relation("ProfileVendorAccount")
+
+  @@index([type, stage])
+  @@index([owner_id])
+  @@map("accounts")
+}
+
+model Requirement {
+  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String             @db.Uuid
+  account    Account            @relation(fields: [account_id], references: [id])
+  title      String
+  req_type   ReqType
+  status     RequirementStatus  @default(open)
+
+  description     String?
+  jd_document_url String?
+  designation     String?
+  department      String?
+  seats_total     Int      @default(1)
+
+  primary_tech_stack       String[]
+  secondary_tech_stack     String[]
+  domain_experience        String?
+  experience_min           Decimal? @db.Decimal(4, 1)
+  experience_max           Decimal? @db.Decimal(4, 1)
+  certifications_required  String[]
+
+  work_mode               WorkMode?
+  work_location           String?
+  time_zone_preference    String?
+  engagement_type         EngagementType?
+  contract_duration_months Int?
+  start_date_target       DateTime? @db.Date
+  notice_period_max_days  Int?
+
+  budget_min      Decimal?   @db.Decimal(14, 2)
+  budget_max      Decimal?   @db.Decimal(14, 2)
+  budget_currency Currency   @default(INR)
+  budget_type     BudgetType?
+  billing_notes   String?
+
+  priority Priority @default(medium)
+  sla_days Int?
+
+  sales_owner_id String   @db.Uuid
+  sales_owner    User     @relation("RequirementSalesOwner", fields: [sales_owner_id], references: [id])
+  is_locked      Boolean  @default(false)
+  closed_at      DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+
+  seats       RequirementSeat[]
+  assignments RequirementAssignment[]
+
+  @@index([account_id])
+  @@index([status, priority])
+  @@index([sales_owner_id])
+  @@map("requirements")
+}
+
+model RequirementSeat {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_id String     @db.Uuid
+  requirement    Requirement @relation(fields: [requirement_id], references: [id], onDelete: Cascade)
+  seat_label     String?
+  seat_status    SeatStatus @default(open)
+  closed_at      DateTime?
+  joined_at      DateTime?  @db.Date
+  is_locked      Boolean    @default(false)
+
+  submissions Submission[]
+
+  @@index([requirement_id])
+  @@index([seat_status])
+  @@map("requirement_seats")
+}
+
+model RequirementAssignment {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_id String         @db.Uuid
+  requirement    Requirement    @relation(fields: [requirement_id], references: [id], onDelete: Cascade)
+  user_id        String         @db.Uuid
+  user           User           @relation("AssignmentUser", fields: [user_id], references: [id])
+  role_on_req    AssignmentRole
+  assigned_at    DateTime       @default(now())
+  unassigned_at  DateTime?
+  assigned_by    String         @db.Uuid
+  assigned_by_user User         @relation("AssignmentAssignedBy", fields: [assigned_by], references: [id])
+
+  @@index([requirement_id])
+  @@index([user_id])
+  @@map("requirement_assignments")
+}
+
+model Profile {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  name               String
+  email              String?
+  phone              String?
+  date_of_birth      DateTime? @db.Date
+  gender             Gender?
+  current_location   String?
+  willing_to_relocate Boolean?
+  preferred_locations String[]
+
+  current_company      String?
+  current_designation  String?
+  total_experience_years    Decimal  @db.Decimal(4, 1)
+  relevant_experience_years Decimal? @db.Decimal(4, 1)
+
+  primary_skills    String[]
+  secondary_skills  String[]
+  certifications    String[]
+  domain_experience String[]
+  education         Json?
+
+  current_ctc            Decimal?        @db.Decimal(14, 2)
+  current_ctc_currency   ProfileCurrency @default(INR)
+  expected_ctc           Decimal?        @db.Decimal(14, 2)
+  expected_ctc_currency  ProfileCurrency @default(INR)
+  ctc_negotiable         Boolean         @default(false)
+  ctc_notes              String?
+  notice_period_days     Int?
+  is_serving_notice      Boolean         @default(false)
+  last_working_day       DateTime?       @db.Date
+  earliest_join_date     DateTime?       @db.Date
+  preferred_work_mode    WorkMode?
+
+  resume_url      String?
+  linkedin_url    String?
+  portfolio_url   String?
+  other_documents Json @default("[]")
+
+  source            ProfileSource
+  vendor_account_id String?  @db.Uuid
+  vendor_account    Account? @relation("ProfileVendorAccount", fields: [vendor_account_id], references: [id])
+  vendor_profile_id String?
+  added_by          String   @db.Uuid
+  added_by_user     User     @relation("ProfileAddedBy", fields: [added_by], references: [id])
+  recruiter_notes   String?
+
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  submissions Submission[]
+
+  @@index([source])
+  @@index([added_by])
+  @@index([is_active])
+  @@map("profiles")
+}
+
+model Submission {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_seat_id   String          @db.Uuid
+  seat                  RequirementSeat @relation(fields: [requirement_seat_id], references: [id], onDelete: Cascade)
+  profile_id            String          @db.Uuid
+  profile               Profile         @relation(fields: [profile_id], references: [id])
+  stage                 SubmissionStage @default(sourced)
+
+  proposed_rate            Decimal?  @db.Decimal(14, 2)
+  proposed_rate_type       RateType?
+  proposed_rate_currency   ProfileCurrency? @default(INR)
+  vendor_rate              Decimal?  @db.Decimal(14, 2)
+  vendor_rate_type         RateType?
+  vendor_rate_currency     ProfileCurrency?
+  margin                   Decimal?  @db.Decimal(14, 2)
+  margin_percentage        Decimal?  @db.Decimal(6, 2)
+  final_agreed_rate        Decimal?  @db.Decimal(14, 2)
+  final_agreed_rate_type   RateType?
+
+  submission_notes String?
+  client_feedback  String?
+  relevancy_score  Int?
+
+  backout_stage    String?
+  backout_reason   String?
+  rejection_stage  String?
+  rejection_reason String?
+
+  offer_date            DateTime? @db.Date
+  offer_ctc             Decimal?  @db.Decimal(14, 2)
+  offer_ctc_currency    ProfileCurrency?
+  expected_joining_date DateTime? @db.Date
+  actual_joining_date   DateTime? @db.Date
+
+  bgv_initiated_date  DateTime? @db.Date
+  bgv_status          BgvStatus?
+  bgv_completed_date  DateTime? @db.Date
+  bgv_notes           String?
+
+  submitted_by String   @db.Uuid
+  submitted_by_user User @relation("SubmissionSubmittedBy", fields: [submitted_by], references: [id])
+  is_locked    Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  interview_rounds InterviewRound[]
+
+  @@index([requirement_seat_id])
+  @@index([profile_id])
+  @@index([stage])
+  @@map("submissions")
+}
+
+model InterviewRound {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id   String      @db.Uuid
+  submission      Submission  @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+  round_number    Int
+  round_type      RoundType
+  round_name      String?
+  scheduled_at    DateTime?
+  duration_minutes Int?
+  interviewer_name  String?
+  interviewer_email String?
+  meeting_link      String?
+  result          RoundResult @default(pending)
+  feedback        String?
+  rating          Int?
+  completed_at    DateTime?
+
+  @@index([submission_id])
+  @@map("interview_rounds")
+}
+
+model StageHistory {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type HistoryEntityType
+  entity_id   String            @db.Uuid
+  from_stage  String?
+  to_stage    String
+  changed_by  String            @db.Uuid
+  changed_by_user User          @relation(fields: [changed_by], references: [id])
+  reason      String?
+  changed_at  DateTime          @default(now())
+
+  @@index([entity_type, entity_id])
+  @@map("stage_history")
+}
+
+model Document {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type     DocumentEntityType
+  entity_id       String             @db.Uuid
+  label           String
+  file_url        String
+  file_type       String?
+  file_size_bytes Int?
+  uploaded_by     String             @db.Uuid
+  uploaded_by_user User              @relation(fields: [uploaded_by], references: [id])
+  uploaded_at     DateTime           @default(now())
+
+  @@index([entity_type, entity_id])
+  @@map("documents")
+}
+
+model Comment {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type CommentEntityType
+  entity_id   String            @db.Uuid
+  user_id     String            @db.Uuid
+  user        User              @relation(fields: [user_id], references: [id])
+  body        String
+  created_at  DateTime          @default(now())
+
+  @@index([entity_type, entity_id])
+  @@map("comments")
+}

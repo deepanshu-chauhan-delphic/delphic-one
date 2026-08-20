@@ -1,4 +1,4 @@
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 
 const TRANSITIONS = {
   sourced: ['internal_screening', 'rejected', 'backout'],
@@ -23,114 +23,111 @@ function computeMargin(proposed_rate, proposed_rate_currency, vendor_rate, vendo
   return { margin, margin_percentage };
 }
 
-async function decorate(row) {
-  if (!row) return null;
-  const [seat, profile, submittedBy, rounds] = await Promise.all([
-    db('requirement_seats as rs')
-      .join('requirements as r', 'r.id', 'rs.requirement_id')
-      .join('accounts as a', 'a.id', 'r.account_id')
-      .select('rs.id', 'rs.seat_label', 'rs.requirement_id', 'r.title as requirement_title', 'a.name as account_name')
-      .where({ 'rs.id': row.requirement_seat_id })
-      .first(),
-    db('profiles')
-      .select('id', 'name', 'current_company', 'total_experience_years', 'primary_skills', 'expected_ctc', 'notice_period_days', 'source')
-      .where({ id: row.profile_id })
-      .first(),
-    db('users').select('id', 'name').where({ id: row.submitted_by }).first(),
-    db('interview_rounds').where({ submission_id: row.id }).orderBy('round_number', 'asc'),
-  ]);
+const INCLUDE = {
+  seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
+  profile: {
+    select: {
+      id: true, name: true, current_company: true, total_experience_years: true,
+      primary_skills: true, expected_ctc: true, notice_period_days: true, source: true,
+    },
+  },
+  submitted_by_user: { select: { id: true, name: true } },
+  interview_rounds: { orderBy: { round_number: 'asc' } },
+};
 
-  const { requirement_seat_id, profile_id, submitted_by, ...rest } = row;
+function serialize(row) {
+  if (!row) return null;
+  const { requirement_seat_id, profile_id, submitted_by, seat, profile, submitted_by_user, interview_rounds, ...rest } = row;
+
   return {
     ...rest,
     seat: seat ? { id: seat.id, seat_label: seat.seat_label, requirement_id: seat.requirement_id } : null,
-    requirement: seat ? { id: seat.requirement_id, title: seat.requirement_title, account_name: seat.account_name } : null,
+    requirement: seat ? { id: seat.requirement.id, title: seat.requirement.title, account_name: seat.requirement.account.name } : null,
     profile,
-    submitted_by: submittedBy,
-    interview_rounds: rounds,
+    submitted_by: submitted_by_user,
+    interview_rounds,
   };
 }
 
 async function list(filters) {
   const { requirement_id, seat_id, profile_id, stage, submitted_by, search, sort_by, sort_order, page, limit } = filters;
-  const query = db('submissions as s').join('requirement_seats as rs', 'rs.id', 's.requirement_seat_id');
 
-  if (requirement_id) query.where('rs.requirement_id', requirement_id);
-  if (seat_id) query.where('s.requirement_seat_id', seat_id);
-  if (profile_id) query.where('s.profile_id', profile_id);
-  if (stage) query.where('s.stage', stage);
-  if (submitted_by) query.where('s.submitted_by', submitted_by);
-  if (search) {
-    query
-      .join('profiles as p', 'p.id', 's.profile_id')
-      .join('requirements as r', 'r.id', 'rs.requirement_id')
-      .where((qb) => {
-        qb.whereILike('p.name', `%${search}%`).orWhereILike('r.title', `%${search}%`);
-      });
-  }
+  const where = {
+    ...(requirement_id ? { seat: { requirement_id } } : {}),
+    ...(seat_id ? { requirement_seat_id: seat_id } : {}),
+    ...(profile_id ? { profile_id } : {}),
+    ...(stage ? { stage } : {}),
+    ...(submitted_by ? { submitted_by } : {}),
+    ...(search
+      ? {
+          OR: [
+            { profile: { name: { contains: search, mode: 'insensitive' } } },
+            { seat: { requirement: { title: { contains: search, mode: 'insensitive' } } } },
+          ],
+        }
+      : {}),
+  };
 
-  const total = Number((await query.clone().clearSelect().count({ count: 's.id' }).first()).count);
-  const rows = await query
-    .select('s.*')
-    .orderBy(`s.${sort_by === 'stage' ? 'stage' : sort_by === 'margin' ? 'margin' : 'created_at'}`, sort_order)
-    .limit(limit)
-    .offset((page - 1) * limit);
+  const orderBy = sort_by === 'stage' ? { stage: sort_order } : sort_by === 'margin' ? { margin: sort_order } : { created_at: sort_order };
 
-  const decorated = await Promise.all(rows.map(decorate));
-  return { rows: decorated, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  const [total, rows] = await Promise.all([
+    prisma.submission.count({ where }),
+    prisma.submission.findMany({ where, include: INCLUDE, orderBy, take: limit, skip: (page - 1) * limit }),
+  ]);
+
+  return { rows: rows.map(serialize), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
 async function getById(id) {
-  const row = await db('submissions').where({ id }).first();
-  return decorate(row);
+  const row = await prisma.submission.findUnique({ where: { id }, include: INCLUDE });
+  return serialize(row);
 }
 
 async function create(data, submittedBy) {
-  return db.transaction(async (trx) => {
-    const seat = await trx('requirement_seats').where({ id: data.requirement_seat_id }).first();
-    if (!seat) return { error: 'seat_not_found' };
-    if (seat.is_locked) return { error: 'seat_locked' };
+  const seat = await prisma.requirementSeat.findUnique({ where: { id: data.requirement_seat_id } });
+  if (!seat) return { error: 'seat_not_found' };
+  if (seat.is_locked) return { error: 'seat_locked' };
 
-    const profile = await trx('profiles').where({ id: data.profile_id }).first();
-    if (!profile || !profile.is_active) return { error: 'profile_inactive' };
-    if (profile.source === 'vendor' && data.vendor_rate == null) return { error: 'vendor_rate_required' };
+  const profile = await prisma.profile.findUnique({ where: { id: data.profile_id } });
+  if (!profile || !profile.is_active) return { error: 'profile_inactive' };
+  if (profile.source === 'vendor' && data.vendor_rate == null) return { error: 'vendor_rate_required' };
 
-    const duplicate = await trx('submissions')
-      .where({ requirement_seat_id: data.requirement_seat_id, profile_id: data.profile_id })
-      .whereNotIn('stage', ['rejected', 'backout'])
-      .first();
-    if (duplicate) return { error: 'duplicate_submission' };
-
-    const { margin, margin_percentage } = computeMargin(
-      data.proposed_rate, data.proposed_rate_currency, data.vendor_rate, data.vendor_rate_currency
-    );
-
-    const [row] = await trx('submissions')
-      .insert({ ...data, submitted_by: submittedBy, margin, margin_percentage })
-      .returning('*');
-
-    return { submission: await decorate(row) };
+  const duplicate = await prisma.submission.findFirst({
+    where: { requirement_seat_id: data.requirement_seat_id, profile_id: data.profile_id, stage: { notIn: ['rejected', 'backout'] } },
   });
+  if (duplicate) return { error: 'duplicate_submission' };
+
+  const { margin, margin_percentage } = computeMargin(
+    data.proposed_rate, data.proposed_rate_currency, data.vendor_rate, data.vendor_rate_currency
+  );
+
+  const row = await prisma.submission.create({
+    data: { ...data, submitted_by: submittedBy, margin, margin_percentage },
+    include: INCLUDE,
+  });
+
+  return { submission: serialize(row) };
 }
 
 async function update(id, patch) {
-  const existing = await db('submissions').where({ id }).first();
+  const existing = await prisma.submission.findUnique({ where: { id } });
   const proposed_rate = patch.proposed_rate ?? existing.proposed_rate;
   const proposed_rate_currency = patch.proposed_rate_currency ?? existing.proposed_rate_currency;
   const vendor_rate = patch.vendor_rate ?? existing.vendor_rate;
   const vendor_rate_currency = patch.vendor_rate_currency ?? existing.vendor_rate_currency;
   const { margin, margin_percentage } = computeMargin(proposed_rate, proposed_rate_currency, vendor_rate, vendor_rate_currency);
 
-  const [row] = await db('submissions')
-    .where({ id })
-    .update({ ...patch, margin, margin_percentage, updated_at: db.fn.now() })
-    .returning('*');
-  return decorate(row);
+  const row = await prisma.submission.update({
+    where: { id },
+    data: { ...patch, margin, margin_percentage },
+    include: INCLUDE,
+  });
+  return serialize(row);
 }
 
 async function changeStage(id, { to_stage, reason, backout_reason, rejection_reason }, userId) {
-  return db.transaction(async (trx) => {
-    const submission = await trx('submissions').where({ id }).first();
+  return prisma.$transaction(async (tx) => {
+    const submission = await tx.submission.findUnique({ where: { id } });
     if (!submission) return { error: 'not_found' };
     if (submission.is_locked) return { error: 'locked' };
     if (!(TRANSITIONS[submission.stage] || []).includes(to_stage)) return { error: 'invalid_transition' };
@@ -139,7 +136,7 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
     if (to_stage === 'rejected' && !(rejection_reason || reason)) return { error: 'rejection_reason_required' };
 
     if (to_stage === 'offer') {
-      const rounds = await trx('interview_rounds').where({ submission_id: id });
+      const rounds = await tx.interviewRound.findMany({ where: { submission_id: id } });
       const allResolved = rounds.length > 0 && rounds.every((r) => r.result !== 'pending');
       if (!allResolved) return { error: 'rounds_not_resolved' };
     }
@@ -147,7 +144,7 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
       if (submission.bgv_status !== 'cleared') return { error: 'bgv_not_cleared' };
     }
 
-    const patch = { stage: to_stage, updated_at: trx.fn.now() };
+    const patch = { stage: to_stage };
     if (to_stage === 'backout') {
       patch.backout_stage = submission.stage;
       patch.backout_reason = backout_reason || reason;
@@ -158,46 +155,51 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
     }
     if (to_stage === 'closed') patch.is_locked = true;
 
-    const [updated] = await trx('submissions').where({ id }).update(patch).returning('*');
+    const updated = await tx.submission.update({ where: { id }, data: patch, include: INCLUDE });
 
-    await trx('stage_history').insert({
-      entity_type: 'submission',
-      entity_id: id,
-      from_stage: submission.stage,
-      to_stage,
-      changed_by: userId,
-      reason: reason || backout_reason || rejection_reason || null,
+    await tx.stageHistory.create({
+      data: {
+        entity_type: 'submission',
+        entity_id: id,
+        from_stage: submission.stage,
+        to_stage,
+        changed_by: userId,
+        reason: reason || backout_reason || rejection_reason || null,
+      },
     });
 
     if (to_stage === 'closed') {
-      await trx('requirement_seats').where({ id: submission.requirement_seat_id }).update({
-        seat_status: 'closed',
-        is_locked: true,
-        closed_at: trx.fn.now(),
-        joined_at: updated.actual_joining_date || trx.fn.now(),
+      await tx.requirementSeat.update({
+        where: { id: submission.requirement_seat_id },
+        data: {
+          seat_status: 'closed',
+          is_locked: true,
+          closed_at: new Date(),
+          joined_at: updated.actual_joining_date || new Date(),
+        },
       });
     }
 
-    return { submission: await decorate(updated) };
+    return { submission: serialize(updated) };
   });
 }
 
 async function getHistory(id) {
-  return db('stage_history').where({ entity_type: 'submission', entity_id: id }).orderBy('changed_at', 'asc');
+  return prisma.stageHistory.findMany({ where: { entity_type: 'submission', entity_id: id }, orderBy: { changed_at: 'asc' } });
 }
 
 async function addInterviewRound(submissionId, data) {
-  return db.transaction(async (trx) => {
-    const submission = await trx('submissions').where({ id: submissionId }).first();
+  return prisma.$transaction(async (tx) => {
+    const submission = await tx.submission.findUnique({ where: { id: submissionId } });
     if (!submission) return { error: 'not_found' };
 
-    const last = await trx('interview_rounds').where({ submission_id: submissionId }).orderBy('round_number', 'desc').first();
+    const last = await tx.interviewRound.findFirst({ where: { submission_id: submissionId }, orderBy: { round_number: 'desc' } });
     const round_number = last ? last.round_number + 1 : 1;
 
-    const [round] = await trx('interview_rounds').insert({ ...data, submission_id: submissionId, round_number }).returning('*');
+    const round = await tx.interviewRound.create({ data: { ...data, submission_id: submissionId, round_number } });
 
     if (submission.stage === 'submitted_to_client') {
-      await trx('submissions').where({ id: submissionId }).update({ stage: 'interview_scheduled', updated_at: trx.fn.now() });
+      await tx.submission.update({ where: { id: submissionId }, data: { stage: 'interview_scheduled' } });
     }
 
     return { round };
@@ -205,23 +207,23 @@ async function addInterviewRound(submissionId, data) {
 }
 
 async function updateInterviewRound(id, patch) {
-  return db.transaction(async (trx) => {
-    const existing = await trx('interview_rounds').where({ id }).first();
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.interviewRound.findUnique({ where: { id } });
     if (!existing) return { error: 'not_found' };
 
     const finalPatch = { ...patch };
     if (['pass', 'fail', 'no_show'].includes(patch.result) && !patch.completed_at) {
-      finalPatch.completed_at = trx.fn.now();
+      finalPatch.completed_at = new Date();
     }
 
-    const [round] = await trx('interview_rounds').where({ id }).update(finalPatch).returning('*');
+    const round = await tx.interviewRound.update({ where: { id }, data: finalPatch });
 
-    const rounds = await trx('interview_rounds').where({ submission_id: round.submission_id });
+    const rounds = await tx.interviewRound.findMany({ where: { submission_id: round.submission_id } });
     const allResolved = rounds.every((r) => r.result !== 'pending');
     if (allResolved) {
-      const submission = await trx('submissions').where({ id: round.submission_id }).first();
+      const submission = await tx.submission.findUnique({ where: { id: round.submission_id } });
       if (submission && submission.stage === 'interview_scheduled') {
-        await trx('submissions').where({ id: round.submission_id }).update({ stage: 'interview_result', updated_at: trx.fn.now() });
+        await tx.submission.update({ where: { id: round.submission_id }, data: { stage: 'interview_result' } });
       }
     }
 
@@ -230,7 +232,7 @@ async function updateInterviewRound(id, patch) {
 }
 
 async function getInterviewRounds(submissionId) {
-  return db('interview_rounds').where({ submission_id: submissionId }).orderBy('round_number', 'asc');
+  return prisma.interviewRound.findMany({ where: { submission_id: submissionId }, orderBy: { round_number: 'asc' } });
 }
 
 module.exports = {

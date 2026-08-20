@@ -5,7 +5,7 @@ const fs = require('fs');
 const { authenticate } = require('../../middleware/auth');
 const { ok, created, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
-const db = require('../../config/db');
+const prisma = require('../../config/db');
 const env = require('../../config/env');
 
 const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.xlsx', '.csv'];
@@ -44,8 +44,8 @@ router.post(
     if (!label) return fail(res, 422, 'label is required');
     if (!req.file) return fail(res, 422, 'file is required');
 
-    const [row] = await db('documents')
-      .insert({
+    const row = await prisma.document.create({
+      data: {
         entity_type,
         entity_id,
         label,
@@ -53,11 +53,12 @@ router.post(
         file_type: req.file.mimetype,
         file_size_bytes: req.file.size,
         uploaded_by: req.user.id,
-      })
-      .returning('*');
+      },
+      include: { uploaded_by_user: { select: { id: true, name: true } } },
+    });
 
-    const uploader = await db('users').select('id', 'name').where({ id: req.user.id }).first();
-    return created(res, { ...row, uploaded_by: uploader });
+    const { uploaded_by, uploaded_by_user, ...rest } = row;
+    return created(res, { ...rest, uploaded_by: uploaded_by_user });
   })
 );
 
@@ -65,27 +66,30 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { entity_type, entity_id } = req.query;
-    const query = db('documents');
-    if (entity_type) query.where({ entity_type });
-    if (entity_id) query.where({ entity_id });
-    const rows = await query.orderBy('uploaded_at', 'desc');
+    const rows = await prisma.document.findMany({
+      where: { ...(entity_type ? { entity_type } : {}), ...(entity_id ? { entity_id } : {}) },
+      orderBy: { uploaded_at: 'desc' },
+      include: { uploaded_by_user: { select: { id: true, name: true } } },
+    });
 
-    const userIds = [...new Set(rows.map((r) => r.uploaded_by))];
-    const users = userIds.length ? await db('users').select('id', 'name').whereIn('id', userIds) : [];
-    const userMap = new Map(users.map((u) => [u.id, u]));
-
-    return ok(res, rows.map((r) => ({ ...r, uploaded_by: userMap.get(r.uploaded_by) || null })));
+    return ok(
+      res,
+      rows.map((r) => {
+        const { uploaded_by, uploaded_by_user, ...rest } = r;
+        return { ...rest, uploaded_by: uploaded_by_user };
+      })
+    );
   })
 );
 
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    const doc = await db('documents').where({ id: req.params.id }).first();
+    const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!doc) return fail(res, 404, 'Not found');
     if (doc.uploaded_by !== req.user.id && req.user.role !== 'admin') return fail(res, 403, 'Not permitted');
 
-    await db('documents').where({ id: req.params.id }).del();
+    await prisma.document.delete({ where: { id: req.params.id } });
     const filePath = path.join(env.uploadDir, path.basename(doc.file_url));
     fs.unlink(filePath, () => {});
 
