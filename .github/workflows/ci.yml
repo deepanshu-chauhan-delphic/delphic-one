@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging, dev]
+  pull_request:
+    branches: [main, staging, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install server dependencies
+        run: npm install --workspace server
+
+      - name: Install client dependencies
+        run: npm install --workspace client
+
+      - name: Build client
+        run: npm run build --workspace client
+
+      - name: Syntax-check server
+        run: node --check server/src/index.js

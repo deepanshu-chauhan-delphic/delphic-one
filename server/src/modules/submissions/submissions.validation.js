@@ -1,0 +1,94 @@
+const { z } = require('zod');
+
+const rateType = z.enum(['monthly', 'hourly', 'annual']);
+const currency = z.enum(['INR', 'USD', 'AED', 'SAR']);
+
+const createSchema = z.object({
+  requirement_seat_id: z.string().uuid(),
+  profile_id: z.string().uuid(),
+  proposed_rate: z.number().optional(),
+  proposed_rate_type: rateType.optional(),
+  proposed_rate_currency: currency.optional(),
+  vendor_rate: z.number().optional(),
+  vendor_rate_type: rateType.optional(),
+  vendor_rate_currency: currency.optional(),
+  submission_notes: z.string().optional(),
+  relevancy_score: z.number().int().min(1).max(10).optional(),
+});
+
+const updateSchema = z.object({
+  proposed_rate: z.number().optional(),
+  proposed_rate_type: rateType.optional(),
+  proposed_rate_currency: currency.optional(),
+  vendor_rate: z.number().optional(),
+  vendor_rate_type: rateType.optional(),
+  vendor_rate_currency: currency.optional(),
+  final_agreed_rate: z.number().optional(),
+  final_agreed_rate_type: rateType.optional(),
+  submission_notes: z.string().optional(),
+  client_feedback: z.string().optional(),
+  relevancy_score: z.number().int().min(1).max(10).optional(),
+  offer_date: z.string().optional(),
+  offer_ctc: z.number().optional(),
+  offer_ctc_currency: currency.optional(),
+  expected_joining_date: z.string().optional(),
+  actual_joining_date: z.string().optional(),
+  bgv_initiated_date: z.string().optional(),
+  bgv_status: z.enum(['pending', 'in_progress', 'cleared', 'failed']).optional(),
+  bgv_completed_date: z.string().optional(),
+  bgv_notes: z.string().optional(),
+});
+
+const stageSchema = z.object({
+  to_stage: z.enum([
+    'internal_screening', 'submitted_to_client', 'interview_scheduled',
+    'interview_result', 'offer', 'bgv', 'closed', 'backout', 'rejected',
+  ]),
+  reason: z.string().optional(),
+  backout_reason: z.string().optional(),
+  rejection_reason: z.string().optional(),
+});
+
+const listQuerySchema = z.object({
+  requirement_id: z.string().uuid().optional(),
+  seat_id: z.string().uuid().optional(),
+  profile_id: z.string().uuid().optional(),
+  stage: z.string().optional(),
+  submitted_by: z.string().uuid().optional(),
+  search: z.string().optional(),
+  sort_by: z.enum(['created_at', 'stage', 'margin']).default('created_at'),
+  sort_order: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const interviewRoundCreateSchema = z.object({
+  round_type: z.enum(['internal', 'client_l1', 'client_l2', 'client_hr', 'client_final']),
+  round_name: z.string().optional(),
+  scheduled_at: z.string().optional(),
+  duration_minutes: z.number().int().optional(),
+  interviewer_name: z.string().optional(),
+  interviewer_email: z.string().email().optional().or(z.literal('')),
+  meeting_link: z.string().optional(),
+});
+
+const interviewRoundUpdateSchema = z.object({
+  scheduled_at: z.string().optional(),
+  duration_minutes: z.number().int().optional(),
+  interviewer_name: z.string().optional(),
+  interviewer_email: z.string().email().optional().or(z.literal('')),
+  meeting_link: z.string().optional(),
+  result: z.enum(['pending', 'pass', 'fail', 'no_show', 'rescheduled']).optional(),
+  feedback: z.string().optional(),
+  rating: z.number().int().min(1).max(10).optional(),
+  completed_at: z.string().optional(),
+});
+
+module.exports = {
+  createSchema,
+  updateSchema,
+  stageSchema,
+  listQuerySchema,
+  interviewRoundCreateSchema,
+  interviewRoundUpdateSchema,
+};
