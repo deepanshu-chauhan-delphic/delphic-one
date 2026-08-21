@@ -8,20 +8,14 @@ import AccountDetailPage from '../pages/accounts/AccountDetailPage.jsx';
 import AccountFormPage from '../pages/accounts/AccountFormPage.jsx';
 import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx';
 import RequirementDetailPage from '../pages/requirements/RequirementDetailPage.jsx';
-<<<<<<< Updated upstream
 import RequirementFormPage from '../pages/requirements/RequirementFormPage.jsx';
 import RequirementKanbanPage from '../pages/requirements/RequirementKanbanPage.jsx';
-=======
->>>>>>> Stashed changes
 import ProfilesListPage from '../pages/profiles/ProfilesListPage.jsx';
 import ProfileDetailPage from '../pages/profiles/ProfileDetailPage.jsx';
 import ProfileFormPage from '../pages/profiles/ProfileFormPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import SubmissionDetailPage from '../pages/submissions/SubmissionDetailPage.jsx';
-<<<<<<< Updated upstream
 import SubmissionCreatePage from '../pages/submissions/SubmissionCreatePage.jsx';
-=======
->>>>>>> Stashed changes
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
 import UsersPage from '../pages/users/UsersPage.jsx';
 
@@ -50,22 +44,16 @@ export default function App() {
         <Route path="accounts/:id" element={<AccountDetailPage />} />
         <Route path="accounts/:id/edit" element={<AccountFormPage />} />
         <Route path="requirements" element={<RequirementsListPage />} />
-<<<<<<< Updated upstream
         <Route path="requirements/new" element={<RequirementFormPage />} />
         <Route path="requirements/:id/edit" element={<RequirementFormPage />} />
         <Route path="requirements/:id/board" element={<RequirementKanbanPage />} />
-=======
->>>>>>> Stashed changes
         <Route path="requirements/:id" element={<RequirementDetailPage />} />
         <Route path="profiles" element={<ProfilesListPage />} />
         <Route path="profiles/new" element={<ProfileFormPage />} />
         <Route path="profiles/:id" element={<ProfileDetailPage />} />
         <Route path="profiles/:id/edit" element={<ProfileFormPage />} />
         <Route path="submissions" element={<SubmissionsListPage />} />
-<<<<<<< Updated upstream
         <Route path="submissions/new" element={<SubmissionCreatePage />} />
-=======
->>>>>>> Stashed changes
         <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UsersPage />} />

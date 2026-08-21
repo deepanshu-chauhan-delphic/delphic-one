@@ -21,31 +21,24 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 ## Ticket status snapshot (Aug 21)
 
-<<<<<<< Updated upstream
-### Done (16)
-
-| Ticket | Name |
-|---|---|
-| RD-103 | Job Requirement detail + seat stage controls + assignees |
-| RD-104 | Add/Edit Job Requirement + status + Add seat |
-| RD-107 | Submission detail page |
-| RD-108 | Put candidate forward (create submission) |
-| RD-111 | Submission stage pipeline buttons |
-| RD-112 | Kanban board for one job |
-=======
-### Done (18)
+### Done (25)
 
 | Ticket | Name |
 |---|---|
 | RD-101 | Client/Vendor detail page + stage move |
 | RD-102 | Add/Edit Client/Vendor forms |
+| RD-103 | Job Requirement detail + seat stage controls + assignees |
+| RD-104 | Add/Edit Job Requirement + status + Add seat |
 | RD-105 | Candidate detail + Add/Edit + resume upload |
 | RD-106 | Assign recruiter popup + assignment history |
+| RD-107 | Submission detail page |
+| RD-108 | Put candidate forward (create submission) |
 | RD-109 | Reusable Notes + Files components |
-| RD-110 | Drop Notes/Files on all four detail pages |
+| RD-110 | Drop Notes/Files on detail pages (Account + Candidate; Job/Submission follow-up) |
+| RD-111 | Submission stage pipeline buttons |
+| RD-112 | Kanban board for one job |
 | RD-113 | Real role dashboard (widgets) |
 | RD-115 | Spec UI walkthrough + Jira-like UX check |
->>>>>>> Stashed changes
 | RD-117 | Stage-machine automated tests |
 | RD-118 | Auth + locking automated tests |
 | RD-123 | Stuck leads / stuck requirements on dashboard (API) |
@@ -60,41 +53,16 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 
-<<<<<<< Updated upstream
-### Open (16)
+### Open (7)
 
 | Ticket | Name |
 |---|---|
-| RD-101 | Client/Vendor detail page + stage move |
-| RD-102 | Add/Edit Client/Vendor forms |
-| RD-105 | Candidate detail + Add/Edit + resume upload |
-| RD-106 | Assign recruiter popup + assignment history |
-| RD-109 | Reusable Notes + Files components |
-| RD-110 | Drop Notes/Files on all four detail pages |
-| RD-113 | Real role dashboard (widgets) |
-=======
-### Open (14)
-
-| Ticket | Name |
-|---|---|
-| RD-103 | Job Requirement detail + seat stage controls |
-| RD-104 | Add Job Requirement + status + Add seat |
-| RD-107 | Submission detail page |
-| RD-108 | Put candidate forward (create submission) |
-| RD-111 | Submission stage pipeline buttons |
-| RD-112 | Kanban board by stage |
->>>>>>> Stashed changes
 | RD-114 | Reports tables/charts + date range + export UX |
 | RD-116 | Linter |
 | RD-119 | Full E2E click-through (all roles) |
 | RD-120 | CI Docker / compose smoke |
 | RD-121 | Live deploy story (Docker vs PM2) |
 | RD-122 | Deploy day |
-<<<<<<< Updated upstream
-| RD-127 | Unlock UI (admin) |
-=======
-| RD-125 | Interview rounds UI (internal + client + feedback) |
->>>>>>> Stashed changes
 | RD-128 | Change password UI |
 
 ---
@@ -103,53 +71,30 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 
 | Ticket | Owner | What to build |
 |---|---|---|
-<<<<<<< Updated upstream
-| RD-101 | Dev A | Full detail page for one Client/Vendor — all their info, current status, stage history, a button to move them to the next stage (popup for reason / meeting fields when required) |
-| RD-102 | Dev A | "Add new Client/Vendor" and "Edit" forms (company, POC, vendor/client-specific fields) |
-| RD-103 | Dev B | ~~Full detail page for one Job Requirement — info panels, **seats table with per-seat stage controls** (Open → Interviewing → Offer → BGV → Closed/Dropped, including `joined_at` when closing), who's assigned~~ **DONE (Aug 21)** — `/requirements/:id` |
-| RD-104 | Dev B | ~~"Add new Job Requirement" form, requirement status button (Open → In Progress → On Hold → Closed/Dropped), and **Add seat**~~ **DONE (Aug 21)** — `/requirements/new`, `/:id/edit`, status + add-seat on detail |
-=======
 | RD-101 | Dev A | Full detail page for one Client/Vendor — all their info, current status, stage history, a button to move them to the next stage (popup for reason / meeting fields when required) **DONE (Aug 21)** |
 | RD-102 | Dev A | "Add new Client/Vendor" and "Edit" forms (company, POC, vendor/client-specific fields) **DONE (Aug 21)** |
-| RD-103 | Dev B | Full detail page for one Job Requirement — info panels, **seats table with per-seat stage controls** (Open → Interviewing → Offer → BGV → Closed/Dropped, including `joined_at` when closing), who's assigned |
-| RD-104 | Dev B | "Add new Job Requirement" form, requirement status button (Open → In Progress → On Hold → Closed/Dropped), and **Add seat** |
->>>>>>> Stashed changes
+| RD-103 | Dev B | ~~Full detail page for one Job Requirement — info panels, **seats table with per-seat stage controls** (Open → Interviewing → Offer → BGV → Closed/Dropped, including `joined_at` when closing), who's assigned~~ **DONE (Aug 21)** — `/requirements/:id` |
+| RD-104 | Dev B | ~~"Add new Job Requirement" form, requirement status button (Open → In Progress → On Hold → Closed/Dropped), and **Add seat**~~ **DONE (Aug 21)** — `/requirements/new`, `/:id/edit`, status + add-seat on detail |
 
 ## Day 2 — Sat Aug 23 — Candidates & putting them forward
 
 | Ticket | Owner | What to build |
 |---|---|---|
-<<<<<<< Updated upstream
-| RD-105 | Dev A | Candidate detail page and "Add/Edit Candidate" form, including uploading a resume (documents API) |
-| RD-106 | Dev A | Popup for assigning a recruiter to a job, plus assignment history (assign / unassign) |
-| RD-107 | Dev B | ~~Submission detail page — candidate, job/seat, stage stepper, commercials/margin, BGV fields, history~~ **DONE (Aug 21)** — `/submissions/:id` |
-| RD-108 | Dev B | ~~"Put a candidate forward for a job" flow — pick candidate + seat, enter rates, live margin~~ **DONE (Aug 21)** — `/submissions/new` |
-=======
 | RD-105 | Dev A | Candidate detail page and "Add/Edit Candidate" form, including uploading a resume (documents API) **DONE (Aug 21)** |
 | RD-106 | Dev A | Popup for assigning a recruiter to a job, plus assignment history (assign / unassign) **DONE (Aug 21)** |
-| RD-107 | Dev B | Submission detail page — candidate, job/seat, stage stepper, commercials/margin, BGV fields, history |
-| RD-108 | Dev B | "Put a candidate forward for a job" flow — pick candidate + seat, enter rates, live margin |
->>>>>>> Stashed changes
+| RD-107 | Dev B | ~~Submission detail page — candidate, job/seat, stage stepper, commercials/margin, BGV fields, history~~ **DONE (Aug 21)** — `/submissions/:id` |
+| RD-108 | Dev B | ~~"Put a candidate forward for a job" flow — pick candidate + seat, enter rates, live margin~~ **DONE (Aug 21)** — `/submissions/new` |
 
 ## Day 3 — Sun Aug 24 — Moving people through the pipeline
 
 | Ticket | Owner | What to build |
 |---|---|---|
-<<<<<<< Updated upstream
-| RD-109 | Dev A | One reusable "Notes" (comments) box and "Files" (documents) uploader |
-| RD-110 | Dev A | Drop Notes + Files onto all four detail pages (Client, Job, Candidate, Submission) |
+| RD-109 | Dev A | One reusable "Notes" (comments) box and "Files" (documents) uploader **DONE (Aug 21)** |
+| RD-110 | Dev A | Drop Notes + Files onto detail pages (Client, Candidate done; confirm Job + Submission) **DONE (Aug 21)** |
 | RD-111 | Dev B | ~~Submission stage buttons through the full pipeline (`sourced` → … → closed), with reason popups for backout/rejection~~ **DONE (Aug 21)** |
 | RD-125 | Dev B | ~~**Interview rounds UI** on the submission detail page~~ **DONE (Aug 21)** — add/edit internal + client rounds |
 | RD-132 | Dev B | ~~Interview feedback API + richer interview/closure report metrics~~ **DONE (Aug 21)** — feedback/rating on create+update; recruiter/sales reports include interviews done, by type/result, feedback coverage, avg rating, turnaround days, closures |
 | RD-112 | Dev B | ~~Visual board (like Trello) showing all candidates for one job, grouped by stage~~ **DONE (Aug 21)** — `/requirements/:id/board` |
-=======
-| RD-109 | Dev A | One reusable "Notes" (comments) box and "Files" (documents) uploader **DONE (Aug 21)** |
-| RD-110 | Dev A | Drop Notes + Files onto all four detail pages (Client, Job, Candidate, Submission) **DONE (Aug 21)** |
-| RD-111 | Dev B | Submission stage buttons through the full pipeline (`sourced` → `internal_screening` → `submitted_to_client` → interview → offer → BGV → closed), with reason popups for backout/rejection |
-| RD-125 | Dev B | **Interview rounds UI** on the submission detail page: add/edit rounds for **recruiter internal interviews** (`round_type: internal`) and client rounds — schedule, interviewer, **feedback + rating**, result. Backend already accepts feedback on create and PATCH. |
-| RD-132 | Dev B | Interview feedback API + richer interview/closure report metrics **DONE (Aug 21)** — feedback/rating on create+update; recruiter/sales reports include interviews done, by type/result, feedback coverage, avg rating, turnaround days, closures |
-| RD-112 | Dev B | Visual board (like Trello) showing all candidates for one job, grouped by stage |
->>>>>>> Stashed changes
 
 ## Day 4 — Mon Aug 25 — Dashboard & Reports that are actually useful
 
@@ -195,26 +140,15 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 
 | Area | Backend | Frontend ticket(s) |
 |---|---|---|
-<<<<<<< Updated upstream
-| Accounts CRUD + stages | Done | RD-101, RD-102 |
-| Requirements + seats + assign | Done | **RD-103 DONE**, **RD-104 DONE**, RD-106 |
-| Profiles + resume upload | Done | RD-105, RD-109/110 |
+| Accounts CRUD + stages | Done | **RD-101, RD-102 DONE** |
+| Requirements + seats + assign | Done | **RD-103 DONE**, **RD-104 DONE**, **RD-106 DONE** |
+| Profiles + resume upload | Done | **RD-105 DONE**; resume via RD-109 FilesPanel |
 | Submissions + margin + stages | Done | **RD-107/108/111 DONE** |
 | Interview rounds (incl. **internal** + feedback) | Done | **RD-125 DONE** |
 | Recruiter interview/closure report metrics | Done (RD-132) | RD-114 charts |
-| Comments + documents | Done (split Aug 21) | RD-109, RD-110 |
+| Comments + documents | Done (split Aug 21) | **RD-109 / RD-110 DONE** (Job/Submission panels follow-up) |
 | Kanban by stage | Done | **RD-112 DONE** (`/requirements/:id/board`) |
-| Dashboard stuck + role scope | Done (RD-123/129) | RD-113 |
-=======
-| Accounts CRUD + stages | Done | **RD-101, RD-102 DONE** |
-| Requirements + seats + assign | Done | RD-103, RD-104, **RD-106 DONE** |
-| Profiles + resume upload | Done | **RD-105 DONE**; resume via RD-109 FilesPanel |
-| Submissions + margin + stages | Done | RD-107, RD-108, RD-111 |
-| Interview rounds (incl. **internal** + feedback) | Done (API; feedback on create/PATCH) | **RD-125** UI |
-| Recruiter interview/closure report metrics | Done (RD-132) | RD-114 charts |
-| Comments + documents | Done (split Aug 21) | **RD-109 / RD-110 DONE** |
 | Dashboard stuck + role scope | Done (RD-123/129) | **RD-113 DONE** |
->>>>>>> Stashed changes
 | Report avg days + export API | Done (RD-124) | RD-114 |
 | Admin unlock API | Done | **RD-127 DONE** |
 | Users admin API | Done | **RD-126 DONE** |
