@@ -2,6 +2,10 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-21 — Merged `origin/dev` into local `dev-deep` (no conflicts)
+
+Merged RD-116 ESLint + RD-120 Docker compose CI smoke (`ef67c7d` / `d0feab9`) into `dev-deep` on top of the ChangePasswordModal import fix (`d247b82`). Merge commit `7c4606e`. No conflicts.
+
 ## 2026-08-21 — Docs reorganized by function
 
 Moved markdown under `docs/` into folders and updated cross-links + [AGENTS.md](../AGENTS.md) index:
