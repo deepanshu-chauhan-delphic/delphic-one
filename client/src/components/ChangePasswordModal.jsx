@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import apiClient from '../../lib/apiClient';
-import Modal from '../ui/Modal.jsx';
+import apiClient from '../lib/apiClient.js';
+import Modal from './ui/Modal.jsx';
 
 export default function ChangePasswordModal({ open, onClose }) {
   const [currentPassword, setCurrentPassword] = useState('');
