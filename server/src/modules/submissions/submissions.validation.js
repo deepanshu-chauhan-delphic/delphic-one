@@ -65,7 +65,7 @@ const listQuerySchema = z.object({
 const interviewRoundCreateSchema = z.object({
   round_type: z.enum(['internal', 'client_l1', 'client_l2', 'client_hr', 'client_final']),
   round_name: z.string().optional(),
-  scheduled_at: z.string().optional(),
+  scheduled_at: z.string().min(1, 'Interview date & time is required'),
   duration_minutes: z.number().int().optional(),
   interviewer_name: z.string().optional(),
   interviewer_email: z.string().email().optional().or(z.literal('')),

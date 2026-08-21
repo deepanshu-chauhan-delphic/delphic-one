@@ -12,6 +12,10 @@ export function canCreateProfile(user) {
   return user?.role === 'recruiter' || user?.role === 'admin';
 }
 
+export function canViewProfiles(user) {
+  return user?.role === 'recruiter' || user?.role === 'sales' || user?.role === 'admin';
+}
+
 export function canEditProfile(user) {
   return user?.role === 'recruiter' || user?.role === 'admin';
 }

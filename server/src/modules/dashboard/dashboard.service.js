@@ -102,9 +102,12 @@ async function recentActivity(whereExtra = {}) {
   }));
 }
 
-async function summaryForAdmin() {
+async function summaryForAdmin(department_id) {
   const month = startOfMonth();
   const week = startOfWeek();
+  const salesDept = department_id ? { sales_owner: { department_id } } : {};
+  const ownerDept = department_id ? { owner: { department_id } } : {};
+  const submissionDept = department_id ? { submitted_by_user: { department_id } } : {};
 
   const [
     leads_active,
@@ -122,20 +125,35 @@ async function summaryForAdmin() {
     stuck_requirements,
     recent_activity,
   ] = await Promise.all([
-    prisma.account.count({ where: { type: 'client', stage: 'lead' } }),
-    prisma.account.count({ where: { stage: 'meeting_scheduled' } }),
-    prisma.account.count({ where: { type: 'client', stage: 'active' } }),
-    prisma.account.count({ where: { type: 'vendor', stage: 'active' } }),
-    prisma.requirement.count({ where: { status: 'open' } }),
-    prisma.requirement.count({ where: { status: 'in_progress' } }),
-    prisma.requirement.count({ where: { status: 'closed', closed_at: { gte: month } } }),
-    prisma.submission.count({ where: { stage: { notIn: ['closed', 'rejected', 'backout'] } } }),
-    prisma.interviewRound.count({ where: { scheduled_at: { gte: week } } }),
-    prisma.submission.count({ where: { actual_joining_date: { gte: month } } }),
-    prisma.submission.groupBy({ by: ['stage'], _count: { id: true } }),
-    stuckLeads(),
-    stuckRequirements(),
-    recentActivity(),
+    prisma.account.count({ where: { type: 'client', stage: 'lead', ...ownerDept } }),
+    prisma.account.count({ where: { stage: 'meeting_scheduled', ...ownerDept } }),
+    prisma.account.count({ where: { type: 'client', stage: 'active', ...ownerDept } }),
+    prisma.account.count({ where: { type: 'vendor', stage: 'active', ...ownerDept } }),
+    prisma.requirement.count({ where: { status: 'open', ...salesDept } }),
+    prisma.requirement.count({ where: { status: 'in_progress', ...salesDept } }),
+    prisma.requirement.count({ where: { status: 'closed', closed_at: { gte: month }, ...salesDept } }),
+    prisma.submission.count({
+      where: { stage: { notIn: ['closed', 'rejected', 'backout'] }, ...submissionDept },
+    }),
+    prisma.interviewRound.count({
+      where: {
+        scheduled_at: { gte: week },
+        ...(department_id ? { submission: { submitted_by_user: { department_id } } } : {}),
+      },
+    }),
+    prisma.submission.count({
+      where: { actual_joining_date: { gte: month }, ...submissionDept },
+    }),
+    prisma.submission.groupBy({
+      by: ['stage'],
+      where: submissionDept,
+      _count: { id: true },
+    }),
+    stuckLeads(ownerDept),
+    stuckRequirements(salesDept),
+    recentActivity(
+      department_id ? { changed_by_user: { department_id } } : {}
+    ),
   ]);
 
   return {
@@ -338,12 +356,12 @@ async function summaryForRecruiter(userId) {
   };
 }
 
-async function getSummary(user) {
-  if (user.role === 'admin') return summaryForAdmin();
+async function getSummary(user, { department_id } = {}) {
+  if (user.role === 'admin') return summaryForAdmin(department_id);
   if (user.role === 'bda') return summaryForBda(user.id);
   if (user.role === 'sales') return summaryForSales(user.id);
   if (user.role === 'recruiter') return summaryForRecruiter(user.id);
-  return summaryForAdmin();
+  return summaryForAdmin(department_id);
 }
 
 module.exports = { getSummary, STUCK_THRESHOLD_DAYS };

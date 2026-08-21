@@ -1,8 +1,20 @@
-export default function StatCard({ label, value }) {
+/**
+ * Dashboard metric card with optional trend hint.
+ */
+export default function StatCard({ label, value, hint, accent = false }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-sm text-tertiary-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-tertiary-900">{value ?? '—'}</div>
+    <div
+      className={`rounded-2xl border p-4 shadow-soft transition-colors ${
+        accent ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white'
+      }`}
+    >
+      <div className={`text-sm ${accent ? 'text-primary-100' : 'text-tertiary-500'}`}>{label}</div>
+      <div className={`mt-1 text-2xl font-semibold ${accent ? 'text-white' : 'text-tertiary-900'}`}>
+        {value ?? '—'}
+      </div>
+      {hint && (
+        <div className={`mt-2 text-xs ${accent ? 'text-primary-100' : 'text-tertiary-400'}`}>{hint}</div>
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ function toOptionalNumber(value) {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export default function SubmissionCreatePage() {
+export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
@@ -113,7 +113,8 @@ export default function SubmissionCreatePage() {
         submission_notes: form.submission_notes.trim() || undefined,
       };
       const { data } = await apiClient.post('/submissions', payload);
-      navigate(`/submissions/${data.data.id}`);
+      if (asPanel && onDone) onDone(data.data.id);
+      else navigate(`/submissions/${data.data.id}`);
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -128,35 +129,44 @@ export default function SubmissionCreatePage() {
   if (!canCreateSubmission(user)) {
     return (
       <div className="space-y-2">
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error || 'Not allowed'}</div>
-        <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
-          ← Back to submissions
-        </Link>
+        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error || 'Not allowed'}</div>
+        {!asPanel && (
+          <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
+            ← Back to submissions
+          </Link>
+        )}
       </div>
     );
   }
 
+  function handleCancel() {
+    if (asPanel && onCancel) onCancel();
+    else navigate('/submissions');
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <Link to="/submissions" className="text-xs text-primary-600 hover:underline">
-          ← Submissions
-        </Link>
-        <h1 className="mt-1 font-heading text-xl font-semibold text-tertiary-900">Put a candidate forward</h1>
-        <p className="mt-1 text-sm text-tertiary-500">Pick a candidate and open seat, enter rates, then submit.</p>
-      </div>
+    <div className={asPanel ? 'space-y-4' : 'mx-auto max-w-3xl space-y-4'}>
+      {!asPanel && (
+        <div>
+          <Link to="/submissions" className="text-xs text-primary-600 hover:underline">
+            ← Submissions
+          </Link>
+          <h1 className="mt-1 font-heading text-xl font-semibold text-tertiary-900">Put a candidate forward</h1>
+          <p className="mt-1 text-sm text-tertiary-500">Pick a candidate and open seat, enter rates, then submit.</p>
+        </div>
+      )}
 
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
+      <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
+        <div className={asPanel ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>
+          <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Candidate *</label>
             <select
               required
               value={form.profile_id}
               onChange={(e) => updateField('profile_id', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             >
               <option value="">Select candidate…</option>
               {profiles.map((p) => (
@@ -168,17 +178,17 @@ export default function SubmissionCreatePage() {
               ))}
             </select>
             {vendorRequired && (
-              <p className="mt-1 text-xs text-amber-700">Vendor candidate — vendor rate is required.</p>
+              <p className="mt-1 text-xs text-warning-700">Vendor candidate — vendor rate is required.</p>
             )}
           </div>
 
-          <div className="sm:col-span-2">
+          <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Job requirement *</label>
             <select
               required
               value={form.requirement_id}
               onChange={(e) => updateField('requirement_id', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             >
               <option value="">Select job…</option>
               {requirements.map((r) => (
@@ -190,14 +200,14 @@ export default function SubmissionCreatePage() {
             </select>
           </div>
 
-          <div className="sm:col-span-2">
+          <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Seat *</label>
             <select
               required
               disabled={!form.requirement_id || loadingSeats}
               value={form.requirement_seat_id}
               onChange={(e) => updateField('requirement_seat_id', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             >
               <option value="">{loadingSeats ? 'Loading seats…' : 'Select open seat…'}</option>
               {seats.map((s) => (
@@ -208,7 +218,7 @@ export default function SubmissionCreatePage() {
               ))}
             </select>
             {form.requirement_id && !loadingSeats && seats.length === 0 && (
-              <p className="mt-1 text-xs text-amber-700">No open seats on this requirement.</p>
+              <p className="mt-1 text-xs text-warning-700">No open seats on this requirement.</p>
             )}
           </div>
 
@@ -220,7 +230,7 @@ export default function SubmissionCreatePage() {
               step="0.01"
               value={form.proposed_rate}
               onChange={(e) => updateField('proposed_rate', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
           <div>
@@ -229,7 +239,7 @@ export default function SubmissionCreatePage() {
               <select
                 value={form.proposed_rate_type}
                 onChange={(e) => updateField('proposed_rate_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className="w-full rounded-xl border px-3 py-2 text-sm"
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -240,7 +250,7 @@ export default function SubmissionCreatePage() {
               <select
                 value={form.proposed_rate_currency}
                 onChange={(e) => updateField('proposed_rate_currency', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className="w-full rounded-xl border px-3 py-2 text-sm"
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -262,7 +272,7 @@ export default function SubmissionCreatePage() {
               required={vendorRequired}
               value={form.vendor_rate}
               onChange={(e) => updateField('vendor_rate', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
           <div>
@@ -271,7 +281,7 @@ export default function SubmissionCreatePage() {
               <select
                 value={form.vendor_rate_type}
                 onChange={(e) => updateField('vendor_rate_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className="w-full rounded-xl border px-3 py-2 text-sm"
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -282,7 +292,7 @@ export default function SubmissionCreatePage() {
               <select
                 value={form.vendor_rate_currency}
                 onChange={(e) => updateField('vendor_rate_currency', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className="w-full rounded-xl border px-3 py-2 text-sm"
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -293,7 +303,7 @@ export default function SubmissionCreatePage() {
             </div>
           </div>
 
-          <div className="sm:col-span-2 rounded-md border border-primary-100 bg-primary-50 px-3 py-3 text-sm">
+          <div className={`${asPanel ? '' : 'sm:col-span-2 '}rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 text-sm`}>
             <p className="font-medium text-primary-900">Live margin</p>
             {liveMargin.margin == null ? (
               <p className="mt-1 text-primary-700">Enter matching proposed + vendor rates (same currency) to preview.</p>
@@ -312,16 +322,16 @@ export default function SubmissionCreatePage() {
               max={10}
               value={form.relevancy_score}
               onChange={(e) => updateField('relevancy_score', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
-          <div className="sm:col-span-2">
+          <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Notes</label>
             <textarea
               rows={3}
               value={form.submission_notes}
               onChange={(e) => updateField('submission_notes', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
         </div>
@@ -330,9 +340,9 @@ export default function SubmissionCreatePage() {
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Submitting…' : 'Create submission'}
           </button>
-          <Link to="/submissions" className="btn-secondary">
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
             Cancel
-          </Link>
+          </button>
         </div>
       </form>
     </div>

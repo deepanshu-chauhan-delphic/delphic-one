@@ -1055,11 +1055,14 @@ Request:
 {
   round_type: "internal" | "client_l1" | "client_l2" | "client_hr" | "client_final" (required),
   round_name: string,
-  scheduled_at: datetime,
+  scheduled_at: datetime (required — interview date & time when the round is open),
   duration_minutes: number,
   interviewer_name: string,
   interviewer_email: string,
-  meeting_link: string
+  meeting_link: string,
+  result: "pending" | "pass" | "fail" | "no_show" | "rescheduled",
+  feedback: string,
+  rating: number
 }
 
 Side effect:
@@ -1067,7 +1070,10 @@ Side effect:
   - If submission.stage = "submitted_to_client", auto-advances to "interview_scheduled"
 
 Response 201:
-{ success: true, data: InterviewRoundObject }
+  { success: true, data: InterviewRoundObject }
+
+Response 422:
+  Missing or empty scheduled_at
 ```
 
 ### PATCH /interview-rounds/:id
@@ -1282,13 +1288,49 @@ Response 200:
 }
 ```
 
+### GET /reports/bda-performance
+**Roles:** admin
+
+Lead/account funnel grouped by BDA. Accounts are owned by BDA (`owner_id`), not sales.
+
+```
+Query params:
+  ?date_from=date (required)
+  &date_to=date (required)
+  &bda_id=uuid
+  &department_id=uuid
+
+Response 200:
+{
+  success: true,
+  data: [
+    {
+      bda: { id: uuid, name: string },
+      leads_created: number,
+      leads_in_meeting: number,
+      leads_converted_active: number,
+      leads_dropped: number,
+      conversion_rate_percentage: number,
+      vendors_created: number,
+      clients_active: number,
+      vendors_active: number,
+      stuck_leads_7d: number
+    }
+  ]
+}
+```
+
 ### GET /reports/sales-performance
 **Roles:** admin
+
+Requirement and joining metrics grouped by sales owner (`sales_owner_id`). Does **not** use account lead ownership (that is BDA).
+
 ```
 Query params:
   ?date_from=date (required)
   &date_to=date (required)
   &sales_id=uuid
+  &department_id=uuid
 
 Response 200:
 {
@@ -1296,19 +1338,17 @@ Response 200:
   data: [
     {
       sales_person: { id: uuid, name: string },
-      leads_created: number,
-      leads_converted_active: number,
-      leads_dropped: number,
-      conversion_rate_percentage: number,
       requirements_opened: number,
       requirements_closed: number,
       requirements_dropped: number,
       requirements_in_progress: number,
       avg_closure_days: number | null,
-      total_budget_pipeline: number,       // sum of budget_max on open requirements
-      total_closed_revenue: number,        // sum of final_agreed_rate on closed submissions
+      total_budget_pipeline: number,
+      total_closed_revenue: number,
       total_margin_generated: number,
-      clients_active: number
+      clients_active: number,
+      closures_count: number
+      // plus interview summary fields when present
     }
   ]
 }
@@ -1430,7 +1470,7 @@ Response 200:
 ```
 Query params:
   ?type=xlsx|pdf (required)
-  &report=recruiter-performance|sales-performance|vendor-performance|aging|closure (required)
+  &report=recruiter-performance|bda-performance|sales-performance|vendor-performance|aging|closure (required)
   &date_from=date
   &date_to=date
   &... (same filters as the corresponding report endpoint)

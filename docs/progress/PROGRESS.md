@@ -2,6 +2,26 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-21 — UI drawers, pipeline KPIs, BDA/Sales reports (docs updated)
+
+**UX**
+
+- Shared `DataTable` + `ListToolbar` on list pages; row click opens RHS peek drawer with actions (not full-page navigation).
+- Create flows (candidate, put-forward, account, requirement, user) and assign/interview forms use narrow scrollable RHS `Drawer` with tone colors (`create` / `edit` / `danger` / `info`).
+- Dashboard: real KPI numbers only; submission pipeline promoted and always visible to admin.
+- Interview rounds: RHS drawer; **interview date & time required** on create (API Zod + UI).
+
+**Reports**
+
+- Added admin **BDA performance** (`GET /reports/bda-performance`) — lead funnel by account `owner_id`.
+- **Sales performance** measures requirements/joinings/margin by `sales_owner_id` (no longer treats sales as lead owners).
+
+**Docs:** [UI-REDESIGN.md](../ui/UI-REDESIGN.md), [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md), [TESTING-RD-111-125-112.md](../testing/TESTING-RD-111-125-112.md), [AGENTS.md](../AGENTS.md), API spec report section.
+
+## 2026-08-21 — Hide Profiles (and Reports) from BDA nav
+
+BDA has no API access to `/profiles` (403 Insufficient role) but the sidebar still linked to Candidates and showed an empty error page. Nav now role-filters Profiles + Reports; profile routes redirect to home via `RoleRoute` + `canViewProfiles`.
+
 ## 2026-08-21 — Merged `origin/dev` into local `dev-deep` (no conflicts)
 
 Merged RD-116 ESLint + RD-120 Docker compose CI smoke (`ef67c7d` / `d0feab9`) into `dev-deep` on top of the ChangePasswordModal import fix (`d247b82`). Merge commit `7c4606e`. No conflicts.

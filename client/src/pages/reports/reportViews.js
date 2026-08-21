@@ -3,8 +3,9 @@
  */
 
 export const ALL_REPORTS = [
-  { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
+  { key: 'bda-performance', label: 'BDA performance', roles: ['admin'] },
   { key: 'sales-performance', label: 'Sales performance', roles: ['admin'] },
+  { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
   { key: 'vendor-performance', label: 'Vendor performance', roles: ['admin', 'sales'] },
   { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'] },
   { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'] },
@@ -34,6 +35,20 @@ export function personName(row, key) {
 }
 
 export function columnsForReport(reportKey) {
+  if (reportKey === 'bda-performance') {
+    return [
+      { key: 'name', header: 'BDA', render: (r) => personName(r, 'bda') },
+      { key: 'leads_created', header: 'Leads' },
+      { key: 'leads_in_meeting', header: 'In meeting' },
+      { key: 'leads_converted_active', header: 'Converted' },
+      { key: 'leads_dropped', header: 'Dropped' },
+      { key: 'conversion_rate_percentage', header: 'Conv %', render: (r) => cell(r.conversion_rate_percentage) },
+      { key: 'vendors_created', header: 'Vendors added' },
+      { key: 'clients_active', header: 'Active clients' },
+      { key: 'vendors_active', header: 'Active vendors' },
+      { key: 'stuck_leads_7d', header: 'Stuck 7d+' },
+    ];
+  }
   if (reportKey === 'recruiter-performance') {
     return [
       { key: 'name', header: 'Recruiter', render: (r) => personName(r, 'recruiter') },
@@ -50,14 +65,14 @@ export function columnsForReport(reportKey) {
   if (reportKey === 'sales-performance') {
     return [
       { key: 'name', header: 'Sales', render: (r) => personName(r, 'sales_person') },
-      { key: 'leads_created', header: 'Leads' },
-      { key: 'conversion_rate_percentage', header: 'Conv %', render: (r) => cell(r.conversion_rate_percentage) },
-      { key: 'requirements_opened', header: 'Reqs' },
+      { key: 'requirements_opened', header: 'Reqs opened' },
+      { key: 'requirements_in_progress', header: 'In progress' },
       { key: 'requirements_closed', header: 'Req closed' },
       { key: 'closures_count', header: 'Joinings' },
       { key: 'total_closed_revenue', header: 'Revenue', render: (r) => cell(r.total_closed_revenue) },
       { key: 'total_margin_generated', header: 'Margin', render: (r) => cell(r.total_margin_generated) },
       { key: 'clients_active', header: 'Active clients' },
+      { key: 'avg_closure_days', header: 'Avg close d', render: (r) => cell(r.avg_closure_days) },
     ];
   }
   if (reportKey === 'vendor-performance') {
@@ -90,7 +105,7 @@ export function tableRowsForReport(reportKey, data) {
   if (reportKey === 'aging') return [];
   if (!Array.isArray(data)) return [];
   return data.map((row, index) => ({
-    id: row.recruiter?.id || row.sales_person?.id || row.vendor?.id || row.group_label || String(index),
+    id: row.recruiter?.id || row.sales_person?.id || row.bda?.id || row.vendor?.id || row.group_label || String(index),
     ...row,
   }));
 }
@@ -158,6 +173,15 @@ export function chartDataForReport(reportKey, data) {
   }
   if (!Array.isArray(data) || data.length === 0) return [];
 
+  if (reportKey === 'bda-performance') {
+    return data.map((r) => ({
+      label: r.bda?.name || 'BDA',
+      leads: r.leads_created || 0,
+      meeting: r.leads_in_meeting || 0,
+      converted: r.leads_converted_active || 0,
+      stuck: r.stuck_leads_7d || 0,
+    }));
+  }
   if (reportKey === 'recruiter-performance') {
     return data.map((r) => ({
       label: r.recruiter?.name || 'Recruiter',
@@ -170,8 +194,8 @@ export function chartDataForReport(reportKey, data) {
   if (reportKey === 'sales-performance') {
     return data.map((r) => ({
       label: r.sales_person?.name || 'Sales',
-      leads: r.leads_created || 0,
       requirements: r.requirements_opened || 0,
+      closed: r.requirements_closed || 0,
       closures: r.closures_count || 0,
       margin: Number(r.total_margin_generated || 0),
     }));
@@ -196,34 +220,48 @@ export function chartDataForReport(reportKey, data) {
   return [];
 }
 
+export function chartTypeForReport(reportKey) {
+  if (reportKey === 'aging') return 'pie';
+  if (reportKey === 'closure') return 'line';
+  return 'bar';
+}
+
 export function chartBarsForReport(reportKey) {
-  if (reportKey === 'aging') return [{ dataKey: 'value', name: 'Count', fill: '#0052CC' }];
+  if (reportKey === 'aging') return [{ dataKey: 'value', name: 'Count', fill: '#3763f4' }];
+  if (reportKey === 'bda-performance') {
+    return [
+      { dataKey: 'leads', name: 'Leads', fill: '#3763f4' },
+      { dataKey: 'meeting', name: 'In meeting', fill: '#0ea5e9' },
+      { dataKey: 'converted', name: 'Converted', fill: '#16a34a' },
+      { dataKey: 'stuck', name: 'Stuck 7d+', fill: '#d97706' },
+    ];
+  }
   if (reportKey === 'recruiter-performance') {
     return [
-      { dataKey: 'sourced', name: 'Sourced', fill: '#0052CC' },
-      { dataKey: 'submissions', name: 'Subs', fill: '#2684FF' },
-      { dataKey: 'closed', name: 'Closed', fill: '#36B37E' },
-      { dataKey: 'interviews', name: 'Interviews', fill: '#FFAB00' },
+      { dataKey: 'sourced', name: 'Sourced', fill: '#3763f4' },
+      { dataKey: 'submissions', name: 'Subs', fill: '#5a87fa' },
+      { dataKey: 'closed', name: 'Closed', fill: '#16a34a' },
+      { dataKey: 'interviews', name: 'Interviews', fill: '#d97706' },
     ];
   }
   if (reportKey === 'sales-performance') {
     return [
-      { dataKey: 'leads', name: 'Leads', fill: '#0052CC' },
-      { dataKey: 'requirements', name: 'Reqs', fill: '#2684FF' },
-      { dataKey: 'closures', name: 'Joinings', fill: '#36B37E' },
+      { dataKey: 'requirements', name: 'Reqs opened', fill: '#3763f4' },
+      { dataKey: 'closed', name: 'Req closed', fill: '#5a87fa' },
+      { dataKey: 'closures', name: 'Joinings', fill: '#16a34a' },
     ];
   }
   if (reportKey === 'vendor-performance') {
     return [
-      { dataKey: 'submitted', name: 'Submitted', fill: '#0052CC' },
-      { dataKey: 'interviewed', name: 'Interviewed', fill: '#2684FF' },
-      { dataKey: 'closed', name: 'Closed', fill: '#36B37E' },
+      { dataKey: 'submitted', name: 'Submitted', fill: '#3763f4' },
+      { dataKey: 'interviewed', name: 'Interviewed', fill: '#5a87fa' },
+      { dataKey: 'closed', name: 'Closed', fill: '#16a34a' },
     ];
   }
   if (reportKey === 'closure') {
     return [
-      { dataKey: 'closures', name: 'Closures', fill: '#0052CC' },
-      { dataKey: 'margin', name: 'Margin', fill: '#36B37E' },
+      { dataKey: 'closures', name: 'Closures', fill: '#3763f4' },
+      { dataKey: 'margin', name: 'Margin', fill: '#16a34a' },
     ];
   }
   return [];

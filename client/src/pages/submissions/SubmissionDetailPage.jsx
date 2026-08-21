@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
-import Modal from '../../components/ui/Modal.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
@@ -650,8 +650,10 @@ export default function SubmissionDetailPage() {
         </ul>
       </section>
 
-      <Modal
+      <Drawer
         open={Boolean(stageModal)}
+        size="sm"
+        tone={requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal) ? 'danger' : 'edit'}
         title={`Move to ${stageModal?.replace(/_/g, ' ') || ''}`}
         onClose={() => !busy && setStageModal(null)}
         footer={
@@ -661,7 +663,7 @@ export default function SubmissionDetailPage() {
             </button>
             <button
               type="button"
-              className="btn-primary"
+              className={requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal) ? 'btn-danger' : 'btn-primary'}
               disabled={
                 busy ||
                 ((requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal)) && !stageReason.trim())
@@ -682,7 +684,7 @@ export default function SubmissionDetailPage() {
               rows={3}
               value={stageReason}
               onChange={(e) => setStageReason(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
         ) : (
@@ -690,7 +692,7 @@ export default function SubmissionDetailPage() {
             Confirm moving this submission to {stageModal?.replace(/_/g, ' ')}.
           </p>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }

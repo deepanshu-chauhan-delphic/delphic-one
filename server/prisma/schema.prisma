@@ -192,9 +192,11 @@ model User {
   role          UserRole
   phone         String?
   active        Boolean  @default(true)
+  department_id String?  @db.Uuid
   created_at    DateTime @default(now())
   updated_at    DateTime @default(now()) @updatedAt
 
+  department            Department?            @relation(fields: [department_id], references: [id])
   owned_accounts        Account[]              @relation("AccountOwner")
   sales_requirements     Requirement[]          @relation("RequirementSalesOwner")
   assignments            RequirementAssignment[] @relation("AssignmentUser")
@@ -205,7 +207,19 @@ model User {
   documents_uploaded     Document[]
   comments               Comment[]
 
+  @@index([department_id])
   @@map("users")
+}
+
+model Department {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @unique
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  users User[]
+
+  @@map("departments")
 }
 
 model Account {

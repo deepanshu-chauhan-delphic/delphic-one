@@ -1,6 +1,7 @@
 const { z } = require('zod');
 
 const roleEnum = z.enum(['bda', 'sales', 'recruiter', 'admin']);
+const optionalUuid = z.string().uuid().nullable().optional();
 
 const listQuerySchema = z.object({
   role: roleEnum.optional(),
@@ -9,6 +10,7 @@ const listQuerySchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   search: z.string().optional(),
+  department_id: z.string().uuid().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -19,6 +21,7 @@ const createSchema = z.object({
   password: z.string().min(8),
   role: roleEnum,
   phone: z.string().nullable().optional(),
+  department_id: optionalUuid,
 });
 
 const updateSchema = z.object({
@@ -27,6 +30,7 @@ const updateSchema = z.object({
   role: roleEnum.optional(),
   phone: z.string().nullable().optional(),
   active: z.boolean().optional(),
+  department_id: optionalUuid,
 });
 
 module.exports = { listQuerySchema, createSchema, updateSchema };

@@ -27,6 +27,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 ### UI
 
 - [UI-UX-JIRA.md](ui/UI-UX-JIRA.md) — product must feel like Jira (dense filters + list). Reference: [jira-like-dashboard-reference.png](ui/references/jira-like-dashboard-reference.png)
+- [UI-REDESIGN.md](ui/UI-REDESIGN.md) — drawers, list peeks, pipeline KPIs, reports tabs, interview date
 - [RD-115-SPEC-WALKTHROUGH.md](ui/RD-115-SPEC-WALKTHROUGH.md)
 
 ### Testing
@@ -35,8 +36,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 - [TESTING-RD-103-104.md](testing/TESTING-RD-103-104.md) — requirements UI
 - [TESTING-RD-107-108.md](testing/TESTING-RD-107-108.md) — submissions UI
 - [TESTING-RD-111-125-112.md](testing/TESTING-RD-111-125-112.md) — pipeline / interviews / kanban
-- [TESTING-RD-114-128.md](testing/TESTING-RD-114-128.md) — reports UI + change password
-- [TESTING-RD-114-128.md](testing/TESTING-RD-114-128.md) — reports UI + change password
+- [TESTING-RD-114-128.md](testing/TESTING-RD-114-128.md) — reports UI (incl. BDA + Sales) + change password
 
 ### Progress
 
@@ -156,5 +156,10 @@ Zero-dependency structured logger. Full guide: [guides/BACKEND-LOGGING.md](guide
 - Keep [progress/PROGRESS.md](progress/PROGRESS.md) and [progress/TODO.md](progress/TODO.md) up to date as work lands — check them at the start of a session and update them at the end.
 - Prefer `logger` over bare `console.*` in server code. See [guides/BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md).
 - **Frontend must follow Jira-like UX** ([ui/UI-UX-JIRA.md](ui/UI-UX-JIRA.md)). Dense tables, filter bar, Create, inline status, avatar stacks — not a generic CRUD admin look. Compare list/dashboard work to the reference screenshot before calling UI tickets done.
+- All frontend role checks go through `can()` / `usePermissions()` / `<Can>` in `client/src/lib/permissions.js`. Do not add new scattered `user?.role ===` gates for nav, routes, or panels. See [ui/UI-REDESIGN.md](ui/UI-REDESIGN.md).
+- Product forms (create candidate, put forward, create account/requirement/user, assign recruiters, interview rounds) open in an RHS `Drawer` only — never a page-wide centered modal. List row click opens a peek drawer with actions, not a full-page navigate.
+- Leads are owned by **BDA** (`account.owner_id`); requirements by **Sales** (`sales_owner_id`). Admin reports: `bda-performance` vs `sales-performance` must stay separate.
+- Interview round create requires `scheduled_at` (interview date & time).
+- Keep CSS lean: layout and component structure as Tailwind classNames inline; `global.css` holds only tokens for spacing, typography, font, colors, and hover/button color utilities.
 - Deploy workflow (`.github/workflows/deploy.yml`) is a no-op until `DEPLOY_ENABLED` repo variable + VPS secrets are set — don't assume deploys are live.
 - Initial scaffold is committed and pushed to `main`, `staging`, and `dev` on `github.com/deepanshu-chauhan-delphic/delphic-one` as of 2026-08-20. Migrations have not yet been run against a real PostgreSQL instance — do that before trusting the schema.

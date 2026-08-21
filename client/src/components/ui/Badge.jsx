@@ -33,7 +33,7 @@ const COLOR_MAP = {
 export default function Badge({ value }) {
   const classes = COLOR_MAP[value] || 'bg-tertiary-100 text-tertiary-700';
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${classes}`}>
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${classes}`}>
       {String(value).replace(/_/g, ' ')}
     </span>
   );

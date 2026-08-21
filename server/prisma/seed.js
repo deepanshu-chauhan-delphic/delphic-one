@@ -30,16 +30,53 @@ async function wipeAll() {
   await prisma.requirement.deleteMany();
   await prisma.account.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.department.deleteMany();
 }
 
-async function seedUsers(password_hash) {
+async function seedDepartments() {
+  const sales = await prisma.department.create({ data: { name: 'Sales' } });
+  const delivery = await prisma.department.create({ data: { name: 'Delivery' } });
+  return { sales, delivery };
+}
+
+async function seedUsers(password_hash, departments) {
   await prisma.user.createMany({
     data: [
-      { name: 'Admin User', email: 'admin@delphic.local', password_hash, role: 'admin' },
-      { name: 'Sales One', email: 'sales1@delphic.local', password_hash, role: 'sales' },
-      { name: 'BDA One', email: 'bda1@delphic.local', password_hash, role: 'bda' },
-      { name: 'Recruiter One', email: 'recruiter1@delphic.local', password_hash, role: 'recruiter' },
-      { name: 'Recruiter Two', email: 'recruiter2@delphic.local', password_hash, role: 'recruiter' },
+      {
+        name: 'Admin User',
+        email: 'admin@delphic.local',
+        password_hash,
+        role: 'admin',
+        department_id: departments.sales.id,
+      },
+      {
+        name: 'Sales One',
+        email: 'sales1@delphic.local',
+        password_hash,
+        role: 'sales',
+        department_id: departments.sales.id,
+      },
+      {
+        name: 'BDA One',
+        email: 'bda1@delphic.local',
+        password_hash,
+        role: 'bda',
+        department_id: departments.sales.id,
+      },
+      {
+        name: 'Recruiter One',
+        email: 'recruiter1@delphic.local',
+        password_hash,
+        role: 'recruiter',
+        department_id: departments.delivery.id,
+      },
+      {
+        name: 'Recruiter Two',
+        email: 'recruiter2@delphic.local',
+        password_hash,
+        role: 'recruiter',
+        department_id: departments.delivery.id,
+      },
     ],
   });
 
@@ -788,8 +825,11 @@ async function main() {
   await wipeAll();
 
   const password_hash = await bcrypt.hash('Password123!', 10);
+  console.log('Seeding departments…');
+  const departments = await seedDepartments();
+
   console.log('Seeding users…');
-  const users = await seedUsers(password_hash);
+  const users = await seedUsers(password_hash, departments);
 
   console.log('Seeding accounts…');
   const accounts = await seedAccounts(users);
@@ -804,6 +844,7 @@ async function main() {
   await seedSubmissions(users, reqs, profiles);
 
   const counts = {
+    departments: await prisma.department.count(),
     users: await prisma.user.count(),
     accounts: await prisma.account.count(),
     requirements: await prisma.requirement.count(),

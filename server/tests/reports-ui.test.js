@@ -70,6 +70,33 @@ describe('RD-114 reports JSON for tables/charts', () => {
     );
   });
 
+  test('admin can open bda-performance and sales-performance', async () => {
+    const bda = await createUser({ role: 'bda', email: 'bda-report@test.local' });
+    await createActiveClientAccount(bda.id);
+
+    const bdaRes = await authed(request(app).get('/api/v1/reports/bda-performance'), adminToken).query({
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+    expect(bdaRes.status).toBe(200);
+    expect(Array.isArray(bdaRes.body.data)).toBe(true);
+    expect(bdaRes.body.data.some((r) => r.bda?.id === bda.id)).toBe(true);
+
+    const salesRes = await authed(request(app).get('/api/v1/reports/sales-performance'), adminToken).query({
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+    expect(salesRes.status).toBe(200);
+    expect(Array.isArray(salesRes.body.data)).toBe(true);
+    expect(salesRes.body.data.length).toBeGreaterThan(0);
+    expect(salesRes.body.data[0]).toEqual(
+      expect.objectContaining({
+        sales_person: expect.objectContaining({ id: expect.any(String) }),
+        requirements_opened: expect.any(Number),
+      })
+    );
+  });
+
   test('recruiter cannot open sales-performance', async () => {
     const res = await authed(request(app).get('/api/v1/reports/sales-performance'), recruiterToken).query({
       date_from: dateFrom,

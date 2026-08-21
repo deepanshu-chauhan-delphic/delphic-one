@@ -2,11 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Lean design tokens — spacing, typography, font, colors, hover only.
+   Layout, sizing, and component structure stay in Tailwind classNames. */
+
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  --radius-lg: 1rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
 
   --color-bg: 248 250 252;
   --color-surface: 255 255 255;
@@ -15,7 +25,13 @@
   --color-text-muted: 100 116 139;
 
   --color-primary: 55 99 244;
+  --color-primary-soft: 219 230 254;
   --color-primary-contrast: 255 255 255;
+
+  --color-success: 22 163 74;
+  --color-warning: 217 119 6;
+  --color-danger: 220 38 38;
+  --color-info: 14 165 233;
 }
 
 * {
@@ -30,19 +46,36 @@ body,
 
 body {
   font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
   background-color: rgb(var(--color-bg));
   color: rgb(var(--color-text));
 }
 
-.btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+h1,
+h2,
+h3,
+.font-heading {
+  font-family: var(--font-heading);
 }
+
+/* Color + hover only — sizing/layout via Tailwind on the element */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+}
+
 .btn-primary {
   @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
 }
+
 .btn-secondary {
   @apply btn bg-white text-tertiary-700 border border-tertiary-200 hover:bg-tertiary-50;
 }
+
 .btn-danger {
-  @apply btn bg-red-600 text-white hover:bg-red-700;
+  @apply btn bg-danger-600 text-white hover:bg-danger-700;
+}
+
+.btn-ghost {
+  @apply btn bg-transparent text-tertiary-600 hover:bg-tertiary-100 hover:text-tertiary-900;
 }

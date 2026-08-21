@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import apiClient from '../../lib/apiClient.js';
-import Badge from '../../components/ui/Badge.jsx';
-import Modal from '../../components/ui/Modal.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
 
 const ROUND_TYPES = [
-  { value: 'internal', label: 'Internal (recruiter)' },
-  { value: 'client_l1', label: 'Client L1' },
-  { value: 'client_l2', label: 'Client L2' },
-  { value: 'client_hr', label: 'Client HR' },
-  { value: 'client_final', label: 'Client final' },
+  { value: 'internal', label: 'Internal (recruiter)', color: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { value: 'client_l1', label: 'Client L1', color: 'bg-violet-50 text-violet-800 border-violet-200' },
+  { value: 'client_l2', label: 'Client L2', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { value: 'client_hr', label: 'Client HR', color: 'bg-teal-50 text-teal-800 border-teal-200' },
+  { value: 'client_final', label: 'Client final', color: 'bg-amber-50 text-amber-900 border-amber-200' },
 ];
+
+const RESULT_COLORS = {
+  pending: 'bg-tertiary-100 text-tertiary-700',
+  pass: 'bg-success-50 text-success-700',
+  fail: 'bg-danger-50 text-danger-700',
+  no_show: 'bg-warning-50 text-warning-800',
+  rescheduled: 'bg-sky-50 text-sky-800',
+};
 
 const RESULTS = ['pending', 'pass', 'fail', 'no_show', 'rescheduled'];
 
@@ -55,7 +62,7 @@ function hydrate(round) {
 }
 
 function buildPayload(form) {
-  const payload = {
+  return {
     round_type: form.round_type,
     round_name: form.round_name.trim() || undefined,
     scheduled_at: fromLocalInput(form.scheduled_at),
@@ -67,7 +74,10 @@ function buildPayload(form) {
     feedback: form.feedback.trim() || undefined,
     rating: form.rating === '' ? undefined : Number(form.rating),
   };
-  return payload;
+}
+
+function roundTypeMeta(type) {
+  return ROUND_TYPES.find((t) => t.value === type) || ROUND_TYPES[0];
 }
 
 export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, onChanged }) {
@@ -96,6 +106,10 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
   }
 
   async function save() {
+    if (!form.scheduled_at) {
+      setError('Interview date & time is required.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -116,9 +130,12 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
   }
 
   return (
-    <section className="rounded-lg border bg-white p-4">
+    <section className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 shadow-soft">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-tertiary-800">Interview rounds</h2>
+        <div>
+          <h2 className="font-heading text-sm font-semibold text-sky-900">Interview rounds</h2>
+          <p className="mt-0.5 text-xs text-sky-700/80">Each round needs an interview date when opened.</p>
+        </div>
         {canEdit && (
           <button type="button" className="btn-primary text-xs" onClick={openCreate}>
             + Add round
@@ -127,39 +144,65 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
       </div>
 
       {(rounds || []).length === 0 ? (
-        <p className="mt-2 text-sm text-tertiary-400">No rounds yet. Add an internal screen or client round.</p>
+        <p className="mt-3 text-sm text-tertiary-500">No rounds yet. Add an internal screen or client round with a date.</p>
       ) : (
-        <ul className="mt-3 divide-y text-sm">
-          {rounds.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-              <div>
-                <p className="font-medium text-tertiary-900">
-                  #{r.round_number} {r.round_type?.replace(/_/g, ' ')}
-                  {r.round_name ? ` — ${r.round_name}` : ''}
-                </p>
-                <p className="mt-0.5 text-xs text-tertiary-500">
-                  {r.interviewer_name || 'No interviewer'}
-                  {r.scheduled_at ? ` · ${new Date(r.scheduled_at).toLocaleString()}` : ''}
-                </p>
-                {r.feedback && <p className="mt-1 text-tertiary-600">{r.feedback}</p>}
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge value={r.result || 'pending'} />
-                {r.rating != null && <span className="text-xs text-tertiary-500">★ {r.rating}</span>}
-                {canEdit && (
-                  <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => openEdit(r)}>
-                    Edit
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+        <ul className="mt-3 space-y-2">
+          {rounds.map((r) => {
+            const meta = roundTypeMeta(r.round_type);
+            return (
+              <li
+                key={r.id}
+                className={`rounded-xl border bg-white px-3 py-3 shadow-soft ${meta.color.split(' ').find((c) => c.startsWith('border-')) || 'border-tertiary-100'}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-tertiary-900">
+                      #{r.round_number}{' '}
+                      <span className={`rounded-full border px-2 py-0.5 text-xs ${meta.color}`}>
+                        {meta.label}
+                      </span>
+                      {r.round_name ? ` — ${r.round_name}` : ''}
+                    </p>
+                    <p className="mt-1.5 text-xs text-tertiary-600">
+                      <span className="font-medium text-sky-800">Interview:</span>{' '}
+                      {r.scheduled_at ? new Date(r.scheduled_at).toLocaleString() : 'Date not set'}
+                      {r.duration_minutes ? ` · ${r.duration_minutes} min` : ''}
+                    </p>
+                    <p className="mt-0.5 text-xs text-tertiary-500">
+                      {r.interviewer_name || 'No interviewer'}
+                      {r.meeting_link ? (
+                        <>
+                          {' · '}
+                          <a href={r.meeting_link} target="_blank" rel="noreferrer" className="text-primary-700 hover:underline">
+                            Meeting link
+                          </a>
+                        </>
+                      ) : null}
+                    </p>
+                    {r.feedback && <p className="mt-1 text-sm text-tertiary-600">{r.feedback}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLORS[r.result] || RESULT_COLORS.pending}`}>
+                      {(r.result || 'pending').replace(/_/g, ' ')}
+                    </span>
+                    {r.rating != null && <span className="text-xs text-amber-700">★ {r.rating}</span>}
+                    {canEdit && (
+                      <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => openEdit(r)}>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      <Modal
+      <Drawer
         open={open}
-        wide
+        size="md"
+        tone={editingId ? 'edit' : 'create'}
         title={editingId ? 'Edit interview round' : 'Add interview round'}
         onClose={() => !busy && setOpen(false)}
         footer={
@@ -168,20 +211,22 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
               Cancel
             </button>
             <button type="button" className="btn-primary" disabled={busy} onClick={save}>
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? 'Saving…' : 'Save round'}
             </button>
           </>
         }
       >
-        {error && <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {error && (
+          <div className="mb-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>
+        )}
+        <div className="space-y-3">
           {!editingId && (
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Round type *</label>
+            <label className="block text-xs font-medium text-tertiary-600">
+              Round type *
               <select
                 value={form.round_type}
                 onChange={(e) => updateField('round_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
               >
                 {ROUND_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -189,67 +234,78 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
           )}
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Round name</label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Round name
             <input
               value={form.round_name}
               onChange={(e) => updateField('round_name', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
               placeholder="e.g. Tech screen"
             />
+          </label>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+            <label className="block text-xs font-semibold text-sky-900">
+              Interview date & time *
+              <input
+                required
+                type="datetime-local"
+                value={form.scheduled_at}
+                onChange={(e) => updateField('scheduled_at', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+            <p className="mt-1.5 text-[11px] text-sky-700">When this round is open for the candidate.</p>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Scheduled at</label>
-            <input
-              type="datetime-local"
-              value={form.scheduled_at}
-              onChange={(e) => updateField('scheduled_at', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Duration (minutes)</label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Duration (minutes)
             <input
               type="number"
               min={1}
               value={form.duration_minutes}
               onChange={(e) => updateField('duration_minutes', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Interviewer</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Interviewer
             <input
               value={form.interviewer_name}
               onChange={(e) => updateField('interviewer_name', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Interviewer email</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Interviewer email
             <input
               type="email"
               value={form.interviewer_email}
               onChange={(e) => updateField('interviewer_email', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Meeting link</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Meeting link
             <input
               value={form.meeting_link}
               onChange={(e) => updateField('meeting_link', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Result</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Result
             <select
               value={form.result}
               onChange={(e) => updateField('result', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             >
               {RESULTS.map((r) => (
                 <option key={r} value={r}>
@@ -257,29 +313,31 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Rating (1–10)</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Rating (1–10)
             <input
               type="number"
               min={1}
               max={10}
               value={form.rating}
               onChange={(e) => updateField('rating', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Feedback</label>
+          </label>
+
+          <label className="block text-xs font-medium text-tertiary-600">
+            Feedback
             <textarea
               rows={3}
               value={form.feedback}
               onChange={(e) => updateField('feedback', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
             />
-          </div>
+          </label>
         </div>
-      </Modal>
+      </Drawer>
     </section>
   );
 }

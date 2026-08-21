@@ -118,9 +118,13 @@ function summarizeInterviewRounds(rounds, from, to) {
   };
 }
 
-async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
+async function recruiterPerformance({ date_from, date_to, recruiter_id, department_id }) {
   const recruiters = await prisma.user.findMany({
-    where: { role: 'recruiter', ...(recruiter_id ? { id: recruiter_id } : {}) },
+    where: {
+      role: 'recruiter',
+      ...(recruiter_id ? { id: recruiter_id } : {}),
+      ...(department_id ? { department_id } : {}),
+    },
   });
 
   const from = new Date(date_from);
@@ -200,20 +204,20 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
   );
 }
 
-async function salesPerformance({ date_from, date_to, sales_id }) {
-  const salesUsers = await prisma.user.findMany({ where: { role: 'sales', ...(sales_id ? { id: sales_id } : {}) } });
+async function salesPerformance({ date_from, date_to, sales_id, department_id }) {
+  const salesUsers = await prisma.user.findMany({
+    where: {
+      role: 'sales',
+      ...(sales_id ? { id: sales_id } : {}),
+      ...(department_id ? { department_id } : {}),
+    },
+  });
   const from = new Date(date_from);
   const to = new Date(date_to);
   if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
 
   return Promise.all(
     salesUsers.map(async (s) => {
-      const leads = await prisma.account.findMany({
-        where: { owner_id: s.id, type: 'client', created_at: { gte: from, lte: to } },
-      });
-      const leads_converted_active = leads.filter((l) => l.stage === 'active').length;
-      const leads_dropped = leads.filter((l) => l.stage === 'dropped').length;
-
       const requirements = await prisma.requirement.findMany({
         where: { sales_owner_id: s.id, created_at: { gte: from, lte: to } },
       });
@@ -253,7 +257,20 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
       const openRequirements = requirements.filter((r) => r.status === 'open' || r.status === 'in_progress');
       const total_budget_pipeline = openRequirements.reduce((sum, r) => sum + Number(r.budget_max || 0), 0);
 
-      const clients_active = await prisma.account.count({ where: { owner_id: s.id, type: 'client', stage: 'active' } });
+      // Active clients linked via requirements this person owns (not BDA lead ownership).
+      const clientIds = [
+        ...new Set(
+          (
+            await prisma.requirement.findMany({
+              where: { sales_owner_id: s.id, account: { type: 'client' } },
+              select: { account_id: true },
+            })
+          ).map((r) => r.account_id)
+        ),
+      ];
+      const clients_active = clientIds.length
+        ? await prisma.account.count({ where: { id: { in: clientIds }, stage: 'active' } })
+        : 0;
 
       let avg_closure_days = null;
       const closedWithDates = requirements_closed.filter((r) => r.closed_at);
@@ -264,10 +281,6 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
 
       return {
         sales_person: { id: s.id, name: s.name },
-        leads_created: leads.length,
-        leads_converted_active,
-        leads_dropped,
-        conversion_rate_percentage: leads.length ? Number(((leads_converted_active / leads.length) * 100).toFixed(2)) : 0,
         requirements_opened: requirements.length,
         requirements_closed: requirements_closed.length,
         requirements_dropped,
@@ -279,6 +292,68 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
         clients_active,
         closures_count: periodClosures.length,
         ...interviewStats,
+      };
+    })
+  );
+}
+
+/**
+ * BDA lead/account funnel. Leads are owned by BDA (owner_id), not sales.
+ */
+async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
+  const bdaUsers = await prisma.user.findMany({
+    where: {
+      role: 'bda',
+      ...(bda_id ? { id: bda_id } : {}),
+      ...(department_id ? { department_id } : {}),
+    },
+  });
+  const from = new Date(date_from);
+  const to = new Date(date_to);
+  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const stuckCutoff = new Date(Date.now() - 7 * 86400000);
+
+  return Promise.all(
+    bdaUsers.map(async (b) => {
+      const ownedInRange = await prisma.account.findMany({
+        where: { owner_id: b.id, created_at: { gte: from, lte: to } },
+      });
+      const clientLeads = ownedInRange.filter((a) => a.type === 'client');
+      const vendorLeads = ownedInRange.filter((a) => a.type === 'vendor');
+
+      const leads_created = clientLeads.length;
+      const leads_in_meeting = clientLeads.filter((a) => a.stage === 'meeting_scheduled' || a.stage === 'rescheduled').length;
+      const leads_converted_active = clientLeads.filter((a) => a.stage === 'active').length;
+      const leads_dropped = clientLeads.filter((a) => a.stage === 'dropped').length;
+
+      const clients_active = await prisma.account.count({
+        where: { owner_id: b.id, type: 'client', stage: 'active' },
+      });
+      const vendors_active = await prisma.account.count({
+        where: { owner_id: b.id, type: 'vendor', stage: 'active' },
+      });
+      const stuck_leads = await prisma.account.count({
+        where: {
+          owner_id: b.id,
+          type: 'client',
+          stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] },
+          updated_at: { lte: stuckCutoff },
+        },
+      });
+
+      return {
+        bda: { id: b.id, name: b.name },
+        leads_created,
+        leads_in_meeting,
+        leads_converted_active,
+        leads_dropped,
+        conversion_rate_percentage: leads_created
+          ? Number(((leads_converted_active / leads_created) * 100).toFixed(2))
+          : 0,
+        vendors_created: vendorLeads.length,
+        clients_active,
+        vendors_active,
+        stuck_leads_7d: stuck_leads,
       };
     })
   );
@@ -324,16 +399,23 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
   );
 }
 
-async function aging({ threshold_days = 7 }) {
+async function aging({ threshold_days = 7, department_id }) {
   const cutoff = new Date(Date.now() - threshold_days * 86400000);
+  const ownerDept = department_id ? { owner: { department_id } } : {};
+  const salesDept = department_id ? { sales_owner: { department_id } } : {};
+  const recruiterDept = department_id ? { submitted_by_user: { department_id } } : {};
 
   const stuckLeadsRaw = await prisma.account.findMany({
-    where: { stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] }, updated_at: { lte: cutoff } },
+    where: {
+      stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] },
+      updated_at: { lte: cutoff },
+      ...ownerDept,
+    },
     include: { owner: { select: { id: true, name: true } } },
   });
 
   const stuckReqsRaw = await prisma.requirement.findMany({
-    where: { status: { in: ['open', 'in_progress'] }, created_at: { lte: cutoff } },
+    where: { status: { in: ['open', 'in_progress'] }, created_at: { lte: cutoff }, ...salesDept },
     include: { sales_owner: { select: { id: true, name: true } }, seats: true },
   });
 
@@ -358,7 +440,11 @@ async function aging({ threshold_days = 7 }) {
   );
 
   const stuckSubmissionsRaw = await prisma.submission.findMany({
-    where: { stage: { notIn: ['closed', 'rejected', 'backout'] }, updated_at: { lte: cutoff } },
+    where: {
+      stage: { notIn: ['closed', 'rejected', 'backout'] },
+      updated_at: { lte: cutoff },
+      ...recruiterDept,
+    },
     include: {
       profile: { select: { id: true, name: true } },
       seat: { include: { requirement: { select: { id: true, title: true } } } },
@@ -367,7 +453,11 @@ async function aging({ threshold_days = 7 }) {
   });
 
   const pastSlaRaw = await prisma.requirement.findMany({
-    where: { sla_days: { not: null }, status: { in: ['open', 'in_progress'] } },
+    where: {
+      sla_days: { not: null },
+      status: { in: ['open', 'in_progress'] },
+      ...salesDept,
+    },
   });
 
   return {
@@ -394,9 +484,13 @@ async function aging({ threshold_days = 7 }) {
   };
 }
 
-async function closure({ date_from, date_to, group_by = 'month' }) {
+async function closure({ date_from, date_to, group_by = 'month', department_id }) {
   const rows = await prisma.submission.findMany({
-    where: { stage: 'closed', actual_joining_date: { gte: new Date(date_from), lte: new Date(date_to) } },
+    where: {
+      stage: 'closed',
+      actual_joining_date: { gte: new Date(date_from), lte: new Date(date_to) },
+      ...(department_id ? { submitted_by_user: { department_id } } : {}),
+    },
     include: {
       seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
       profile: { select: { id: true, name: true } },
@@ -444,4 +538,4 @@ async function closure({ date_from, date_to, group_by = 'month' }) {
   });
 }
 
-module.exports = { recruiterPerformance, salesPerformance, vendorPerformance, aging, closure };
+module.exports = { recruiterPerformance, salesPerformance, bdaPerformance, vendorPerformance, aging, closure };

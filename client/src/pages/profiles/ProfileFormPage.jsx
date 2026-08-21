@@ -20,11 +20,11 @@ function Field({ label, children, required = false }) {
   );
 }
 
-export default function ProfileFormPage() {
+export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isEditing = Boolean(id);
+  const isEditing = Boolean(id) && !asPanel;
   const [form, setForm] = useState(emptyProfileForm());
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(isEditing);
@@ -48,8 +48,8 @@ export default function ProfileFormPage() {
       .finally(() => setLoading(false));
   }, [id, isEditing]);
 
-  if (!isEditing && !canCreateProfile(user)) return <Navigate to="/profiles" replace />;
-  if (isEditing && !canEditProfile(user)) return <Navigate to={`/profiles/${id}`} replace />;
+  if (!asPanel && !isEditing && !canCreateProfile(user)) return <Navigate to="/profiles" replace />;
+  if (!asPanel && isEditing && !canEditProfile(user)) return <Navigate to={`/profiles/${id}`} replace />;
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -85,7 +85,8 @@ export default function ProfileFormPage() {
         : await apiClient.post('/profiles', body);
       const profileId = data.data.id;
       if (resumeFile) await uploadResume(profileId);
-      navigate(`/profiles/${profileId}`, { replace: true });
+      if (asPanel && onDone) onDone(profileId);
+      else navigate(`/profiles/${profileId}`, { replace: true });
     } catch (requestError) {
       setError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} candidate`));
     } finally {
@@ -97,28 +98,37 @@ export default function ProfileFormPage() {
 
   const backPath = isEditing ? `/profiles/${id}` : '/profiles';
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-start justify-between gap-4 border-b pb-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-xs text-tertiary-500">
-            <Link to="/profiles" className="text-primary-700 hover:underline">Profiles</Link>
-            <span>/</span>
-            <span>{isEditing ? profileKey(id) : 'Create'}</span>
-          </div>
-          <h1 className="font-heading text-xl font-semibold text-tertiary-900">
-            {isEditing ? 'Edit candidate' : 'Add candidate'}
-          </h1>
-        </div>
-        <Link to={backPath} className="btn-secondary">Cancel</Link>
-      </div>
+  function handleCancel() {
+    if (asPanel && onCancel) onCancel();
+    else navigate(backPath);
+  }
 
-      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+  return (
+    <div className={asPanel ? 'space-y-4' : 'mx-auto max-w-5xl space-y-4'}>
+      {!asPanel && (
+        <div className="flex items-start justify-between gap-4 border-b pb-3">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs text-tertiary-500">
+              <Link to="/profiles" className="text-primary-700 hover:underline">Profiles</Link>
+              <span>/</span>
+              <span>{isEditing ? profileKey(id) : 'Create'}</span>
+            </div>
+            <h1 className="font-heading text-xl font-semibold text-tertiary-900">
+              {isEditing ? 'Edit candidate' : 'Add candidate'}
+            </h1>
+          </div>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+        </div>
+      )}
+
+      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
 
       <form onSubmit={saveProfile} className="space-y-4">
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Personal</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-sky-100 bg-sky-50/30' : 'bg-white'}`}>
+          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-sky-100 text-sky-900' : 'text-tertiary-800'}`}>
+            Personal
+          </h2>
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Full name" required>
               <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -128,34 +138,17 @@ export default function ProfileFormPage() {
             <Field label="Phone">
               <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <Field label="Date of birth">
-              <input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Gender">
-              <select value={form.gender} onChange={(e) => updateField('gender', e.target.value)} className={INPUT_CLASS}>
-                <option value="">Not specified</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-                <option value="prefer_not_to_say">Prefer not to say</option>
-              </select>
-            </Field>
             <Field label="Current location">
               <input value={form.current_location} onChange={(e) => updateField('current_location', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <Field label="Preferred locations (comma separated)">
-              <input value={form.preferred_locations} onChange={(e) => updateField('preferred_locations', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <label className="flex items-center gap-2 text-sm text-tertiary-700">
-              <input type="checkbox" checked={form.willing_to_relocate} onChange={(e) => updateField('willing_to_relocate', e.target.checked)} />
-              Willing to relocate
-            </label>
           </div>
         </section>
 
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Professional</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-violet-100 bg-violet-50/30' : 'bg-white'}`}>
+          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-violet-100 text-violet-900' : 'text-tertiary-800'}`}>
+            Professional
+          </h2>
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Current company">
               <input value={form.current_company} onChange={(e) => updateField('current_company', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -165,49 +158,8 @@ export default function ProfileFormPage() {
             <Field label="Total experience (years)" required>
               <input required type="number" min="0" step="0.1" value={form.total_experience_years} onChange={(e) => updateField('total_experience_years', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <Field label="Relevant experience (years)">
-              <input type="number" min="0" step="0.1" value={form.relevant_experience_years} onChange={(e) => updateField('relevant_experience_years', e.target.value)} className={INPUT_CLASS} />
-            </Field>
             <Field label="Primary skills (comma separated)" required>
               <input required value={form.primary_skills} onChange={(e) => updateField('primary_skills', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Secondary skills (comma separated)">
-              <input value={form.secondary_skills} onChange={(e) => updateField('secondary_skills', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Certifications (comma separated)">
-              <input value={form.certifications} onChange={(e) => updateField('certifications', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Domain experience (comma separated)">
-              <input value={form.domain_experience} onChange={(e) => updateField('domain_experience', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-          </div>
-        </section>
-
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Education</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-3">
-            <Field label="Degree">
-              <input value={form.education_degree} onChange={(e) => updateField('education_degree', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Institution">
-              <input value={form.education_institution} onChange={(e) => updateField('education_institution', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Year">
-              <input type="number" value={form.education_year} onChange={(e) => updateField('education_year', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-          </div>
-        </section>
-
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Compensation & availability</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Current CTC">
-              <input type="number" min="0" value={form.current_ctc} onChange={(e) => updateField('current_ctc', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Current CTC currency">
-              <select value={form.current_ctc_currency} onChange={(e) => updateField('current_ctc_currency', e.target.value)} className={INPUT_CLASS}>
-                {CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
-              </select>
             </Field>
             <Field label="Expected CTC">
               <input type="number" min="0" value={form.expected_ctc} onChange={(e) => updateField('expected_ctc', e.target.value)} className={INPUT_CLASS} />
@@ -217,40 +169,14 @@ export default function ProfileFormPage() {
                 {CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
               </select>
             </Field>
-            <Field label="Notice period (days)">
-              <input type="number" min="0" value={form.notice_period_days} onChange={(e) => updateField('notice_period_days', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Preferred work mode">
-              <select value={form.preferred_work_mode} onChange={(e) => updateField('preferred_work_mode', e.target.value)} className={INPUT_CLASS}>
-                <option value="">Not specified</option>
-                <option value="remote">Remote</option>
-                <option value="onsite">Onsite</option>
-                <option value="hybrid">Hybrid</option>
-              </select>
-            </Field>
-            <Field label="Last working day">
-              <input type="date" value={form.last_working_day} onChange={(e) => updateField('last_working_day', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Earliest join date">
-              <input type="date" value={form.earliest_join_date} onChange={(e) => updateField('earliest_join_date', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="CTC notes">
-              <input value={form.ctc_notes} onChange={(e) => updateField('ctc_notes', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <label className="flex items-center gap-2 text-sm text-tertiary-700">
-              <input type="checkbox" checked={form.ctc_negotiable} onChange={(e) => updateField('ctc_negotiable', e.target.checked)} />
-              CTC negotiable
-            </label>
-            <label className="flex items-center gap-2 text-sm text-tertiary-700">
-              <input type="checkbox" checked={form.is_serving_notice} onChange={(e) => updateField('is_serving_notice', e.target.checked)} />
-              Serving notice
-            </label>
           </div>
         </section>
 
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Sourcing & documents</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-teal-100 bg-teal-50/30' : 'bg-white'}`}>
+          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-teal-100 text-teal-900' : 'text-tertiary-800'}`}>
+            Sourcing
+          </h2>
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Source" required>
               <select required value={form.source} onChange={(e) => updateField('source', e.target.value)} className={INPUT_CLASS}>
                 <option value="internal">Internal</option>
@@ -268,15 +194,6 @@ export default function ProfileFormPage() {
                 </select>
               </Field>
             )}
-            <Field label="Vendor profile ID">
-              <input value={form.vendor_profile_id} onChange={(e) => updateField('vendor_profile_id', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="LinkedIn URL">
-              <input value={form.linkedin_url} onChange={(e) => updateField('linkedin_url', e.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Portfolio URL">
-              <input value={form.portfolio_url} onChange={(e) => updateField('portfolio_url', e.target.value)} className={INPUT_CLASS} />
-            </Field>
             <Field label="Resume file">
               <input
                 type="file"
@@ -285,7 +202,7 @@ export default function ProfileFormPage() {
                 className="w-full text-sm"
               />
             </Field>
-            <div className="sm:col-span-2 lg:col-span-3">
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
               <Field label="Recruiter notes">
                 <textarea rows={3} value={form.recruiter_notes} onChange={(e) => updateField('recruiter_notes', e.target.value)} className={INPUT_CLASS} />
               </Field>
@@ -294,7 +211,7 @@ export default function ProfileFormPage() {
         </section>
 
         <div className="flex justify-end gap-2 border-t pt-4">
-          <Link to={backPath} className="btn-secondary">Cancel</Link>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
           </button>

@@ -20,6 +20,7 @@ const commentsRoutes = require('./modules/comments/comments.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const reportsRoutes = require('./modules/reports/reports.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
+const departmentsRoutes = require('./modules/departments/departments.routes');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/v1/comments', commentsRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/departments', departmentsRoutes);
 
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
 app.use(errorHandler);

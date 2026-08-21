@@ -1,16 +1,27 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../../config/db');
 
-const PUBLIC_SELECT = { id: true, name: true, email: true, phone: true, role: true, active: true, created_at: true };
+const PUBLIC_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  role: true,
+  active: true,
+  department_id: true,
+  created_at: true,
+  department: { select: { id: true, name: true } },
+};
 
 async function getById(id) {
   return prisma.user.findUnique({ where: { id }, select: PUBLIC_SELECT });
 }
 
-async function list({ role, active, search, page = 1, limit = 20 }) {
+async function list({ role, active, search, department_id, page = 1, limit = 20 }) {
   const where = {
     ...(role ? { role } : {}),
     ...(active !== undefined ? { active } : {}),
+    ...(department_id ? { department_id } : {}),
     ...(search
       ? {
           OR: [
@@ -35,13 +46,20 @@ async function list({ role, active, search, page = 1, limit = 20 }) {
   return { rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
-async function create({ name, email, password, role, phone }) {
+async function create({ name, email, password, role, phone, department_id }) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: 'email_taken' };
 
   const password_hash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { name, email, password_hash, role, phone: phone || null },
+    data: {
+      name,
+      email,
+      password_hash,
+      role,
+      phone: phone || null,
+      department_id: department_id || null,
+    },
     select: PUBLIC_SELECT,
   });
   return { user };

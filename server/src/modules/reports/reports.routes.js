@@ -5,6 +5,7 @@ const { authenticate, authorize } = require('../../middleware/auth');
 const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./reports.service');
+const { dateRangeSchema, agingSchema, closureSchema } = require('./reports.validation');
 
 const router = express.Router();
 router.use(authenticate);
@@ -12,6 +13,7 @@ router.use(authenticate);
 const REPORTS = {
   'recruiter-performance': (q) => service.recruiterPerformance(q),
   'sales-performance': (q) => service.salesPerformance(q),
+  'bda-performance': (q) => service.bdaPerformance(q),
   'vendor-performance': (q) => service.vendorPerformance(q),
   aging: (q) => service.aging(q),
   closure: (q) => service.closure(q),
@@ -21,8 +23,7 @@ router.get(
   '/recruiter-performance',
   authorize('admin', 'sales', 'recruiter'),
   asyncHandler(async (req, res) => {
-    const query = { ...req.query };
-    // Recruiters only see their own row
+    const query = dateRangeSchema.parse(req.query);
     if (req.user.role === 'recruiter') query.recruiter_id = req.user.id;
     const data = await service.recruiterPerformance(query);
     return ok(res, data);
@@ -33,7 +34,18 @@ router.get(
   '/sales-performance',
   authorize('admin'),
   asyncHandler(async (req, res) => {
-    const data = await service.salesPerformance(req.query);
+    const query = dateRangeSchema.parse(req.query);
+    const data = await service.salesPerformance(query);
+    return ok(res, data);
+  })
+);
+
+router.get(
+  '/bda-performance',
+  authorize('admin'),
+  asyncHandler(async (req, res) => {
+    const query = dateRangeSchema.parse(req.query);
+    const data = await service.bdaPerformance(query);
     return ok(res, data);
   })
 );
@@ -42,7 +54,8 @@ router.get(
   '/vendor-performance',
   authorize('admin', 'sales'),
   asyncHandler(async (req, res) => {
-    const data = await service.vendorPerformance(req.query);
+    const query = dateRangeSchema.parse(req.query);
+    const data = await service.vendorPerformance(query);
     return ok(res, data);
   })
 );
@@ -51,7 +64,8 @@ router.get(
   '/aging',
   authorize('admin', 'sales'),
   asyncHandler(async (req, res) => {
-    const data = await service.aging(req.query);
+    const query = agingSchema.parse(req.query);
+    const data = await service.aging(query);
     return ok(res, data);
   })
 );
@@ -60,7 +74,8 @@ router.get(
   '/closure',
   authorize('admin', 'sales'),
   asyncHandler(async (req, res) => {
-    const data = await service.closure(req.query);
+    const query = closureSchema.parse(req.query);
+    const data = await service.closure(query);
     return ok(res, data);
   })
 );
@@ -74,7 +89,12 @@ router.get(
     if (!fn) return fail(res, 422, 'Unknown report');
     if (!['xlsx', 'pdf'].includes(type)) return fail(res, 422, 'type must be xlsx or pdf');
 
-    const data = await fn(req.query);
+    let query = { ...req.query };
+    if (report === 'aging') query = agingSchema.parse(req.query);
+    else if (report === 'closure') query = closureSchema.parse(req.query);
+    else if (report !== 'aging') query = dateRangeSchema.parse(req.query);
+
+    const data = await fn(query);
     const sheets = buildExportSheets(report, data);
     const filename = `${report}-${new Date().toISOString().slice(0, 7)}`;
 

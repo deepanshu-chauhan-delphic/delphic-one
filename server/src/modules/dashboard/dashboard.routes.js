@@ -10,7 +10,8 @@ router.use(authenticate);
 router.get(
   '/summary',
   asyncHandler(async (req, res) => {
-    const data = await service.getSummary(req.user);
+    const department_id = typeof req.query.department_id === 'string' ? req.query.department_id : undefined;
+    const data = await service.getSummary(req.user, { department_id });
     return ok(res, data);
   })
 );

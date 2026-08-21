@@ -150,16 +150,20 @@ With Docker client proxy, or hit API on port 4000:
 ```powershell
 # Login
 $body = '{"email":"admin@delphic.local","password":"Password123!"}'
-$login = Invoke-RestMethod -Method POST -Uri http://localhost:4000/auth/login -ContentType application/json -Body $body
-$token = $login.data.token
+$login = Invoke-RestMethod -Method POST -Uri http://localhost:4000/api/v1/auth/login -ContentType application/json -Body $body
+$token = $login.data.access_token
+if (-not $token) { $token = $login.data.token }
 
 # Dashboard summary (expect non-zero counts + funnel + stuck + recent_activity)
-Invoke-RestMethod -Uri http://localhost:4000/dashboard/summary -Headers @{ Authorization = "Bearer $token" }
+Invoke-RestMethod -Uri http://localhost:4000/api/v1/dashboard/summary -Headers @{ Authorization = "Bearer $token" }
+
+# BDA + Sales reports (admin)
+Invoke-RestMethod -Uri "http://localhost:4000/api/v1/reports/bda-performance?date_from=2026-08-01&date_to=2026-08-31" -Headers @{ Authorization = "Bearer $token" }
+Invoke-RestMethod -Uri "http://localhost:4000/api/v1/reports/sales-performance?date_from=2026-08-01&date_to=2026-08-31" -Headers @{ Authorization = "Bearer $token" }
 
 # Aging report
-Invoke-RestMethod -Uri http://localhost:4000/reports/aging -Headers @{ Authorization = "Bearer $token" }
+Invoke-RestMethod -Uri http://localhost:4000/api/v1/reports/aging -Headers @{ Authorization = "Bearer $token" }
 ```
-
 Through the Nginx client (port 8081), use the same paths under `/api/...` if your proxy strips that prefix — match whatever `apiClient` uses in the browser Network tab.
 
 ---
