@@ -23,7 +23,14 @@ Moved markdown under `docs/` into folders and updated cross-links + [AGENTS.md](
 
 **Tests:** `reports-ui.test.js` + existing `auth.test.js` change-password. Guide: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
 
-**Still open (infra skipped this pass):** RD-116, RD-119–122.
+**Still open:** RD-119 E2E · RD-121 deploy story · RD-122 deploy day.
+
+## 2026-08-21 — Dev A RD-116 + RD-120 (lint + Docker CI smoke)
+
+- **RD-116:** Root ESLint 9 flat config (`eslint.config.mjs`) for `server/src` (Node/CJS) and `client/src` (React). Scripts: `npm run lint` / `npm run lint:fix`. Warnings allowed; errors fail CI.
+- **RD-120:** `.github/workflows/ci.yml` now runs lint + client build + syntax check, plus a **docker-smoke** job: `docker compose up --build`, wait for `/api/v1/health`, seed, POST login on API `:4000` and via client proxy `:8081`.
+
+**Verify locally:** `npm run lint` (0 errors). Docker smoke needs Docker Desktop running.
 
 ## 2026-08-21 — RD-110 / RD-127 / RD-115 completed after merge
 
