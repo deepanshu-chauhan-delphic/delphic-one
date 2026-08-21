@@ -80,6 +80,7 @@ npm install --workspaces
 cp server/.env.example server/.env   # set DATABASE_URL + JWT secrets; optional LOG_LEVEL
 npm run migrate
 npm run seed
+npm run lint         # ESLint (server + client)
 npm run dev:server   # http://localhost:4000
 npm run dev:client   # http://localhost:5173
 ```

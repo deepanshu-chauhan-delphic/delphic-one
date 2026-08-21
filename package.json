@@ -11,6 +11,15 @@
     "dev:client": "npm run dev --workspace client",
     "migrate": "npm run migrate --workspace server",
     "seed": "npm run seed --workspace server",
-    "build:client": "npm run build --workspace client"
+    "build:client": "npm run build --workspace client",
+    "lint": "eslint server/src client/src",
+    "lint:fix": "eslint server/src client/src --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.11.0"
   }
 }

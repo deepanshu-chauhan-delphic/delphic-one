@@ -2,6 +2,13 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Dev A RD-116 + RD-120 (lint + Docker CI smoke)
+
+- **RD-116:** Root ESLint 9 flat config (`eslint.config.mjs`) for `server/src` (Node/CJS) and `client/src` (React). Scripts: `npm run lint` / `npm run lint:fix`. Warnings allowed; errors fail CI.
+- **RD-120:** `.github/workflows/ci.yml` now runs lint + client build + syntax check, plus a **docker-smoke** job: `docker compose up --build`, wait for `/api/v1/health`, seed, POST login on API `:4000` and via client proxy `:8081`.
+
+**Verify locally:** `npm run lint` (0 errors). Docker smoke needs Docker Desktop running.
+
 ## 2026-08-21 — RD-110 / RD-127 / RD-115 completed after merge
 
 Re-wired post-merge gaps on Dev B detail pages:

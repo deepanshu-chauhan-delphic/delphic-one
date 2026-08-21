@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 done including RD-110 Notes/Files and RD-127 Unlock on all four detail surfaces. **Open (7):** RD-114 reports · RD-128 change password · RD-116 linter · RD-120 CI · RD-121 deploy · RD-119 E2E · RD-122 deploy day. Spec: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A product + **RD-116 lint** + **RD-120 Docker CI smoke** done. **Open (5):** RD-114 reports · RD-128 change password · RD-121 deploy story · RD-119 E2E · RD-122 deploy day. Spec: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
 ## Backend
 
@@ -14,7 +14,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] RD-124 recruiter/vendor avg-day metrics.
 - [x] Ownership on account/requirement mutate paths.
 - [x] RD-130 admin / comments / documents split to routes/controller/service/validation.
-- [x] Test suite: **13 suites / 77 tests** green (`cd server && npm test`). Still no linter (RD-116).
+- [x] Test suite: **13 suites / 77 tests** green (`cd server && npm test`). Linter: `npm run lint` (RD-116).
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 - [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 - [x] Comments `entity_type` includes `profile` (for Candidate Notes on RD-110).
@@ -41,7 +41,9 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 ## Infra / CI
 
 - [x] GitHub repo + Docker compose stack.
-- [ ] RD-116 linter · RD-120 Docker CI smoke · RD-121 deploy story (Docker vs PM2) · RD-122 deploy day.
+- [x] RD-116 linter — `npm run lint` (ESLint 9, client + server).
+- [x] RD-120 Docker CI smoke — compose up, health, seed, login (API + client proxy).
+- [ ] RD-121 deploy story (Docker vs PM2) · RD-122 deploy day.
 
 ## Docs
 

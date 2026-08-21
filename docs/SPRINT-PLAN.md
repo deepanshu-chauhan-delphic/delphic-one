@@ -2,7 +2,7 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green**. Frontend create/edit/detail/stage/interview/kanban/unlock/notes-files for accounts, jobs, candidates, and submissions are **in place**. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, linter/CI/E2E, and deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
+Where things stand on Aug 21: product UI + backend + **RD-116 linter** + **RD-120 Docker compose CI smoke** are in place. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, Dev B deploy story (RD-121), full E2E (RD-119), and deploy day (RD-122) — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
 
 **UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
 
@@ -21,7 +21,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 ## Ticket status snapshot (Aug 21)
 
-### Done (25)
+### Done (27)
 
 | Ticket | Name |
 |---|---|
@@ -39,8 +39,10 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-112 | Kanban board for one job |
 | RD-113 | Real role dashboard (widgets) |
 | RD-115 | Spec UI walkthrough + Jira-like UX check |
+| RD-116 | Basic ESLint (client + server) |
 | RD-117 | Stage-machine automated tests |
 | RD-118 | Auth + locking automated tests |
+| RD-120 | CI Docker / compose smoke (login) |
 | RD-123 | Stuck leads / stuck requirements on dashboard (API) |
 | RD-124 | Avg days on recruiter + vendor reports |
 | RD-125 | Interview rounds UI |
@@ -53,14 +55,12 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 
-### Open (7)
+### Open (5)
 
 | Ticket | Name |
 |---|---|
 | RD-114 | Reports tables/charts + date range + export UX |
-| RD-116 | Linter |
 | RD-119 | Full E2E click-through (all roles) |
-| RD-120 | CI Docker / compose smoke |
 | RD-121 | Live deploy story (Docker vs PM2) |
 | RD-122 | Deploy day |
 | RD-128 | Change password UI |
@@ -124,8 +124,8 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Ticket | Owner | What to build |
 |---|---|---|
 | RD-119 | Both, together | Click through the entire app as each role (BDA, Sales, Recruiter, Admin) end-to-end — including an **internal recruiter interview round**, seat close, unlock, and create a real user. Log and fix bugs same day. |
-| RD-116 | Dev A | Turn on a basic linter so typos and obvious mistakes get flagged automatically |
-| RD-120 | Dev A | CI builds Docker images / compose smoke (at least login) — not only `npm install` / `node --check` |
+| RD-116 | Dev A | Turn on a basic linter so typos and obvious mistakes get flagged automatically **DONE (Aug 21)** — `npm run lint` (ESLint 9 flat config for `server/src` + `client/src`) |
+| RD-120 | Dev A | CI builds Docker images / compose smoke (at least login) **DONE (Aug 21)** — `.github/workflows/ci.yml` lint + build + `docker compose` health/seed/login |
 | RD-121 | Dev B | Decide live deployment story (Docker vs old PM2/Nginx `deploy.yml`) and get it ready so Aug 28 is "press go" |
 
 ## Day 7 — Thu Aug 28 — DEPLOY DAY
