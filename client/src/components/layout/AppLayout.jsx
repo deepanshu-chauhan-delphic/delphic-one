@@ -12,13 +12,14 @@ const NAV_ITEMS = [
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const navItems = user?.role === 'admin' ? [...NAV_ITEMS, { to: '/users', label: 'Users' }] : NAV_ITEMS;
 
   return (
     <div className="flex h-screen">
       <aside className="w-56 shrink-0 border-r bg-white flex flex-col">
         <div className="px-4 py-4 text-lg font-heading font-semibold text-tertiary-900">Req Dashboard</div>
         <nav className="flex-1 px-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

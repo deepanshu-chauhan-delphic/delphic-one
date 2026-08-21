@@ -31,7 +31,10 @@ const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: t
 
 app.get('/api/v1/health', (req, res) => res.json({ success: true, data: { status: 'ok' } }));
 
-app.use('/api/v1/auth/login', loginLimiter);
+// Rate limit login in real environments only — tests log in once per case and would hit 429 mid-suite.
+if (env.nodeEnv !== 'test') {
+  app.use('/api/v1/auth/login', loginLimiter);
+}
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/accounts', accountsRoutes);

@@ -19,9 +19,12 @@ const REPORTS = {
 
 router.get(
   '/recruiter-performance',
-  authorize('admin', 'sales'),
+  authorize('admin', 'sales', 'recruiter'),
   asyncHandler(async (req, res) => {
-    const data = await service.recruiterPerformance(req.query);
+    const query = { ...req.query };
+    // Recruiters only see their own row
+    if (req.user.role === 'recruiter') query.recruiter_id = req.user.id;
+    const data = await service.recruiterPerformance(query);
     return ok(res, data);
   })
 );
@@ -103,15 +106,20 @@ router.get(
   })
 );
 
-function flatten(obj) {
+function flatten(obj, prefix = '') {
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      out[k] = v.name || v.id || JSON.stringify(v);
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
+      if (v.name || v.id) {
+        out[key] = v.name || v.id;
+      } else {
+        Object.assign(out, flatten(v, key));
+      }
     } else if (Array.isArray(v)) {
-      out[k] = v.length;
+      out[key] = v.length;
     } else {
-      out[k] = v;
+      out[key] = v;
     }
   }
   return out;

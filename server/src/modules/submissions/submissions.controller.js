@@ -69,14 +69,14 @@ const history = asyncHandler(async (req, res) => {
 
 const addRound = asyncHandler(async (req, res) => {
   const body = interviewRoundCreateSchema.parse(req.body);
-  const result = await service.addInterviewRound(req.params.id, body);
+  const result = await service.addInterviewRound(req.params.id, body, req.user.id);
   if (result.error) return mapError(res, result.error);
   return created(res, result.round);
 });
 
 const updateRound = asyncHandler(async (req, res) => {
   const body = interviewRoundUpdateSchema.parse(req.body);
-  const result = await service.updateInterviewRound(req.params.id, body);
+  const result = await service.updateInterviewRound(req.params.id, body, req.user.id);
   if (result.error) return mapError(res, result.error);
   return ok(res, result.round);
 });

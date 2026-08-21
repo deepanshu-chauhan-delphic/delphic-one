@@ -1,0 +1,260 @@
+const {
+  app,
+  prisma,
+  request,
+  cleanDatabase,
+  createUser,
+  loginAs,
+  createActiveClientAccount,
+  createRequirement,
+  createProfile,
+  authed,
+} = require('./helpers');
+
+let salesToken;
+let recruiterToken;
+let account;
+let requirement;
+let seatId;
+let profile;
+
+beforeEach(async () => {
+  await cleanDatabase();
+  const sales = await createUser({ role: 'sales' });
+  const recruiter = await createUser({ role: 'recruiter' });
+  ({ access_token: salesToken } = await loginAs(sales));
+  ({ access_token: recruiterToken } = await loginAs(recruiter));
+  account = await createActiveClientAccount(sales.id);
+  requirement = await createRequirement(salesToken, account.id);
+  const seats = await authed(request(app).get(`/api/v1/requirements/${requirement.id}/seats`), salesToken);
+  seatId = seats.body.data[0].id;
+  profile = await createProfile(recruiterToken);
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
+});
+
+async function createSubmission(overrides = {}) {
+  const res = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+    requirement_seat_id: seatId,
+    profile_id: profile.id,
+    proposed_rate: 100,
+    proposed_rate_currency: 'USD',
+    vendor_rate: 70,
+    vendor_rate_currency: 'USD',
+    ...overrides,
+  });
+  if (res.status !== 201) {
+    throw new Error(`create submission failed: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return res.body.data;
+}
+
+async function advanceTo(submissionId, stages) {
+  for (const to_stage of stages) {
+    const res = await authed(request(app).post(`/api/v1/submissions/${submissionId}/stage`), recruiterToken).send({
+      to_stage,
+    });
+    if (res.status !== 200) {
+      throw new Error(`advance to ${to_stage} failed: ${res.status} ${JSON.stringify(res.body)}`);
+    }
+  }
+}
+
+describe('submission create + margin', () => {
+  test('new submissions start as sourced and compute margin', async () => {
+    const sub = await createSubmission();
+    expect(sub.stage).toBe('sourced');
+    expect(Number(sub.margin)).toBe(30);
+    expect(Number(sub.margin_percentage)).toBe(30);
+  });
+
+  test('vendor-sourced profiles require a vendor_rate', async () => {
+    const vendorAccount = await prisma.account.create({
+      data: { type: 'vendor', name: 'Vendor Co', stage: 'active', owner_id: (await createUser({ role: 'bda' })).id },
+    });
+    const vendorProfile = await createProfile(recruiterToken, {
+      source: 'vendor',
+      vendor_account_id: vendorAccount.id,
+    });
+
+    const missing = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seatId,
+      profile_id: vendorProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(missing.status).toBe(400);
+
+    const ok = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seatId,
+      profile_id: vendorProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+      vendor_rate: 60,
+      vendor_rate_currency: 'USD',
+    });
+    expect(ok.status).toBe(201);
+    expect(Number(ok.body.data.margin)).toBe(40);
+  });
+
+  test('duplicate active submission for same profile+seat is rejected', async () => {
+    await createSubmission();
+    const dup = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seatId,
+      profile_id: profile.id,
+      proposed_rate: 90,
+      proposed_rate_currency: 'USD',
+    });
+    expect(dup.status).toBe(400);
+  });
+});
+
+describe('submission stage machine', () => {
+  test('cannot skip from sourced straight to offer', async () => {
+    const sub = await createSubmission();
+    const res = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'offer',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('backout and rejection require a reason', async () => {
+    const sub = await createSubmission();
+
+    const backoutMissing = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'backout',
+    });
+    expect(backoutMissing.status).toBe(400);
+
+    const rejectMissing = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'rejected',
+    });
+    expect(rejectMissing.status).toBe(400);
+
+    const rejected = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'rejected',
+      rejection_reason: 'skills mismatch',
+    });
+    expect(rejected.status).toBe(200);
+    expect(rejected.body.data.stage).toBe('rejected');
+    expect(rejected.body.data.rejection_reason).toBe('skills mismatch');
+  });
+
+  test('cannot advance to offer while interview rounds are unresolved', async () => {
+    const sub = await createSubmission();
+    await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
+
+    // no rounds yet — offer is blocked
+    const noRounds = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'offer',
+    });
+    // still at submitted_to_client; offer isn't a valid next stage either, but once we reach interview_result the gate matters
+    expect(noRounds.status).toBe(400);
+
+    const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
+      round_type: 'client_l1',
+      round_name: 'L1',
+    });
+    expect(round.status).toBe(201);
+
+    // adding a round from submitted_to_client auto-moves to interview_scheduled
+    const afterRound = await authed(request(app).get(`/api/v1/submissions/${sub.id}`), recruiterToken);
+    expect(afterRound.body.data.stage).toBe('interview_scheduled');
+
+    // leave round pending, try to jump via resolving path manually to interview_result then offer
+    // resolving all rounds auto-moves to interview_result
+    const pendingOffer = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'interview_result',
+    });
+    // interview_scheduled → interview_result is allowed by the machine even with pending rounds
+    expect(pendingOffer.status).toBe(200);
+
+    const blocked = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'offer',
+    });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toMatch(/round/i);
+
+    await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
+      result: 'pass',
+      rating: 8,
+    });
+
+    const offer = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'offer',
+    });
+    expect(offer.status).toBe(200);
+    expect(offer.body.data.stage).toBe('offer');
+  });
+
+  test('cannot close without bgv_status cleared; full happy path locks on close', async () => {
+    const sub = await createSubmission();
+    await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
+
+    const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
+      round_type: 'client_l1',
+    });
+    await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
+      result: 'pass',
+    });
+    // now at interview_result via auto-advance
+    await advanceTo(sub.id, ['offer', 'bgv']);
+
+    const blocked = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'closed',
+    });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toMatch(/bgv/i);
+
+    await authed(request(app).patch(`/api/v1/submissions/${sub.id}`), recruiterToken).send({
+      bgv_status: 'cleared',
+      actual_joining_date: new Date().toISOString(),
+    });
+
+    const closed = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'closed',
+    });
+    expect(closed.status).toBe(200);
+    expect(closed.body.data.stage).toBe('closed');
+    expect(closed.body.data.is_locked).toBe(true);
+
+    // closing a submission also closes its seat
+    const seat = await prisma.requirementSeat.findUnique({ where: { id: seatId } });
+    expect(seat.seat_status).toBe('closed');
+    expect(seat.is_locked).toBe(true);
+
+    const history = await authed(request(app).get(`/api/v1/submissions/${sub.id}/history`), recruiterToken);
+    expect(history.status).toBe(200);
+    expect(history.body.data.map((h) => h.to_stage)).toEqual([
+      'internal_screening',
+      'submitted_to_client',
+      'interview_scheduled',
+      'interview_result',
+      'offer',
+      'bgv',
+      'closed',
+    ]);
+  });
+
+  test('resolving the last pending round auto-advances interview_scheduled to interview_result', async () => {
+    const sub = await createSubmission();
+    await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
+
+    const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
+      round_type: 'client_hr',
+    });
+    expect(round.status).toBe(201);
+
+    let current = await authed(request(app).get(`/api/v1/submissions/${sub.id}`), recruiterToken);
+    expect(current.body.data.stage).toBe('interview_scheduled');
+
+    await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
+      result: 'pass',
+    });
+
+    current = await authed(request(app).get(`/api/v1/submissions/${sub.id}`), recruiterToken);
+    expect(current.body.data.stage).toBe('interview_result');
+  });
+});

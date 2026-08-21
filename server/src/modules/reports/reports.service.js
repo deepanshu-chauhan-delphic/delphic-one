@@ -1,5 +1,123 @@
 const prisma = require('../../config/db');
 
+function daysBetween(from, to) {
+  return (new Date(to) - new Date(from)) / 86400000;
+}
+
+function averageDays(values) {
+  if (!values.length) return null;
+  return Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
+}
+
+function firstArrivalAt(historyAsc, stage) {
+  const row = historyAsc.find((h) => h.to_stage === stage);
+  return row ? row.changed_at : null;
+}
+
+function computeRecruiterCycleAverages(submissions, historyBySubmission, firstRoundBySubmission) {
+  const sourcedToSubmitted = [];
+  const submittedToInterview = [];
+  const interviewToOffer = [];
+  const offerToClosed = [];
+  const totalCycle = [];
+
+  for (const submission of submissions) {
+    const history = historyBySubmission.get(submission.id) || [];
+    const submittedAt = firstArrivalAt(history, 'submitted_to_client');
+    const interviewAt =
+      firstArrivalAt(history, 'interview_scheduled') ||
+      firstArrivalAt(history, 'interview_result') ||
+      firstRoundBySubmission.get(submission.id) ||
+      null;
+    const offerAt = firstArrivalAt(history, 'offer');
+    const closedAt = firstArrivalAt(history, 'closed') || submission.actual_joining_date;
+
+    if (submittedAt) sourcedToSubmitted.push(daysBetween(submission.created_at, submittedAt));
+    if (submittedAt && interviewAt) submittedToInterview.push(daysBetween(submittedAt, interviewAt));
+    if (interviewAt && offerAt) interviewToOffer.push(daysBetween(interviewAt, offerAt));
+    if (offerAt && closedAt) offerToClosed.push(daysBetween(offerAt, closedAt));
+    if (closedAt) totalCycle.push(daysBetween(submission.created_at, closedAt));
+  }
+
+  return {
+    avg_days_sourced_to_submitted: averageDays(sourcedToSubmitted),
+    avg_days_submitted_to_interview: averageDays(submittedToInterview),
+    avg_days_interview_to_offer: averageDays(interviewToOffer),
+    avg_days_offer_to_closed: averageDays(offerToClosed),
+    avg_days_total_cycle: averageDays(totalCycle),
+  };
+}
+
+async function loadSubmissionTimingMaps(submissionIds) {
+  if (!submissionIds.length) {
+    return { historyBySubmission: new Map(), firstRoundBySubmission: new Map() };
+  }
+
+  const [historyRows, roundRows] = await Promise.all([
+    prisma.stageHistory.findMany({
+      where: { entity_type: 'submission', entity_id: { in: submissionIds } },
+      orderBy: { changed_at: 'asc' },
+    }),
+    prisma.interviewRound.findMany({
+      where: { submission_id: { in: submissionIds } },
+      orderBy: { round_number: 'asc' },
+    }),
+  ]);
+
+  const historyBySubmission = new Map();
+  for (const row of historyRows) {
+    if (!historyBySubmission.has(row.entity_id)) historyBySubmission.set(row.entity_id, []);
+    historyBySubmission.get(row.entity_id).push(row);
+  }
+
+  const firstRoundBySubmission = new Map();
+  for (const round of roundRows) {
+    if (!firstRoundBySubmission.has(round.submission_id)) {
+      firstRoundBySubmission.set(round.submission_id, round.scheduled_at || round.completed_at);
+    }
+  }
+
+  return { historyBySubmission, firstRoundBySubmission };
+}
+
+function summarizeInterviewRounds(rounds, from, to) {
+  const inPeriod = rounds.filter((r) => {
+    const anchor = r.completed_at || r.scheduled_at;
+    if (!anchor) return true;
+    const t = new Date(anchor);
+    return t >= from && t <= to;
+  });
+
+  const completed = inPeriod.filter((r) => r.result !== 'pending');
+  const pending = inPeriod.filter((r) => r.result === 'pending');
+  const withFeedback = inPeriod.filter((r) => r.feedback && r.feedback.trim().length > 0);
+  const ratings = inPeriod.map((r) => r.rating).filter((n) => n != null);
+  const turnaroundDays = completed
+    .filter((r) => r.scheduled_at && r.completed_at)
+    .map((r) => daysBetween(r.scheduled_at, r.completed_at));
+
+  const by_type = { internal: 0, client_l1: 0, client_l2: 0, client_hr: 0, client_final: 0 };
+  const by_result = { pending: 0, pass: 0, fail: 0, no_show: 0, rescheduled: 0 };
+  for (const r of inPeriod) {
+    if (by_type[r.round_type] !== undefined) by_type[r.round_type] += 1;
+    if (by_result[r.result] !== undefined) by_result[r.result] += 1;
+  }
+
+  return {
+    interviews_total: inPeriod.length,
+    interviews_completed: completed.length,
+    interviews_pending: pending.length,
+    interviews_internal: by_type.internal,
+    interviews_client: by_type.client_l1 + by_type.client_l2 + by_type.client_hr + by_type.client_final,
+    interviews_by_type: by_type,
+    interviews_by_result: by_result,
+    interviews_with_feedback: withFeedback.length,
+    interviews_missing_feedback: completed.filter((r) => !r.feedback || !r.feedback.trim()).length,
+    avg_interview_rating: ratings.length ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)) : null,
+    avg_days_interview_turnaround: averageDays(turnaroundDays),
+  };
+}
+
 async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
   const recruiters = await prisma.user.findMany({
     where: { role: 'recruiter', ...(recruiter_id ? { id: recruiter_id } : {}) },
@@ -7,6 +125,8 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
 
   const from = new Date(date_from);
   const to = new Date(date_to);
+  // Include full end day when date_to is YYYY-MM-DD
+  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
 
   return Promise.all(
     recruiters.map(async (r) => {
@@ -34,6 +154,24 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
       const backouts = submissions.filter((s) => s.stage === 'backout').length;
       const requirementIds = new Set(submissions.map((s) => s.seat.requirement_id));
 
+      const submissionIds = (
+        await prisma.submission.findMany({ where: { submitted_by: r.id }, select: { id: true } })
+      ).map((s) => s.id);
+
+      const rounds = submissionIds.length
+        ? await prisma.interviewRound.findMany({ where: { submission_id: { in: submissionIds } } })
+        : [];
+      const interviewStats = summarizeInterviewRounds(rounds, from, to);
+
+      const { historyBySubmission, firstRoundBySubmission } = await loadSubmissionTimingMaps(
+        submissions.map((s) => s.id)
+      );
+      const cycleAverages = computeRecruiterCycleAverages(submissions, historyBySubmission, firstRoundBySubmission);
+
+      const closureRate = submissions.length
+        ? Number(((closures.length / submissions.length) * 100).toFixed(2))
+        : 0;
+
       return {
         recruiter: { id: r.id, name: r.name },
         profiles_sourced: profiles.length,
@@ -52,13 +190,11 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id }) {
         submissions_rejected: byStage.rejected || 0,
         submissions_backout: backouts,
         backout_rate_percentage: submissions.length ? Number(((backouts / submissions.length) * 100).toFixed(2)) : 0,
-        avg_days_sourced_to_submitted: null,
-        avg_days_submitted_to_interview: null,
-        avg_days_interview_to_offer: null,
-        avg_days_offer_to_closed: null,
-        avg_days_total_cycle: null,
+        ...cycleAverages,
+        ...interviewStats,
         requirements_worked_on: requirementIds.size,
         closures_count: closures.length,
+        closure_rate_percentage: closureRate,
       };
     })
   );
@@ -68,6 +204,7 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
   const salesUsers = await prisma.user.findMany({ where: { role: 'sales', ...(sales_id ? { id: sales_id } : {}) } });
   const from = new Date(date_from);
   const to = new Date(date_to);
+  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
 
   return Promise.all(
     salesUsers.map(async (s) => {
@@ -84,11 +221,31 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
       const requirements_dropped = requirements.filter((r) => r.status === 'dropped').length;
       const requirements_in_progress = requirements.filter((r) => r.status === 'in_progress').length;
 
+      const allOwnedReqIds = (
+        await prisma.requirement.findMany({ where: { sales_owner_id: s.id }, select: { id: true } })
+      ).map((r) => r.id);
+
       const closedSubmissions = requirements_closed.length
         ? await prisma.submission.findMany({
             where: { seat: { requirement_id: { in: requirements_closed.map((r) => r.id) } }, stage: 'closed' },
           })
         : [];
+
+      const periodClosures = allOwnedReqIds.length
+        ? await prisma.submission.findMany({
+            where: {
+              seat: { requirement_id: { in: allOwnedReqIds } },
+              actual_joining_date: { gte: from, lte: to },
+            },
+          })
+        : [];
+
+      const rounds = allOwnedReqIds.length
+        ? await prisma.interviewRound.findMany({
+            where: { submission: { seat: { requirement_id: { in: allOwnedReqIds } } } },
+          })
+        : [];
+      const interviewStats = summarizeInterviewRounds(rounds, from, to);
 
       const total_closed_revenue = closedSubmissions.reduce((sum, x) => sum + Number(x.final_agreed_rate || 0), 0);
       const total_margin_generated = closedSubmissions.reduce((sum, x) => sum + Number(x.margin || 0), 0);
@@ -120,6 +277,8 @@ async function salesPerformance({ date_from, date_to, sales_id }) {
         total_closed_revenue,
         total_margin_generated,
         clients_active,
+        closures_count: periodClosures.length,
+        ...interviewStats,
       };
     })
   );
@@ -134,6 +293,7 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
     vendors.map(async (v) => {
       const submissions = await prisma.submission.findMany({
         where: { profile: { vendor_account_id: v.id }, created_at: { gte: from, lte: to } },
+        include: { seat: { include: { requirement: { select: { created_at: true } } } } },
       });
 
       const shortlisted = submissions.filter((s) => !['sourced', 'internal_screening'].includes(s.stage)).length;
@@ -144,6 +304,7 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
 
       const margins = closed.map((s) => Number(s.margin || 0));
       const total_margin = margins.reduce((a, b) => a + b, 0);
+      const daysToSubmit = submissions.map((s) => daysBetween(s.seat.requirement.created_at, s.created_at));
 
       return {
         vendor: { id: v.id, name: v.name },
@@ -156,7 +317,7 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
         backout_rate_percentage: submissions.length ? Number(((backout / submissions.length) * 100).toFixed(2)) : 0,
         avg_margin_per_profile: closed.length ? Number((total_margin / closed.length).toFixed(2)) : 0,
         total_margin,
-        avg_days_to_submit: null,
+        avg_days_to_submit: averageDays(daysToSubmit),
         reliability_score: submissions.length ? Number(((closed.length / submissions.length) * 100).toFixed(2)) : null,
       };
     })

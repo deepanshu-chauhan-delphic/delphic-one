@@ -188,7 +188,7 @@ async function getHistory(id) {
   return prisma.stageHistory.findMany({ where: { entity_type: 'submission', entity_id: id }, orderBy: { changed_at: 'asc' } });
 }
 
-async function addInterviewRound(submissionId, data) {
+async function addInterviewRound(submissionId, data, userId) {
   return prisma.$transaction(async (tx) => {
     const submission = await tx.submission.findUnique({ where: { id: submissionId } });
     if (!submission) return { error: 'not_found' };
@@ -196,22 +196,63 @@ async function addInterviewRound(submissionId, data) {
     const last = await tx.interviewRound.findFirst({ where: { submission_id: submissionId }, orderBy: { round_number: 'desc' } });
     const round_number = last ? last.round_number + 1 : 1;
 
-    const round = await tx.interviewRound.create({ data: { ...data, submission_id: submissionId, round_number } });
+    const payload = { ...data, submission_id: submissionId, round_number };
+    if (payload.scheduled_at) payload.scheduled_at = new Date(payload.scheduled_at);
+    if (payload.completed_at) payload.completed_at = new Date(payload.completed_at);
+    if (['pass', 'fail', 'no_show'].includes(payload.result) && !payload.completed_at) {
+      payload.completed_at = new Date();
+    }
+    if (payload.interviewer_email === '') payload.interviewer_email = null;
+
+    const round = await tx.interviewRound.create({ data: payload });
 
     if (submission.stage === 'submitted_to_client') {
       await tx.submission.update({ where: { id: submissionId }, data: { stage: 'interview_scheduled' } });
+      await tx.stageHistory.create({
+        data: {
+          entity_type: 'submission',
+          entity_id: submissionId,
+          from_stage: 'submitted_to_client',
+          to_stage: 'interview_scheduled',
+          changed_by: userId,
+          reason: null,
+        },
+      });
+    }
+
+    // Completing all rounds (including a create that already has a result) can advance to interview_result
+    const rounds = await tx.interviewRound.findMany({ where: { submission_id: submissionId } });
+    const allResolved = rounds.length > 0 && rounds.every((r) => r.result !== 'pending');
+    if (allResolved) {
+      const current = await tx.submission.findUnique({ where: { id: submissionId } });
+      if (current && current.stage === 'interview_scheduled') {
+        await tx.submission.update({ where: { id: submissionId }, data: { stage: 'interview_result' } });
+        await tx.stageHistory.create({
+          data: {
+            entity_type: 'submission',
+            entity_id: submissionId,
+            from_stage: 'interview_scheduled',
+            to_stage: 'interview_result',
+            changed_by: userId,
+            reason: null,
+          },
+        });
+      }
     }
 
     return { round };
   });
 }
 
-async function updateInterviewRound(id, patch) {
+async function updateInterviewRound(id, patch, userId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.interviewRound.findUnique({ where: { id } });
     if (!existing) return { error: 'not_found' };
 
     const finalPatch = { ...patch };
+    if (finalPatch.scheduled_at) finalPatch.scheduled_at = new Date(finalPatch.scheduled_at);
+    if (finalPatch.completed_at) finalPatch.completed_at = new Date(finalPatch.completed_at);
+    if (finalPatch.interviewer_email === '') finalPatch.interviewer_email = null;
     if (['pass', 'fail', 'no_show'].includes(patch.result) && !patch.completed_at) {
       finalPatch.completed_at = new Date();
     }
@@ -224,6 +265,16 @@ async function updateInterviewRound(id, patch) {
       const submission = await tx.submission.findUnique({ where: { id: round.submission_id } });
       if (submission && submission.stage === 'interview_scheduled') {
         await tx.submission.update({ where: { id: round.submission_id }, data: { stage: 'interview_result' } });
+        await tx.stageHistory.create({
+          data: {
+            entity_type: 'submission',
+            entity_id: round.submission_id,
+            from_stage: 'interview_scheduled',
+            to_stage: 'interview_result',
+            changed_by: userId,
+            reason: null,
+          },
+        });
       }
     }
 

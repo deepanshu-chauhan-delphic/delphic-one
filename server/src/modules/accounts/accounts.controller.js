@@ -6,6 +6,7 @@ const { createSchema, updateSchema, stageSchema, listQuerySchema } = require('./
 const ERROR_STATUS = {
   not_found: [404, 'Not found'],
   locked: [403, 'Record is locked'],
+  forbidden: [403, 'You do not own this record'],
   invalid_transition: [400, 'Invalid stage transition'],
   reason_required: [400, 'reason is required for this transition'],
   meeting_fields_required: [400, 'meeting_mode and meeting_date are required'],
@@ -21,6 +22,9 @@ const list = asyncHandler(async (req, res) => {
 const getOne = asyncHandler(async (req, res) => {
   const account = await accountsService.getById(req.params.id);
   if (!account) return fail(res, 404, 'Not found');
+  if (req.user.role === 'bda' && account.owner?.id !== req.user.id) {
+    return fail(res, 403, 'You do not own this record');
+  }
   return ok(res, account);
 });
 
@@ -32,13 +36,17 @@ const create = asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const body = updateSchema.parse(req.body);
-  const account = await accountsService.update(req.params.id, body);
-  return ok(res, account);
+  const result = await accountsService.update(req.params.id, body, req.user);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return ok(res, result.account);
 });
 
 const changeStage = asyncHandler(async (req, res) => {
   const body = stageSchema.parse(req.body);
-  const result = await accountsService.changeStage(req.params.id, body, req.user.id);
+  const result = await accountsService.changeStage(req.params.id, body, req.user);
   if (result.error) {
     const [status, message] = ERROR_STATUS[result.error];
     return fail(res, status, message);

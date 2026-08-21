@@ -36,15 +36,24 @@ async function list({ role, active, search, page = 1, limit = 20 }) {
 }
 
 async function create({ name, email, password, role, phone }) {
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { error: 'email_taken' };
+
   const password_hash = await bcrypt.hash(password, 10);
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: { name, email, password_hash, role, phone: phone || null },
     select: PUBLIC_SELECT,
   });
+  return { user };
 }
 
 async function update(id, patch) {
-  return prisma.user.update({ where: { id }, data: patch, select: PUBLIC_SELECT });
+  if (patch.email) {
+    const clash = await prisma.user.findFirst({ where: { email: patch.email, NOT: { id } } });
+    if (clash) return { error: 'email_taken' };
+  }
+  const user = await prisma.user.update({ where: { id }, data: patch, select: PUBLIC_SELECT });
+  return { user };
 }
 
 module.exports = { getById, list, create, update };

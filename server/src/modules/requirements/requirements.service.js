@@ -96,6 +96,12 @@ async function getById(id) {
   return serialize(row);
 }
 
+function canMutateRequirement(requirement, user) {
+  if (!requirement) return false;
+  if (user.role === 'admin') return true;
+  return user.role === 'sales' && requirement.sales_owner_id === user.id;
+}
+
 async function create(data, salesOwnerId) {
   const account = await prisma.account.findUnique({ where: { id: data.account_id } });
   if (!account || account.type !== 'client' || account.stage !== 'active') {
@@ -119,15 +125,20 @@ async function create(data, salesOwnerId) {
   return { requirement: serialize(row) };
 }
 
-async function update(id, patch) {
+async function update(id, patch, user) {
+  const existing = await prisma.requirement.findUnique({ where: { id } });
+  if (!existing) return { error: 'not_found' };
+  if (!canMutateRequirement(existing, user)) return { error: 'forbidden' };
+
   const row = await prisma.requirement.update({ where: { id }, data: patch, include: DECORATE_INCLUDE });
-  return serialize(row);
+  return { requirement: serialize(row) };
 }
 
-async function changeStatus(id, { to_status, reason }, userId) {
+async function changeStatus(id, { to_status, reason }, user) {
   return prisma.$transaction(async (tx) => {
     const requirement = await tx.requirement.findUnique({ where: { id } });
     if (!requirement) return { error: 'not_found' };
+    if (!canMutateRequirement(requirement, user)) return { error: 'forbidden' };
     if (requirement.is_locked) return { error: 'locked' };
     if (!(STATUS_TRANSITIONS[requirement.status] || []).includes(to_status)) return { error: 'invalid_transition' };
     if (to_status === 'dropped' && !reason) return { error: 'reason_required' };
@@ -154,7 +165,7 @@ async function changeStatus(id, { to_status, reason }, userId) {
         entity_id: id,
         from_stage: requirement.status,
         to_stage: to_status,
-        changed_by: userId,
+        changed_by: user.id,
         reason: reason || null,
       },
     });
@@ -163,7 +174,11 @@ async function changeStatus(id, { to_status, reason }, userId) {
   });
 }
 
-async function assign(requirementId, { user_id, role_on_req }, assignedBy) {
+async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
+  const requirement = await prisma.requirement.findUnique({ where: { id: requirementId } });
+  if (!requirement) return { error: 'not_found' };
+  if (!canMutateRequirement(requirement, assignedByUser)) return { error: 'forbidden' };
+
   const target = await prisma.user.findUnique({ where: { id: user_id } });
   if (!target) return { error: 'user_not_found' };
   if (target.role !== role_on_req) return { error: 'role_mismatch' };
@@ -174,7 +189,7 @@ async function assign(requirementId, { user_id, role_on_req }, assignedBy) {
   if (existing) return { error: 'already_assigned' };
 
   const row = await prisma.requirementAssignment.create({
-    data: { requirement_id: requirementId, user_id, role_on_req, assigned_by: assignedBy },
+    data: { requirement_id: requirementId, user_id, role_on_req, assigned_by: assignedByUser.id },
   });
 
   return {
@@ -183,13 +198,21 @@ async function assign(requirementId, { user_id, role_on_req }, assignedBy) {
       user: { id: target.id, name: target.name, role: target.role },
       role_on_req: row.role_on_req,
       assigned_at: row.assigned_at,
-      assigned_by: { id: assignedBy },
+      assigned_by: { id: assignedByUser.id },
     },
   };
 }
 
-async function unassign(assignmentId) {
-  return prisma.requirementAssignment.update({ where: { id: assignmentId }, data: { unassigned_at: new Date() } });
+async function unassign(requirementId, assignmentId, user) {
+  const requirement = await prisma.requirement.findUnique({ where: { id: requirementId } });
+  if (!requirement) return { error: 'not_found' };
+  if (!canMutateRequirement(requirement, user)) return { error: 'forbidden' };
+
+  const assignment = await prisma.requirementAssignment.findUnique({ where: { id: assignmentId } });
+  if (!assignment || assignment.requirement_id !== requirementId) return { error: 'not_found' };
+
+  await prisma.requirementAssignment.update({ where: { id: assignmentId }, data: { unassigned_at: new Date() } });
+  return { ok: true };
 }
 
 async function getAssignments(requirementId) {
@@ -243,11 +266,15 @@ async function getSeats(requirementId) {
   }));
 }
 
-async function addSeat(requirementId, { seat_label }) {
+async function addSeat(requirementId, { seat_label }, user) {
+  const requirement = await prisma.requirement.findUnique({ where: { id: requirementId } });
+  if (!requirement) return { error: 'not_found' };
+  if (!canMutateRequirement(requirement, user)) return { error: 'forbidden' };
+
   return prisma.$transaction(async (tx) => {
     const seat = await tx.requirementSeat.create({ data: { requirement_id: requirementId, seat_label: seat_label || null } });
     await tx.requirement.update({ where: { id: requirementId }, data: { seats_total: { increment: 1 } } });
-    return seat;
+    return { seat };
   });
 }
 
@@ -314,4 +341,5 @@ module.exports = {
   getSeats,
   addSeat,
   changeSeatStatus,
+  canMutateRequirement,
 };

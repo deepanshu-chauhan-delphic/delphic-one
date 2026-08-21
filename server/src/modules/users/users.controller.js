@@ -1,7 +1,11 @@
 const asyncHandler = require('../../utils/asyncHandler');
-const { ok, created } = require('../../utils/response');
+const { ok, created, fail } = require('../../utils/response');
 const usersService = require('./users.service');
 const { listQuerySchema, createSchema, updateSchema } = require('./users.validation');
+
+const ERROR_STATUS = {
+  email_taken: [409, 'Email already in use'],
+};
 
 const me = asyncHandler(async (req, res) => {
   const user = await usersService.getById(req.user.id);
@@ -16,14 +20,22 @@ const list = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const body = createSchema.parse(req.body);
-  const user = await usersService.create(body);
-  return created(res, user);
+  const result = await usersService.create(body);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return created(res, result.user);
 });
 
 const update = asyncHandler(async (req, res) => {
   const body = updateSchema.parse(req.body);
-  const user = await usersService.update(req.params.id, body);
-  return ok(res, user);
+  const result = await usersService.update(req.params.id, body);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return ok(res, result.user);
 });
 
 module.exports = { me, list, create, update };

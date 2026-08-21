@@ -2,6 +2,111 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Interview feedback confirmed/extended; recruiter/sales reports get interview + closure depth (RD-132)
+
+**Feedback:** Already supported on `InterviewRound` (`feedback`, `rating`) via `PATCH /interview-rounds/:id`. Extended so recruiters can also submit **feedback + rating + result on create** (`POST /submissions/:id/interview-rounds`) — useful for logging a completed internal screen in one step. Completing a result auto-sets `completed_at`.
+
+**Reports (recruiter-performance + sales-performance)** now include for the date range:
+- `interviews_total` / `interviews_completed` / `interviews_pending`
+- `interviews_internal` vs `interviews_client`, plus `interviews_by_type` and `interviews_by_result`
+- `interviews_with_feedback` / `interviews_missing_feedback`
+- `avg_interview_rating`, `avg_days_interview_turnaround` (scheduled → completed)
+- `closures_count`, `closure_rate_percentage` (recruiter); sales also gets period closures + same interview stats on owned requirements
+
+Recruiters can call `GET /reports/recruiter-performance` scoped to themselves. Export flatten now expands nested metric objects.
+
+## 2026-08-21 — One-click test login + Admin Users page (RD-126 / RD-131)
+
+**One-click login (temporary):** Login page shows Admin / BDA / Sales / Recruiter buttons that sign in as seeded users (`*@delphic.local` / `Password123!`). Marked clearly as testing-only; hide with `VITE_DISABLE_QUICK_LOGIN=true`. Lives in `client/src/lib/testAccounts.js` — remove when real auth/SSO lands.
+
+**Admin-only user provisioning:** `/users` page (admin nav only) lists users, creates BDA / Sales / Recruiter / Admin with a temporary password shown once for sharing, and activate/deactivate. Backend `POST/PATCH /users` was already `authorize('admin')`; create now returns 409 on duplicate email. Non-admins are redirected away from the page.
+
+Everyone else signs in with credentials the admin shares (or uses one-click for seed accounts during testing).
+
+## 2026-08-21 — Sprint plan filled with previously missing tickets; progress docs synced
+
+**Why:** An audit against the API/build plan found product gaps that existed in the backend (or were only implied in older tickets) but were **not named as sprint tickets** — so they could slip past Aug 28.
+
+**Added / expanded in [SPRINT-PLAN.md](SPRINT-PLAN.md):**
+
+| Ticket | What was missing |
+|---|---|
+| RD-103 / RD-104 | Explicit **seat stage controls** and **Add seat** (API existed; tickets only said “list seats” / requirement status) |
+| RD-111 | Clarified full stage list including **`internal_screening`** |
+| **RD-125** | **Interview rounds UI** — recruiter **internal** rounds + client rounds (API/`round_type: internal` already supported; no FE ticket before) |
+| **RD-126** | **Admin Users page** (API existed; no UI — needed for real team accounts on deploy) |
+| **RD-127** | **Unlock UI** on locked detail pages (API + tests existed; no button) |
+| **RD-128** | **Change password** from header/menu (API existed; no UI) |
+| RD-113 / RD-114 | Noted that stuck lists, role scoping, avg days, and export **APIs are already done** — FE only |
+| RD-119 | E2E walkthrough must include internal interview, seat close, unlock, create user |
+| **RD-129** | Ownership + dashboard role scoping — marked **DONE (Aug 21)** |
+| **RD-130** | admin/comments/documents module split — marked **DONE (Aug 21)** |
+| RD-117 / 118 / 123 / 124 | Already marked DONE; left in plan for history |
+
+Also added a **Backend vs frontend map** table in the sprint plan so owners can see what is API-ready vs still UI.
+
+**TODO.md** resume point updated: next work is frontend Day 1 (RD-101+) plus the new FE tickets above. Backend remains **47 tests green**, uncommitted until asked.
+
+## 2026-08-21 — Split admin / comments / documents into routes/controller/service/validation
+
+Brought the three remaining routes-only modules in line with the rest of the server:
+
+- `admin/` — unlock body/params validation, `admin.service.unlock`, thin controller/routes
+- `comments/` — list/create service + Zod validation + controller
+- `documents/` — list/create/remove in service (DB + unlink); multer upload stays in routes (transport); meta validated in `documents.validation.js`
+
+Smoke coverage in `server/tests/modules-split.test.js` (comments CRUD-ish, document upload/list/delete, admin unlock). **7 suites / 47 tests green.**
+
+## 2026-08-21 — Remaining backend product gaps closed (RD-123, RD-124, ownership, dashboard scoping)
+
+**Done and verified** (`cd server && npm test` → initially 43 tests; now 47 with module-split suite):
+
+1. **RD-123 — dashboard stuck lists:** `dashboard.service.js` now reuses the same aging rules as the Aging report (7+ days). Spec shape: `stuck_leads: [{id,name,days_in_stage}]`, `stuck_requirements: [{id,title,days_open,submissions_count}]` (top 5 each). Hardcoded `[]` removed.
+2. **Dashboard role scoping:** admin = global; BDA = own accounts/leads; sales = own requirements + related pipeline; recruiter = assigned reqs + own submissions/funnel.
+3. **RD-124 — avg stage days:** recruiter performance computes `avg_days_*` from `stage_history` (+ interview-round fallback for interview start). Vendor performance computes `avg_days_to_submit` from requirement `created_at` → submission `created_at`. Interview auto-advances now also write `stage_history` so metrics stay accurate.
+4. **Ownership on mutate:** BDA can only PATCH/stage own accounts; sales can only mutate own requirements (update/status/assign/unassign/addSeat). Admin unrestricted. List/getOne scoped the same way for BDA/sales.
+
+**New tests:** `server/tests/backend-gaps.test.js` (stuck lists, role scoping, ownership 403s, recruiter/vendor avg days).
+
+**Remaining sprint work** is frontend + infra (see SPRINT-PLAN RD-101+ and RD-125–128 open FE tickets).
+
+## 2026-08-21 — Test suite finished and green (auth, locking, accounts/requirements/submissions stage machines)
+
+**Ran and fixed** the suite Claude left unexecuted, then wrote the two missing files. Final result: **5 suites / 36 tests, all passing** (`cd server && npm test`).
+
+**Fixes found by first run:**
+1. Login rate limiter (`max: 5 / 60s` in `server/src/app.js`) was hitting mid-suite → 429. Skipped the limiter when `NODE_ENV === 'test'`.
+2. Account stage machine only allows `dropped` from `meeting_scheduled` / `rescheduled` / `active` — not from `lead`. `locking.test.js` and two cases in `accounts-stage.test.js` were dropping from `lead` and would have failed; rewritten to schedule a meeting first. Post-lock transition assertion corrected to **403** (lock check before transition validity), matching the service.
+
+**New files (RD-117):**
+- `server/tests/requirements-stage.test.js` — requirement status (incl. `seats_not_closed`, drop+lock), seat machine (skip/join_at/drop reason), auto-close parent when last seat closes or drops, assign/unassign + role mismatch.
+- `server/tests/submissions-stage.test.js` — margin on create, vendor_rate gate, duplicate submission, skip/backout/reject reasons, `rounds_not_resolved` / `bgv_not_cleared` gates, auto-advance via interview rounds, full happy path to closed (locks submission + seat).
+
+**Helpers extended:** `createRequirement`, `createProfile` in `server/tests/helpers.js`.
+
+**Still uncommitted** (do not commit unless asked): test suite + app.js rate-limit skip + earlier SPRINT-PLAN RD-123/RD-124 edit + package-lock / jest deps.
+
+## 2026-08-21 — Sprint plan corrected; test suite started but NOT yet run — paused mid-work
+
+**Read this whole entry before touching `server/tests/` — work stopped mid-task, nothing here has been verified to pass.**
+
+**Sprint plan correction (uncommitted):** User asked "are all backend APIs done?" — did a real grep of every route file against every endpoint in `docs/API-Spec-and-Build-Plan.md`. Result: all 52 spec endpoints exist with correct method + role guard. But that's route *coverage*, not correctness — two known stubs were already tracked (dashboard's `stuck_leads`/`stuck_requirements` hardcoded to `[]`; six `avg_days_*` report fields always `null`). Added these as explicit tickets **RD-123** and **RD-124** to `docs/SPRINT-PLAN.md` (Day 5, Dev A) and to the published artifact, and rewrote the plan's intro to stop implying "backend: done" without qualification. **This edit is saved to disk but not committed** — user explicitly said "do not commit by yourself to github until asked for" (now saved as a standing feedback memory).
+
+**Test suite: infrastructure built, files written, but never executed — this is the important part.** User asked to "run the tests," which surfaced there were none. Set out to write and run a real suite for the highest-risk logic (stage machines, locking, auth — matching `RD-117`/`RD-118`), then got interrupted by a "pause, document everything" instruction before `npm test` was run even once. Concretely, as of this entry:
+
+- Installed `jest` + `supertest` as server devDependencies (`npm install --workspace server` — succeeded, `package-lock.json` updated).
+- Added `server/jest.config.js` (setupFiles-based env injection, `testMatch: tests/**/*.test.js`).
+- Created an **isolated test database**: `requirement_dashboard_test` on the same Dockerized Postgres the dev DB (`requirement_dashboard`) already lives on (`docker exec delphic_one-db-1 psql -U postgres -c "CREATE DATABASE requirement_dashboard_test;"`), then applied the existing migration to it with `DATABASE_URL=...localhost:5434/requirement_dashboard_test npx prisma migrate deploy` — this succeeded and printed a Prisma update notice (5.22.0 → 7.9.1 available; not acted on, just noted).
+- `server/tests/env.setup.js` — points `DATABASE_URL` at the test DB and sets test JWT secrets, loaded via Jest `setupFiles` so it runs before `src/app.js`/`src/config/db.js` are ever required (dotenv in `config/env.js` won't clobber env vars already set, so this is safe).
+- `server/tests/helpers.js` — `cleanDatabase()` (raw `TRUNCATE ... RESTART IDENTITY CASCADE` across all 11 tables), `createUser()`, `loginAs()` (hits the real `/auth/login` endpoint via supertest), `createActiveClientAccount()`, `authed()` helper for attaching bearer tokens.
+- `server/tests/auth.test.js` — 8 tests: login success/wrong-password/deactivated-user, `/users/me` with and without a token, refresh (valid + garbage token), change-password (wrong current password, then success, then confirms the old password stops working and the new one works).
+- `server/tests/locking.test.js` — 2 tests: full lock lifecycle (create account → edit while unlocked → drop it → confirm edit now 403s → confirm a further stage transition now 403s, not 400, because the lock check runs before the transition-validity check → admin unlocks → edit works again), and confirming a non-admin gets 403 from the unlock endpoint itself.
+- `server/tests/accounts-stage.test.js` — 6 tests covering the account stage machine: can't skip lead→active, meeting_scheduled requires its fields, dropped requires a reason, the full valid path with history verification, rescheduled looping back to meeting_scheduled, and dropped being terminal (confirmed the *right* status code: 403 locked, not 400 invalid-transition, since drop sets `is_locked` before any further attempt). **One bug in this file was caught and fixed before being run**: a test originally asserted `rescheduled` would 400 without a reason — checked `accounts.validation.js` directly and confirmed `reason` is optional for every transition except `dropped`, so the test was rewritten to assert 200 and actually verify the reschedule → meeting_scheduled loop instead of a guess.
+- **Not yet written:** `requirements-stage.test.js` (requirement status transitions, `seats_not_closed` gate, seat stage machine, auto-close-requirement-when-all-seats-close side effect, assignment/unassignment) and `submissions-stage.test.js` (full submission pipeline, `rounds_not_resolved` gate, `bgv_not_cleared` gate, backout/rejection reason requirements, margin calculation). These are exactly `RD-117`'s scope and are the two files most likely to actually catch a bug, since submissions has the deepest state machine.
+- **Not yet done, at all:** running `npm test` (or `npx jest`) even a single time. Zero confirmed pass/fail for anything above. Do not report these tests as "passing" or "written and verified" — they are only "written, believed correct by inspection."
+
+**Environment state left behind:** `docker compose up -d` is running (db/server/client containers), plus the extra `requirement_dashboard_test` database sitting alongside the dev one in the same Postgres instance/volume. Next session should: run `cd server && npm test` first (fix whatever it finds — first real signal), then write the two missing test files, then decide with the user whether to commit.
+
 ## 2026-08-21 — Dockerized the stack; verified working end-to-end
 
 - Added `server/Dockerfile`, `client/Dockerfile` (multi-stage build → `nginx:1.27-alpine` runtime, `client/nginx.conf` proxies `/api` and `/uploads` to the `server` container), root `docker-compose.yml` (`db`/`server`/`client` services, named volumes for Postgres data and uploads), `.dockerignore`, and root `.env.example` for compose overrides.

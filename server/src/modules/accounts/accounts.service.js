@@ -53,6 +53,12 @@ async function getById(id) {
   return serialize(row);
 }
 
+function canMutateAccount(account, user) {
+  if (!account) return false;
+  if (user.role === 'admin') return true;
+  return user.role === 'bda' && account.owner_id === user.id;
+}
+
 async function create(data, ownerId) {
   const row = await prisma.account.create({
     data: { ...data, owner_id: ownerId },
@@ -61,23 +67,28 @@ async function create(data, ownerId) {
   return serialize(row);
 }
 
-async function update(id, patch) {
+async function update(id, patch, user) {
+  const existing = await prisma.account.findUnique({ where: { id } });
+  if (!existing) return { error: 'not_found' };
+  if (!canMutateAccount(existing, user)) return { error: 'forbidden' };
+
   const row = await prisma.account.update({
     where: { id },
     data: patch,
     include: { owner: { select: { id: true, name: true } } },
   });
-  return serialize(row);
+  return { account: serialize(row) };
 }
 
 function canTransition(from, to) {
   return (TRANSITIONS[from] || []).includes(to);
 }
 
-async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date }, userId) {
+async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date }, user) {
   return prisma.$transaction(async (tx) => {
     const account = await tx.account.findUnique({ where: { id } });
     if (!account) return { error: 'not_found' };
+    if (!canMutateAccount(account, user)) return { error: 'forbidden' };
     if (account.is_locked) return { error: 'locked' };
     if (!canTransition(account.stage, to_stage)) return { error: 'invalid_transition' };
     if (to_stage === 'dropped' && !reason) return { error: 'reason_required' };
@@ -104,7 +115,7 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date },
         entity_id: id,
         from_stage: account.stage,
         to_stage,
-        changed_by: userId,
+        changed_by: user.id,
         reason: reason || null,
       },
     });
@@ -129,4 +140,4 @@ async function getHistory(id) {
   }));
 }
 
-module.exports = { list, getById, create, update, changeStage, getHistory, canTransition };
+module.exports = { list, getById, create, update, changeStage, getHistory, canTransition, canMutateAccount };

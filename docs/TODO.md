@@ -2,32 +2,39 @@
 
 Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items land. See [docs/AGENTS.md](AGENTS.md) for project context.
 
-**The items below are now assigned as dated tickets across two developers — see [docs/SPRINT-PLAN.md](SPRINT-PLAN.md) for the day-by-day breakdown targeting an Aug 28 deploy.**
+**Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
+
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend for this sprint is **complete and green** (47 tests). Uncommitted work still on disk — do not commit unless asked. **Next work is frontend:** start Day 1 tickets RD-101–104 (and later RD-125 interview rounds, RD-126 users, RD-127 unlock, RD-128 change-password).
 
 ## Backend
 
-- [x] `npm install` run for real in both workspaces; `prisma migrate dev` generated the first real migration (`server/prisma/migrations/20260821054624_init/`) and applied it; verified all 12 tables (11 + `_prisma_migrations`) exist and seed data loads. Confirmed `^5.18.0` resolves to Prisma 5.22.0 and generates cleanly with the traditional `datasource { url = env(...) }` syntax — the earlier IDE-diagnostic concern was a non-issue.
-- [x] Full stack verified end-to-end via Docker Compose from a completely fresh volume: `docker compose up --build` → `migrate deploy` finds and applies the committed migration → seed → login via `POST /auth/login` → `GET /users/me` and `/dashboard/summary` all return real data, both hitting the API directly (port 4000) and through the client's Nginx proxy (port 8081).
-- [ ] Flesh out `admin`, `comments`, `dashboard`, `documents` modules to the standard routes/controller/service/validation pattern (currently routes-only, direct Prisma calls in the route file).
-- [ ] Confirm auth middleware + lockCheck middleware are wired into every module route that needs them.
-- [ ] Cross-check implemented routes against [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md) for gaps.
-- [ ] Still no automated tests and no linter — only manual `curl` checks and `node --check` syntax validation have ever been run against this code. See [docs/PROGRESS.md](PROGRESS.md) for the exact commands used, so this can be turned into a real smoke-test script.
+- [x] Install, migrate, seed, Docker end-to-end verified.
+- [x] All spec API routes present; stage machines, locking, auth tested.
+- [x] RD-123 stuck dashboard lists + RD-129 role-scoped summary.
+- [x] RD-124 recruiter/vendor avg-day metrics.
+- [x] Ownership on account/requirement mutate paths.
+- [x] RD-130 admin / comments / documents split to routes/controller/service/validation.
+- [x] Test suite: **7 suites / 48 tests** green (`cd server && npm test`). Still no linter (RD-116).
+- [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 
-## Frontend
+## Frontend (open — see sprint tickets)
 
-- [x] List pages (accounts, requirements, profiles, submissions, reports) wired to real API endpoints via `apiClient`.
-- [ ] Dashboard page: currently generic summary cards + funnel chart — role-based widgets per system design doc still to do.
-- [x] Auth flow: login page → session persistence (localStorage + refresh) → protected routes.
-- [ ] Detail pages (account/requirement/profile/submission drill-down, stage transition UI, kanban board) not built yet — list pages only.
+- [x] List pages + login + layout/logout wired to API.
+- [ ] RD-101–104 — account/requirement detail + forms + **seat stage controls**.
+- [ ] RD-105–108 — profile/submission detail + create flows + assign popup.
+- [ ] RD-109–112, **RD-125** — notes/files, submission stages, **interview rounds (internal + client)**, kanban.
+- [ ] RD-113–114 — role dashboard widgets + real report charts (APIs ready).
+- [x] **RD-126** Admin Users page (create BDA/Sales/Recruiter/Admin; deactivate).
+- [x] **RD-131** Temporary one-click role login on login page (disable/remove before real auth).
+- [ ] **RD-127** Unlock UI · **RD-128** Change password.
+- [ ] RD-115 spec UI audit.
 
 ## Infra / CI
 
-- [x] First commit made; `main`, `staging`, `dev` pushed to `github.com/deepanshu-chauhan-delphic/delphic-one`.
-- [x] Full stack dockerized: `server/Dockerfile`, `client/Dockerfile` (→ Nginx runtime), root `docker-compose.yml` (`db`/`server`/`client`), verified working end-to-end (see Backend section above).
-- [ ] `ci.yml` doesn't build the Docker images or run `docker compose up` — it only does `npm install`/`npm run build`/`node --check`. Consider adding an image-build (and ideally a compose-up smoke test) job, since that's the part that actually caught real bugs (missing OpenSSL, missing migrations) this session.
-- [ ] Set `DEPLOY_ENABLED` repo variable + `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` secrets when ready to enable auto-deploy. `deploy.yml` still assumes a bare PM2/Nginx VPS layout (`ecosystem.config.js`, `nginx.conf.example`) rather than deploying the new Docker images — decide which deployment story to keep before enabling it.
-- [x] `staging` and `dev` branches exist; CI workflow targets all three (not yet confirmed green — no PR/push has triggered a run yet).
+- [x] GitHub repo + Docker compose stack.
+- [ ] RD-116 linter · RD-120 Docker CI smoke · RD-121 deploy story (Docker vs PM2) · RD-122 deploy day.
 
 ## Docs
 
+- [x] SPRINT-PLAN updated with missing tickets (RD-125–130) and DONE marks (Aug 21).
 - [ ] Keep this file and PROGRESS.md current each session.

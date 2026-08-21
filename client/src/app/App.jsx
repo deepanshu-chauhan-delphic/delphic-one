@@ -8,6 +8,7 @@ import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx
 import ProfilesListPage from '../pages/profiles/ProfilesListPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
+import UsersPage from '../pages/users/UsersPage.jsx';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="profiles" element={<ProfilesListPage />} />
         <Route path="submissions" element={<SubmissionsListPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

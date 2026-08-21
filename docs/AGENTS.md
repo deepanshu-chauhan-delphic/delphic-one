@@ -36,7 +36,7 @@ server/prisma/
   seed.js                 # seed data (admin, sales, bda, 2 recruiters)
 ```
 
-Domain modules follow a consistent 4-file pattern: `routes` → `controller` → `service` → `validation`. Some modules (admin, comments, dashboard, documents) currently have only a `routes.js` — check whether they need controller/service split before extending them.
+Domain modules follow a consistent 4-file pattern: `routes` → `controller` → `service` → `validation` (including `admin`, `comments`, `documents`, and `dashboard` which has routes + service).
 
 ## Branching
 
@@ -67,6 +67,8 @@ npm run dev:client   # http://localhost:5173
 ```
 
 Seeded users (password `Password123!`): `admin@delphic.local`, `sales1@delphic.local`, `bda1@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
+
+**Temporary testing:** the login page has one-click buttons for Admin / BDA / Sales / Recruiter. Hide with `VITE_DISABLE_QUICK_LOGIN=true` when moving to real auth. Only **admin** can create new users (Users page in the nav); share email + password with BDA / Sales / Recruiter / other admins.
 
 **This dev machine specifically** already runs native (non-Docker) Postgres services on `localhost:5432` and `localhost:5433`, and a native Apache/XAMPP on `localhost:8080`. `docker-compose.yml`'s default host ports (5434 for Postgres, 8081 for the client) were chosen to avoid these — if ports still collide, check `netstat -ano | grep <port>` and cross-reference the PID before assuming a Docker container is what you're talking to.
 

@@ -1,0 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5434/requirement_dashboard_test';
+process.env.JWT_ACCESS_SECRET = 'test_access_secret';
+process.env.JWT_REFRESH_SECRET = 'test_refresh_secret';
+process.env.JWT_ACCESS_EXPIRES = '1h';
+process.env.JWT_REFRESH_EXPIRES = '7d';
+process.env.CORS_ORIGIN = 'http://localhost:5173';
+process.env.UPLOAD_DIR = './uploads_test';
+process.env.MAX_UPLOAD_MB = '10';
