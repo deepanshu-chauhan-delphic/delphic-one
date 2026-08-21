@@ -2,6 +2,8 @@
 
 Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items land. See [docs/AGENTS.md](AGENTS.md) for project context.
 
+**The items below are now assigned as dated tickets across two developers — see [docs/SPRINT-PLAN.md](SPRINT-PLAN.md) for the day-by-day breakdown targeting an Aug 28 deploy.**
+
 ## Backend
 
 - [x] `npm install` run for real in both workspaces; `prisma migrate dev` generated the first real migration (`server/prisma/migrations/20260821054624_init/`) and applied it; verified all 12 tables (11 + `_prisma_migrations`) exist and seed data loads. Confirmed `^5.18.0` resolves to Prisma 5.22.0 and generates cleanly with the traditional `datasource { url = env(...) }` syntax — the earlier IDE-diagnostic concern was a non-issue.
