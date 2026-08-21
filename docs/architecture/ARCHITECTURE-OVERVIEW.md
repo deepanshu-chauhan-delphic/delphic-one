@@ -23,13 +23,13 @@
 
 ## 1. How to share this document
 
-This file lives in the git repo under `docs/`. Anyone with repo access can open it on GitHub (Mermaid diagrams render in the GitHub UI).
+This file lives in the git repo under `docs/architecture/`. Anyone with repo access can open it on GitHub (Mermaid diagrams render in the GitHub UI).
 
 **Recommended share options**
 
 | Option | Steps |
 |---|---|
-| **GitHub link (best)** | Commit + push this file, then send the blob URL, e.g. `https://github.com/<org>/<repo>/blob/<branch>/docs/ARCHITECTURE-OVERVIEW.md` |
+| **GitHub link (best)** | Commit + push this file, then send the blob URL, e.g. `https://github.com/<org>/<repo>/blob/<branch>/docs/architecture/ARCHITECTURE-OVERVIEW.md` |
 | **PR / review** | Open a PR that adds or updates these docs; reviewers read the Files changed tab |
 | **Email / Slack** | Attach or paste the raw markdown, or send the GitHub link after push |
 | **Pair with HLD** | Also send [HLD.md](HLD.md) for the detailed design narrative |
@@ -278,6 +278,6 @@ Usually derived from the furthest-advanced active submission; can be overridden.
 | [HLD.md](HLD.md) | Detailed high-level design (principles, security, ops, abstraction budget) |
 | [Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md) | Field-level data model |
 | [API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md) | Exact HTTP contracts |
-| [SPRINT-PLAN.md](SPRINT-PLAN.md) | Ticket status and weekly delivery plan |
-| [UI-UX-JIRA.md](UI-UX-JIRA.md) | Frontend UX standing rule |
-| [AGENTS.md](AGENTS.md) | Repo layout and local setup |
+| [SPRINT-PLAN.md](../progress/SPRINT-PLAN.md) | Ticket status and weekly delivery plan |
+| [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) | Frontend UX standing rule |
+| [AGENTS.md](../AGENTS.md) | Repo layout and local setup |

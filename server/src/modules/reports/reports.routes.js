@@ -75,16 +75,20 @@ router.get(
     if (!['xlsx', 'pdf'].includes(type)) return fail(res, 422, 'type must be xlsx or pdf');
 
     const data = await fn(req.query);
-    const rows = Array.isArray(data) ? data : [data];
+    const sheets = buildExportSheets(report, data);
     const filename = `${report}-${new Date().toISOString().slice(0, 7)}`;
 
     if (type === 'xlsx') {
       const workbook = new ExcelJS.Workbook();
-      const sheet = workbook.addWorksheet(report);
-      if (rows.length) {
-        sheet.columns = Object.keys(rows[0]).map((key) => ({ header: key, key, width: 22 }));
-        rows.forEach((r) => sheet.addRow(flatten(r)));
-        sheet.getRow(1).font = { bold: true };
+      for (const sheetDef of sheets) {
+        const sheet = workbook.addWorksheet(sheetDef.name.slice(0, 31));
+        if (sheetDef.rows.length) {
+          sheet.columns = Object.keys(sheetDef.rows[0]).map((key) => ({ header: key, key, width: 22 }));
+          sheetDef.rows.forEach((r) => sheet.addRow(r));
+          sheet.getRow(1).font = { bold: true };
+        } else {
+          sheet.addRow(['(no rows)']);
+        }
       }
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
@@ -94,21 +98,51 @@ router.get(
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
-    const doc = new PDFDocument({ margin: 40 });
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
     doc.pipe(res);
     doc.fontSize(16).text(report, { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(10).text(`Generated ${new Date().toISOString()}`);
     doc.moveDown();
-    rows.forEach((row, i) => {
-      doc.fontSize(10).text(JSON.stringify(flatten(row), null, 2));
-      if (i < rows.length - 1) doc.moveDown(0.5);
-    });
+
+    for (const sheetDef of sheets) {
+      doc.fontSize(12).text(sheetDef.name, { underline: true });
+      doc.moveDown(0.3);
+      if (!sheetDef.rows.length) {
+        doc.fontSize(10).text('(no rows)');
+        doc.moveDown();
+        continue;
+      }
+      const headers = Object.keys(sheetDef.rows[0]);
+      doc.fontSize(8).text(headers.join(' | '));
+      sheetDef.rows.slice(0, 80).forEach((row) => {
+        const line = headers.map((h) => String(row[h] ?? '')).join(' | ');
+        doc.text(line.length > 140 ? `${line.slice(0, 137)}...` : line);
+      });
+      if (sheetDef.rows.length > 80) doc.text(`… and ${sheetDef.rows.length - 80} more rows`);
+      doc.moveDown();
+    }
     doc.end();
   })
 );
 
+function buildExportSheets(report, data) {
+  if (report === 'aging' && data && typeof data === 'object' && !Array.isArray(data)) {
+    return [
+      { name: 'stuck_leads', rows: (data.stuck_leads || []).map((r) => flatten(r)) },
+      { name: 'stuck_requirements', rows: (data.stuck_requirements || []).map((r) => flatten(r)) },
+      { name: 'stuck_submissions', rows: (data.stuck_submissions || []).map((r) => flatten(r)) },
+      { name: 'past_sla', rows: (data.past_sla_requirements || []).map((r) => flatten(r)) },
+    ];
+  }
+
+  const rows = Array.isArray(data) ? data.map((r) => flatten(r)) : [flatten(data)];
+  return [{ name: report, rows }];
+}
+
 function flatten(obj, prefix = '') {
   const out = {};
-  for (const [k, v] of Object.entries(obj)) {
+  for (const [k, v] of Object.entries(obj || {})) {
     const key = prefix ? `${prefix}.${k}` : k;
     if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
       if (v.name || v.id) {
@@ -118,6 +152,8 @@ function flatten(obj, prefix = '') {
       }
     } else if (Array.isArray(v)) {
       out[key] = v.length;
+    } else if (v instanceof Date) {
+      out[key] = v.toISOString();
     } else {
       out[key] = v;
     }

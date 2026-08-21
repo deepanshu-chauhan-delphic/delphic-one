@@ -6,7 +6,7 @@
 | **Status** | v1 implementation in progress (backend complete; frontend detail/forms open) |
 | **As of** | 2026-08-21 |
 | **Tenancy** | Single tenant |
-| **Related** | [Architecture Overview](ARCHITECTURE-OVERVIEW.md) · [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](AGENTS.md) · [Sprint Plan](SPRINT-PLAN.md) |
+| **Related** | [Architecture Overview](ARCHITECTURE-OVERVIEW.md) · [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](../AGENTS.md) · [Sprint Plan](../progress/SPRINT-PLAN.md) |
 
 ## Table of Contents
 
@@ -49,7 +49,7 @@ Internal teams at Delphic need one system to run the recruitment pipeline end to
 - Role-scoped dashboard (including stuck lists).
 - Reports with date range and Excel / PDF export.
 - Comments and documents on core entities.
-- Jira-like dense list / filter UX on the frontend ([UI-UX-JIRA.md](UI-UX-JIRA.md)).
+- Jira-like dense list / filter UX on the frontend ([UI-UX-JIRA.md](../ui/UI-UX-JIRA.md)).
 
 ### 1.3 Out of scope (deferred)
 
@@ -372,7 +372,7 @@ sequenceDiagram
 - Zero-dependency logger (`LOG_LEVEL`: error | warn | info | debug).
 - Pretty in development; JSON in production.
 - HTTP access log (method, path, status, duration, user); skips health in tests.
-- See [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
+- See [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
 
 ### 8.6 Comments and documents
 
@@ -491,7 +491,7 @@ delphic_one/
     src/middleware/
     src/config/
     tests/                  # API / stage / auth tests
-  docs/                     # Specs, HLD, sprint, progress, UX
+  docs/                     # architecture/, ui/, testing/, progress/, guides/ + AGENTS.md
   docker-compose.yml
   package.json              # npm workspaces
 ```
@@ -551,5 +551,5 @@ Until decided, implementers should follow existing API field shapes and avoid in
 | Supersedes | N/A (first HLD) |
 | Authoritative detail for fields | [Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md) |
 | Authoritative HTTP contracts | [API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md) |
-| Delivery plan | [SPRINT-PLAN.md](SPRINT-PLAN.md) |
+| Delivery plan | [SPRINT-PLAN.md](../progress/SPRINT-PLAN.md) |
 | Visual companion | [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) (diagrams + journeys; shareable via GitHub) |

@@ -5,11 +5,11 @@ Internal recruitment pipeline for Delphic. Tracks **client / vendor accounts →
 | | |
 |---|---|
 | **Tenancy** | Single tenant |
-| **UI rule** | Jira-like dense lists and filters — [docs/UI-UX-JIRA.md](docs/UI-UX-JIRA.md) |
-| **Detailed HLD** | [docs/HLD.md](docs/HLD.md) |
-| **Field model** | [docs/Requirement-Dashboard-System-Design-v2.md](docs/Requirement-Dashboard-System-Design-v2.md) |
-| **API contract** | [docs/API-Spec-and-Build-Plan.md](docs/API-Spec-and-Build-Plan.md) |
-| **Diagrams & journeys** | [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) |
+| **UI rule** | Jira-like dense lists and filters — [docs/ui/UI-UX-JIRA.md](docs/ui/UI-UX-JIRA.md) |
+| **Detailed HLD** | [docs/architecture/HLD.md](docs/architecture/HLD.md) |
+| **Field model** | [docs/architecture/Requirement-Dashboard-System-Design-v2.md](docs/architecture/Requirement-Dashboard-System-Design-v2.md) |
+| **API contract** | [docs/architecture/API-Spec-and-Build-Plan.md](docs/architecture/API-Spec-and-Build-Plan.md) |
+| **Diagrams & journeys** | [docs/architecture/ARCHITECTURE-OVERVIEW.md](docs/architecture/ARCHITECTURE-OVERVIEW.md) |
 
 ## Table of contents
 
@@ -411,7 +411,7 @@ delphic_one/
     src/middleware/         # auth, lock, errors, request logging
     src/config/             # env, Prisma client, logger
     tests/
-  docs/                     # Specs, HLD, UX, logging
+  docs/                     # architecture/, ui/, testing/, progress/, guides/ + AGENTS.md
   docker-compose.yml
 ```
 
@@ -425,7 +425,7 @@ delphic_one/
 - **Server:** Node.js / Express + Prisma ORM (PostgreSQL)
 - **Edge:** Nginx (TLS, SPA, `/api` proxy)
 - **Runtime:** Docker Compose (`db`, `server`, `client`) — see below
-- **Logging:** Structured backend logger — [docs/BACKEND-LOGGING.md](docs/BACKEND-LOGGING.md)
+- **Logging:** Structured backend logger — [docs/guides/BACKEND-LOGGING.md](docs/guides/BACKEND-LOGGING.md)
 
 ---
 
@@ -502,10 +502,12 @@ Operational expectations: health checks, `prisma migrate deploy` on server start
 
 | Doc | Contents |
 |---|---|
-| [docs/HLD.md](docs/HLD.md) | Full high-level design |
-| [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) | Shareable diagrams and journeys |
-| [docs/Requirement-Dashboard-System-Design-v2.md](docs/Requirement-Dashboard-System-Design-v2.md) | Field-level data model |
-| [docs/API-Spec-and-Build-Plan.md](docs/API-Spec-and-Build-Plan.md) | Exact HTTP contracts |
-| [docs/UI-UX-JIRA.md](docs/UI-UX-JIRA.md) | Frontend UX standing rule |
-| [docs/BACKEND-LOGGING.md](docs/BACKEND-LOGGING.md) | Logging guide |
-| [docs/AGENTS.md](docs/AGENTS.md) | Agent / contributor context |
+| [docs/architecture/HLD.md](docs/architecture/HLD.md) | Full high-level design |
+| [docs/architecture/ARCHITECTURE-OVERVIEW.md](docs/architecture/ARCHITECTURE-OVERVIEW.md) | Shareable diagrams and journeys |
+| [docs/architecture/Requirement-Dashboard-System-Design-v2.md](docs/architecture/Requirement-Dashboard-System-Design-v2.md) | Field-level data model |
+| [docs/architecture/API-Spec-and-Build-Plan.md](docs/architecture/API-Spec-and-Build-Plan.md) | Exact HTTP contracts |
+| [docs/ui/UI-UX-JIRA.md](docs/ui/UI-UX-JIRA.md) | Frontend UX standing rule |
+| [docs/testing/TESTING-DEMO-SEED.md](docs/testing/TESTING-DEMO-SEED.md) | Demo seed + UI walkthroughs |
+| [docs/progress/SPRINT-PLAN.md](docs/progress/SPRINT-PLAN.md) | Sprint tickets |
+| [docs/guides/BACKEND-LOGGING.md](docs/guides/BACKEND-LOGGING.md) | Logging guide |
+| [docs/AGENTS.md](docs/AGENTS.md) | Agent / contributor context (docs index) |

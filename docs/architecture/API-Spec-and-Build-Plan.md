@@ -1522,7 +1522,7 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 - HTTPS only (Nginx)
 - File upload: 10MB limit, type whitelist, virus-scan optional v2
 - SQL injection prevented via parameterized queries (pg or Knex)
-- Structured application logging to stdout (no secrets/tokens in log fields) — see [BACKEND-LOGGING.md](BACKEND-LOGGING.md)
+- Structured application logging to stdout (no secrets/tokens in log fields) — see [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md)
 
 ---
 

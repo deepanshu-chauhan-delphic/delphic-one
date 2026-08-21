@@ -1,6 +1,29 @@
 # Progress Log
 
-Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
+Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
+
+## 2026-08-21 — Docs reorganized by function
+
+Moved markdown under `docs/` into folders and updated cross-links + [AGENTS.md](../AGENTS.md) index:
+
+| Folder | Purpose |
+|---|---|
+| `architecture/` | Diagrams, HLD, field model, API spec |
+| `ui/` | Jira UX + RD-115 walkthrough + `references/` |
+| `testing/` | Demo seed + ticket test guides |
+| `progress/` | PROGRESS, TODO, SPRINT-PLAN |
+| `guides/` | Backend logging (and similar operator guides) |
+
+`docs/AGENTS.md` stays at the docs root as the entry point.
+
+## 2026-08-21 — Dev B RD-114 + RD-128 (reports UI + change password)
+
+- **RD-114:** Reports page shows role-filtered reports, default month date range, Recharts bar charts, dense tables (not raw JSON), aging sections, closure group-by, Excel/PDF download. Export API writes multi-sheet Excel for aging and tabular PDF rows.
+- **RD-128:** Header avatar menu → Change password modal (`POST /auth/change-password`) + Logout.
+
+**Tests:** `reports-ui.test.js` + existing `auth.test.js` change-password. Guide: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
+
+**Still open:** RD-119 E2E · RD-121 deploy story · RD-122 deploy day.
 
 ## 2026-08-21 — Dev A RD-116 + RD-120 (lint + Docker CI smoke)
 
@@ -15,7 +38,7 @@ Re-wired post-merge gaps on Dev B detail pages:
 
 - **RD-110:** `NotesPanel` + `FilesPanel` on Job (`RequirementDetailPage`) and Submission (`SubmissionDetailPage`) — Account + Candidate already had them.
 - **RD-127:** Admin `UnlockButton` on locked requirement header, locked seat rows, and locked submission header (Account already wired).
-- **RD-115:** Spec walkthrough updated — Job form, put-forward, kanban, interview, Notes/Files/Unlock marked Present; only RD-114 charts and RD-128 change-password remain as known FE gaps.
+- **RD-115:** Spec walkthrough updated — Job form, put-forward, kanban, interview, Notes/Files/Unlock marked Present; RD-114/128 later completed on this branch.
 
 ## 2026-08-21 — Staging updated with merged Dev A + Dev B
 
@@ -45,13 +68,13 @@ Committed and pushed RD-103/104, RD-107/108, RD-111/125/112 (requirements + subm
 - **RD-125:** `InterviewRoundsPanel` — add/edit internal + client rounds (schedule, interviewer, feedback, rating, result).
 - **RD-112:** `/requirements/:id/board` kanban by stage; cards link to submissions; quick stage chips. Linked from requirement + submission detail.
 
-**Tests:** `submissions-pipeline-ui.test.js` — **77** green. Guide: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
+**Tests:** `submissions-pipeline-ui.test.js` — **77** green. Guide: [TESTING-RD-111-125-112.md](../testing/TESTING-RD-111-125-112.md).
 
 ## 2026-08-21 — Demo seed for frontend / dashboard E2E
 
 Expanded `server/prisma/seed.js` beyond users: accounts (incl. stuck lead + active clients), requirements/seats/assignments, profiles, submissions across funnel stages, interview rounds, stage history, comments. Re-run wipes all demo tables then recreates.
 
-**How to test:** [TESTING-DEMO-SEED.md](TESTING-DEMO-SEED.md).
+**How to test:** [TESTING-DEMO-SEED.md](../testing/TESTING-DEMO-SEED.md).
 
 ## 2026-08-21 — Dev B Day 2: RD-107 + RD-108 (submissions UI)
 
@@ -61,7 +84,7 @@ Expanded `server/prisma/seed.js` beyond users: accounts (incl. stuck lead + acti
 Shared maps: `server/.../submissions/stageMachines.js` + `client/src/lib/submissionStages.js`.
 
 **Tests:** `submissions-crud-ui.test.js`, `submission-stage-machines.test.js` — **72** green.  
-**How to test:** [TESTING-RD-107-108.md](TESTING-RD-107-108.md).
+**How to test:** [TESTING-RD-107-108.md](../testing/TESTING-RD-107-108.md).
 
 ## 2026-08-21 — Dev B Day 1: RD-103 + RD-104 (requirements UI)
 
@@ -73,13 +96,13 @@ Implemented Job Requirement frontend for Dev B Aug 22 tickets:
 Shared stage maps: `server/.../stageMachines.js` + `client/src/lib/requirementStages.js` (keep in sync).
 
 **Tests:** `stage-machines.test.js`, `requirements-crud-ui.test.js` — **62** tests green.  
-**How to test manually:** [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
+**How to test manually:** [TESTING-RD-103-104.md](../testing/TESTING-RD-103-104.md).
 
 ## 2026-08-21 — Dev A Day 5 unlock + spec/UX (RD-127 / RD-115)
 
 **RD-127:** Reusable `UnlockButton` (`POST /admin/:entity_type/:entity_id/unlock` with reason). Wired for admin on locked Account detail and Candidate/Account surfaces; Job/Submission unlock still to verify after Dev B detail merge.
 
-**RD-115:** Spec walkthrough logged in [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md). Fixed owned UX gaps: Requirements/Submissions Basic filter bars + mono keys + denser tables; AppLayout Delphic brand + tighter chrome.
+**RD-115:** Spec walkthrough logged in [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Fixed owned UX gaps: Requirements/Submissions Basic filter bars + mono keys + denser tables; AppLayout Delphic brand + tighter chrome.
 
 **Verification:** Docker client production build passed (913 modules). Stack restarted on `:8081`.
 
@@ -140,8 +163,8 @@ Implemented the Client/Vendor frontend:
 
 Documented and linked for the next session:
 
-- [BACKEND-LOGGING.md](BACKEND-LOGGING.md) — full logging guide
-- [UI-UX-JIRA.md](UI-UX-JIRA.md) + [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png)
+- [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md) — full logging guide
+- [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) + [references/jira-like-dashboard-reference.png](../ui/references/jira-like-dashboard-reference.png)
 - [SPRINT-PLAN.md](SPRINT-PLAN.md) — Done (9) / Open (22) ticket snapshot
 - AGENTS, README, TODO, PROGRESS, API-Spec security bullet, compose `LOG_LEVEL`
 
@@ -149,7 +172,7 @@ Documented and linked for the next session:
 
 Stakeholder direction: product UI/UX must feel like **Atlassian Jira** (issue search / filters / dense list), not a generic admin CRUD theme.
 
-Documented in [UI-UX-JIRA.md](UI-UX-JIRA.md). Reference screenshot saved at [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png). Cross-linked from AGENTS, TODO, SPRINT-PLAN, and README. Frontend tickets (lists, dashboard, detail chrome, RD-115) must follow this before done.
+Documented in [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md). Reference screenshot saved at [references/jira-like-dashboard-reference.png](../ui/references/jira-like-dashboard-reference.png). Cross-linked from AGENTS, TODO, SPRINT-PLAN, and README. Frontend tickets (lists, dashboard, detail chrome, RD-115) must follow this before done.
 
 ## 2026-08-21 — Backend structured logging (documented)
 
@@ -160,7 +183,7 @@ Wired:
 - `errorHandler` logs validation/warn vs 500 errors with stack
 - Process startup/shutdown + uncaughtException / unhandledRejection in `index.js`
 
-**Docs:** full operator/developer guide in [BACKEND-LOGGING.md](BACKEND-LOGGING.md); cross-links in [AGENTS.md](AGENTS.md), root README, `.env.example` files, and compose `LOG_LEVEL`. `server/.env.example` documents `LOG_LEVEL`. **50 tests green.**
+**Docs:** full operator/developer guide in [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md); cross-links in [AGENTS.md](../AGENTS.md), root README, `.env.example` files, and compose `LOG_LEVEL`. `server/.env.example` documents `LOG_LEVEL`. **50 tests green.**
 
 ## 2026-08-21 — Interview feedback confirmed/extended; recruiter/sales reports get interview + closure depth (RD-132)
 
@@ -250,7 +273,7 @@ Smoke coverage in `server/tests/modules-split.test.js` (comments CRUD-ish, docum
 
 **Read this whole entry before touching `server/tests/` — work stopped mid-task, nothing here has been verified to pass.**
 
-**Sprint plan correction (uncommitted):** User asked "are all backend APIs done?" — did a real grep of every route file against every endpoint in `docs/API-Spec-and-Build-Plan.md`. Result: all 52 spec endpoints exist with correct method + role guard. But that's route *coverage*, not correctness — two known stubs were already tracked (dashboard's `stuck_leads`/`stuck_requirements` hardcoded to `[]`; six `avg_days_*` report fields always `null`). Added these as explicit tickets **RD-123** and **RD-124** to `docs/SPRINT-PLAN.md` (Day 5, Dev A) and to the published artifact, and rewrote the plan's intro to stop implying "backend: done" without qualification. **This edit is saved to disk but not committed** — user explicitly said "do not commit by yourself to github until asked for" (now saved as a standing feedback memory).
+**Sprint plan correction (uncommitted):** User asked "are all backend APIs done?" — did a real grep of every route file against every endpoint in `docs/architecture/API-Spec-and-Build-Plan.md`. Result: all 52 spec endpoints exist with correct method + role guard. But that's route *coverage*, not correctness — two known stubs were already tracked (dashboard's `stuck_leads`/`stuck_requirements` hardcoded to `[]`; six `avg_days_*` report fields always `null`). Added these as explicit tickets **RD-123** and **RD-124** to `docs/progress/SPRINT-PLAN.md` (Day 5, Dev A) and to the published artifact, and rewrote the plan's intro to stop implying "backend: done" without qualification. **This edit is saved to disk but not committed** — user explicitly said "do not commit by yourself to github until asked for" (now saved as a standing feedback memory).
 
 **Test suite: infrastructure built, files written, but never executed — this is the important part.** User asked to "run the tests," which surfaced there were none. Set out to write and run a real suite for the highest-risk logic (stage machines, locking, auth — matching `RD-117`/`RD-118`), then got interrupted by a "pause, document everything" instruction before `npm test` was run even once. Concretely, as of this entry:
 
@@ -301,4 +324,4 @@ Smoke coverage in `server/tests/modules-split.test.js` (comments CRUD-ish, docum
 - Full domain modules (routes/controller/service/validation) built for: **accounts, auth, profiles, requirements, submissions, users**.
 - Routes-only (no controller/service split yet) for: **admin, comments, dashboard, documents**; requirements/seats and submissions/interviewRounds routes exist as extra route files within those modules.
 - CI workflow and deploy workflow (`deploy.yml`, currently a no-op pending `DEPLOY_ENABLED` + VPS secrets) added under `.github/workflows/`.
-- `docs/AGENTS.md`, `docs/PROGRESS.md`, `docs/TODO.md` created to track context going forward.
+- `docs/AGENTS.md`, `docs/progress/PROGRESS.md`, `docs/progress/TODO.md` created to track context going forward.
