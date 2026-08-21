@@ -6,7 +6,7 @@
 | **Status** | v1 implementation in progress (backend complete; frontend detail/forms open) |
 | **As of** | 2026-08-21 |
 | **Tenancy** | Single tenant |
-| **Related** | [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](AGENTS.md) · [Sprint Plan](SPRINT-PLAN.md) |
+| **Related** | [Architecture Overview](ARCHITECTURE-OVERVIEW.md) · [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](AGENTS.md) · [Sprint Plan](SPRINT-PLAN.md) |
 
 ## Table of Contents
 
@@ -552,4 +552,4 @@ Until decided, implementers should follow existing API field shapes and avoid in
 | Authoritative detail for fields | [Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md) |
 | Authoritative HTTP contracts | [API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md) |
 | Delivery plan | [SPRINT-PLAN.md](SPRINT-PLAN.md) |
-| Visual companion | Cursor canvas `delphic-architecture-journeys.canvas.tsx` (Architecture / Features / Journeys / Pipelines / HLD) |
+| Visual companion | [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) (diagrams + journeys; shareable via GitHub) |

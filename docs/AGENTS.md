@@ -8,6 +8,8 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 Full spec: [docs/Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md)
 API contract + build plan: [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md)
+**HLD:** [docs/HLD.md](HLD.md)
+**Architecture / feature map / journeys (shareable):** [docs/ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md)
 Backend logging: [docs/BACKEND-LOGGING.md](BACKEND-LOGGING.md)
 **UI/UX (standing):** [docs/UI-UX-JIRA.md](UI-UX-JIRA.md) — product must feel like Jira (issue search / dense filters + list). Reference: [docs/references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png).
 **Requirements UI (RD-103/104):** [docs/TESTING-RD-103-104.md](TESTING-RD-103-104.md)
