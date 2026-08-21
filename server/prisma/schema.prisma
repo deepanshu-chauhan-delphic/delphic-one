@@ -181,6 +181,7 @@ enum CommentEntityType {
   account
   requirement
   submission
+  profile
 }
 
 model User {

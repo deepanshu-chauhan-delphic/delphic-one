@@ -1,0 +1,350 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import apiClient from '../../lib/apiClient.js';
+import { useAuth } from '../../lib/authContext.jsx';
+import Badge from '../../components/ui/Badge.jsx';
+import NotesPanel from '../../components/NotesPanel.jsx';
+import FilesPanel from '../../components/FilesPanel.jsx';
+import UnlockButton from '../../components/UnlockButton.jsx';
+import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, formatAccountValue } from './accountUtils.js';
+
+function DetailField({ label, value, children }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-medium uppercase tracking-wide text-tertiary-500">{label}</dt>
+      <dd className="mt-1 break-words text-sm capitalize text-tertiary-900">{children || formatAccountValue(value)}</dd>
+    </div>
+  );
+}
+
+function DetailSection({ title, children }) {
+  return (
+    <section className="rounded border bg-white">
+      <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">{title}</h2>
+      <dl className="grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
+    </section>
+  );
+}
+
+function StageMoveModal({ account, error, saving, onClose, onMove }) {
+  const stages = ACCOUNT_TRANSITIONS[account.stage] || [];
+  const [toStage, setToStage] = useState(stages[0] || '');
+  const [reason, setReason] = useState('');
+  const [meetingMode, setMeetingMode] = useState('online');
+  const [meetingDate, setMeetingDate] = useState('');
+
+  function submit(event) {
+    event.preventDefault();
+    const body = { to_stage: toStage };
+    if (toStage === 'dropped') body.reason = reason.trim();
+    if (toStage === 'meeting_scheduled') {
+      body.meeting_mode = meetingMode;
+      body.meeting_date = new Date(meetingDate).toISOString();
+    }
+    onMove(body);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <form onSubmit={submit} className="w-full max-w-md rounded border bg-white shadow-xl">
+        <div className="border-b px-4 py-3">
+          <h2 className="text-sm font-semibold text-tertiary-900">Move account stage</h2>
+          <p className="mt-1 text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
+        </div>
+        <div className="space-y-3 p-4">
+          {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          <label className="block text-xs font-medium text-tertiary-600">
+            Next stage
+            <select
+              required
+              value={toStage}
+              onChange={(event) => setToStage(event.target.value)}
+              className="mt-1 w-full rounded border px-2 py-1.5 text-sm capitalize"
+            >
+              {stages.map((stage) => <option key={stage} value={stage}>{formatAccountValue(stage)}</option>)}
+            </select>
+          </label>
+          {toStage === 'meeting_scheduled' && (
+            <>
+              <label className="block text-xs font-medium text-tertiary-600">
+                Meeting mode
+                <select
+                  required
+                  value={meetingMode}
+                  onChange={(event) => setMeetingMode(event.target.value)}
+                  className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                >
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </label>
+              <label className="block text-xs font-medium text-tertiary-600">
+                Meeting date and time
+                <input
+                  required
+                  type="datetime-local"
+                  value={meetingDate}
+                  onChange={(event) => setMeetingDate(event.target.value)}
+                  className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                />
+              </label>
+            </>
+          )}
+          {toStage === 'dropped' && (
+            <label className="block text-xs font-medium text-tertiary-600">
+              Reason
+              <textarea
+                required
+                rows={3}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+              />
+            </label>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 border-t px-4 py-3">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary">Cancel</button>
+          <button type="submit" disabled={saving || !toStage} className="btn-primary">
+            {saving ? 'Moving…' : 'Move stage'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function AccountDetailPage() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const [account, setAccount] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [stageError, setStageError] = useState('');
+  const [isStageModalOpen, setIsStageModalOpen] = useState(false);
+  const [movingStage, setMovingStage] = useState(false);
+
+  async function loadAccount() {
+    setLoading(true);
+    setError('');
+    try {
+      const [accountResponse, historyResponse] = await Promise.all([
+        apiClient.get(`/accounts/${id}`),
+        apiClient.get(`/accounts/${id}/history`),
+      ]);
+      setAccount(accountResponse.data.data);
+      setHistory(historyResponse.data.data || []);
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, 'Failed to load account'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAccount();
+  }, [id]);
+
+  async function moveStage(body) {
+    setMovingStage(true);
+    setStageError('');
+    try {
+      await apiClient.post(`/accounts/${id}/stage`, body);
+      setIsStageModalOpen(false);
+      await loadAccount();
+    } catch (requestError) {
+      setStageError(apiErrorMessage(requestError, 'Failed to move account stage'));
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
+  if (loading) return <div className="text-sm text-tertiary-500">Loading account…</div>;
+  if (error || !account) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error || 'Account not found'}</div>
+        <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>
+      </div>
+    );
+  }
+
+  const canMutate = canMutateAccount(account, user);
+  const nextStages = ACCOUNT_TRANSITIONS[account.stage] || [];
+  const additionalContacts = Array.isArray(account.additional_contacts) ? account.additional_contacts : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="border-b pb-3">
+        <div className="mb-2 flex items-center gap-2 text-xs text-tertiary-500">
+          <Link to="/accounts" className="text-primary-700 hover:underline">Accounts</Link>
+          <span>/</span>
+          <span>{accountKey(account.id)}</span>
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-sm font-medium text-primary-700">{accountKey(account.id)}</span>
+              <Badge value={account.stage} />
+              {account.is_locked && <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Locked</span>}
+            </div>
+            <h1 className="mt-1 font-heading text-2xl font-semibold text-tertiary-900">{account.name}</h1>
+            <p className="mt-1 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canMutate && !account.is_locked && (
+              <Link to={`/accounts/${account.id}/edit`} className="btn-secondary">Edit</Link>
+            )}
+            {canMutate && !account.is_locked && nextStages.length > 0 && (
+              <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
+            )}
+            {user?.role === 'admin' && account.is_locked && (
+              <UnlockButton entityType="account" entityId={account.id} onUnlocked={loadAccount} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {account.is_locked && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          This account is locked because it reached a terminal stage. It remains available for viewing.
+          {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
+        </div>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="space-y-4">
+          <DetailSection title="Company information">
+            <DetailField label="Type" value={account.type} />
+            <DetailField label="Industry" value={account.industry} />
+            <DetailField label="Company size" value={account.company_size} />
+            <DetailField label="Website">
+              {account.website ? <a href={account.website} target="_blank" rel="noreferrer" className="normal-case text-primary-700 hover:underline">{account.website}</a> : '—'}
+            </DetailField>
+            <DetailField label="Location" value={[account.location_city, account.location_country].filter(Boolean).join(', ')} />
+            <DetailField label="GST / Tax ID" value={account.gst_or_tax_id} />
+            <DetailField label="Source" value={account.source} />
+            <DetailField label="Created" value={new Date(account.created_at).toLocaleString()} />
+            <DetailField label="Updated" value={new Date(account.updated_at).toLocaleString()} />
+          </DetailSection>
+
+          <DetailSection title="Primary contact">
+            <DetailField label="Name" value={account.poc_name} />
+            <DetailField label="Designation" value={account.poc_designation} />
+            <DetailField label="Email">
+              {account.poc_email ? <a href={`mailto:${account.poc_email}`} className="normal-case text-primary-700 hover:underline">{account.poc_email}</a> : '—'}
+            </DetailField>
+            <DetailField label="Phone" value={account.poc_phone} />
+          </DetailSection>
+
+          <DetailSection title="Meeting information">
+            <DetailField label="Mode" value={account.meeting_mode} />
+            <DetailField label="Date" value={account.meeting_date ? new Date(account.meeting_date).toLocaleString() : null} />
+            <DetailField label="Notes" value={account.meeting_notes} />
+          </DetailSection>
+
+          <DetailSection title={account.type === 'vendor' ? 'Vendor details' : 'Client details'}>
+            {account.type === 'vendor' ? (
+              <>
+                <DetailField label="Specializations" value={(account.vendor_specializations || []).join(', ')} />
+                <DetailField
+                  label="Rate range"
+                  value={account.vendor_rate_range ? `${account.vendor_rate_range.currency} ${account.vendor_rate_range.min}–${account.vendor_rate_range.max}` : null}
+                />
+                <DetailField label="Payment terms" value={account.vendor_payment_terms} />
+                <DetailField label="Agreement URL">
+                  {account.vendor_agreement_url ? (
+                    <a href={account.vendor_agreement_url} target="_blank" rel="noreferrer" className="normal-case text-primary-700 hover:underline">
+                      Open agreement
+                    </a>
+                  ) : '—'}
+                </DetailField>
+              </>
+            ) : (
+              <>
+                <DetailField label="Billing currency" value={account.client_billing_currency} />
+                <DetailField label="Payment terms" value={account.client_payment_terms} />
+                <DetailField label="Agreement URL">
+                  {account.client_agreement_url ? (
+                    <a href={account.client_agreement_url} target="_blank" rel="noreferrer" className="normal-case text-primary-700 hover:underline">
+                      Open agreement
+                    </a>
+                  ) : '—'}
+                </DetailField>
+              </>
+            )}
+          </DetailSection>
+
+          <section className="overflow-hidden rounded border bg-white">
+            <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Additional contacts</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b bg-white text-xs uppercase text-tertiary-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Name</th>
+                    <th className="px-4 py-2 font-medium">Role</th>
+                    <th className="px-4 py-2 font-medium">Designation</th>
+                    <th className="px-4 py-2 font-medium">Email</th>
+                    <th className="px-4 py-2 font-medium">Phone</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {additionalContacts.map((contact, index) => (
+                    <tr key={`${contact.email || contact.name}-${index}`} className="hover:bg-tertiary-50">
+                      <td className="px-4 py-2 text-tertiary-900">{formatAccountValue(contact.name)}</td>
+                      <td className="px-4 py-2">{formatAccountValue(contact.role_label)}</td>
+                      <td className="px-4 py-2">{formatAccountValue(contact.designation)}</td>
+                      <td className="px-4 py-2 normal-case">{formatAccountValue(contact.email)}</td>
+                      <td className="px-4 py-2">{formatAccountValue(contact.phone)}</td>
+                    </tr>
+                  ))}
+                  {additionalContacts.length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-5 text-center text-tertiary-400">No additional contacts</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-4 self-start xl:sticky xl:top-0">
+          <section className="rounded border bg-white">
+            <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Stage history</h2>
+            <ol className="divide-y">
+              {history.map((entry) => (
+                <li key={entry.id} className="px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge value={entry.from_stage} />
+                    <span className="text-tertiary-400">→</span>
+                    <Badge value={entry.to_stage} />
+                  </div>
+                  <p className="mt-2 text-xs text-tertiary-500">
+                    {entry.changed_by?.name || 'Unknown'} · {new Date(entry.changed_at).toLocaleString()}
+                  </p>
+                  {entry.reason && <p className="mt-1 text-sm text-tertiary-700">{entry.reason}</p>}
+                </li>
+              ))}
+              {history.length === 0 && <li className="px-4 py-5 text-sm text-tertiary-400">No stage changes yet.</li>}
+            </ol>
+          </section>
+          <NotesPanel entityType="account" entityId={account.id} />
+          <FilesPanel entityType="account" entityId={account.id} canUpload={canMutate} defaultLabel="Agreement" />
+        </aside>
+      </div>
+
+      {isStageModalOpen && (
+        <StageMoveModal
+          account={account}
+          error={stageError}
+          saving={movingStage}
+          onClose={() => {
+            setStageError('');
+            setIsStageModalOpen(false);
+          }}
+          onMove={moveStage}
+        />
+      )}
+    </div>
+  );
+}

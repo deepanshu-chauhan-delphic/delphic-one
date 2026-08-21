@@ -94,7 +94,7 @@ A frontend change is not done for UX if a stakeholder familiar with Jira would d
 
 Checklist:
 
-- [ ] Dense list or issue header matches the reference feel
-- [ ] Primary Create / filter / status / people patterns present where relevant
-- [ ] No oversized card-only layout for primary work queues
-- [ ] Compared against [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png) before calling RD-115 / list polish done
+- [x] Dense list or issue header matches the reference feel (Accounts, Profiles, Requirements, Submissions, Dashboard)
+- [x] Primary Create / filter / status / people patterns present where relevant (Create on Accounts/Profiles; filters on all four lists)
+- [x] No oversized card-only layout for primary work queues
+- [x] Compared against [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png) before calling RD-115 / list polish done — see [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md)

@@ -14,6 +14,8 @@ const me = asyncHandler(async (req, res) => {
 
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
+  // Sales may list users only to pick recruiters for assignment (RD-106). Keep scope narrow.
+  if (req.user.role === 'sales') query.role = 'recruiter';
   const { rows, pagination } = await usersService.list(query);
   return ok(res, rows, { pagination });
 });

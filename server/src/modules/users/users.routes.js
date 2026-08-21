@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/me', controller.me);
-router.get('/', authorize('admin'), controller.list);
+router.get('/', authorize('admin', 'sales'), controller.list);
 router.post('/', authorize('admin'), controller.create);
 router.patch('/:id', authorize('admin'), controller.update);
 

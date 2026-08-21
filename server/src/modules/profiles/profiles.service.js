@@ -28,6 +28,24 @@ const INCLUDE = {
   added_by_user: { select: { id: true, name: true } },
 };
 
+const DATE_FIELDS = ['date_of_birth', 'last_working_day', 'earliest_join_date'];
+
+function normalizeProfileDates(data) {
+  const next = { ...data };
+  for (const field of DATE_FIELDS) {
+    if (next[field] === undefined || next[field] === null || next[field] === '') {
+      if (next[field] === '') delete next[field];
+      continue;
+    }
+    if (typeof next[field] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(next[field])) {
+      next[field] = new Date(`${next[field]}T00:00:00.000Z`);
+      continue;
+    }
+    next[field] = new Date(next[field]);
+  }
+  return next;
+}
+
 async function list(filters) {
   const {
     source, vendor_id, primary_skills, experience_min, experience_max, expected_ctc_min, expected_ctc_max,
@@ -79,12 +97,19 @@ async function getById(id) {
 }
 
 async function create(data, addedBy) {
-  const row = await prisma.profile.create({ data: { ...data, added_by: addedBy }, include: INCLUDE });
+  const row = await prisma.profile.create({
+    data: { ...normalizeProfileDates(data), added_by: addedBy },
+    include: INCLUDE,
+  });
   return decorateOne(row);
 }
 
 async function update(id, patch) {
-  const row = await prisma.profile.update({ where: { id }, data: patch, include: INCLUDE });
+  const row = await prisma.profile.update({
+    where: { id },
+    data: normalizeProfileDates(patch),
+    include: INCLUDE,
+  });
   return decorateOne(row);
 }
 

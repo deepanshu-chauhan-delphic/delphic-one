@@ -2,6 +2,7 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+<<<<<<< Updated upstream
 ## 2026-08-21 — Synced Dev B Days 1–3 to all branches
 
 Committed and pushed RD-103/104, RD-107/108, RD-111/125/112 (requirements + submissions UI, stage buttons, interview rounds, kanban), demo seed + test guides. Branches `main`, `staging`, `dev`, and `dev-deep` fast-forwarded to the same tip.
@@ -41,6 +42,68 @@ Shared stage maps: `server/.../stageMachines.js` + `client/src/lib/requirementSt
 
 **Tests:** `stage-machines.test.js`, `requirements-crud-ui.test.js` — **62** tests green.  
 **How to test manually:** [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
+=======
+## 2026-08-21 — Dev A Day 5 unlock + spec/UX (RD-127 / RD-115)
+
+**RD-127:** Reusable `UnlockButton` (`POST /admin/:entity_type/:entity_id/unlock` with reason). Wired for admin on locked Account detail, Requirement detail, locked Seat rows (job detail seats table), and Submission detail.
+
+**RD-115:** Spec walkthrough logged in [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md). Fixed owned UX gaps: Requirements/Submissions Basic filter bars + mono keys + denser tables; AppLayout Delphic brand + tighter chrome; UI-UX checklist marked for owned lists. Dev B screens (job form, put-forward, kanban, interview UI, change password, rich reports) explicitly left open.
+
+**Verification:** Docker client production build passed (913 modules). Stack restarted on `:8081`.
+
+## 2026-08-21 — Dev A Day 4 role dashboard (RD-113)
+
+Frontend-only home dashboard wired to existing role-scoped `GET /dashboard/summary`:
+
+- Title uses `{name}'s Dashboard` with role-specific subtitle.
+- Stat cards differ by role (BDA: account counts; Sales/Recruiter: jobs/submissions/interviews; Admin: full set including interviews + closures).
+- Stuck leads (Admin/BDA) and stuck requirements (Admin/Sales/Recruiter) with deep links.
+- Pipeline funnel for Admin/Sales/Recruiter; Recent activity for all roles with entity links.
+- Widget config in `client/src/pages/dashboard/dashboardWidgets.js`.
+
+**Verification:** Docker client production build passed (913 modules). Stack restarted on `:8081`.
+
+## 2026-08-21 — Dev A Day 3 Notes + Files (RD-109 / RD-110)
+
+Reusable panels plus drop-in on all four detail surfaces:
+
+- `NotesPanel` and `FilesPanel` under `client/src/components/` — list/add notes via `/comments`, list/upload/delete via `/documents`.
+- Wired on Account detail (sidebar) and Candidate detail (replaces the one-off resume table with `FilesPanel`; adds Notes).
+- Thin Job shell at `/requirements/:id` and Submission shell at `/submissions/:id` so Notes/Files work before Dev B finishes RD-103 / RD-107. List rows link into those shells.
+- Backend: `CommentEntityType` + validation now allow `profile` so Candidate notes use the same comments API (migration `20260821153000_comment_entity_profile`).
+
+**Verification:** Docker client production build passed (912 modules). Compose migrate deploy reports both migrations applied (including `comment_entity_profile`). SPA routes `/`, `/accounts`, `/requirements`, `/profiles`, `/submissions` returned HTTP 200 on `:8081`.
+
+## 2026-08-21 — Fix profile date fields for Prisma DateTime
+
+**Root cause:** HTML date inputs send `YYYY-MM-DD`, but Prisma `DateTime` rejected that as “premature end of input”.
+**Fix:** Frontend maps date-only values to ISO (`…T00:00:00.000Z`); profiles service also normalizes `date_of_birth` / `last_working_day` / `earliest_join_date` on create/update.
+**Verified:** `POST /profiles` with `date_of_birth=1995-08-27` returned 201 and stored `1995-08-27T00:00:00.000Z`.
+
+## 2026-08-21 — Dev A Day 2 candidates + assign UI (RD-105 / RD-106)
+
+Frontend-only work plus one narrow users-list permission for Sales:
+
+- Candidate list: Jira-like filters, create button, detail links (`PRF-…` keys).
+- Candidate create/edit form with personal, professional, education, compensation, sourcing fields; optional resume file on create/edit.
+- Candidate detail page with full field panels, resume upload/delete via documents API, and submission history sidebar.
+- Assign recruiter modal from the Requirements list (Assign / Assignments action): active assign/unassign for Sales/Admin, full assignment history for all viewers. Does **not** build the Job detail page (RD-103 remains Dev B).
+- Backend: `GET /users` now allows Sales, but Sales is forced to `role=recruiter` only so they can pick assignees without seeing other roles. Create/patch users stay admin-only.
+
+**Verification:** Docker client production build passed (908 modules). SPA routes `/profiles`, `/profiles/new`, `/requirements` returned HTTP 200. Sales `GET /users` returns only recruiters (2); Admin still lists all users (5). Stack restarted with rebuilt client + server.
+
+## 2026-08-21 — Dev A Day 1 accounts UI complete (RD-101 / RD-102)
+
+Implemented the Client/Vendor frontend without changing backend or other domain pages:
+
+- Jira-like Accounts list with search, type/stage filters, pagination, owner initials, account keys, detail links, and a role-gated Create action.
+- Account detail page with company, contact, meeting, client/vendor commercial fields, additional contacts, lock state, and stage history.
+- Stage movement modal follows the existing API state machine. Meeting scheduling requires mode/date; dropping requires a reason.
+- Shared create/edit form covers company, primary/additional contacts, and client/vendor-specific fields. Only BDA/Admin can create; edits follow ownership and lock rules.
+- Added `/accounts/new`, `/accounts/:id`, and `/accounts/:id/edit` routes.
+
+**Verification:** Docker client production build passed (903 modules transformed). The running stack returned HTTP 200 for all three account SPA route shapes. Authenticated login and Accounts API list smoke checks passed. IDE diagnostics reported no errors in the changed frontend paths.
+>>>>>>> Stashed changes
 
 ## 2026-08-21 — Docs synced; logging + Jira UX noted; ticket snapshot
 

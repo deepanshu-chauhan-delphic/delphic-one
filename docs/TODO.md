@@ -4,7 +4,11 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
+<<<<<<< Updated upstream
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev B Days 1–3 largely done: RD-103/104, RD-107/108, **RD-111/125/112**. Tests **77** green. How to test pipeline UI: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md). **Next Dev B:** RD-114 (reports) · RD-128 (change password) · RD-121 (deploy story).
+=======
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend complete. **Next Dev A:** RD-116 linter, RD-120 CI smoke. **Dev B:** RD-103–104 / 107–108 / 111–112 / 114 / 125 / 128. Spec gap log: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
+>>>>>>> Stashed changes
 
 ## Backend
 
@@ -17,10 +21,12 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] Test suite: **13 suites / 77 tests** green (`cd server && npm test`). Still no linter (RD-116).
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 - [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
+- [x] Comments `entity_type` includes `profile` (for Candidate Notes on RD-110).
 
 ## Frontend (open — see sprint tickets)
 
 - [x] List pages + login + layout/logout wired to API.
+<<<<<<< Updated upstream
 - [x] **RD-103 / RD-104** Requirement detail + create/edit + status + seats — [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
 - [x] **RD-107 / RD-108** Submission detail + put-forward — [TESTING-RD-107-108.md](TESTING-RD-107-108.md).
 - [x] **RD-111 / RD-125 / RD-112** Stage buttons + interview rounds UI + job kanban — [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
@@ -28,11 +34,23 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [ ] RD-105–106 — profile detail/forms + assign recruiter popup.
 - [ ] RD-109–110 — notes/files on detail pages.
 - [ ] RD-113–114 — role dashboard widgets + real report charts (APIs ready).
+=======
+- [x] RD-101–102 — account detail, stage history/move, and Client/Vendor create/edit forms.
+- [x] RD-105 — candidate detail + Add/Edit form + resume upload (documents API).
+- [x] RD-106 — assign recruiter popup + assignment history from Requirements list.
+- [x] RD-109 — reusable `NotesPanel` + `FilesPanel` components.
+- [x] RD-110 — Notes + Files on Account, Job (thin shell), Candidate, Submission (thin shell) detail pages.
+- [ ] RD-103–104 — requirement detail + form + **seat stage controls** (Dev B; thin Notes/Files + seat unlock already at `/requirements/:id`).
+- [ ] RD-107–108 — submission detail + create flows (Dev B; thin Notes/Files + unlock already at `/submissions/:id`).
+- [x] RD-113 — role home dashboard widgets (BDA / Sales / Recruiter / Admin) on `GET /dashboard/summary`.
+- [ ] RD-114 — real report charts (APIs ready).
+- [ ] RD-111–112, **RD-125** — submission stages, **interview rounds (internal + client)**, kanban.
+>>>>>>> Stashed changes
 - [x] **RD-126** Admin Users page (create BDA/Sales/Recruiter/Admin; deactivate).
 - [x] **RD-131** Temporary one-click role login on login page (disable/remove before real auth).
-- [ ] **RD-127** Unlock UI · **RD-128** Change password.
-- [ ] RD-115 spec UI audit (**must include Jira-like density/filter/list check** — [UI-UX-JIRA.md](UI-UX-JIRA.md)).
-- [ ] Align existing list pages + shell to Jira-like UX (top chrome, filters, dense rows) using [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png).
+- [x] **RD-127** Unlock UI (admin) on locked account / requirement / seat / submission.
+- [ ] **RD-128** Change password (Dev B).
+- [x] RD-115 spec UI audit + Jira-like list polish — [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
 ## Infra / CI
 
@@ -44,8 +62,12 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] SPRINT-PLAN updated with missing tickets (RD-125–130) and DONE marks (Aug 21).
 - [x] Backend logging guide: [BACKEND-LOGGING.md](BACKEND-LOGGING.md) (linked from AGENTS + README).
 - [x] Jira-like UI/UX standing note: [UI-UX-JIRA.md](UI-UX-JIRA.md) + reference screenshot.
+<<<<<<< Updated upstream
 - [x] RD-103/104 test guide: [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
 - [x] RD-107/108 test guide: [TESTING-RD-107-108.md](TESTING-RD-107-108.md).
 - [x] RD-111/125/112 test guide: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
 - [x] Demo seed test guide: [TESTING-DEMO-SEED.md](TESTING-DEMO-SEED.md).
+=======
+- [x] RD-115 walkthrough log: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
+>>>>>>> Stashed changes
 - [ ] Keep this file and PROGRESS.md current each session.
