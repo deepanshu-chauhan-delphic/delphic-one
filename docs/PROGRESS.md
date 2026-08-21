@@ -2,6 +2,16 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Local `dev-deep` pulled from `dev` (no conflicts)
+
+Fast-forwarded local `dev-deep` to `origin/dev` (`c01e99f`). No merge conflicts.
+
+Brought in Dev A work already on `dev`: accounts (RD-101/102), profiles (RD-105), assign recruiter (RD-106), Notes/Files (RD-109/110), dashboard (RD-113), unlock (RD-127), RD-115 walkthrough, plus conflict-resolution commit from the main/dev merge.
+
+**Branch tip:** `c01e99f` — same as `origin/dev`. Local `dev-deep` is ahead of `origin/dev-deep` by those 2 commits until pushed.
+
+**Open remaining:** RD-114, RD-116, RD-119–122, RD-128. Follow-ups: Notes/Files on Job + Submission detail; Unlock on requirement/submission if not fully wired.
+
 ## 2026-08-21 — Merged Dev A + Dev B onto main
 
 Pulled Dev B Days 1–3 (RD-103/104, RD-107/108, RD-111/125/112) and restored Dev A work (accounts, candidates, assign, notes/files, dashboard, unlock, UX). Conflict-resolved App routes and list pages; both Create/Put-forward and Assign/filter UX kept.

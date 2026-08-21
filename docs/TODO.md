@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 largely done: RD-101–113, RD-115, RD-125–127, RD-103/104, RD-107/108, RD-111/112. Tests **77** green. **Next:** RD-114 (reports) · RD-128 (change password) · RD-116 linter · RD-120 CI · RD-121 deploy. Wire Notes/Files onto Job + Submission detail if missing. Spec gap log: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md). Pipeline UI test guide: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Local **`dev-deep`** fast-forwarded from **`origin/dev`** (`c01e99f`) — no conflicts. Done ≈25 tickets (Dev A + Dev B Days 1–5 product UI). **Open (7):** RD-114 reports · RD-128 change password · RD-116 linter · RD-120 CI · RD-121 deploy · RD-119 E2E · RD-122 deploy day. Follow-ups: Notes/Files on Job + Submission detail; confirm Unlock on requirement/seat/submission. Spec gap log: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
 ## Backend
 
