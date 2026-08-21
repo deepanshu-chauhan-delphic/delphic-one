@@ -2,7 +2,7 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green** (50 server tests) — see [PROGRESS.md](PROGRESS.md) and [BACKEND-LOGGING.md](BACKEND-LOGGING.md). The remaining gap is almost entirely **frontend**: list pages exist, but create/edit forms, detail pages, stage/interview UI, and unlock UX are still missing (admin users + one-click test login are done).
+Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green**. Frontend create/edit/detail/stage/interview/kanban/unlock/notes-files for accounts, jobs, candidates, and submissions are **in place**. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, linter/CI/E2E, and deploy day.
 
 **UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
 
@@ -34,7 +34,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-107 | Submission detail page |
 | RD-108 | Put candidate forward (create submission) |
 | RD-109 | Reusable Notes + Files components |
-| RD-110 | Drop Notes/Files on detail pages (Account + Candidate; Job/Submission follow-up) |
+| RD-110 | Drop Notes/Files on all four detail pages (Account, Job, Candidate, Submission) |
 | RD-111 | Submission stage pipeline buttons |
 | RD-112 | Kanban board for one job |
 | RD-113 | Real role dashboard (widgets) |
@@ -90,7 +90,7 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Ticket | Owner | What to build |
 |---|---|---|
 | RD-109 | Dev A | One reusable "Notes" (comments) box and "Files" (documents) uploader **DONE (Aug 21)** |
-| RD-110 | Dev A | Drop Notes + Files onto detail pages (Client, Candidate done; confirm Job + Submission) **DONE (Aug 21)** |
+| RD-110 | Dev A | Drop Notes + Files onto all four detail pages (Client, Job, Candidate, Submission) **DONE (Aug 21)** |
 | RD-111 | Dev B | ~~Submission stage buttons through the full pipeline (`sourced` → … → closed), with reason popups for backout/rejection~~ **DONE (Aug 21)** |
 | RD-125 | Dev B | ~~**Interview rounds UI** on the submission detail page~~ **DONE (Aug 21)** — add/edit internal + client rounds |
 | RD-132 | Dev B | ~~Interview feedback API + richer interview/closure report metrics~~ **DONE (Aug 21)** — feedback/rating on create+update; recruiter/sales reports include interviews done, by type/result, feedback coverage, avg rating, turnaround days, closures |
@@ -146,7 +146,7 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Submissions + margin + stages | Done | **RD-107/108/111 DONE** |
 | Interview rounds (incl. **internal** + feedback) | Done | **RD-125 DONE** |
 | Recruiter interview/closure report metrics | Done (RD-132) | RD-114 charts |
-| Comments + documents | Done (split Aug 21) | **RD-109 / RD-110 DONE** (Job/Submission panels follow-up) |
+| Comments + documents | Done (split Aug 21) | **RD-109 / RD-110 DONE** (all four detail pages) |
 | Kanban by stage | Done | **RD-112 DONE** (`/requirements/:id/board`) |
 | Dashboard stuck + role scope | Done (RD-123/129) | **RD-113 DONE** |
 | Report avg days + export API | Done (RD-124) | RD-114 |

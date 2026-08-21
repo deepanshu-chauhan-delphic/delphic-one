@@ -2,6 +2,14 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — RD-110 / RD-127 / RD-115 completed after merge
+
+Re-wired post-merge gaps on Dev B detail pages:
+
+- **RD-110:** `NotesPanel` + `FilesPanel` on Job (`RequirementDetailPage`) and Submission (`SubmissionDetailPage`) — Account + Candidate already had them.
+- **RD-127:** Admin `UnlockButton` on locked requirement header, locked seat rows, and locked submission header (Account already wired).
+- **RD-115:** Spec walkthrough updated — Job form, put-forward, kanban, interview, Notes/Files/Unlock marked Present; only RD-114 charts and RD-128 change-password remain as known FE gaps.
+
 ## 2026-08-21 — Merged Dev A + Dev B onto main
 
 Pulled Dev B Days 1–3 (RD-103/104, RD-107/108, RD-111/125/112) and restored Dev A work (accounts, candidates, assign, notes/files, dashboard, unlock, UX). Conflict-resolved App routes and list pages; both Create/Put-forward and Assign/filter UX kept.

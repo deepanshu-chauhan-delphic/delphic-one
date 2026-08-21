@@ -5,6 +5,9 @@ import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Modal from '../../components/ui/Modal.jsx';
+import NotesPanel from '../../components/NotesPanel.jsx';
+import FilesPanel from '../../components/FilesPanel.jsx';
+import UnlockButton from '../../components/UnlockButton.jsx';
 import {
   canChangeSeatStage,
   canMutateRequirement,
@@ -173,8 +176,18 @@ export default function RequirementDetailPage() {
       key: 'actions',
       header: 'Move stage',
       render: (s) => {
-        if (!canSeat || s.is_locked) {
-          return <span className="text-xs text-tertiary-400">{s.is_locked ? 'Locked' : '—'}</span>;
+        if (s.is_locked) {
+          return (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-tertiary-400">Locked</span>
+              {user?.role === 'admin' && (
+                <UnlockButton entityType="seat" entityId={s.id} onUnlocked={load} label="Unlock seat" />
+              )}
+            </div>
+          );
+        }
+        if (!canSeat) {
+          return <span className="text-xs text-tertiary-400">—</span>;
         }
         const next = nextSeatStatuses(s.seat_status);
         if (!next.length) return <span className="text-xs text-tertiary-400">—</span>;
@@ -228,8 +241,18 @@ export default function RequirementDetailPage() {
               + Add seat
             </button>
           )}
+          {user?.role === 'admin' && locked && (
+            <UnlockButton entityType="requirement" entityId={requirement.id} onUnlocked={load} />
+          )}
         </div>
       </div>
+
+      {locked && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          This requirement is locked. It remains available for viewing.
+          {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
+        </div>
+      )}
 
       {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
@@ -311,7 +334,7 @@ export default function RequirementDetailPage() {
             <p className="text-xs font-medium text-tertiary-500">Assigned recruiters</p>
             <ul className="mt-1 space-y-1 text-sm">
               {(requirement.assigned_recruiters || []).length === 0 && (
-                <li className="text-tertiary-400">None yet (assign UI is RD-106)</li>
+                <li className="text-tertiary-400">None yet — use Assign on the requirements list</li>
               )}
               {(requirement.assigned_recruiters || []).map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
@@ -369,6 +392,16 @@ export default function RequirementDetailPage() {
           ))}
         </ul>
       </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <NotesPanel entityType="requirement" entityId={requirement.id} />
+        <FilesPanel
+          entityType="requirement"
+          entityId={requirement.id}
+          canUpload={canEdit && !locked}
+          defaultLabel="Job document"
+        />
+      </div>
 
       {/* Requirement status modal */}
       <Modal

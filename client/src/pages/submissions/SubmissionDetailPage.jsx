@@ -4,6 +4,9 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Modal from '../../components/ui/Modal.jsx';
+import NotesPanel from '../../components/NotesPanel.jsx';
+import FilesPanel from '../../components/FilesPanel.jsx';
+import UnlockButton from '../../components/UnlockButton.jsx';
 import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
 import {
   SUBMISSION_PIPELINE,
@@ -248,8 +251,18 @@ export default function SubmissionDetailPage() {
               </Link>
             </>
           )}
+          {user?.role === 'admin' && submission.is_locked && (
+            <UnlockButton entityType="submission" entityId={submission.id} onUnlocked={load} />
+          )}
         </div>
       </div>
+
+      {submission.is_locked && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          This submission is locked. It remains available for viewing.
+          {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
+        </div>
+      )}
 
       {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
@@ -610,6 +623,16 @@ export default function SubmissionDetailPage() {
         canEdit={canEdit}
         onChanged={load}
       />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <NotesPanel entityType="submission" entityId={submission.id} />
+        <FilesPanel
+          entityType="submission"
+          entityId={submission.id}
+          canUpload={canEdit}
+          defaultLabel="Submission file"
+        />
+      </div>
 
       <section className="rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold text-tertiary-800">Stage history</h2>

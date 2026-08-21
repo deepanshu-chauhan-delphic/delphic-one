@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 largely done: RD-101–113, RD-115, RD-125–127, RD-103/104, RD-107/108, RD-111/112. Tests **77** green. **Next:** RD-114 (reports) · RD-128 (change password) · RD-116 linter · RD-120 CI · RD-121 deploy. Wire Notes/Files onto Job + Submission detail if missing. Spec gap log: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md). Pipeline UI test guide: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 done including RD-110 Notes/Files and RD-127 Unlock on all four detail surfaces. **Next:** RD-114 (reports charts) · RD-128 (change password) · RD-116 linter · RD-120 CI · RD-121 deploy. Spec: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
 ## Backend
 
@@ -28,13 +28,13 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] RD-106 — assign recruiter popup + assignment history from Requirements list.
 - [x] **RD-107 / RD-108** Submission detail + put-forward — [TESTING-RD-107-108.md](TESTING-RD-107-108.md).
 - [x] RD-109 — reusable `NotesPanel` + `FilesPanel` components.
-- [x] RD-110 — Notes + Files on Account + Candidate (confirm Job + Submission after Dev B merge).
+- [x] RD-110 — Notes + Files on Account, Job, Candidate, and Submission detail pages.
 - [x] **RD-111 / RD-125 / RD-112** Stage buttons + interview rounds UI + job kanban — [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
 - [x] RD-113 — role home dashboard widgets (BDA / Sales / Recruiter / Admin) on `GET /dashboard/summary`.
 - [ ] RD-114 — real report charts (APIs ready).
 - [x] **RD-126** Admin Users page (create BDA/Sales/Recruiter/Admin; deactivate).
 - [x] **RD-131** Temporary one-click role login on login page (disable/remove before real auth).
-- [x] **RD-127** Unlock UI (admin) on locked account (confirm requirement / seat / submission after merge).
+- [x] **RD-127** Unlock UI (admin) on locked account / requirement / seat / submission.
 - [ ] **RD-128** Change password (Dev B).
 - [x] RD-115 spec UI audit + Jira-like list polish — [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
