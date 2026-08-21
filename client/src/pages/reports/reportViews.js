@@ -1,0 +1,230 @@
+/**
+ * Report view helpers for RD-114 — columns, charts, and role visibility.
+ */
+
+export const ALL_REPORTS = [
+  { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
+  { key: 'sales-performance', label: 'Sales performance', roles: ['admin'] },
+  { key: 'vendor-performance', label: 'Vendor performance', roles: ['admin', 'sales'] },
+  { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'] },
+  { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'] },
+];
+
+export function reportsForRole(role) {
+  return ALL_REPORTS.filter((r) => r.roles.includes(role));
+}
+
+export function defaultDateRange() {
+  const to = new Date();
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  return {
+    dateFrom: from.toISOString().slice(0, 10),
+    dateTo: to.toISOString().slice(0, 10),
+  };
+}
+
+function cell(value) {
+  if (value == null) return '—';
+  if (typeof value === 'number') return Number.isInteger(value) ? value : value.toFixed(1);
+  return String(value);
+}
+
+export function personName(row, key) {
+  return row?.[key]?.name || '—';
+}
+
+export function columnsForReport(reportKey) {
+  if (reportKey === 'recruiter-performance') {
+    return [
+      { key: 'name', header: 'Recruiter', render: (r) => personName(r, 'recruiter') },
+      { key: 'profiles_sourced', header: 'Sourced' },
+      { key: 'submissions_total', header: 'Subs' },
+      { key: 'submissions_in_interview', header: 'Interview' },
+      { key: 'submissions_closed', header: 'Closed' },
+      { key: 'closures_count', header: 'Joinings' },
+      { key: 'backout_rate_percentage', header: 'Backout %', render: (r) => cell(r.backout_rate_percentage) },
+      { key: 'avg_days_total_cycle', header: 'Avg cycle d', render: (r) => cell(r.avg_days_total_cycle) },
+      { key: 'interviews_total', header: 'Interviews' },
+    ];
+  }
+  if (reportKey === 'sales-performance') {
+    return [
+      { key: 'name', header: 'Sales', render: (r) => personName(r, 'sales_person') },
+      { key: 'leads_created', header: 'Leads' },
+      { key: 'conversion_rate_percentage', header: 'Conv %', render: (r) => cell(r.conversion_rate_percentage) },
+      { key: 'requirements_opened', header: 'Reqs' },
+      { key: 'requirements_closed', header: 'Req closed' },
+      { key: 'closures_count', header: 'Joinings' },
+      { key: 'total_closed_revenue', header: 'Revenue', render: (r) => cell(r.total_closed_revenue) },
+      { key: 'total_margin_generated', header: 'Margin', render: (r) => cell(r.total_margin_generated) },
+      { key: 'clients_active', header: 'Active clients' },
+    ];
+  }
+  if (reportKey === 'vendor-performance') {
+    return [
+      { key: 'name', header: 'Vendor', render: (r) => personName(r, 'vendor') },
+      { key: 'profiles_submitted', header: 'Submitted' },
+      { key: 'profiles_interviewed', header: 'Interviewed' },
+      { key: 'profiles_closed', header: 'Closed' },
+      { key: 'profiles_backout', header: 'Backout' },
+      { key: 'backout_rate_percentage', header: 'Backout %', render: (r) => cell(r.backout_rate_percentage) },
+      { key: 'total_margin', header: 'Margin', render: (r) => cell(r.total_margin) },
+      { key: 'reliability_score', header: 'Reliability', render: (r) => cell(r.reliability_score) },
+    ];
+  }
+  if (reportKey === 'closure') {
+    return [
+      { key: 'group_label', header: 'Group' },
+      { key: 'closures_count', header: 'Closures' },
+      { key: 'total_revenue', header: 'Revenue', render: (r) => cell(r.total_revenue) },
+      { key: 'total_margin', header: 'Margin', render: (r) => cell(r.total_margin) },
+      { key: 'avg_cycle_days', header: 'Avg cycle d', render: (r) => cell(r.avg_cycle_days) },
+      { key: 'details', header: 'Details', render: (r) => (r.details || []).length },
+    ];
+  }
+  return [];
+}
+
+export function tableRowsForReport(reportKey, data) {
+  if (!data) return [];
+  if (reportKey === 'aging') return [];
+  if (!Array.isArray(data)) return [];
+  return data.map((row, index) => ({
+    id: row.recruiter?.id || row.sales_person?.id || row.vendor?.id || row.group_label || String(index),
+    ...row,
+  }));
+}
+
+export function agingSections(data) {
+  if (!data || typeof data !== 'object') return [];
+  return [
+    {
+      key: 'stuck_leads',
+      title: 'Stuck leads',
+      columns: [
+        { key: 'name', header: 'Account', render: (r) => r.account?.name },
+        { key: 'stage', header: 'Stage', render: (r) => r.account?.stage },
+        { key: 'owner', header: 'Owner', render: (r) => r.owner?.name },
+        { key: 'days_in_stage', header: 'Days in stage' },
+      ],
+      rows: (data.stuck_leads || []).map((r, i) => ({ id: r.account?.id || `lead-${i}`, ...r })),
+    },
+    {
+      key: 'stuck_requirements',
+      title: 'Stuck requirements',
+      columns: [
+        { key: 'title', header: 'Requirement', render: (r) => r.requirement?.title },
+        { key: 'status', header: 'Status', render: (r) => r.requirement?.status },
+        { key: 'owner', header: 'Sales', render: (r) => r.sales_owner?.name },
+        { key: 'days_open', header: 'Days open' },
+        { key: 'submissions_count', header: 'Subs' },
+      ],
+      rows: (data.stuck_requirements || []).map((r, i) => ({ id: r.requirement?.id || `req-${i}`, ...r })),
+    },
+    {
+      key: 'stuck_submissions',
+      title: 'Stuck submissions',
+      columns: [
+        { key: 'profile', header: 'Candidate', render: (r) => r.profile?.name },
+        { key: 'requirement', header: 'Job', render: (r) => r.requirement?.title },
+        { key: 'stage', header: 'Stage', render: (r) => r.submission?.stage },
+        { key: 'recruiter', header: 'Recruiter', render: (r) => r.recruiter?.name },
+        { key: 'days_in_current_stage', header: 'Days in stage' },
+      ],
+      rows: (data.stuck_submissions || []).map((r, i) => ({ id: r.submission?.id || `sub-${i}`, ...r })),
+    },
+    {
+      key: 'past_sla_requirements',
+      title: 'Past SLA',
+      columns: [
+        { key: 'title', header: 'Requirement', render: (r) => r.requirement?.title },
+        { key: 'sla_days', header: 'SLA days', render: (r) => r.requirement?.sla_days },
+        { key: 'days_open', header: 'Days open' },
+        { key: 'overdue_by_days', header: 'Overdue by' },
+      ],
+      rows: (data.past_sla_requirements || []).map((r, i) => ({ id: r.requirement?.id || `sla-${i}`, ...r })),
+    },
+  ];
+}
+
+export function chartDataForReport(reportKey, data) {
+  if (reportKey === 'aging' && data && typeof data === 'object') {
+    return [
+      { label: 'Stuck leads', value: (data.stuck_leads || []).length },
+      { label: 'Stuck reqs', value: (data.stuck_requirements || []).length },
+      { label: 'Stuck subs', value: (data.stuck_submissions || []).length },
+      { label: 'Past SLA', value: (data.past_sla_requirements || []).length },
+    ];
+  }
+  if (!Array.isArray(data) || data.length === 0) return [];
+
+  if (reportKey === 'recruiter-performance') {
+    return data.map((r) => ({
+      label: r.recruiter?.name || 'Recruiter',
+      sourced: r.profiles_sourced || 0,
+      submissions: r.submissions_total || 0,
+      closed: r.submissions_closed || 0,
+      interviews: r.interviews_total || 0,
+    }));
+  }
+  if (reportKey === 'sales-performance') {
+    return data.map((r) => ({
+      label: r.sales_person?.name || 'Sales',
+      leads: r.leads_created || 0,
+      requirements: r.requirements_opened || 0,
+      closures: r.closures_count || 0,
+      margin: Number(r.total_margin_generated || 0),
+    }));
+  }
+  if (reportKey === 'vendor-performance') {
+    return data.map((r) => ({
+      label: r.vendor?.name || 'Vendor',
+      submitted: r.profiles_submitted || 0,
+      interviewed: r.profiles_interviewed || 0,
+      closed: r.profiles_closed || 0,
+      margin: Number(r.total_margin || 0),
+    }));
+  }
+  if (reportKey === 'closure') {
+    return data.map((r) => ({
+      label: r.group_label || 'Group',
+      closures: r.closures_count || 0,
+      revenue: Number(r.total_revenue || 0),
+      margin: Number(r.total_margin || 0),
+    }));
+  }
+  return [];
+}
+
+export function chartBarsForReport(reportKey) {
+  if (reportKey === 'aging') return [{ dataKey: 'value', name: 'Count', fill: '#0052CC' }];
+  if (reportKey === 'recruiter-performance') {
+    return [
+      { dataKey: 'sourced', name: 'Sourced', fill: '#0052CC' },
+      { dataKey: 'submissions', name: 'Subs', fill: '#2684FF' },
+      { dataKey: 'closed', name: 'Closed', fill: '#36B37E' },
+      { dataKey: 'interviews', name: 'Interviews', fill: '#FFAB00' },
+    ];
+  }
+  if (reportKey === 'sales-performance') {
+    return [
+      { dataKey: 'leads', name: 'Leads', fill: '#0052CC' },
+      { dataKey: 'requirements', name: 'Reqs', fill: '#2684FF' },
+      { dataKey: 'closures', name: 'Joinings', fill: '#36B37E' },
+    ];
+  }
+  if (reportKey === 'vendor-performance') {
+    return [
+      { dataKey: 'submitted', name: 'Submitted', fill: '#0052CC' },
+      { dataKey: 'interviewed', name: 'Interviewed', fill: '#2684FF' },
+      { dataKey: 'closed', name: 'Closed', fill: '#36B37E' },
+    ];
+  }
+  if (reportKey === 'closure') {
+    return [
+      { dataKey: 'closures', name: 'Closures', fill: '#0052CC' },
+      { dataKey: 'margin', name: 'Margin', fill: '#36B37E' },
+    ];
+  }
+  return [];
+}

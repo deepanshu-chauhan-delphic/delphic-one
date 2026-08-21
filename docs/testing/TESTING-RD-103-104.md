@@ -130,7 +130,7 @@ Expect **62** green tests after this change set.
 - [ ] Detail shows info panels, seats table with stage buttons, assignees, history
 - [ ] Status + seat modals enforce reason / `joined_at`
 - [ ] `npm test` green
-- [ ] Compared roughly to [UI-UX-JIRA.md](UI-UX-JIRA.md) (dense table, Create, status chips) — full Jira chrome polish can continue under RD-115
+- [ ] Compared roughly to [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) (dense table, Create, status chips) — full Jira chrome polish can continue under RD-115
 
 ---
 

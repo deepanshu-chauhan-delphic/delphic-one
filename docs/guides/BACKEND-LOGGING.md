@@ -2,7 +2,7 @@
 
 **Status:** implemented (Aug 21, 2026)  
 **Scope:** Express API in `server/`  
-**Related:** [AGENTS.md](AGENTS.md) · [PROGRESS.md](PROGRESS.md) · `server/.env.example`
+**Related:** [AGENTS.md](../AGENTS.md) · [PROGRESS.md](../progress/PROGRESS.md) · `server/.env.example`
 
 ## Table of contents
 

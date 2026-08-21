@@ -2,9 +2,9 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green**. Frontend create/edit/detail/stage/interview/kanban/unlock/notes-files for accounts, jobs, candidates, and submissions are **in place**. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, linter/CI/E2E, and deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
+Where things stand on Aug 21: backend APIs, Docker, logging, and product UI including Notes/Files/Unlock on all detail pages, **reports charts/export (RD-114)**, and **change password (RD-128)** are **done**. **Open (infra / E2E):** RD-116/120 CI/lint, RD-121 deploy story, RD-119 E2E, RD-122 deploy day — see [PROGRESS.md](PROGRESS.md).
 
-**UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
+**UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
 
 Both developers are full-stack. Each owns complete features end-to-end so neither is stuck waiting on the other.
 
@@ -21,7 +21,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 ## Ticket status snapshot (Aug 21)
 
-### Done (25)
+### Done (27)
 
 | Ticket | Name |
 |---|---|
@@ -38,6 +38,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-111 | Submission stage pipeline buttons |
 | RD-112 | Kanban board for one job |
 | RD-113 | Real role dashboard (widgets) |
+| RD-114 | Reports tables/charts + date range + export UX |
 | RD-115 | Spec UI walkthrough + Jira-like UX check |
 | RD-117 | Stage-machine automated tests |
 | RD-118 | Auth + locking automated tests |
@@ -46,24 +47,23 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-125 | Interview rounds UI |
 | RD-126 | Admin Users page |
 | RD-127 | Unlock UI (admin) |
+| RD-128 | Change password UI |
 | RD-129 | Ownership on mutate + dashboard role scoping (BE) |
 | RD-130 | Split admin / comments / documents modules |
 | RD-131 | Temporary one-click role login |
 | RD-132 | Interview feedback API + richer interview/closure report metrics |
 
-Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
+Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
 
-### Open (7)
+### Open (5)
 
 | Ticket | Name |
 |---|---|
-| RD-114 | Reports tables/charts + date range + export UX |
 | RD-116 | Linter |
 | RD-119 | Full E2E click-through (all roles) |
 | RD-120 | CI Docker / compose smoke |
 | RD-121 | Live deploy story (Docker vs PM2) |
 | RD-122 | Deploy day |
-| RD-128 | Change password UI |
 
 ---
 
@@ -101,16 +101,16 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Ticket | Owner | What to build |
 |---|---|---|
 | RD-113 | Dev A | Real home-screen dashboard: summary numbers, stuck list (API already returns data), recent activity — different widgets per role (BDA / Sales / Recruiter / Admin). Backend already role-scopes the summary. **DONE (Aug 21)** |
-| RD-114 | Dev B | Reports: real tables/charts per report type (not raw JSON), date-range picker, Excel/PDF download that saves a usable file (endpoint already exists) |
+| RD-114 | Dev B | Reports: real tables/charts per report type (not raw JSON), date-range picker, Excel/PDF download that saves a usable file (endpoint already exists) **DONE (Aug 21)** — `/reports` |
 
 ## Day 5 — Tue Aug 26 — Catching what's missing, admin UX, tests
 
 | Ticket | Owner | What to build |
 |---|---|---|
-| RD-115 | Dev A | Spec walkthrough page-by-page — every screen/button in the design/API docs exists; fix gaps found; **must pass Jira-like UX check** ([UI-UX-JIRA.md](UI-UX-JIRA.md)) **DONE (Aug 21)** — see [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md); Dev B gaps left open |
+| RD-115 | Dev A | Spec walkthrough page-by-page — every screen/button in the design/API docs exists; fix gaps found; **must pass Jira-like UX check** ([UI-UX-JIRA.md](../ui/UI-UX-JIRA.md)) **DONE (Aug 21)** — see [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md); Dev B gaps left open |
 | RD-126 | Dev A | **Admin Users page** — list / create / deactivate users (BDA, Sales, Recruiter, Admin). Only admin can create; share creds with the team. **DONE (Aug 21)** — `/users` page + nav (admin only); API was already admin-gated |
 | RD-127 | Dev A | **Unlock UI** — on locked account / requirement / seat / submission detail pages, admin-only "Unlock" with mandatory reason (`POST /admin/:entity_type/:entity_id/unlock`) **DONE (Aug 21)** |
-| RD-128 | Dev B | **Change password** — reachable from the header/profile menu (`POST /auth/change-password`) |
+| RD-128 | Dev B | **Change password** — reachable from the header/profile menu (`POST /auth/change-password`) **DONE (Aug 21)** — avatar menu modal |
 | RD-131 | Dev A | Temporary one-click role login on `/login` for seeded Admin/BDA/Sales/Recruiter **DONE (Aug 21)** — remove / disable (`VITE_DISABLE_QUICK_LOGIN=true`) when real auth lands |
 | RD-123 | Dev A | Stuck leads / stuck requirements on dashboard **DONE (Aug 21)** |
 | RD-124 | Dev A | Avg days on recruiter + vendor reports **DONE (Aug 21)** |
@@ -145,14 +145,14 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Profiles + resume upload | Done | **RD-105 DONE**; resume via RD-109 FilesPanel |
 | Submissions + margin + stages | Done | **RD-107/108/111 DONE** |
 | Interview rounds (incl. **internal** + feedback) | Done | **RD-125 DONE** |
-| Recruiter interview/closure report metrics | Done (RD-132) | RD-114 charts |
+| Recruiter interview/closure report metrics | Done (RD-132) | **RD-114 DONE** |
 | Comments + documents | Done (split Aug 21) | **RD-109 / RD-110 DONE** (all four detail pages) |
 | Kanban by stage | Done | **RD-112 DONE** (`/requirements/:id/board`) |
 | Dashboard stuck + role scope | Done (RD-123/129) | **RD-113 DONE** |
-| Report avg days + export API | Done (RD-124) | RD-114 |
+| Report avg days + export API | Done (RD-124) | **RD-114 DONE** |
 | Admin unlock API | Done | **RD-127 DONE** |
 | Users admin API | Done | **RD-126 DONE** |
-| Change password API | Done | **RD-128** |
+| Change password API | Done | **RD-128 DONE** |
 | One-click test login (temporary) | N/A (FE only) | **RD-131 DONE** — replace before prod |
 | Stage/auth/locking tests | Done (RD-117/118) | — |
 

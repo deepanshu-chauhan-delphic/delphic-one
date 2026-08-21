@@ -191,5 +191,7 @@ Do not run against a shared staging DB with real data.
 ## Related docs
 
 - [TESTING-RD-103-104.md](TESTING-RD-103-104.md) — requirements UI  
-- [TESTING-RD-107-108.md](TESTING-RD-107-108.md) — submissions UI (if present)  
-- [AGENTS.md](AGENTS.md) — local setup  
+- [TESTING-RD-107-108.md](TESTING-RD-107-108.md) — submissions UI  
+- [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md) — pipeline / interviews  
+- [TESTING-RD-114-128.md](TESTING-RD-114-128.md) — reports + change password  
+- [AGENTS.md](../AGENTS.md) — local setup and docs index  

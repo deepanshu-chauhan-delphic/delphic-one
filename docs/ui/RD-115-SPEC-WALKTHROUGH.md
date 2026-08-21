@@ -1,7 +1,7 @@
 # RD-115 — Spec / UX walkthrough (Aug 21)
 
-**Status:** Complete for owned + post-merge surfaces (updated after Dev A/B merge)  
-**Sources:** [API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md), [UI-UX-JIRA.md](UI-UX-JIRA.md), [SPRINT-PLAN.md](SPRINT-PLAN.md)
+**Status:** Complete for owned + post-merge surfaces (updated after Dev A/B merge; RD-114/128 landed)  
+**Sources:** [API-Spec-and-Build-Plan.md](../architecture/API-Spec-and-Build-Plan.md), [UI-UX-JIRA.md](UI-UX-JIRA.md), [SPRINT-PLAN.md](../progress/SPRINT-PLAN.md)
 
 ## 1. Purpose
 
@@ -26,10 +26,10 @@ Page-by-page check: does each intended screen/button exist, and do primary lists
 | Submission detail | Present | RD-107/111 — stage stepper + move buttons; Notes/Files; Unlock; commercials/BGV |
 | Put candidate forward | Present | RD-108 — `/submissions/new` |
 | Interview rounds UI | Present | RD-125 — internal + client, feedback + rating |
-| Reports charts (not raw JSON) | Partial | Page exists with date range + export; rich charts still **RD-114** |
+| Reports charts (not raw JSON) | Present | **RD-114** — tables/charts, date range, Excel/PDF |
 | Admin Users | Present | RD-126 |
 | Unlock UI | Present | RD-127 on account / requirement / seat / submission |
-| Change password | Missing | **RD-128** |
+| Change password | Present | **RD-128** — header avatar menu |
 
 ## 3. Jira-like UX checklist
 
@@ -39,8 +39,8 @@ Page-by-page check: does each intended screen/button exist, and do primary lists
 - [x] Detail issue headers with status + Locked badge where relevant
 - [x] Create from list for Jobs (+ Create) and Submissions (+ Put forward)
 - [x] Kanban alternate view — RD-112
-- [ ] Rich report charts — RD-114
-- [ ] Change password from header — RD-128
+- [x] Rich report charts — RD-114
+- [x] Change password from header — RD-128
 
 Compared against [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png) for filter/list density on owned pages.
 
@@ -49,11 +49,10 @@ Compared against [references/jira-like-dashboard-reference.png](references/jira-
 1. **RD-127** — reusable `UnlockButton`; wired on locked account, requirement, seat row, and submission.
 2. **RD-109 / RD-110** — `NotesPanel` + `FilesPanel` on Account, Candidate, Job, and Submission detail.
 3. **Requirements / Submissions lists** — Basic filter bar, mono keys, denser rows, footer count.
-4. **AppLayout** — Delphic brand, tighter header, role chip + initials avatar.
+4. **AppLayout** — Delphic brand, tighter header, role chip + initials avatar; profile menu for password + logout.
 5. **Post-merge (Aug 21)** — re-wired Notes/Files/Unlock onto Dev B Job + Submission detail pages after stash/main merge overwrote thin shells.
+6. **RD-114 / RD-128** — reports charts/export + change password modal.
 
 ## 5. Explicitly still open
 
-- **RD-114** — Reports: real tables/charts (not raw JSON)
-- **RD-128** — Change password UI
 - **RD-116 / RD-119 / RD-120 / RD-121 / RD-122** — linter, E2E, CI smoke, deploy
