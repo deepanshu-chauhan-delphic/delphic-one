@@ -1,0 +1,673 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import apiClient from '../../lib/apiClient.js';
+import { useAuth } from '../../lib/authContext.jsx';
+import Badge from '../../components/ui/Badge.jsx';
+import Modal from '../../components/ui/Modal.jsx';
+import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
+import {
+  SUBMISSION_PIPELINE,
+  canMutateSubmission,
+  computeMarginPreview,
+  nextSubmissionStages,
+  pipelineIndex,
+  requiresBackoutReason,
+  requiresRejectionReason,
+} from '../../lib/submissionStages.js';
+
+const RATE_TYPES = ['monthly', 'hourly', 'annual'];
+const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
+const BGV_STATUSES = ['pending', 'in_progress', 'cleared', 'failed'];
+
+function formatDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString();
+}
+
+function toOptionalNumber(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function dateInputValue(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function StageStepper({ stage }) {
+  const currentIdx = pipelineIndex(stage);
+  const isTerminalFail = stage === 'backout' || stage === 'rejected';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {SUBMISSION_PIPELINE.map((s, idx) => {
+          const done = currentIdx >= 0 && idx <= currentIdx;
+          const current = s === stage;
+          return (
+            <div
+              key={s}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium capitalize ${
+                current
+                  ? 'bg-primary-600 text-white'
+                  : done
+                    ? 'bg-primary-100 text-primary-800'
+                    : 'bg-tertiary-100 text-tertiary-500'
+              }`}
+            >
+              {s.replace(/_/g, ' ')}
+            </div>
+          );
+        })}
+      </div>
+      {isTerminalFail && (
+        <p className="text-sm font-medium capitalize text-red-700">Ended: {stage.replace(/_/g, ' ')}</p>
+      )}
+    </div>
+  );
+}
+
+export default function SubmissionDetailPage() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const [submission, setSubmission] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState(null);
+  const [stageModal, setStageModal] = useState(null);
+  const [stageReason, setStageReason] = useState('');
+
+  const canEdit = canMutateSubmission(user) && submission && !submission.is_locked;
+
+  const liveMargin = useMemo(() => {
+    if (!form) return { margin: null, margin_percentage: null };
+    return computeMarginPreview(
+      toOptionalNumber(form.proposed_rate),
+      form.proposed_rate_currency,
+      toOptionalNumber(form.vendor_rate),
+      form.vendor_rate_currency
+    );
+  }, [form]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [subRes, histRes] = await Promise.all([
+        apiClient.get(`/submissions/${id}`),
+        apiClient.get(`/submissions/${id}/history`),
+      ]);
+      const sub = subRes.data.data;
+      setSubmission(sub);
+      setHistory(histRes.data.data || []);
+      setForm({
+        proposed_rate: sub.proposed_rate ?? '',
+        proposed_rate_type: sub.proposed_rate_type || 'monthly',
+        proposed_rate_currency: sub.proposed_rate_currency || 'INR',
+        vendor_rate: sub.vendor_rate ?? '',
+        vendor_rate_type: sub.vendor_rate_type || 'monthly',
+        vendor_rate_currency: sub.vendor_rate_currency || 'INR',
+        final_agreed_rate: sub.final_agreed_rate ?? '',
+        final_agreed_rate_type: sub.final_agreed_rate_type || 'monthly',
+        relevancy_score: sub.relevancy_score ?? '',
+        submission_notes: sub.submission_notes || '',
+        client_feedback: sub.client_feedback || '',
+        offer_date: dateInputValue(sub.offer_date),
+        offer_ctc: sub.offer_ctc ?? '',
+        offer_ctc_currency: sub.offer_ctc_currency || 'INR',
+        expected_joining_date: dateInputValue(sub.expected_joining_date),
+        actual_joining_date: dateInputValue(sub.actual_joining_date),
+        bgv_initiated_date: dateInputValue(sub.bgv_initiated_date),
+        bgv_status: sub.bgv_status || 'pending',
+        bgv_completed_date: dateInputValue(sub.bgv_completed_date),
+        bgv_notes: sub.bgv_notes || '',
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load submission');
+      setSubmission(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function updateField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    if (!canEdit) return;
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        proposed_rate: toOptionalNumber(form.proposed_rate),
+        proposed_rate_type: form.proposed_rate_type || undefined,
+        proposed_rate_currency: form.proposed_rate_currency || undefined,
+        vendor_rate: toOptionalNumber(form.vendor_rate),
+        vendor_rate_type: form.vendor_rate_type || undefined,
+        vendor_rate_currency: form.vendor_rate_currency || undefined,
+        final_agreed_rate: toOptionalNumber(form.final_agreed_rate),
+        final_agreed_rate_type: form.final_agreed_rate_type || undefined,
+        relevancy_score: toOptionalNumber(form.relevancy_score),
+        submission_notes: form.submission_notes.trim() || undefined,
+        client_feedback: form.client_feedback.trim() || undefined,
+        offer_date: form.offer_date || undefined,
+        offer_ctc: toOptionalNumber(form.offer_ctc),
+        offer_ctc_currency: form.offer_ctc_currency || undefined,
+        expected_joining_date: form.expected_joining_date || undefined,
+        actual_joining_date: form.actual_joining_date || undefined,
+        bgv_initiated_date: form.bgv_initiated_date || undefined,
+        bgv_status: form.bgv_status || undefined,
+        bgv_completed_date: form.bgv_completed_date || undefined,
+        bgv_notes: form.bgv_notes.trim() || undefined,
+      };
+      await apiClient.patch(`/submissions/${id}`, payload);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openStage(to_stage) {
+    setStageReason('');
+    setStageModal(to_stage);
+  }
+
+  async function confirmStage() {
+    if (!stageModal) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = { to_stage: stageModal };
+      if (requiresBackoutReason(stageModal)) body.backout_reason = stageReason.trim();
+      if (requiresRejectionReason(stageModal)) body.rejection_reason = stageReason.trim();
+      await apiClient.post(`/submissions/${id}/stage`, body);
+      setStageModal(null);
+      setStageReason('');
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Stage change failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <div className="text-sm text-tertiary-500">Loading…</div>;
+  if (!submission || !form) {
+    return (
+      <div className="space-y-2">
+        {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
+          ← Back to submissions
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link to="/submissions" className="text-xs text-primary-600 hover:underline">
+            ← Submissions
+          </Link>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h1 className="font-heading text-xl font-semibold text-tertiary-900">
+              {submission.profile?.name || 'Submission'}
+            </h1>
+            <Badge value={submission.stage} />
+            {submission.is_locked && (
+              <span className="rounded bg-tertiary-100 px-2 py-0.5 text-xs text-tertiary-600">Locked</span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-tertiary-500">
+            {submission.requirement?.title || '—'}
+            {submission.requirement?.account_name ? ` · ${submission.requirement.account_name}` : ''}
+            {submission.seat?.seat_label ? ` · ${submission.seat.seat_label}` : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-sm">
+          {submission.requirement?.id && (
+            <>
+              <Link to={`/requirements/${submission.requirement.id}`} className="btn-secondary">
+                Open job
+              </Link>
+              <Link to={`/requirements/${submission.requirement.id}/board`} className="btn-secondary">
+                Pipeline board
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+      <section className="rounded-lg border bg-white p-4">
+        <h2 className="text-sm font-semibold text-tertiary-800">Stage</h2>
+        <div className="mt-3">
+          <StageStepper stage={submission.stage} />
+        </div>
+        {!canEdit ? (
+          <p className="mt-3 text-sm text-tertiary-500">
+            {submission.is_locked
+              ? 'Submission is locked.'
+              : 'Only recruiters or admins can move stages.'}
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {nextSubmissionStages(submission.stage).map((to) => (
+              <button
+                key={to}
+                type="button"
+                className={to === 'backout' || to === 'rejected' ? 'btn-danger' : 'btn-secondary'}
+                onClick={() => openStage(to)}
+              >
+                Move to {to.replace(/_/g, ' ')}
+              </button>
+            ))}
+            {nextSubmissionStages(submission.stage).length === 0 && (
+              <p className="text-sm text-tertiary-500">No further transitions.</p>
+            )}
+          </div>
+        )}
+        {(submission.stage === 'interview_result' || nextSubmissionStages(submission.stage).includes('offer')) && (
+          <p className="mt-2 text-xs text-tertiary-400">
+            Moving to offer requires every interview round to have a non-pending result.
+          </p>
+        )}
+        {submission.stage === 'bgv' && (
+          <p className="mt-2 text-xs text-tertiary-400">Closing requires BGV status cleared.</p>
+        )}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border bg-white p-4">
+          <h2 className="text-sm font-semibold text-tertiary-800">Candidate</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <dt className="text-tertiary-500">Name</dt>
+            <dd>{submission.profile?.name || '—'}</dd>
+            <dt className="text-tertiary-500">Company</dt>
+            <dd>{submission.profile?.current_company || '—'}</dd>
+            <dt className="text-tertiary-500">Experience</dt>
+            <dd>{submission.profile?.total_experience_years ?? '—'} yrs</dd>
+            <dt className="text-tertiary-500">Source</dt>
+            <dd className="capitalize">{submission.profile?.source || '—'}</dd>
+            <dt className="text-tertiary-500">Expected CTC</dt>
+            <dd>{submission.profile?.expected_ctc ?? '—'}</dd>
+            <dt className="text-tertiary-500">Notice</dt>
+            <dd>
+              {submission.profile?.notice_period_days != null
+                ? `${submission.profile.notice_period_days} days`
+                : '—'}
+            </dd>
+          </dl>
+          <div className="mt-3 flex flex-wrap gap-1">
+            {(submission.profile?.primary_skills || []).map((s) => (
+              <span key={s} className="rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700">
+                {s}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border bg-white p-4">
+          <h2 className="text-sm font-semibold text-tertiary-800">Job / seat</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <dt className="text-tertiary-500">Requirement</dt>
+            <dd>{submission.requirement?.title || '—'}</dd>
+            <dt className="text-tertiary-500">Client</dt>
+            <dd>{submission.requirement?.account_name || '—'}</dd>
+            <dt className="text-tertiary-500">Seat</dt>
+            <dd>{submission.seat?.seat_label || submission.seat?.id?.slice(0, 8) || '—'}</dd>
+            <dt className="text-tertiary-500">Submitted by</dt>
+            <dd>{submission.submitted_by?.name || '—'}</dd>
+            {(submission.backout_reason || submission.rejection_reason) && (
+              <>
+                <dt className="text-tertiary-500">Exit reason</dt>
+                <dd>{submission.backout_reason || submission.rejection_reason}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-4">
+        <section className="rounded-lg border bg-white p-4">
+          <h2 className="text-sm font-semibold text-tertiary-800">Commercials & margin</h2>
+          <fieldset disabled={!canEdit || saving} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Proposed rate</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.proposed_rate}
+                onChange={(e) => updateField('proposed_rate', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Type</label>
+                <select
+                  value={form.proposed_rate_type}
+                  onChange={(e) => updateField('proposed_rate_type', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  {RATE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Currency</label>
+                <select
+                  value={form.proposed_rate_currency}
+                  onChange={(e) => updateField('proposed_rate_currency', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Vendor rate</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.vendor_rate}
+                onChange={(e) => updateField('vendor_rate', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Type</label>
+                <select
+                  value={form.vendor_rate_type}
+                  onChange={(e) => updateField('vendor_rate_type', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  {RATE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Currency</label>
+                <select
+                  value={form.vendor_rate_currency}
+                  onChange={(e) => updateField('vendor_rate_currency', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2 rounded-md bg-tertiary-50 px-3 py-2 text-sm text-tertiary-800">
+              Saved margin: {submission.margin != null ? `${submission.margin} (${submission.margin_percentage}%)` : '—'}
+              {liveMargin.margin != null && (
+                <span className="ml-2 text-primary-700">
+                  · Preview: {liveMargin.margin} ({liveMargin.margin_percentage}%)
+                </span>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Final agreed rate</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.final_agreed_rate}
+                onChange={(e) => updateField('final_agreed_rate', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Final rate type</label>
+              <select
+                value={form.final_agreed_rate_type}
+                onChange={(e) => updateField('final_agreed_rate_type', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              >
+                {RATE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Relevancy (1–10)</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={form.relevancy_score}
+                onChange={(e) => updateField('relevancy_score', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Submission notes</label>
+              <textarea
+                rows={2}
+                value={form.submission_notes}
+                onChange={(e) => updateField('submission_notes', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Client feedback</label>
+              <textarea
+                rows={2}
+                value={form.client_feedback}
+                onChange={(e) => updateField('client_feedback', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+          </fieldset>
+        </section>
+
+        <section className="rounded-lg border bg-white p-4">
+          <h2 className="text-sm font-semibold text-tertiary-800">Offer & BGV</h2>
+          <fieldset disabled={!canEdit || saving} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Offer date</label>
+              <input
+                type="date"
+                value={form.offer_date}
+                onChange={(e) => updateField('offer_date', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Offer CTC</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.offer_ctc}
+                  onChange={(e) => updateField('offer_ctc', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="w-24">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Cur</label>
+                <select
+                  value={form.offer_ctc_currency}
+                  onChange={(e) => updateField('offer_ctc_currency', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Expected joining</label>
+              <input
+                type="date"
+                value={form.expected_joining_date}
+                onChange={(e) => updateField('expected_joining_date', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Actual joining</label>
+              <input
+                type="date"
+                value={form.actual_joining_date}
+                onChange={(e) => updateField('actual_joining_date', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">BGV status</label>
+              <select
+                value={form.bgv_status}
+                onChange={(e) => updateField('bgv_status', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              >
+                {BGV_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">BGV initiated</label>
+              <input
+                type="date"
+                value={form.bgv_initiated_date}
+                onChange={(e) => updateField('bgv_initiated_date', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">BGV completed</label>
+              <input
+                type="date"
+                value={form.bgv_completed_date}
+                onChange={(e) => updateField('bgv_completed_date', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">BGV notes</label>
+              <textarea
+                rows={2}
+                value={form.bgv_notes}
+                onChange={(e) => updateField('bgv_notes', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+          </fieldset>
+        </section>
+
+        {canEdit && (
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? 'Saving…' : 'Save commercials & BGV'}
+          </button>
+        )}
+      </form>
+
+      <InterviewRoundsPanel
+        submissionId={id}
+        rounds={submission.interview_rounds || []}
+        canEdit={canEdit}
+        onChanged={load}
+      />
+
+      <section className="rounded-lg border bg-white p-4">
+        <h2 className="text-sm font-semibold text-tertiary-800">Stage history</h2>
+        <ul className="mt-2 space-y-1 text-sm text-tertiary-700">
+          {history.length === 0 && <li className="text-tertiary-400">No stage changes yet</li>}
+          {history.map((h) => (
+            <li key={h.id}>
+              <span className="capitalize">{h.from_stage?.replace(/_/g, ' ') || '—'}</span>
+              {' → '}
+              <span className="font-medium capitalize">{h.to_stage?.replace(/_/g, ' ')}</span>
+              <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
+              {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <Modal
+        open={Boolean(stageModal)}
+        title={`Move to ${stageModal?.replace(/_/g, ' ') || ''}`}
+        onClose={() => !busy && setStageModal(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" disabled={busy} onClick={() => setStageModal(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={
+                busy ||
+                ((requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal)) && !stageReason.trim())
+              }
+              onClick={confirmStage}
+            >
+              Confirm
+            </button>
+          </>
+        }
+      >
+        {(requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal)) ? (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">
+              {requiresBackoutReason(stageModal) ? 'Backout reason *' : 'Rejection reason *'}
+            </label>
+            <textarea
+              rows={3}
+              value={stageReason}
+              onChange={(e) => setStageReason(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+        ) : (
+          <p className="text-tertiary-600">
+            Confirm moving this submission to {stageModal?.replace(/_/g, ' ')}.
+          </p>
+        )}
+      </Modal>
+    </div>
+  );
+}

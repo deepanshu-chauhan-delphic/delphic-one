@@ -29,15 +29,15 @@ docker compose exec server node prisma/seed.js
 - Seed password: `Password123!`  
 - Quick login on `/login`: **Sales** (`sales1@delphic.local`) for create/edit; **Recruiter** for seat stages; **Admin** for everything.
 
-Without Docker: `npm run migrate` / `npm run seed` / `npm run dev:server` + `npm run dev:client` (API on 4000, Vite on 5173). You need at least one **active client** account — create via API/seed or wait for RD-101; seed may not include active clients.
+Without Docker: `npm run migrate` / `npm run seed` / `npm run dev:server` + `npm run dev:client` (API on 4000, Vite on 5173).
 
-Check seed for active clients:
+Demo seed includes active clients (**Acme Active Client**, **Nova Softwares**). Full inventory: [TESTING-DEMO-SEED.md](TESTING-DEMO-SEED.md).
+
+Check active clients if create still fails:
 
 ```powershell
 docker compose exec server node -e "const {PrismaClient}=require('@prisma/client'); const p=new PrismaClient(); p.account.findMany({where:{type:'client',stage:'active'}}).then(r=>{console.log(r); return p.`$disconnect();});"
 ```
-
-If none exist, promote a client with BDA/admin via accounts API (or create one in DB) before testing RD-104 create.
 
 ---
 

@@ -2,6 +2,34 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Synced Dev B Days 1–3 to all branches
+
+Committed and pushed RD-103/104, RD-107/108, RD-111/125/112 (requirements + submissions UI, stage buttons, interview rounds, kanban), demo seed + test guides. Branches `main`, `staging`, `dev`, and `dev-deep` fast-forwarded to the same tip.
+
+## 2026-08-21 — Dev B Day 3: RD-111 + RD-125 + RD-112
+
+- **RD-111:** Submission detail stage move buttons + modal (backout/rejection reason required).
+- **RD-125:** `InterviewRoundsPanel` — add/edit internal + client rounds (schedule, interviewer, feedback, rating, result).
+- **RD-112:** `/requirements/:id/board` kanban by stage; cards link to submissions; quick stage chips. Linked from requirement + submission detail.
+
+**Tests:** `submissions-pipeline-ui.test.js` — **77** green. Guide: [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md).
+
+## 2026-08-21 — Demo seed for frontend / dashboard E2E
+
+Expanded `server/prisma/seed.js` beyond users: accounts (incl. stuck lead + active clients), requirements/seats/assignments, profiles, submissions across funnel stages, interview rounds, stage history, comments. Re-run wipes all demo tables then recreates.
+
+**How to test:** [TESTING-DEMO-SEED.md](TESTING-DEMO-SEED.md).
+
+## 2026-08-21 — Dev B Day 2: RD-107 + RD-108 (submissions UI)
+
+- **RD-108:** `/submissions/new` — pick active candidate + requirement + open seat, rates, live margin preview, create → detail.
+- **RD-107:** `/submissions/:id` — stage stepper, candidate + job/seat panels, editable commercials/margin + offer/BGV, interview rounds list (read-only), stage history. List links + **+ Put forward** for recruiter/admin.
+
+Shared maps: `server/.../submissions/stageMachines.js` + `client/src/lib/submissionStages.js`.
+
+**Tests:** `submissions-crud-ui.test.js`, `submission-stage-machines.test.js` — **72** green.  
+**How to test:** [TESTING-RD-107-108.md](TESTING-RD-107-108.md).
+
 ## 2026-08-21 — Dev B Day 1: RD-103 + RD-104 (requirements UI)
 
 Implemented Job Requirement frontend for Dev B Aug 22 tickets:

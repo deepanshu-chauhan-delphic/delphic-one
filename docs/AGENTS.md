@@ -13,6 +13,8 @@ API contract + build plan: [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-
 Backend logging: [docs/BACKEND-LOGGING.md](BACKEND-LOGGING.md)
 **UI/UX (standing):** [docs/UI-UX-JIRA.md](UI-UX-JIRA.md) — product must feel like Jira (issue search / dense filters + list). Reference: [docs/references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png).
 **Requirements UI (RD-103/104):** [docs/TESTING-RD-103-104.md](TESTING-RD-103-104.md)
+**Submissions UI (RD-107/108):** [docs/TESTING-RD-107-108.md](TESTING-RD-107-108.md)
+**Pipeline UI (RD-111/125/112):** [docs/TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md)
 
 ## Stack
 
@@ -38,7 +40,7 @@ server/src/
 
 server/prisma/
   schema.prisma          # single schema — all 11 tables as Prisma models
-  seed.js                 # seed data (admin, sales, bda, 2 recruiters)
+  seed.js                 # demo seed: users + accounts/reqs/profiles/submissions (see TESTING-DEMO-SEED.md)
 ```
 
 Domain modules follow a consistent 4-file pattern: `routes` → `controller` → `service` → `validation` (including `admin`, `comments`, `documents`, and `dashboard` which has routes + service).
@@ -83,6 +85,8 @@ npm run dev:client   # http://localhost:5173
 ```
 
 Seeded users (password `Password123!`): `admin@delphic.local`, `sales1@delphic.local`, `bda1@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
+
+Demo domain data (accounts, requirements, seats, profiles, submissions, interviews, history) is included in the same seed so dashboards and lists are non-empty. Full inventory and role walkthroughs: [TESTING-DEMO-SEED.md](TESTING-DEMO-SEED.md). Re-running seed wipes and recreates everything.
 
 ## Backend logging
 

@@ -220,6 +220,9 @@ export default function RequirementDetailPage() {
               Edit
             </Link>
           )}
+          <Link to={`/requirements/${id}/board`} className="btn-secondary">
+            Pipeline board
+          </Link>
           {canEdit && !locked && (
             <button type="button" className="btn-primary" onClick={() => setAddSeatOpen(true)}>
               + Add seat

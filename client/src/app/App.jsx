@@ -7,8 +7,11 @@ import AccountsListPage from '../pages/accounts/AccountsListPage.jsx';
 import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx';
 import RequirementDetailPage from '../pages/requirements/RequirementDetailPage.jsx';
 import RequirementFormPage from '../pages/requirements/RequirementFormPage.jsx';
+import RequirementKanbanPage from '../pages/requirements/RequirementKanbanPage.jsx';
 import ProfilesListPage from '../pages/profiles/ProfilesListPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
+import SubmissionDetailPage from '../pages/submissions/SubmissionDetailPage.jsx';
+import SubmissionCreatePage from '../pages/submissions/SubmissionCreatePage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
 import UsersPage from '../pages/users/UsersPage.jsx';
 
@@ -36,9 +39,12 @@ export default function App() {
         <Route path="requirements" element={<RequirementsListPage />} />
         <Route path="requirements/new" element={<RequirementFormPage />} />
         <Route path="requirements/:id/edit" element={<RequirementFormPage />} />
+        <Route path="requirements/:id/board" element={<RequirementKanbanPage />} />
         <Route path="requirements/:id" element={<RequirementDetailPage />} />
         <Route path="profiles" element={<ProfilesListPage />} />
         <Route path="submissions" element={<SubmissionsListPage />} />
+        <Route path="submissions/new" element={<SubmissionCreatePage />} />
+        <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="users" element={<UsersPage />} />
       </Route>
