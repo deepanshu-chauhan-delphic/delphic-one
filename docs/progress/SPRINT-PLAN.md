@@ -2,9 +2,9 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: product UI + backend + **RD-114 reports** + **RD-128 change password** + **RD-116 linter** + **RD-120 Docker compose CI smoke** are **done**. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
+Where things stand on Aug 21: product UI + backend + **RD-114 reports** + **RD-128 change password** + **RD-116 linter** + **RD-120 Docker compose CI smoke** + **RD-133 UI redesign** are **done**. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
 
-**UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
+**UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets. Post–Aug 21 list/create flows also follow the **RHS drawer** rules in [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
 
 Both developers are full-stack. Each owns complete features end-to-end so neither is stuck waiting on the other.
 
@@ -21,7 +21,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 ## Ticket status snapshot (Aug 21)
 
-### Done (29)
+### Done (30)
 
 | Ticket | Name |
 |---|---|
@@ -54,6 +54,7 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-130 | Split admin / comments / documents modules |
 | RD-131 | Temporary one-click role login |
 | RD-132 | Interview feedback API + richer interview/closure report metrics |
+| RD-133 | UI redesign — blue theme, RHS drawers, list peeks, pipeline KPIs, BDA/Sales reports |
 
 Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
 
@@ -102,6 +103,7 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 |---|---|---|
 | RD-113 | Dev A | Real home-screen dashboard: summary numbers, stuck list (API already returns data), recent activity — different widgets per role (BDA / Sales / Recruiter / Admin). Backend already role-scopes the summary. **DONE (Aug 21)** |
 | RD-114 | Dev B | Reports: real tables/charts per report type (not raw JSON), date-range picker, Excel/PDF download that saves a usable file (endpoint already exists) **DONE (Aug 21)** — `/reports` |
+| RD-133 | Both | ~~UI redesign~~ **DONE (Aug 21)** — blue theme + lean `global.css`; shared `DataTable`/`ListToolbar`; create + row-peek as **RHS drawers only**; real KPI cards + admin-visible pipeline charts; required interview date/time; admin **BDA performance** + sales-by-owner reports. Guide: [UI-REDESIGN.md](../ui/UI-REDESIGN.md) |
 
 ## Day 5 — Tue Aug 26 — Catching what's missing, admin UX, tests
 
@@ -150,6 +152,7 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Kanban by stage | Done | **RD-112 DONE** (`/requirements/:id/board`) |
 | Dashboard stuck + role scope | Done (RD-123/129) | **RD-113 DONE** |
 | Report avg days + export API | Done (RD-124) | **RD-114 DONE** |
+| UI redesign (drawers, peeks, pipeline, BDA report) | Done (BDA report + required `scheduled_at`) | **RD-133 DONE** — [UI-REDESIGN.md](../ui/UI-REDESIGN.md) |
 | Admin unlock API | Done | **RD-127 DONE** |
 | Users admin API | Done | **RD-126 DONE** |
 | Change password API | Done | **RD-128 DONE** |

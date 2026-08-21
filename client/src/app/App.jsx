@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/authContext.jsx';
 import { can } from '../lib/permissions.js';
 import AppLayout from '../components/layout/AppLayout.jsx';
@@ -6,14 +6,11 @@ import LoginPage from '../pages/auth/LoginPage.jsx';
 import DashboardPage from '../pages/dashboard/DashboardPage.jsx';
 import AccountsListPage from '../pages/accounts/AccountsListPage.jsx';
 import AccountDetailPage from '../pages/accounts/AccountDetailPage.jsx';
-import AccountFormPage from '../pages/accounts/AccountFormPage.jsx';
 import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx';
 import RequirementDetailPage from '../pages/requirements/RequirementDetailPage.jsx';
-import RequirementFormPage from '../pages/requirements/RequirementFormPage.jsx';
 import RequirementKanbanPage from '../pages/requirements/RequirementKanbanPage.jsx';
 import ProfilesListPage from '../pages/profiles/ProfilesListPage.jsx';
 import ProfileDetailPage from '../pages/profiles/ProfileDetailPage.jsx';
-import ProfileFormPage from '../pages/profiles/ProfileFormPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import SubmissionDetailPage from '../pages/submissions/SubmissionDetailPage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
@@ -28,6 +25,15 @@ function ProtectedRoute({ children }) {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return children;
+}
+
+/**
+ * Legacy `/:base/:id/edit` deep-links now open the edit Drawer on the
+ * detail page instead of a dedicated full page — redirect there.
+ */
+function EditRedirect({ base }) {
+  const { id } = useParams();
+  return <Navigate to={`/${base}/${id}?edit=1`} replace />;
 }
 
 /**
@@ -57,10 +63,10 @@ export default function App() {
         <Route path="accounts" element={<AccountsListPage />} />
         <Route path="accounts/new" element={<Navigate to="/accounts?create=1" replace />} />
         <Route path="accounts/:id" element={<AccountDetailPage />} />
-        <Route path="accounts/:id/edit" element={<AccountFormPage />} />
+        <Route path="accounts/:id/edit" element={<EditRedirect base="accounts" />} />
         <Route path="requirements" element={<RequirementsListPage />} />
         <Route path="requirements/new" element={<Navigate to="/requirements?create=1" replace />} />
-        <Route path="requirements/:id/edit" element={<RequirementFormPage />} />
+        <Route path="requirements/:id/edit" element={<EditRedirect base="requirements" />} />
         <Route path="requirements/:id/board" element={<RequirementKanbanPage />} />
         <Route path="requirements/:id" element={<RequirementDetailPage />} />
         <Route
@@ -80,14 +86,7 @@ export default function App() {
             </RequirePermission>
           }
         />
-        <Route
-          path="profiles/:id/edit"
-          element={
-            <RequirePermission capability="viewProfiles">
-              <ProfileFormPage />
-            </RequirePermission>
-          }
-        />
+        <Route path="profiles/:id/edit" element={<EditRedirect base="profiles" />} />
         <Route path="submissions" element={<SubmissionsListPage />} />
         <Route path="submissions/new" element={<Navigate to="/submissions?create=1" replace />} />
         <Route path="submissions/:id" element={<SubmissionDetailPage />} />

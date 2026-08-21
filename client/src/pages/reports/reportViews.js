@@ -44,9 +44,9 @@ export function columnsForReport(reportKey) {
       { key: 'leads_dropped', header: 'Dropped' },
       { key: 'conversion_rate_percentage', header: 'Conv %', render: (r) => cell(r.conversion_rate_percentage) },
       { key: 'vendors_created', header: 'Vendors added' },
-      { key: 'clients_active', header: 'Active clients' },
-      { key: 'vendors_active', header: 'Active vendors' },
-      { key: 'stuck_leads_7d', header: 'Stuck 7d+' },
+      { key: 'clients_active_current', header: 'Active clients (now)' },
+      { key: 'vendors_active_current', header: 'Active vendors (now)' },
+      { key: 'stuck_leads_current', header: 'Stuck 7d+ (now)' },
     ];
   }
   if (reportKey === 'recruiter-performance') {
@@ -179,7 +179,7 @@ export function chartDataForReport(reportKey, data) {
       leads: r.leads_created || 0,
       meeting: r.leads_in_meeting || 0,
       converted: r.leads_converted_active || 0,
-      stuck: r.stuck_leads_7d || 0,
+      stuck: r.stuck_leads_current || 0,
     }));
   }
   if (reportKey === 'recruiter-performance') {

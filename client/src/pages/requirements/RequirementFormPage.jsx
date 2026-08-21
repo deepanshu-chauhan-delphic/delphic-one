@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
 const emptyForm = {
@@ -12,8 +13,8 @@ const emptyForm = {
   description: '',
   designation: '',
   department: '',
-  primary_tech_stack: '',
-  secondary_tech_stack: '',
+  primary_tech_stack: [],
+  secondary_tech_stack: [],
   domain_experience: '',
   experience_min: '',
   experience_max: '',
@@ -29,13 +30,6 @@ const emptyForm = {
   start_date_target: '',
 };
 
-function splitList(value) {
-  return String(value || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 function toOptionalNumber(value) {
   if (value === '' || value === null || value === undefined) return undefined;
   const n = Number(value);
@@ -49,8 +43,8 @@ function buildPayload(form, { isCreate }) {
     description: form.description.trim() || undefined,
     designation: form.designation.trim() || undefined,
     department: form.department.trim() || undefined,
-    primary_tech_stack: splitList(form.primary_tech_stack),
-    secondary_tech_stack: splitList(form.secondary_tech_stack),
+    primary_tech_stack: form.primary_tech_stack,
+    secondary_tech_stack: form.secondary_tech_stack,
     domain_experience: form.domain_experience.trim() || undefined,
     experience_min: toOptionalNumber(form.experience_min),
     experience_max: toOptionalNumber(form.experience_max),
@@ -84,8 +78,8 @@ function hydrateForm(req) {
     description: req.description || '',
     designation: req.designation || '',
     department: req.department || '',
-    primary_tech_stack: (req.primary_tech_stack || []).join(', '),
-    secondary_tech_stack: (req.secondary_tech_stack || []).join(', '),
+    primary_tech_stack: req.primary_tech_stack || [],
+    secondary_tech_stack: req.secondary_tech_stack || [],
     domain_experience: req.domain_experience || '',
     experience_min: req.experience_min ?? '',
     experience_max: req.experience_max ?? '',
@@ -102,7 +96,7 @@ function hydrateForm(req) {
   };
 }
 
-export default function RequirementFormPage() {
+export default function RequirementFormPage({ asPanel = false, onDone, onCancel }) {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -154,10 +148,12 @@ export default function RequirementFormPage() {
       const payload = buildPayload(form, { isCreate: !isEdit });
       if (isEdit) {
         await apiClient.patch(`/requirements/${id}`, payload);
-        navigate(`/requirements/${id}`);
+        if (asPanel && onDone) onDone(id);
+        else navigate(`/requirements/${id}`);
       } else {
         const { data } = await apiClient.post('/requirements', payload);
-        navigate(`/requirements/${data.data.id}`);
+        if (asPanel && onDone) onDone(data.data.id);
+        else navigate(`/requirements/${data.data.id}`);
       }
     } catch (err) {
       const msg =
@@ -176,24 +172,31 @@ export default function RequirementFormPage() {
 
   const blocked = isEdit && existing && !canMutateRequirement(existing, user);
 
+  function handleCancel() {
+    if (asPanel && onCancel) onCancel();
+    else navigate(isEdit ? `/requirements/${id}` : '/requirements');
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <Link to={isEdit ? `/requirements/${id}` : '/requirements'} className="text-xs text-primary-600 hover:underline">
-            ← Back
-          </Link>
-          <h1 className="mt-1 font-heading text-xl font-semibold text-tertiary-900">
-            {isEdit ? 'Edit requirement' : 'Add job requirement'}
-          </h1>
+    <div className={asPanel ? 'space-y-4' : 'mx-auto max-w-3xl space-y-4'}>
+      {!asPanel && (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Link to={isEdit ? `/requirements/${id}` : '/requirements'} className="text-xs text-primary-600 hover:underline">
+              ← Back
+            </Link>
+            <h1 className="mt-1 font-heading text-xl font-semibold text-tertiary-900">
+              {isEdit ? 'Edit requirement' : 'Add job requirement'}
+            </h1>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-white p-4">
+      <form onSubmit={handleSubmit} className={asPanel ? 'space-y-4' : 'space-y-4 rounded-lg border bg-white p-4'}>
         <fieldset disabled={blocked || saving} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-3 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             {!isEdit && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-medium text-tertiary-500">Client account *</label>
@@ -294,22 +297,21 @@ export default function RequirementFormPage() {
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Primary tech stack (comma-separated)</label>
-              <input
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Primary tech stack</label>
+              <SkillPicker
                 value={form.primary_tech_stack}
-                onChange={(e) => updateField('primary_tech_stack', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Python, React, AWS"
+                onChange={(next) => updateField('primary_tech_stack', next)}
+                placeholder="Search or type a technology…"
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Secondary tech stack (comma-separated)</label>
-              <input
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Secondary tech stack</label>
+              <SkillPicker
                 value={form.secondary_tech_stack}
-                onChange={(e) => updateField('secondary_tech_stack', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                onChange={(next) => updateField('secondary_tech_stack', next)}
+                placeholder="Search or type a technology…"
               />
             </div>
 
@@ -452,9 +454,9 @@ export default function RequirementFormPage() {
           <button type="submit" disabled={blocked || saving} className="btn-primary">
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
           </button>
-          <Link to={isEdit ? `/requirements/${id}` : '/requirements'} className="btn-secondary">
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
             Cancel
-          </Link>
+          </button>
         </div>
       </form>
     </div>

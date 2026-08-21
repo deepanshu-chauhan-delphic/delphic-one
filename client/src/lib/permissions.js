@@ -44,7 +44,7 @@ const ROLE_CAPS = {
     'viewDashboardCharts',
     'viewPipeline',
   ]),
-  bda: new Set(['editAccount']),
+  bda: new Set(['editAccount', 'viewPipeline']),
 };
 
 /**

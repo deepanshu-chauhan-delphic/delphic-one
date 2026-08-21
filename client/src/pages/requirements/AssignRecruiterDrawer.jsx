@@ -4,7 +4,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { apiErrorMessage, canAssignRecruiters } from '../profiles/profileUtils.js';
 
-export default function AssignRecruiterModal({ requirement, onClose }) {
+export default function AssignRecruiterDrawer({ requirement, onClose }) {
   const { user } = useAuth();
   const canAssign = canAssignRecruiters(user);
   const [assignments, setAssignments] = useState([]);

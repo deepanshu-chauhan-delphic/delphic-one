@@ -8,8 +8,9 @@ import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ListToolbar from '../../components/ui/ListToolbar.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
+import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canAssignRecruiters } from '../profiles/profileUtils.js';
-import AssignRecruiterModal from './AssignRecruiterModal.jsx';
+import AssignRecruiterDrawer from './AssignRecruiterDrawer.jsx';
 
 function reqKey(id) {
   return `REQ-${String(id).slice(0, 8).toUpperCase()}`;
@@ -70,7 +71,7 @@ function RequirementPeek({ row, onClose, onAssign }) {
         >
           {canAssignRecruiters(user) ? 'Assign recruiters' : 'View assignments'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => navigate(`/requirements/${detail.id}/edit`)}>
+        <button type="button" className="btn-secondary" onClick={() => navigate(`/requirements/${detail.id}?edit=1`)}>
           Edit
         </button>
         <button type="button" className="btn-secondary" onClick={onClose}>
@@ -101,7 +102,7 @@ export default function RequirementsListPage() {
     title: '',
     req_type: 'developer',
     priority: 'medium',
-    primary_tech_stack: '',
+    primary_tech_stack: [],
     seats_total: '1',
   });
 
@@ -154,10 +155,7 @@ export default function RequirementsListPage() {
         title: form.title.trim(),
         req_type: form.req_type,
         priority: form.priority,
-        primary_tech_stack: form.primary_tech_stack
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean),
+        primary_tech_stack: form.primary_tech_stack,
         seats_total: Number(form.seats_total) || 1,
       };
       const { data } = await apiClient.post('/requirements', body);
@@ -258,7 +256,7 @@ export default function RequirementsListPage() {
         {rows.length} of {rows.length}
       </div>
 
-      {assignTarget && <AssignRecruiterModal requirement={assignTarget} onClose={() => setAssignTarget(null)} />}
+      {assignTarget && <AssignRecruiterDrawer requirement={assignTarget} onClose={() => setAssignTarget(null)} />}
 
       <Drawer open={Boolean(peek)} title={peek?.title || 'Requirement'} onClose={() => setPeek(null)} size="md" tone="info">
         {peek && (
@@ -325,12 +323,14 @@ export default function RequirementsListPage() {
             </select>
           </label>
           <label className="block text-xs font-medium text-tertiary-500">
-            Primary tech (comma separated)
-            <input
-              value={form.primary_tech_stack}
-              onChange={(e) => setForm((f) => ({ ...f, primary_tech_stack: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
+            Primary tech
+            <div className="mt-1">
+              <SkillPicker
+                value={form.primary_tech_stack}
+                onChange={(next) => setForm((f) => ({ ...f, primary_tech_stack: next }))}
+                placeholder="Search or type a technology…"
+              />
+            </div>
           </label>
           <label className="block text-xs font-medium text-tertiary-500">
             Seats

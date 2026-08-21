@@ -4,6 +4,8 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
+import Tooltip from '../../components/ui/Tooltip.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
@@ -206,7 +208,7 @@ export default function SubmissionDetailPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-tertiary-500">Loading…</div>;
+  if (loading) return <DetailSkeleton />;
   if (!submission || !form) {
     return (
       <div className="space-y-2">
@@ -280,14 +282,24 @@ export default function SubmissionDetailPage() {
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
             {nextSubmissionStages(submission.stage).map((to) => (
-              <button
+              <Tooltip
                 key={to}
-                type="button"
-                className={to === 'backout' || to === 'rejected' ? 'btn-danger' : 'btn-secondary'}
-                onClick={() => openStage(to)}
+                label={
+                  requiresBackoutReason(to)
+                    ? 'Requires a backout reason'
+                    : requiresRejectionReason(to)
+                      ? 'Requires a rejection reason'
+                      : `Move this submission to ${to.replace(/_/g, ' ')}`
+                }
               >
-                Move to {to.replace(/_/g, ' ')}
-              </button>
+                <button
+                  type="button"
+                  className={to === 'backout' || to === 'rejected' ? 'btn-danger' : 'btn-secondary'}
+                  onClick={() => openStage(to)}
+                >
+                  Move to {to.replace(/_/g, ' ')}
+                </button>
+              </Tooltip>
             ))}
             {nextSubmissionStages(submission.stage).length === 0 && (
               <p className="text-sm text-tertiary-500">No further transitions.</p>

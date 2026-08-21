@@ -1,6 +1,6 @@
 const prisma = require('../../config/db');
+const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
 
-const STUCK_THRESHOLD_DAYS = 7;
 const STUCK_LIMIT = 5;
 
 function startOfMonth() {
@@ -21,8 +21,16 @@ function daysSince(date) {
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
 }
 
-function emptyFunnel() {
-  return { sourced: 0, screening: 0, submitted: 0, interviewing: 0, offered: 0, bgv: 0, closed: 0 };
+/**
+ * Same anchor rule as reports.summarizeInterviewRounds: a completed round counts by
+ * completed_at, an uncompleted one by scheduled_at — kept in sync so "interviews this
+ * week" agrees between the dashboard and the reports pages for the same person/period.
+ */
+function interviewsInRangeWhere(from, extra = {}) {
+  return {
+    ...extra,
+    OR: [{ completed_at: { gte: from } }, { completed_at: null, scheduled_at: { gte: from } }],
+  };
 }
 
 function funnelFromRows(rows) {
@@ -35,6 +43,18 @@ function funnelFromRows(rows) {
     offered: map.offer || 0,
     bgv: map.bgv || 0,
     closed: map.closed || 0,
+  };
+}
+
+/** Lead funnel for BDA: account stage distribution instead of submission stage. */
+function accountFunnelFromRows(rows) {
+  const map = Object.fromEntries(rows.map((r) => [r.stage, r._count.id]));
+  return {
+    lead: map.lead || 0,
+    meeting_scheduled: map.meeting_scheduled || 0,
+    rescheduled: map.rescheduled || 0,
+    active: map.active || 0,
+    dropped: map.dropped || 0,
   };
 }
 
@@ -136,10 +156,10 @@ async function summaryForAdmin(department_id) {
       where: { stage: { notIn: ['closed', 'rejected', 'backout'] }, ...submissionDept },
     }),
     prisma.interviewRound.count({
-      where: {
-        scheduled_at: { gte: week },
-        ...(department_id ? { submission: { submitted_by_user: { department_id } } } : {}),
-      },
+      where: interviewsInRangeWhere(
+        week,
+        department_id ? { submission: { submitted_by_user: { department_id } } } : {}
+      ),
     }),
     prisma.submission.count({
       where: { actual_joining_date: { gte: month }, ...submissionDept },
@@ -183,6 +203,7 @@ async function summaryForBda(userId) {
     vendors_active,
     stuck_leads,
     recent_activity,
+    funnelRows,
   ] = await Promise.all([
     prisma.account.count({ where: { ...accountWhere, type: 'client', stage: 'lead' } }),
     prisma.account.count({ where: { ...accountWhere, stage: 'meeting_scheduled' } }),
@@ -190,6 +211,7 @@ async function summaryForBda(userId) {
     prisma.account.count({ where: { ...accountWhere, type: 'vendor', stage: 'active' } }),
     stuckLeads(accountWhere),
     recentActivity({ entity_type: 'account', changed_by: userId }),
+    prisma.account.groupBy({ by: ['stage'], where: accountWhere, _count: { id: true } }),
   ]);
 
   return {
@@ -206,7 +228,7 @@ async function summaryForBda(userId) {
     stuck_leads,
     stuck_requirements: [],
     recent_activity,
-    pipeline_funnel: emptyFunnel(),
+    pipeline_funnel: accountFunnelFromRows(funnelRows),
   };
 }
 
@@ -250,7 +272,7 @@ async function summaryForSales(userId) {
     }),
     seatIds.length
       ? prisma.interviewRound.count({
-          where: { submission: { requirement_seat_id: { in: seatIds } }, scheduled_at: { gte: week } },
+          where: interviewsInRangeWhere(week, { submission: { requirement_seat_id: { in: seatIds } } }),
         })
       : 0,
     prisma.submission.count({
@@ -324,7 +346,7 @@ async function summaryForRecruiter(userId) {
       where: { submitted_by: userId, stage: { notIn: ['closed', 'rejected', 'backout'] } },
     }),
     prisma.interviewRound.count({
-      where: { submission: { submitted_by: userId }, scheduled_at: { gte: week } },
+      where: interviewsInRangeWhere(week, { submission: { submitted_by: userId } }),
     }),
     prisma.submission.count({
       where: { submitted_by: userId, actual_joining_date: { gte: month } },
@@ -364,4 +386,4 @@ async function getSummary(user, { department_id } = {}) {
   return summaryForAdmin(department_id);
 }
 
-module.exports = { getSummary, STUCK_THRESHOLD_DAYS };
+module.exports = { getSummary };

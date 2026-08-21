@@ -21,6 +21,66 @@ const emptyForm = {
   department_id: '',
 };
 
+function DepartmentDrawer({ open, department, onClose, onSaved }) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const isEditing = Boolean(department);
+
+  useEffect(() => {
+    if (open) {
+      setName(department?.name || '');
+      setError('');
+    }
+  }, [open, department]);
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      if (isEditing) await apiClient.patch(`/departments/${department.id}`, { name: name.trim() });
+      else await apiClient.post('/departments', { name: name.trim() });
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} department`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer
+      open={open}
+      title={isEditing ? 'Edit department' : 'Add department'}
+      onClose={onClose}
+      size="sm"
+      tone={isEditing ? 'edit' : 'create'}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" form="department-form" className="btn-primary" disabled={saving || !name.trim()}>
+            {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Add department'}
+          </button>
+        </>
+      }
+    >
+      <form id="department-form" onSubmit={submit} className="space-y-3">
+        {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
+        <label className="block text-xs font-medium text-tertiary-500">
+          Name
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+          />
+        </label>
+      </form>
+    </Drawer>
+  );
+}
+
 export default function UsersPage() {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
@@ -31,6 +91,7 @@ export default function UsersPage() {
   const [createdCreds, setCreatedCreds] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deptDrawer, setDeptDrawer] = useState(null);
 
   async function loadUsers() {
     setLoading(true);
@@ -45,17 +106,19 @@ export default function UsersPage() {
     }
   }
 
+  function loadDepartments() {
+    apiClient
+      .get('/departments')
+      .then(({ data }) => setDepartments(data.data || []))
+      .catch(() => setDepartments([]));
+  }
+
   useEffect(() => {
     if (user?.role === 'admin') {
       loadUsers();
-      apiClient
-        .get('/departments')
-        .then(({ data }) => setDepartments(data.data || []))
-        .catch(() => setDepartments([]));
+      loadDepartments();
     }
   }, [user?.role]);
-
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
 
   function updateField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -131,6 +194,8 @@ export default function UsersPage() {
     [user.id]
   );
 
+  if (user?.role !== 'admin') return <Navigate to="/" replace />;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -158,6 +223,36 @@ export default function UsersPage() {
       )}
 
       <DataTable columns={columns} rows={rows} loading={loading} emptyLabel="No users yet." />
+
+      <section className="rounded-2xl border bg-white shadow-soft">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h2 className="font-heading text-sm font-semibold text-tertiary-800">Departments</h2>
+          <button type="button" className="btn-secondary text-xs" onClick={() => setDeptDrawer({})}>
+            + Add department
+          </button>
+        </div>
+        <ul className="divide-y">
+          {departments.map((dept) => (
+            <li key={dept.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+              <span className="text-tertiary-900">{dept.name}</span>
+              <button type="button" className="text-xs font-medium text-primary-700 hover:underline" onClick={() => setDeptDrawer(dept)}>
+                Edit
+              </button>
+            </li>
+          ))}
+          {departments.length === 0 && <li className="px-4 py-5 text-sm text-tertiary-400">No departments yet.</li>}
+        </ul>
+      </section>
+
+      <DepartmentDrawer
+        open={Boolean(deptDrawer)}
+        department={deptDrawer?.id ? deptDrawer : null}
+        onClose={() => setDeptDrawer(null)}
+        onSaved={() => {
+          setDeptDrawer(null);
+          loadDepartments();
+        }}
+      />
 
       <Drawer open={createOpen} title="Create user" onClose={() => setCreateOpen(false)} size="md" tone="create">
         <form onSubmit={handleCreate} className="space-y-3">

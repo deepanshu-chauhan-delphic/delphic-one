@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import Skeleton from './Skeleton.jsx';
 
 /**
  * Harmonious data table with optional row click, selection, and floating action bar.
@@ -74,13 +75,16 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-tertiary-100">
-            {loading && (
-              <tr>
-                <td colSpan={displayColumns.length} className="px-4 py-8 text-center text-sm text-tertiary-400">
-                  Loading…
-                </td>
-              </tr>
-            )}
+            {loading &&
+              Array.from({ length: 6 }).map((_, rowIndex) => (
+                <tr key={`skeleton-${rowIndex}`}>
+                  {displayColumns.map((col, colIndex) => (
+                    <td key={col.key || colIndex} className="px-4 py-2.5">
+                      <Skeleton className="h-4 w-full max-w-[10rem]" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={displayColumns.length} className="px-4 py-8 text-center text-sm text-tertiary-400">

@@ -8,7 +8,6 @@ import {
   Cell,
   Legend,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -173,11 +172,6 @@ export default function ReportsPage() {
     return undefined;
   }, [showIndividual, active]);
 
-  useEffect(() => {
-    if (available.length) runReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role, active, dateFrom, dateTo, departmentId, individualId, thresholdDays, groupBy]);
-
   function buildParams() {
     const params = {};
     if (active === 'aging') {
@@ -208,20 +202,19 @@ export default function ReportsPage() {
     }
   }
 
+  useEffect(() => {
+    if (available.length) runReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role, active, dateFrom, dateTo, departmentId, individualId, thresholdDays, groupBy]);
+
   async function exportReport(type) {
     setExportError('');
     setExporting(true);
     try {
-      const params = new URLSearchParams({ type, report: active, ...buildParams() });
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(`/api/v1/reports/export?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const { data: blob } = await apiClient.get('/reports/export', {
+        params: { type, report: active, ...buildParams() },
+        responseType: 'blob',
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || `Export failed (${res.status})`);
-      }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -229,7 +222,18 @@ export default function ReportsPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError(err.message || 'Export failed');
+      let message = err.message || 'Export failed';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await err.response.data.text());
+          message = parsed.message || message;
+        } catch {
+          // response wasn't JSON — keep the generic message
+        }
+      } else if (err.response?.data?.message) {
+        message = err.response.data.message;
+      }
+      setExportError(message);
     } finally {
       setExporting(false);
     }

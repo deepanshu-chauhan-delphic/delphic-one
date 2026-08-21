@@ -44,7 +44,7 @@ function AccountPeek({ row, onClose, onChanged }) {
       </dl>
       <PeekActions>
         {canEdit && (
-          <button type="button" className="btn-primary" onClick={() => navigate(`/accounts/${detail.id}/edit`)}>
+          <button type="button" className="btn-primary" onClick={() => navigate(`/accounts/${detail.id}?edit=1`)}>
             Edit account
           </button>
         )}
@@ -65,7 +65,6 @@ function AccountPeek({ row, onClose, onChanged }) {
 
 export default function AccountsListPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);

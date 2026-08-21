@@ -130,7 +130,7 @@ npm run dev:server   # http://localhost:4000
 npm run dev:client   # http://localhost:5173
 ```
 
-Seeded users (password `Password123!`): `admin@delphic.local`, `sales1@delphic.local`, `bda1@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
+Seeded users (password `Password123!`): `admin@delphic.local`, `admin2@delphic.local`, `sales1@delphic.local`, `sales2@delphic.local`, `bda1@delphic.local`, `bda2@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
 
 Demo domain data (accounts, requirements, seats, profiles, submissions, interviews, history) is included in the same seed so dashboards and lists are non-empty. Full inventory and role walkthroughs: [testing/TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md). Re-running seed wipes and recreates everything.
 

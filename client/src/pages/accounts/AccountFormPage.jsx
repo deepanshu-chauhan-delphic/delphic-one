@@ -101,7 +101,7 @@ function buildAccountBody(form, isEditing) {
   return body;
 }
 
-export default function AccountFormPage() {
+export default function AccountFormPage({ asPanel = false, onDone, onCancel }) {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -124,7 +124,7 @@ export default function AccountFormPage() {
       .finally(() => setLoading(false));
   }, [id, isEditing]);
 
-  if (!isEditing && !canCreateAccount(user)) return <Navigate to="/accounts" replace />;
+  if (!asPanel && !isEditing && !canCreateAccount(user)) return <Navigate to="/accounts" replace />;
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -162,7 +162,8 @@ export default function AccountFormPage() {
     try {
       const body = buildAccountBody(form, isEditing);
       const { data } = isEditing ? await apiClient.patch(`/accounts/${id}`, body) : await apiClient.post('/accounts', body);
-      navigate(`/accounts/${data.data.id}`, { replace: true });
+      if (asPanel && onDone) onDone(data.data.id);
+      else navigate(`/accounts/${data.data.id}`, { replace: true });
     } catch (requestError) {
       setError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} account`));
     } finally {
@@ -177,38 +178,45 @@ export default function AccountFormPage() {
         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error || 'Account not found'}
         </div>
-        <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>
+        {!asPanel && <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>}
       </div>
     );
   }
-  if (isEditing && account && (!canMutateAccount(account, user) || account.is_locked)) {
+  if (!asPanel && isEditing && account && (!canMutateAccount(account, user) || account.is_locked)) {
     return <Navigate to={`/accounts/${id}`} replace />;
   }
 
   const backPath = isEditing ? `/accounts/${id}` : '/accounts';
 
+  function handleCancel() {
+    if (asPanel && onCancel) onCancel();
+    else navigate(backPath);
+  }
+
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-start justify-between gap-4 border-b pb-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-xs text-tertiary-500">
-            <Link to="/accounts" className="text-primary-700 hover:underline">Accounts</Link>
-            <span>/</span>
-            <span>{isEditing ? accountKey(id) : 'Create'}</span>
+    <div className={asPanel ? 'space-y-4' : 'mx-auto max-w-5xl space-y-4'}>
+      {!asPanel && (
+        <div className="flex items-start justify-between gap-4 border-b pb-3">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs text-tertiary-500">
+              <Link to="/accounts" className="text-primary-700 hover:underline">Accounts</Link>
+              <span>/</span>
+              <span>{isEditing ? accountKey(id) : 'Create'}</span>
+            </div>
+            <h1 className="font-heading text-xl font-semibold text-tertiary-900">
+              {isEditing ? `Edit ${account?.name || 'account'}` : 'Create client or vendor'}
+            </h1>
           </div>
-          <h1 className="font-heading text-xl font-semibold text-tertiary-900">
-            {isEditing ? `Edit ${account?.name || 'account'}` : 'Create client or vendor'}
-          </h1>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
         </div>
-        <Link to={backPath} className="btn-secondary">Cancel</Link>
-      </div>
+      )}
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <form onSubmit={saveAccount} className="space-y-4">
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Company</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
             <Field label="Account type" required>
               <select
                 value={form.type}
@@ -255,7 +263,7 @@ export default function AccountFormPage() {
 
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Primary contact</h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Name">
               <input value={form.poc_name} onChange={(event) => updateField('poc_name', event.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -278,7 +286,7 @@ export default function AccountFormPage() {
           </div>
           <div className="space-y-3 p-4">
             {form.additional_contacts.map((contact, index) => (
-              <div key={index} className="grid gap-2 rounded border bg-tertiary-50 p-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div key={index} className={`grid gap-2 rounded border bg-tertiary-50 p-3 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
                 {Object.keys(EMPTY_CONTACT).map((name) => (
                   <Field key={name} label={name.replace(/_/g, ' ')}>
                     <input
@@ -304,7 +312,7 @@ export default function AccountFormPage() {
             {form.type} commercial details
           </h2>
           {form.type === 'client' ? (
-            <div className="grid gap-3 p-4 sm:grid-cols-2">
+            <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
               <Field label="Billing currency">
                 <select
                   value={form.client_billing_currency}
@@ -323,8 +331,8 @@ export default function AccountFormPage() {
               </Field>
             </div>
           ) : (
-            <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="sm:col-span-2">
+            <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-4'}`}>
+              <div className={asPanel ? '' : 'sm:col-span-2'}>
                 <Field label="Specializations (comma separated)">
                   <input
                     value={form.vendor_specializations}
@@ -360,7 +368,7 @@ export default function AccountFormPage() {
                   {['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => <option key={currency}>{currency}</option>)}
                 </select>
               </Field>
-              <div className="sm:col-span-2">
+              <div className={asPanel ? '' : 'sm:col-span-2'}>
                 <Field label="Payment terms">
                   <input
                     value={form.vendor_payment_terms}
@@ -374,7 +382,7 @@ export default function AccountFormPage() {
         </section>
 
         <div className="flex justify-end gap-2 border-t pt-4">
-          <Link to={backPath} className="btn-secondary">Cancel</Link>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create account'}
           </button>

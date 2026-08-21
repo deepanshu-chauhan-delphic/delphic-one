@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { emptyProfileForm, formToProfileBody, profileToForm } from './profileForm.js';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
 
@@ -24,7 +25,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isEditing = Boolean(id) && !asPanel;
+  const isEditing = Boolean(id);
   const [form, setForm] = useState(emptyProfileForm());
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(isEditing);
@@ -68,7 +69,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
   async function saveProfile(event) {
     event.preventDefault();
     setError('');
-    if (!form.name.trim() || form.total_experience_years === '' || !form.primary_skills.trim()) {
+    if (!form.name.trim() || form.total_experience_years === '' || form.primary_skills.length === 0) {
       setError('Name, experience years, and primary skills are required.');
       return;
     }
@@ -158,9 +159,16 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             <Field label="Total experience (years)" required>
               <input required type="number" min="0" step="0.1" value={form.total_experience_years} onChange={(e) => updateField('total_experience_years', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <Field label="Primary skills (comma separated)" required>
-              <input required value={form.primary_skills} onChange={(e) => updateField('primary_skills', e.target.value)} className={INPUT_CLASS} />
-            </Field>
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <Field label="Primary skills" required>
+                <SkillPicker value={form.primary_skills} onChange={(next) => updateField('primary_skills', next)} />
+              </Field>
+            </div>
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <Field label="Secondary skills">
+                <SkillPicker value={form.secondary_skills} onChange={(next) => updateField('secondary_skills', next)} />
+              </Field>
+            </div>
             <Field label="Expected CTC">
               <input type="number" min="0" value={form.expected_ctc} onChange={(e) => updateField('expected_ctc', e.target.value)} className={INPUT_CLASS} />
             </Field>

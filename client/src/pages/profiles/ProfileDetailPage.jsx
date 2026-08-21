@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
+import ProfileFormPage from './ProfileFormPage.jsx';
 import { apiErrorMessage, canEditProfile, formatProfileValue, profileKey } from './profileUtils.js';
 
 function DetailField({ label, value, children }) {
@@ -28,10 +31,12 @@ function DetailSection({ title, children }) {
 export default function ProfileDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [profile, setProfile] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
 
   async function loadProfile() {
     setLoading(true);
@@ -54,7 +59,19 @@ export default function ProfileDetailPage() {
     loadProfile();
   }, [id]);
 
-  if (loading) return <div className="text-sm text-tertiary-500">Loading candidate…</div>;
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') setEditOpen(true);
+  }, [searchParams]);
+
+  function closeEdit() {
+    setEditOpen(false);
+    if (searchParams.get('edit')) {
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }
+
+  if (loading) return <DetailSkeleton />;
   if (error || !profile) {
     return (
       <div className="space-y-3">
@@ -87,7 +104,7 @@ export default function ProfileDetailPage() {
               {profile.current_designation || '—'} · {profile.current_company || 'No company'} · Added by {profile.added_by?.name || '—'}
             </p>
           </div>
-          {canEdit && <Link to={`/profiles/${profile.id}/edit`} className="btn-secondary">Edit</Link>}
+          {canEdit && <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>}
         </div>
       </div>
 
@@ -178,6 +195,19 @@ export default function ProfileDetailPage() {
           </section>
         </aside>
       </div>
+
+      <Drawer open={editOpen} title="Edit candidate" onClose={closeEdit} size="md" tone="edit">
+        {editOpen && (
+          <ProfileFormPage
+            asPanel
+            onCancel={closeEdit}
+            onDone={() => {
+              closeEdit();
+              loadProfile();
+            }}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

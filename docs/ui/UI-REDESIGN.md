@@ -1,6 +1,6 @@
 # UI redesign guide
 
-Status: implemented (list/create drawers, dashboard pipeline, reports). Date: 2026-08-21.
+Status: **RD-133 DONE (Aug 21)** — list/create drawers, dashboard pipeline, reports. See [SPRINT-PLAN.md](../progress/SPRINT-PLAN.md).
 
 ## Table of contents
 

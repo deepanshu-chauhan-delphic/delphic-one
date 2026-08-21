@@ -81,9 +81,4 @@ const updateRound = asyncHandler(async (req, res) => {
   return ok(res, result.round);
 });
 
-const getRounds = asyncHandler(async (req, res) => {
-  const rows = await service.getInterviewRounds(req.params.id);
-  return ok(res, rows);
-});
-
-module.exports = { list, getOne, create, update, changeStage, history, addRound, updateRound, getRounds };
+module.exports = { list, getOne, create, update, changeStage, history, addRound, updateRound };

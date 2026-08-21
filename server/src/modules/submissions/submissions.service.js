@@ -260,10 +260,6 @@ async function updateInterviewRound(id, patch, userId) {
   });
 }
 
-async function getInterviewRounds(submissionId) {
-  return prisma.interviewRound.findMany({ where: { submission_id: submissionId }, orderBy: { round_number: 'asc' } });
-}
-
 module.exports = {
   list,
   getById,
@@ -273,5 +269,4 @@ module.exports = {
   getHistory,
   addInterviewRound,
   updateInterviewRound,
-  getInterviewRounds,
 };

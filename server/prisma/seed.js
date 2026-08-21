@@ -50,6 +50,13 @@ async function seedUsers(password_hash, departments) {
         department_id: departments.sales.id,
       },
       {
+        name: 'Admin Two',
+        email: 'admin2@delphic.local',
+        password_hash,
+        role: 'admin',
+        department_id: departments.delivery.id,
+      },
+      {
         name: 'Sales One',
         email: 'sales1@delphic.local',
         password_hash,
@@ -57,8 +64,22 @@ async function seedUsers(password_hash, departments) {
         department_id: departments.sales.id,
       },
       {
+        name: 'Sales Two',
+        email: 'sales2@delphic.local',
+        password_hash,
+        role: 'sales',
+        department_id: departments.sales.id,
+      },
+      {
         name: 'BDA One',
         email: 'bda1@delphic.local',
+        password_hash,
+        role: 'bda',
+        department_id: departments.sales.id,
+      },
+      {
+        name: 'BDA Two',
+        email: 'bda2@delphic.local',
         password_hash,
         role: 'bda',
         department_id: departments.sales.id,
@@ -83,8 +104,11 @@ async function seedUsers(password_hash, departments) {
   const byEmail = {};
   for (const email of [
     'admin@delphic.local',
+    'admin2@delphic.local',
     'sales1@delphic.local',
+    'sales2@delphic.local',
     'bda1@delphic.local',
+    'bda2@delphic.local',
     'recruiter1@delphic.local',
     'recruiter2@delphic.local',
   ]) {
@@ -95,7 +119,9 @@ async function seedUsers(password_hash, departments) {
 
 async function seedAccounts(users) {
   const bda = users['bda1@delphic.local'];
+  const bda2 = users['bda2@delphic.local'];
   const sales = users['sales1@delphic.local'];
+  const sales2 = users['sales2@delphic.local'];
 
   // Stuck lead (>7 days in lead) — shows on BDA / admin stuck lists
   const stuckLead = await prisma.account.create({
@@ -198,6 +224,65 @@ async function seedAccounts(users) {
     },
   });
 
+  const vendor2 = await prisma.account.create({
+    data: {
+      type: 'vendor',
+      name: 'Skillbridge Staffing',
+      stage: 'active',
+      industry: 'Staffing',
+      company_size: 'small',
+      location_city: 'Noida',
+      location_country: 'IN',
+      poc_name: 'Vendor Two Poc',
+      poc_email: 'desk@skillbridge.example',
+      vendor_specializations: ['Data', 'QA', 'Mobile'],
+      vendor_rate_range: { min: 35000, max: 100000, currency: 'INR' },
+      vendor_payment_terms: 'Net 30',
+      owner_id: sales2.id,
+      created_at: daysAgo(200),
+      updated_at: daysAgo(20),
+    },
+  });
+
+  const droppedLead = await prisma.account.create({
+    data: {
+      type: 'client',
+      name: 'Dropped Ventures',
+      stage: 'dropped',
+      industry: 'Retail',
+      company_size: 'small',
+      location_city: 'Jaipur',
+      location_country: 'IN',
+      poc_name: 'Dev Dropped',
+      poc_email: 'dev@droppedventures.example',
+      source: 'cold_call',
+      owner_id: bda2.id,
+      is_locked: true,
+      created_at: daysAgo(50),
+      updated_at: daysAgo(30),
+    },
+  });
+
+  const rescheduledLead = await prisma.account.create({
+    data: {
+      type: 'client',
+      name: 'Rescheduled Retail Co',
+      stage: 'rescheduled',
+      industry: 'Retail',
+      company_size: 'mid',
+      location_city: 'Ahmedabad',
+      location_country: 'IN',
+      poc_name: 'Resh Contact',
+      poc_email: 'resh@reschedretail.example',
+      meeting_mode: 'online',
+      meeting_date: daysAgo(-7),
+      source: 'referral',
+      owner_id: bda2.id,
+      created_at: daysAgo(25),
+      updated_at: daysAgo(6),
+    },
+  });
+
   await prisma.stageHistory.createMany({
     data: [
       {
@@ -225,6 +310,56 @@ async function seedAccounts(users) {
         reason: 'Signed MSA',
         changed_at: daysAgo(45),
       },
+      {
+        entity_type: 'account',
+        entity_id: droppedLead.id,
+        from_stage: null,
+        to_stage: 'lead',
+        changed_by: bda2.id,
+        changed_at: daysAgo(50),
+      },
+      {
+        entity_type: 'account',
+        entity_id: droppedLead.id,
+        from_stage: 'lead',
+        to_stage: 'meeting_scheduled',
+        changed_by: bda2.id,
+        changed_at: daysAgo(45),
+      },
+      {
+        entity_type: 'account',
+        entity_id: droppedLead.id,
+        from_stage: 'meeting_scheduled',
+        to_stage: 'dropped',
+        changed_by: bda2.id,
+        reason: 'Budget frozen this quarter',
+        changed_at: daysAgo(30),
+      },
+      {
+        entity_type: 'account',
+        entity_id: rescheduledLead.id,
+        from_stage: null,
+        to_stage: 'lead',
+        changed_by: bda2.id,
+        changed_at: daysAgo(25),
+      },
+      {
+        entity_type: 'account',
+        entity_id: rescheduledLead.id,
+        from_stage: 'lead',
+        to_stage: 'meeting_scheduled',
+        changed_by: bda2.id,
+        changed_at: daysAgo(15),
+      },
+      {
+        entity_type: 'account',
+        entity_id: rescheduledLead.id,
+        from_stage: 'meeting_scheduled',
+        to_stage: 'rescheduled',
+        changed_by: bda2.id,
+        reason: 'POC travelling, pushed a week',
+        changed_at: daysAgo(6),
+      },
     ],
   });
 
@@ -238,11 +373,25 @@ async function seedAccounts(users) {
     },
   });
 
-  return { stuckLead, meetingLead, activeClient, secondClient, vendor };
+  await prisma.document.create({
+    data: {
+      entity_type: 'account',
+      entity_id: activeClient.id,
+      label: 'Master Service Agreement',
+      file_url: '/uploads/demo/msa-acme-active-client.pdf',
+      file_type: 'application/pdf',
+      file_size_bytes: 143360,
+      uploaded_by: bda.id,
+      uploaded_at: daysAgo(45),
+    },
+  });
+
+  return { stuckLead, meetingLead, activeClient, secondClient, vendor, vendor2, droppedLead, rescheduledLead };
 }
 
 async function seedRequirements(users, accounts) {
   const sales = users['sales1@delphic.local'];
+  const sales2 = users['sales2@delphic.local'];
   const admin = users['admin@delphic.local'];
   const rec1 = users['recruiter1@delphic.local'];
   const rec2 = users['recruiter2@delphic.local'];
@@ -287,7 +436,7 @@ async function seedRequirements(users, accounts) {
       description: 'SPA work on customer portal.',
       designation: 'Frontend Engineer',
       department: 'Product',
-      seats_total: 2,
+      seats_total: 4,
       primary_tech_stack: ['React', 'TypeScript'],
       secondary_tech_stack: ['Tailwind'],
       experience_min: 3,
@@ -314,7 +463,7 @@ async function seedRequirements(users, accounts) {
       status: 'open',
       description: 'Short project for CI/CD hardening.',
       designation: 'DevOps Engineer',
-      seats_total: 1,
+      seats_total: 2,
       primary_tech_stack: ['AWS', 'Terraform', 'Kubernetes'],
       experience_min: 4,
       experience_max: 8,
@@ -358,6 +507,57 @@ async function seedRequirements(users, accounts) {
     },
   });
 
+  const onHoldReq = await prisma.requirement.create({
+    data: {
+      account_id: secondClient.id,
+      title: 'Data Engineer (on hold — budget review)',
+      req_type: 'developer',
+      status: 'on_hold',
+      description: 'Client paused hiring pending Q3 budget approval.',
+      designation: 'Data Engineer',
+      department: 'Data',
+      seats_total: 1,
+      primary_tech_stack: ['Python', 'Spark', 'Airflow'],
+      experience_min: 3,
+      experience_max: 6,
+      work_mode: 'remote',
+      engagement_type: 'full_time',
+      budget_min: 1400000,
+      budget_max: 1900000,
+      budget_currency: 'INR',
+      budget_type: 'annual',
+      priority: 'low',
+      sla_days: 21,
+      sales_owner_id: sales2.id,
+      created_at: daysAgo(220),
+      updated_at: daysAgo(160),
+    },
+  });
+
+  const droppedReq = await prisma.requirement.create({
+    data: {
+      account_id: activeClient.id,
+      title: 'Dropped Mobile Engineer',
+      req_type: 'developer',
+      status: 'dropped',
+      description: 'Client cancelled after headcount freeze.',
+      designation: 'Mobile Engineer',
+      seats_total: 1,
+      primary_tech_stack: ['React Native', 'iOS'],
+      experience_min: 3,
+      experience_max: 6,
+      work_mode: 'hybrid',
+      engagement_type: 'full_time',
+      budget_currency: 'INR',
+      budget_type: 'annual',
+      priority: 'medium',
+      sales_owner_id: sales.id,
+      closed_at: daysAgo(90),
+      created_at: daysAgo(180),
+      updated_at: daysAgo(90),
+    },
+  });
+
   const stuckSeats = await Promise.all([
     prisma.requirementSeat.create({
       data: { requirement_id: stuckReq.id, seat_label: 'Seat 1', seat_status: 'open' },
@@ -378,10 +578,20 @@ async function seedRequirements(users, accounts) {
     prisma.requirementSeat.create({
       data: { requirement_id: inProgressReq.id, seat_label: 'Seat 2', seat_status: 'open' },
     }),
+    prisma.requirementSeat.create({
+      data: { requirement_id: inProgressReq.id, seat_label: 'Seat 3', seat_status: 'bgv' },
+    }),
+    prisma.requirementSeat.create({
+      data: { requirement_id: inProgressReq.id, seat_label: 'Seat 4', seat_status: 'open' },
+    }),
   ]);
 
   const devopsSeat = await prisma.requirementSeat.create({
     data: { requirement_id: projectReq.id, seat_label: 'Seat 1', seat_status: 'open' },
+  });
+
+  const devopsSeat2 = await prisma.requirementSeat.create({
+    data: { requirement_id: projectReq.id, seat_label: 'Seat 2', seat_status: 'open' },
   });
 
   const closedSeat = await prisma.requirementSeat.create({
@@ -392,6 +602,14 @@ async function seedRequirements(users, accounts) {
       closed_at: daysAgo(3),
       joined_at: daysAgo(3),
     },
+  });
+
+  const onHoldSeat = await prisma.requirementSeat.create({
+    data: { requirement_id: onHoldReq.id, seat_label: 'Seat 1', seat_status: 'open' },
+  });
+
+  const droppedSeat = await prisma.requirementSeat.create({
+    data: { requirement_id: droppedReq.id, seat_label: 'Seat 1', seat_status: 'dropped', closed_at: daysAgo(90) },
   });
 
   await prisma.requirementAssignment.createMany({
@@ -423,6 +641,13 @@ async function seedRequirements(users, accounts) {
         role_on_req: 'recruiter',
         assigned_by: admin.id,
         assigned_at: daysAgo(3),
+      },
+      {
+        requirement_id: onHoldReq.id,
+        user_id: rec2.id,
+        role_on_req: 'recruiter',
+        assigned_by: sales2.id,
+        assigned_at: daysAgo(215),
       },
       {
         requirement_id: closedReq.id,
@@ -470,6 +695,49 @@ async function seedRequirements(users, accounts) {
         changed_by: rec1.id,
         changed_at: daysAgo(5),
       },
+      {
+        entity_type: 'requirement',
+        entity_id: onHoldReq.id,
+        from_stage: null,
+        to_stage: 'open',
+        changed_by: sales2.id,
+        changed_at: daysAgo(220),
+      },
+      {
+        entity_type: 'requirement',
+        entity_id: onHoldReq.id,
+        from_stage: 'open',
+        to_stage: 'on_hold',
+        changed_by: sales2.id,
+        reason: 'Client budget review',
+        changed_at: daysAgo(160),
+      },
+      {
+        entity_type: 'requirement',
+        entity_id: droppedReq.id,
+        from_stage: null,
+        to_stage: 'open',
+        changed_by: sales.id,
+        changed_at: daysAgo(180),
+      },
+      {
+        entity_type: 'requirement',
+        entity_id: droppedReq.id,
+        from_stage: 'open',
+        to_stage: 'dropped',
+        changed_by: sales.id,
+        reason: 'Headcount freeze',
+        changed_at: daysAgo(90),
+      },
+      {
+        entity_type: 'seat',
+        entity_id: droppedSeat.id,
+        from_stage: 'open',
+        to_stage: 'dropped',
+        changed_by: sales.id,
+        reason: 'Headcount freeze',
+        changed_at: daysAgo(90),
+      },
     ],
   });
 
@@ -478,9 +746,14 @@ async function seedRequirements(users, accounts) {
     inProgressReq,
     projectReq,
     closedReq,
+    onHoldReq,
+    droppedReq,
     stuckSeats,
     reactSeats,
+    onHoldSeat,
+    droppedSeat,
     devopsSeat,
+    devopsSeat2,
     closedSeat,
   };
 }
@@ -586,14 +859,114 @@ async function seedProfiles(users, accounts) {
     },
   });
 
-  return { ananya, rohan, neha, vikram, inactive };
+  const priya = await prisma.profile.create({
+    data: {
+      name: 'Priya Nair',
+      email: 'priya.nair@example.com',
+      phone: '+91-9000000006',
+      current_location: 'Kochi',
+      current_company: 'DataWorks',
+      current_designation: 'Data Engineer',
+      total_experience_years: 5,
+      relevant_experience_years: 4,
+      primary_skills: ['Python', 'Spark', 'Airflow'],
+      secondary_skills: ['AWS'],
+      current_ctc: 1600000,
+      expected_ctc: 1900000,
+      notice_period_days: 30,
+      source: 'internal',
+      added_by: rec2.id,
+      is_active: true,
+      created_at: daysAgo(70),
+    },
+  });
+
+  const arjun = await prisma.profile.create({
+    data: {
+      name: 'Arjun Malhotra',
+      email: 'arjun.malhotra@example.com',
+      current_location: 'Gurgaon',
+      current_company: 'MobileFirst',
+      current_designation: 'Mobile Engineer',
+      total_experience_years: 4,
+      primary_skills: ['React Native', 'iOS', 'Swift'],
+      current_ctc: 1500000,
+      expected_ctc: 1800000,
+      notice_period_days: 45,
+      source: 'linkedin',
+      added_by: rec2.id,
+      is_active: true,
+      created_at: daysAgo(130),
+    },
+  });
+
+  const sneha = await prisma.profile.create({
+    data: {
+      name: 'Sneha Reddy',
+      email: 'sneha.reddy@example.com',
+      current_location: 'Hyderabad',
+      current_company: 'CloudOps Inc',
+      current_designation: 'DevOps Lead',
+      total_experience_years: 7,
+      primary_skills: ['AWS', 'Terraform', 'Docker'],
+      current_ctc: 2600000,
+      expected_ctc: 3000000,
+      notice_period_days: 60,
+      source: 'vendor',
+      vendor_account_id: vendor.id,
+      vendor_profile_id: 'TVP-509',
+      added_by: rec2.id,
+      is_active: true,
+      created_at: daysAgo(180),
+    },
+  });
+
+  const karan = await prisma.profile.create({
+    data: {
+      name: 'Karan Kapoor',
+      email: 'karan.kapoor@example.com',
+      current_location: 'Delhi',
+      current_company: 'Fintech Labs',
+      current_designation: 'Backend Engineer',
+      total_experience_years: 6,
+      primary_skills: ['Java', 'Spring Boot', 'PostgreSQL'],
+      current_ctc: 2100000,
+      expected_ctc: 2500000,
+      notice_period_days: 30,
+      source: 'internal',
+      added_by: rec1.id,
+      is_active: true,
+      created_at: daysAgo(250),
+    },
+  });
+
+  const meera = await prisma.profile.create({
+    data: {
+      name: 'Meera Pillai',
+      email: 'meera.pillai@example.com',
+      current_location: 'Chennai',
+      current_company: 'QA Labs',
+      current_designation: 'QA Automation Engineer',
+      total_experience_years: 3,
+      primary_skills: ['Selenium', 'Cypress', 'JavaScript'],
+      current_ctc: 1100000,
+      expected_ctc: 1400000,
+      notice_period_days: 15,
+      source: 'internal',
+      added_by: rec1.id,
+      is_active: true,
+      created_at: daysAgo(20),
+    },
+  });
+
+  return { ananya, rohan, neha, vikram, inactive, priya, arjun, sneha, karan, meera };
 }
 
 async function seedSubmissions(users, reqs, profiles) {
   const rec1 = users['recruiter1@delphic.local'];
   const rec2 = users['recruiter2@delphic.local'];
-  const { reactSeats, devopsSeat, closedSeat, stuckSeats } = reqs;
-  const { ananya, rohan, neha, vikram } = profiles;
+  const { reactSeats, devopsSeat, devopsSeat2, closedSeat, stuckSeats, onHoldSeat } = reqs;
+  const { ananya, rohan, neha, vikram, priya, arjun, karan, meera } = profiles;
 
   // Funnel coverage across stages
   const sourced = await prisma.submission.create({
@@ -704,6 +1077,75 @@ async function seedSubmissions(users, reqs, profiles) {
     },
   });
 
+  const interviewResult = await prisma.submission.create({
+    data: {
+      requirement_seat_id: reactSeats[3].id,
+      profile_id: priya.id,
+      stage: 'interview_result',
+      proposed_rate: 170000,
+      proposed_rate_type: 'monthly',
+      proposed_rate_currency: 'INR',
+      relevancy_score: 85,
+      submission_notes: 'Client L1 completed, awaiting decision.',
+      submitted_by: rec2.id,
+      created_at: daysAgo(9),
+      updated_at: daysAgo(2),
+    },
+  });
+
+  const inBgv = await prisma.submission.create({
+    data: {
+      requirement_seat_id: reactSeats[2].id,
+      profile_id: karan.id,
+      stage: 'bgv',
+      proposed_rate: 210000,
+      proposed_rate_type: 'monthly',
+      proposed_rate_currency: 'INR',
+      relevancy_score: 91,
+      offer_date: daysAgo(14),
+      offer_ctc: 2500000,
+      offer_ctc_currency: 'INR',
+      expected_joining_date: daysAgo(-10),
+      bgv_status: 'in_progress',
+      bgv_initiated_date: daysAgo(6),
+      submitted_by: rec1.id,
+      created_at: daysAgo(28),
+      updated_at: daysAgo(6),
+    },
+  });
+
+  const backedOut = await prisma.submission.create({
+    data: {
+      requirement_seat_id: devopsSeat2.id,
+      profile_id: arjun.id,
+      stage: 'backout',
+      proposed_rate: 90000,
+      proposed_rate_type: 'monthly',
+      proposed_rate_currency: 'USD',
+      relevancy_score: 74,
+      submission_notes: 'Candidate backed out after accepting counter-offer elsewhere.',
+      submitted_by: rec2.id,
+      created_at: daysAgo(45),
+      updated_at: daysAgo(38),
+    },
+  });
+
+  const rejected = await prisma.submission.create({
+    data: {
+      requirement_seat_id: onHoldSeat.id,
+      profile_id: meera.id,
+      stage: 'rejected',
+      proposed_rate: 120000,
+      proposed_rate_type: 'monthly',
+      proposed_rate_currency: 'INR',
+      relevancy_score: 60,
+      submission_notes: 'Client rejected — skills mismatch on data pipelines.',
+      submitted_by: rec1.id,
+      created_at: daysAgo(210),
+      updated_at: daysAgo(200),
+    },
+  });
+
   await prisma.interviewRound.createMany({
     data: [
       {
@@ -740,6 +1182,72 @@ async function seedSubmissions(users, reqs, profiles) {
         result: 'pass',
         rating: 5,
         completed_at: daysAgo(22),
+      },
+      {
+        submission_id: interviewResult.id,
+        round_number: 1,
+        round_type: 'internal',
+        round_name: 'Internal screen',
+        scheduled_at: daysAgo(9),
+        duration_minutes: 30,
+        interviewer_name: 'Recruiter Two',
+        result: 'pass',
+        feedback: 'Solid data engineering fundamentals.',
+        rating: 4,
+        completed_at: daysAgo(9),
+      },
+      {
+        submission_id: interviewResult.id,
+        round_number: 2,
+        round_type: 'client_l1',
+        round_name: 'Client L1',
+        scheduled_at: daysAgo(5),
+        duration_minutes: 45,
+        interviewer_name: 'Priya Client',
+        result: 'no_show',
+      },
+      {
+        submission_id: interviewResult.id,
+        round_number: 3,
+        round_type: 'client_l1',
+        round_name: 'Client L1 (rescheduled)',
+        scheduled_at: daysAgo(2),
+        duration_minutes: 45,
+        interviewer_name: 'Priya Client',
+        result: 'rescheduled',
+      },
+      {
+        submission_id: inBgv.id,
+        round_number: 1,
+        round_type: 'client_l2',
+        round_name: 'Client L2',
+        scheduled_at: daysAgo(16),
+        duration_minutes: 60,
+        interviewer_name: 'Priya Client',
+        result: 'pass',
+        feedback: 'Strong backend design skills, offer recommended.',
+        rating: 5,
+        completed_at: daysAgo(16),
+      },
+      {
+        submission_id: backedOut.id,
+        round_number: 1,
+        round_type: 'client_l1',
+        round_name: 'Client L1',
+        scheduled_at: daysAgo(43),
+        result: 'pass',
+        completed_at: daysAgo(43),
+      },
+      {
+        submission_id: rejected.id,
+        round_number: 1,
+        round_type: 'internal',
+        round_name: 'Internal screen',
+        scheduled_at: daysAgo(208),
+        result: 'fail',
+        feedback: 'Data pipeline experience below bar for this role.',
+        rating: 2,
+        completed_at: daysAgo(208),
       },
     ],
   });
@@ -795,6 +1303,216 @@ async function seedSubmissions(users, reqs, profiles) {
         changed_by: rec1.id,
         changed_at: daysAgo(12),
       },
+      // Full per-transition history for the new stage examples
+      {
+        entity_type: 'submission',
+        entity_id: interviewResult.id,
+        from_stage: null,
+        to_stage: 'sourced',
+        changed_by: rec2.id,
+        changed_at: daysAgo(9),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: interviewResult.id,
+        from_stage: 'sourced',
+        to_stage: 'internal_screening',
+        changed_by: rec2.id,
+        changed_at: daysAgo(9),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: interviewResult.id,
+        from_stage: 'internal_screening',
+        to_stage: 'submitted_to_client',
+        changed_by: rec2.id,
+        changed_at: daysAgo(8),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: interviewResult.id,
+        from_stage: 'submitted_to_client',
+        to_stage: 'interview_scheduled',
+        changed_by: rec2.id,
+        changed_at: daysAgo(6),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: interviewResult.id,
+        from_stage: 'interview_scheduled',
+        to_stage: 'interview_result',
+        changed_by: rec2.id,
+        changed_at: daysAgo(2),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: null,
+        to_stage: 'sourced',
+        changed_by: rec1.id,
+        changed_at: daysAgo(28),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'sourced',
+        to_stage: 'internal_screening',
+        changed_by: rec1.id,
+        changed_at: daysAgo(26),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'internal_screening',
+        to_stage: 'submitted_to_client',
+        changed_by: rec1.id,
+        changed_at: daysAgo(22),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'submitted_to_client',
+        to_stage: 'interview_scheduled',
+        changed_by: rec1.id,
+        changed_at: daysAgo(18),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'interview_scheduled',
+        to_stage: 'interview_result',
+        changed_by: rec1.id,
+        changed_at: daysAgo(16),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'interview_result',
+        to_stage: 'offer',
+        changed_by: rec1.id,
+        changed_at: daysAgo(14),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: inBgv.id,
+        from_stage: 'offer',
+        to_stage: 'bgv',
+        changed_by: rec1.id,
+        changed_at: daysAgo(6),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: backedOut.id,
+        from_stage: null,
+        to_stage: 'sourced',
+        changed_by: rec2.id,
+        changed_at: daysAgo(45),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: backedOut.id,
+        from_stage: 'sourced',
+        to_stage: 'submitted_to_client',
+        changed_by: rec2.id,
+        changed_at: daysAgo(44),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: backedOut.id,
+        from_stage: 'submitted_to_client',
+        to_stage: 'offer',
+        changed_by: rec2.id,
+        changed_at: daysAgo(42),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: backedOut.id,
+        from_stage: 'offer',
+        to_stage: 'backout',
+        changed_by: rec2.id,
+        reason: 'Candidate accepted a counter-offer from current employer',
+        changed_at: daysAgo(38),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: rejected.id,
+        from_stage: null,
+        to_stage: 'sourced',
+        changed_by: rec1.id,
+        changed_at: daysAgo(210),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: rejected.id,
+        from_stage: 'sourced',
+        to_stage: 'internal_screening',
+        changed_by: rec1.id,
+        changed_at: daysAgo(209),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: rejected.id,
+        from_stage: 'internal_screening',
+        to_stage: 'rejected',
+        changed_by: rec1.id,
+        reason: 'Skills mismatch on data pipelines',
+        changed_at: daysAgo(200),
+      },
+    ],
+  });
+
+  await prisma.document.createMany({
+    data: [
+      {
+        entity_type: 'profile',
+        entity_id: ananya.id,
+        label: 'Resume',
+        file_url: '/uploads/demo/resume-ananya-sharma.pdf',
+        file_type: 'application/pdf',
+        file_size_bytes: 184320,
+        uploaded_by: rec1.id,
+        uploaded_at: daysAgo(12),
+      },
+      {
+        entity_type: 'profile',
+        entity_id: rohan.id,
+        label: 'Resume',
+        file_url: '/uploads/demo/resume-rohan-mehta.pdf',
+        file_type: 'application/pdf',
+        file_size_bytes: 201984,
+        uploaded_by: rec1.id,
+        uploaded_at: daysAgo(15),
+      },
+      {
+        entity_type: 'profile',
+        entity_id: karan.id,
+        label: 'Resume',
+        file_url: '/uploads/demo/resume-karan-kapoor.pdf',
+        file_type: 'application/pdf',
+        file_size_bytes: 176128,
+        uploaded_by: rec1.id,
+        uploaded_at: daysAgo(250),
+      },
+      {
+        entity_type: 'requirement',
+        entity_id: reqs.inProgressReq.id,
+        label: 'Job description',
+        file_url: '/uploads/demo/jd-react-frontend-engineer.pdf',
+        file_type: 'application/pdf',
+        file_size_bytes: 92160,
+        uploaded_by: rec2.id,
+        uploaded_at: daysAgo(9),
+      },
+      {
+        entity_type: 'submission',
+        entity_id: closed.id,
+        label: 'Offer letter',
+        file_url: '/uploads/demo/offer-vikram-das.pdf',
+        file_type: 'application/pdf',
+        file_size_bytes: 65536,
+        uploaded_by: rec1.id,
+        uploaded_at: daysAgo(20),
+      },
     ],
   });
 
@@ -817,7 +1535,18 @@ async function seedSubmissions(users, reqs, profiles) {
     ],
   });
 
-  return { sourced, screening, interviewing, offered, closed, stuckSubmission };
+  return {
+    sourced,
+    screening,
+    interviewing,
+    offered,
+    closed,
+    stuckSubmission,
+    interviewResult,
+    inBgv,
+    backedOut,
+    rejected,
+  };
 }
 
 async function main() {
@@ -854,6 +1583,7 @@ async function main() {
     interview_rounds: await prisma.interviewRound.count(),
     stage_history: await prisma.stageHistory.count(),
     comments: await prisma.comment.count(),
+    documents: await prisma.document.count(),
   };
 
   console.log('Seed complete.');

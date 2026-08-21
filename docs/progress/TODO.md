@@ -4,7 +4,7 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **Sprint tickets live in [SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Product UI + **RD-114/128** + **RD-116 lint** + **RD-120 Docker CI smoke** done. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Product UI + **RD-114/128** + **RD-116 lint** + **RD-120 Docker CI smoke** + **RD-133 UI redesign** + **UX audit fix pass** (all-drawer forms, skill picker, tooltips, pipeline visibility, report accuracy, richer seed) done. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign guide: [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
 
 ## Backend
 
@@ -37,6 +37,8 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] **RD-127** Unlock UI (admin) on locked account / requirement / seat / submission.
 - [x] **RD-128** Change password (Dev B) — header avatar menu — [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
 - [x] RD-115 spec UI audit + Jira-like list polish — [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md).
+- [x] **RD-133** UI redesign — RHS drawers, list peeks, pipeline KPIs, BDA/Sales reports — [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
+- [x] UX audit fix pass — all remaining forms/modals converted to RHS drawers, searchable skill/tech-stack picker, hover tooltips, BDA pipeline funnel, report KPI accuracy fixes, richer seed data, skeleton loading states. See top [PROGRESS.md](PROGRESS.md) entry.
 
 ## Infra / CI
 

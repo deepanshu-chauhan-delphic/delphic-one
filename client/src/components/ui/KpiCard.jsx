@@ -1,10 +1,15 @@
+import Tooltip from './Tooltip.jsx';
+
 /**
  * Simple KPI card — real headline number + optional caption. No fake charts.
+ * `description`, if given, explains exactly what the number counts/its scope
+ * and shows on hover so the same number can't be trusted differently on
+ * different screens.
  */
-export default function KpiCard({ label, value, hint, accent = false }) {
-  return (
+export default function KpiCard({ label, value, hint, description, accent = false }) {
+  const card = (
     <div
-      className={`rounded-2xl border p-4 shadow-soft transition-colors ${
+      className={`h-full rounded-2xl border p-4 shadow-soft transition-colors ${
         accent ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white'
       }`}
     >
@@ -18,5 +23,12 @@ export default function KpiCard({ label, value, hint, accent = false }) {
         <div className={`mt-1.5 text-xs ${accent ? 'text-primary-100' : 'text-tertiary-400'}`}>{hint}</div>
       )}
     </div>
+  );
+
+  if (!description) return card;
+  return (
+    <Tooltip label={description} side="bottom" block>
+      {card}
+    </Tooltip>
   );
 }

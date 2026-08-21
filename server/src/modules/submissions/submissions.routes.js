@@ -10,7 +10,6 @@ router.use(authenticate);
 router.get('/', controller.list);
 router.get('/:id', controller.getOne);
 router.get('/:id/history', controller.history);
-router.get('/:id/interview-rounds', controller.getRounds);
 
 router.post('/', authorize('recruiter', 'admin'), controller.create);
 router.patch('/:id', authorize('recruiter', 'admin'), lockCheck('submissions'), controller.update);

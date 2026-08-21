@@ -130,20 +130,27 @@ function RecentActivityPanel({ rows }) {
   );
 }
 
-function PipelineSection({ funnel }) {
+function PipelineSection({ funnel, role }) {
   const data = useMemo(() => funnelChartData(funnel), [funnel]);
   const total = data.reduce((sum, row) => sum + row.count, 0);
   const pieData = data.filter((row) => row.count > 0).map((row) => ({ name: row.label, value: row.count }));
+  const isBda = role === 'bda';
+  const title = isBda ? 'Lead pipeline' : 'Submission pipeline';
+  const ctaLabel = isBda ? 'View all leads' : 'View pipeline board';
+  const ctaPath = isBda ? '/accounts' : '/requirements';
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="font-heading text-lg font-semibold text-tertiary-900">Submission pipeline</h2>
+          <h2 className="font-heading text-lg font-semibold text-tertiary-900">{title}</h2>
           <p className="mt-0.5 text-sm text-tertiary-500">
             Live counts by stage{total > 0 ? ` · ${total} total in pipeline` : ''}
           </p>
         </div>
+        <Link to={ctaPath} className="btn-secondary text-xs">
+          {ctaLabel}
+        </Link>
         {total > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {data.map((row) => (
@@ -159,9 +166,11 @@ function PipelineSection({ funnel }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Funnel" subtitle="Submissions at each stage" className="lg:col-span-2">
+        <ChartCard title="Funnel" subtitle={isBda ? 'Leads at each stage' : 'Submissions at each stage'} className="lg:col-span-2">
           {total === 0 ? (
-            <p className="py-16 text-center text-sm text-tertiary-400">No submissions in the pipeline yet.</p>
+            <p className="py-16 text-center text-sm text-tertiary-400">
+              {isBda ? 'No leads in the pipeline yet.' : 'No submissions in the pipeline yet.'}
+            </p>
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -212,7 +221,7 @@ export default function DashboardPage() {
 
   const showDeptFilter = can('filterByDepartment');
   const role = user?.role || 'admin';
-  // Admin always sees pipeline; sales/recruiter via viewPipeline.
+  // Admin always sees pipeline; sales/recruiter/bda via viewPipeline (bda sees an account-stage funnel).
   const showPipeline = role === 'admin' || can('viewPipeline');
 
   useEffect(() => {
@@ -280,14 +289,20 @@ export default function DashboardPage() {
         <>
           {showPipeline && (
             <motion.div {...cardMotion}>
-              <PipelineSection funnel={summary?.pipeline_funnel} />
+              <PipelineSection funnel={summary?.pipeline_funnel} role={role} />
             </motion.div>
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {stats.map((stat, index) => (
               <motion.div key={stat.label} {...cardMotion} transition={{ ...cardMotion.transition, delay: index * 0.03 }}>
-                <KpiCard label={stat.label} value={stat.value} hint={stat.hint} accent={index === 0} />
+                <KpiCard
+                  label={stat.label}
+                  value={stat.value}
+                  hint={stat.hint}
+                  description={stat.description}
+                  accent={index === 0}
+                />
               </motion.div>
             ))}
           </div>

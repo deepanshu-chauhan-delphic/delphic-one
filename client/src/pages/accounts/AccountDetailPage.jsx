@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import AccountFormPage from './AccountFormPage.jsx';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, formatAccountValue } from './accountUtils.js';
 
 function DetailField({ label, value, children }) {
@@ -26,12 +29,16 @@ function DetailSection({ title, children }) {
   );
 }
 
-function StageMoveModal({ account, error, saving, onClose, onMove }) {
+function StageMoveDrawer({ account, error, saving, open, onClose, onMove }) {
   const stages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const [toStage, setToStage] = useState(stages[0] || '');
   const [reason, setReason] = useState('');
   const [meetingMode, setMeetingMode] = useState('online');
   const [meetingDate, setMeetingDate] = useState('');
+
+  useEffect(() => {
+    if (open) setToStage(stages[0] || '');
+  }, [open, account.stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(event) {
     event.preventDefault();
@@ -45,78 +52,81 @@ function StageMoveModal({ account, error, saving, onClose, onMove }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <form onSubmit={submit} className="w-full max-w-md rounded border bg-white shadow-xl">
-        <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold text-tertiary-900">Move account stage</h2>
-          <p className="mt-1 text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
-        </div>
-        <div className="space-y-3 p-4">
-          {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-          <label className="block text-xs font-medium text-tertiary-600">
-            Next stage
-            <select
-              required
-              value={toStage}
-              onChange={(event) => setToStage(event.target.value)}
-              className="mt-1 w-full rounded border px-2 py-1.5 text-sm capitalize"
-            >
-              {stages.map((stage) => <option key={stage} value={stage}>{formatAccountValue(stage)}</option>)}
-            </select>
-          </label>
-          {toStage === 'meeting_scheduled' && (
-            <>
-              <label className="block text-xs font-medium text-tertiary-600">
-                Meeting mode
-                <select
-                  required
-                  value={meetingMode}
-                  onChange={(event) => setMeetingMode(event.target.value)}
-                  className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
-                >
-                  <option value="online">Online</option>
-                  <option value="offline">Offline</option>
-                </select>
-              </label>
-              <label className="block text-xs font-medium text-tertiary-600">
-                Meeting date and time
-                <input
-                  required
-                  type="datetime-local"
-                  value={meetingDate}
-                  onChange={(event) => setMeetingDate(event.target.value)}
-                  className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
-                />
-              </label>
-            </>
-          )}
-          {toStage === 'dropped' && (
+    <Drawer
+      open={open}
+      title="Move account stage"
+      tone={toStage === 'dropped' ? 'danger' : 'edit'}
+      onClose={() => !saving && onClose()}
+      footer={
+        <>
+          <button type="button" form="account-stage-form" onClick={onClose} disabled={saving} className="btn-secondary">Cancel</button>
+          <button type="submit" form="account-stage-form" disabled={saving || !toStage} className="btn-primary">
+            {saving ? 'Moving…' : 'Move stage'}
+          </button>
+        </>
+      }
+    >
+      <form id="account-stage-form" onSubmit={submit} className="space-y-3">
+        <p className="text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
+        {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <label className="block text-xs font-medium text-tertiary-600">
+          Next stage
+          <select
+            required
+            value={toStage}
+            onChange={(event) => setToStage(event.target.value)}
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm capitalize"
+          >
+            {stages.map((stage) => <option key={stage} value={stage}>{formatAccountValue(stage)}</option>)}
+          </select>
+        </label>
+        {toStage === 'meeting_scheduled' && (
+          <>
             <label className="block text-xs font-medium text-tertiary-600">
-              Reason
-              <textarea
+              Meeting mode
+              <select
                 required
-                rows={3}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
+                value={meetingMode}
+                onChange={(event) => setMeetingMode(event.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+              >
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-tertiary-600">
+              Meeting date and time
+              <input
+                required
+                type="datetime-local"
+                value={meetingDate}
+                onChange={(event) => setMeetingDate(event.target.value)}
                 className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
               />
             </label>
-          )}
-        </div>
-        <div className="flex justify-end gap-2 border-t px-4 py-3">
-          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary">Cancel</button>
-          <button type="submit" disabled={saving || !toStage} className="btn-primary">
-            {saving ? 'Moving…' : 'Move stage'}
-          </button>
-        </div>
+          </>
+        )}
+        {toStage === 'dropped' && (
+          <label className="block text-xs font-medium text-tertiary-600">
+            Reason
+            <textarea
+              required
+              rows={3}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+            />
+          </label>
+        )}
       </form>
-    </div>
+    </Drawer>
   );
 }
 
 export default function AccountDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [account, setAccount] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +134,7 @@ export default function AccountDetailPage() {
   const [stageError, setStageError] = useState('');
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
+  const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
 
   async function loadAccount() {
     setLoading(true);
@@ -146,6 +157,18 @@ export default function AccountDetailPage() {
     loadAccount();
   }, [id]);
 
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') setEditOpen(true);
+  }, [searchParams]);
+
+  function closeEdit() {
+    setEditOpen(false);
+    if (searchParams.get('edit')) {
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }
+
   async function moveStage(body) {
     setMovingStage(true);
     setStageError('');
@@ -160,7 +183,7 @@ export default function AccountDetailPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-tertiary-500">Loading account…</div>;
+  if (loading) return <DetailSkeleton />;
   if (error || !account) {
     return (
       <div className="space-y-3">
@@ -194,7 +217,7 @@ export default function AccountDetailPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {canMutate && !account.is_locked && (
-              <Link to={`/accounts/${account.id}/edit`} className="btn-secondary">Edit</Link>
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>
             )}
             {canMutate && !account.is_locked && nextStages.length > 0 && (
               <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
@@ -333,9 +356,10 @@ export default function AccountDetailPage() {
         </aside>
       </div>
 
-      {isStageModalOpen && (
-        <StageMoveModal
+      {account && (
+        <StageMoveDrawer
           account={account}
+          open={isStageModalOpen}
           error={stageError}
           saving={movingStage}
           onClose={() => {
@@ -345,6 +369,19 @@ export default function AccountDetailPage() {
           onMove={moveStage}
         />
       )}
+
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="md" tone="edit">
+        {editOpen && (
+          <AccountFormPage
+            asPanel
+            onCancel={closeEdit}
+            onDone={() => {
+              closeEdit();
+              loadAccount();
+            }}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

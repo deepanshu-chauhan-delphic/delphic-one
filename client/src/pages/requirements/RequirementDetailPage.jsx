@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
-import Modal from '../../components/ui/Modal.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
+import Tooltip from '../../components/ui/Tooltip.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import RequirementFormPage from './RequirementFormPage.jsx';
 import {
   canChangeSeatStage,
   canMutateRequirement,
@@ -25,6 +28,8 @@ function formatDate(value) {
 export default function RequirementDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [requirement, setRequirement] = useState(null);
   const [seats, setSeats] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -65,6 +70,18 @@ export default function RequirementDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') setEditOpen(true);
+  }, [searchParams]);
+
+  function closeEdit() {
+    setEditOpen(false);
+    if (searchParams.get('edit')) {
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }
 
   const canEdit = canMutateRequirement(requirement, user);
   const canSeat = canChangeSeatStage(user);
@@ -136,7 +153,7 @@ export default function RequirementDetailPage() {
     setSeatModal({ seatId: seat.id, seatLabel: seat.seat_label || seat.id.slice(0, 8), toStatus });
   }
 
-  if (loading) return <div className="text-sm text-tertiary-500">Loading…</div>;
+  if (loading) return <DetailSkeleton />;
   if (!requirement) {
     return (
       <div className="space-y-2">
@@ -194,14 +211,24 @@ export default function RequirementDetailPage() {
         return (
           <div className="flex flex-wrap gap-1">
             {next.map((to) => (
-              <button
+              <Tooltip
                 key={to}
-                type="button"
-                className={`text-xs ${to === 'dropped' ? 'btn-danger px-2 py-1' : 'btn-secondary px-2 py-1'}`}
-                onClick={() => openSeat(s, to)}
+                label={
+                  requiresDropReason(to)
+                    ? 'Requires a reason'
+                    : requiresJoinedAt(to)
+                      ? 'Requires a joined date'
+                      : `Move this seat to ${to.replace(/_/g, ' ')}`
+                }
               >
-                → {to.replace(/_/g, ' ')}
-              </button>
+                <button
+                  type="button"
+                  className={`text-xs ${to === 'dropped' ? 'btn-danger px-2 py-1' : 'btn-secondary px-2 py-1'}`}
+                  onClick={() => openSeat(s, to)}
+                >
+                  → {to.replace(/_/g, ' ')}
+                </button>
+              </Tooltip>
             ))}
           </div>
         );
@@ -229,9 +256,9 @@ export default function RequirementDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {canEdit && !locked && (
-            <Link to={`/requirements/${id}/edit`} className="btn-secondary">
+            <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
               Edit
-            </Link>
+            </button>
           )}
           <Link to={`/requirements/${id}/board`} className="btn-secondary">
             Pipeline board
@@ -268,14 +295,24 @@ export default function RequirementDetailPage() {
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
             {nextStatuses.map((to) => (
-              <button
+              <Tooltip
                 key={to}
-                type="button"
-                className={to === 'dropped' ? 'btn-danger' : 'btn-secondary'}
-                onClick={() => openStatus(to)}
+                label={
+                  to === 'closed'
+                    ? 'All seats must already be closed or dropped'
+                    : requiresDropReason(to)
+                      ? 'Requires a reason'
+                      : `Move this requirement to ${to.replace(/_/g, ' ')}`
+                }
               >
-                Move to {to.replace(/_/g, ' ')}
-              </button>
+                <button
+                  type="button"
+                  className={to === 'dropped' ? 'btn-danger' : 'btn-secondary'}
+                  onClick={() => openStatus(to)}
+                >
+                  Move to {to.replace(/_/g, ' ')}
+                </button>
+              </Tooltip>
             ))}
           </div>
         )}
@@ -403,11 +440,13 @@ export default function RequirementDetailPage() {
         />
       </div>
 
-      {/* Requirement status modal */}
-      <Modal
+      {/* Requirement status drawer */}
+      <Drawer
         open={Boolean(statusModal)}
         title={`Move requirement to ${statusModal?.replace(/_/g, ' ') || ''}`}
+        tone={statusModal === 'dropped' ? 'danger' : 'edit'}
         onClose={() => !busy && setStatusModal(null)}
+        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setStatusModal(null)}>
@@ -442,13 +481,15 @@ export default function RequirementDetailPage() {
         {!requiresDropReason(statusModal) && statusModal !== 'closed' && (
           <p className="text-tertiary-600">Confirm moving this requirement to {statusModal?.replace(/_/g, ' ')}.</p>
         )}
-      </Modal>
+      </Drawer>
 
-      {/* Seat stage modal */}
-      <Modal
+      {/* Seat stage drawer */}
+      <Drawer
         open={Boolean(seatModal)}
         title={`Move ${seatModal?.seatLabel || 'seat'} → ${seatModal?.toStatus?.replace(/_/g, ' ') || ''}`}
+        tone={seatModal?.toStatus === 'dropped' ? 'danger' : 'edit'}
         onClose={() => !busy && setSeatModal(null)}
+        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setSeatModal(null)}>
@@ -494,13 +535,15 @@ export default function RequirementDetailPage() {
         {!requiresDropReason(seatModal?.toStatus) && !requiresJoinedAt(seatModal?.toStatus) && (
           <p className="text-tertiary-600">Confirm this seat stage change.</p>
         )}
-      </Modal>
+      </Drawer>
 
-      {/* Add seat modal */}
-      <Modal
+      {/* Add seat drawer */}
+      <Drawer
         open={addSeatOpen}
         title="Add seat"
+        tone="create"
         onClose={() => !busy && setAddSeatOpen(false)}
+        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setAddSeatOpen(false)}>
@@ -519,7 +562,20 @@ export default function RequirementDetailPage() {
           className="w-full rounded-md border px-3 py-2 text-sm"
           placeholder="e.g. Seat 3 — Backend"
         />
-      </Modal>
+      </Drawer>
+
+      <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="md" tone="edit">
+        {editOpen && (
+          <RequirementFormPage
+            asPanel
+            onCancel={closeEdit}
+            onDone={() => {
+              closeEdit();
+              load();
+            }}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

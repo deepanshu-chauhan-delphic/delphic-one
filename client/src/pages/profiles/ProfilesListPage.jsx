@@ -55,7 +55,7 @@ function ProfilePeek({ row, onClose, onChanged }) {
       </dl>
       <PeekActions>
         {canEditProfile(user) && (
-          <button type="button" className="btn-primary" onClick={() => navigate(`/profiles/${detail.id}/edit`)}>
+          <button type="button" className="btn-primary" onClick={() => navigate(`/profiles/${detail.id}?edit=1`)}>
             Edit candidate
           </button>
         )}

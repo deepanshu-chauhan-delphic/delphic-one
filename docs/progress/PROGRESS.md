@@ -2,7 +2,40 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
-## 2026-08-21 — UI drawers, pipeline KPIs, BDA/Sales reports (docs updated)
+## 2026-08-21 — UX audit pass: all-drawer forms, tooltips, skill picker, richer seed, pipeline visibility, report accuracy
+
+Full audit (API↔frontend mapping, dead UI, modal/drawer compliance, seed/pipeline/reports) followed by a fix pass across client and server. Verified end-to-end via `npm run lint` (0 errors), `npm run build`, and a live Docker stack re-seed + login/report checks through the client proxy.
+
+**All forms/confirmations now RHS drawers, never modal or full page:**
+- Account, Requirement, and Profile edit now open in an RHS drawer from their detail pages (`?edit=1` query param), matching how create already worked. Old `/:id/edit` routes redirect via a shared `EditRedirect` helper in `App.jsx`.
+- Converted the last `components/ui/Modal.jsx` usages to `Drawer`: `ChangePasswordModal.jsx` → `ChangePasswordDrawer.jsx`, and the three modals on `RequirementDetailPage.jsx` (status change, seat stage, add seat).
+- Converted two hand-rolled centered dialogs (`fixed inset-0` divs, not even using `Modal.jsx`) to `Drawer`: `AccountDetailPage.jsx`'s stage-move dialog and `UnlockButton.jsx`.
+- Renamed `AssignRecruiterModal.jsx` → `AssignRecruiterDrawer.jsx` (it already rendered a Drawer; filename-only fix).
+- New admin-only Departments create/edit drawer on `/users`, wiring up the previously-unused `POST/PATCH /departments` endpoints.
+- Deleted the dead, unused `GET /submissions/:id/interview-rounds` route/controller/service method.
+- Fixed `ReportsPage.jsx`'s export download to go through `apiClient` (blob response) instead of a raw `fetch`, so it gets the shared 401/refresh-token handling.
+
+**New: searchable skill/tech-stack picker** — `components/ui/SkillPicker.jsx` + `lib/skillsCatalog.js` (~150 curated entries with category icons from `lucide-react`, no new dependency). Replaces the old free-text CSV inputs on Candidate (`primary_skills`/`secondary_skills`) and Requirement (`primary_tech_stack`/`secondary_tech_stack`) forms; always allows adding a custom/unlisted skill since the backend stores plain string arrays.
+
+**New: hover tooltips** — `components/ui/Tooltip.jsx`. Applied to dashboard KPI cards (each now explains exactly what it counts and its scope), report KPI columns via renamed fields (see below), stage-change buttons on Requirement/Submission detail pages (flags which transitions require a reason/date), and `UnlockButton`.
+
+**Pipeline visibility:** BDA's dashboard funnel was always empty (it showed the submission funnel, which BDAs don't own) — added `accountFunnelFromRows` in `dashboard.service.js` so BDA now sees a real lead-stage funnel (lead → meeting_scheduled → active/dropped). Added a "View pipeline board" / "View all leads" CTA to the dashboard's pipeline section linking into Requirements/Accounts.
+
+**Reports/KPI accuracy fixes** (`reports.service.js`, `dashboard.service.js`):
+- Unified the stuck/aging threshold into one `server/src/config/constants.js` (`STUCK_THRESHOLD_DAYS`) instead of three separate hardcoded `7`s.
+- `bdaPerformance`'s `clients_active`/`vendors_active`/`stuck_leads_7d` were all-time snapshots silently mixed into an otherwise period-scoped report row — renamed to `clients_active_current`/`vendors_active_current`/`stuck_leads_current` (and updated `reportViews.js` columns) so the snapshot semantics are explicit instead of implied.
+- `salesPerformance.avg_closure_days` was anchored on requirement `created_at` falling in the date range (inconsistent with `periodClosures`, which anchors on the closure event) — now anchored on `closed_at` falling in range, matching. Caught and fixed a bug in this same change during testing: the first version didn't filter `status: 'closed'`, so dropped requirements (which also stamp `closed_at`) were pulled into the average — verified via a real seeded example (61 days → 32 days after the fix).
+- Unified "interviews this week" anchor logic (`completed_at` if set, else `scheduled_at`) across all three dashboard summary functions and `reports.summarizeInterviewRounds`, via a shared `interviewsInRangeWhere()` helper — previously the dashboard only looked at `scheduled_at`, so a completed interview could disappear from the dashboard count while still showing in the equivalent report.
+
+**Seed data enrichment** (`server/prisma/seed.js`): 5→8 users (2nd sales/BDA/admin, real activity for recruiter #2), added `dropped`/`rescheduled` account examples and `on_hold`/`dropped` requirement examples, 5→10 profiles, submissions now cover every `SubmissionStage` (added `interview_result`/`bgv`/`backout`/`rejected`), full per-transition `StageHistory` rows instead of one snapshot per record, 0→6 `Document` rows (resumes, agreements, job docs — model existed but was never seeded), wider date spread (up to ~250 days back) for month/quarter trend views, and interview rounds now include `no_show`/`rescheduled` results and a feedback/no-feedback mix.
+
+**Loading states:** `DataTable.jsx`'s loading state now renders skeleton rows (covers every list page at once, since they all already pass `loading` through). Added `components/ui/DetailSkeleton.jsx` and wired it into Account/Requirement/Profile/Submission detail pages, replacing bare "Loading…" text.
+
+**Docs:** seeded-user list in this file updated to include the 3 new demo accounts.
+
+## 2026-08-21 — RD-133 UI redesign (drawers, pipeline KPIs, BDA/Sales reports)
+
+**Ticket:** **RD-133** — marked **DONE (Aug 21)** in [SPRINT-PLAN.md](SPRINT-PLAN.md). Guide: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). Commit: `0add970` on `dev-deep`.
 
 **UX**
 

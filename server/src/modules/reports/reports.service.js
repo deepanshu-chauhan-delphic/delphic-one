@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
 
 function daysBetween(from, to) {
   return (new Date(to) - new Date(from)) / 86400000;
@@ -272,10 +273,15 @@ async function salesPerformance({ date_from, date_to, sales_id, department_id })
         ? await prisma.account.count({ where: { id: { in: clientIds }, stage: 'active' } })
         : 0;
 
+      // Anchored on closed_at falling in the period (same closure-event window as periodClosures),
+      // not on created_at — a requirement opened long before the period can still close within it.
+      // status: 'closed' excludes dropped requirements, which also stamp closed_at.
+      const closedInPeriod = await prisma.requirement.findMany({
+        where: { sales_owner_id: s.id, status: 'closed', closed_at: { gte: from, lte: to } },
+      });
       let avg_closure_days = null;
-      const closedWithDates = requirements_closed.filter((r) => r.closed_at);
-      if (closedWithDates.length) {
-        const days = closedWithDates.map((r) => (new Date(r.closed_at) - new Date(r.created_at)) / 86400000);
+      if (closedInPeriod.length) {
+        const days = closedInPeriod.map((r) => (new Date(r.closed_at) - new Date(r.created_at)) / 86400000);
         avg_closure_days = Number((days.reduce((a, b) => a + b, 0) / days.length).toFixed(1));
       }
 
@@ -311,7 +317,7 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
   const from = new Date(date_from);
   const to = new Date(date_to);
   if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
-  const stuckCutoff = new Date(Date.now() - 7 * 86400000);
+  const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
   return Promise.all(
     bdaUsers.map(async (b) => {
@@ -326,13 +332,16 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
       const leads_converted_active = clientLeads.filter((a) => a.stage === 'active').length;
       const leads_dropped = clientLeads.filter((a) => a.stage === 'dropped').length;
 
-      const clients_active = await prisma.account.count({
+      // Snapshot counts "as of now" — intentionally NOT scoped to date_from/date_to like the
+      // fields above, since "currently active clients" is a present-state fact, not a period
+      // event. Named *_current so the report doesn't imply they're period-scoped.
+      const clients_active_current = await prisma.account.count({
         where: { owner_id: b.id, type: 'client', stage: 'active' },
       });
-      const vendors_active = await prisma.account.count({
+      const vendors_active_current = await prisma.account.count({
         where: { owner_id: b.id, type: 'vendor', stage: 'active' },
       });
-      const stuck_leads = await prisma.account.count({
+      const stuck_leads_current = await prisma.account.count({
         where: {
           owner_id: b.id,
           type: 'client',
@@ -351,9 +360,9 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
           ? Number(((leads_converted_active / leads_created) * 100).toFixed(2))
           : 0,
         vendors_created: vendorLeads.length,
-        clients_active,
-        vendors_active,
-        stuck_leads_7d: stuck_leads,
+        clients_active_current,
+        vendors_active_current,
+        stuck_leads_current,
       };
     })
   );
@@ -399,7 +408,7 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
   );
 }
 
-async function aging({ threshold_days = 7, department_id }) {
+async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
   const cutoff = new Date(Date.now() - threshold_days * 86400000);
   const ownerDept = department_id ? { owner: { department_id } } : {};
   const salesDept = department_id ? { sales_owner: { department_id } } : {};
