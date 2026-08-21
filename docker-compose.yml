@@ -35,6 +35,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8081}
       UPLOAD_DIR: /app/server/uploads
       MAX_UPLOAD_MB: 10
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - uploads:/app/server/uploads
     ports:

@@ -2,6 +2,32 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Docs synced; logging + Jira UX noted; ticket snapshot
+
+Documented and linked for the next session:
+
+- [BACKEND-LOGGING.md](BACKEND-LOGGING.md) — full logging guide
+- [UI-UX-JIRA.md](UI-UX-JIRA.md) + [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png)
+- [SPRINT-PLAN.md](SPRINT-PLAN.md) — Done (9) / Open (22) ticket snapshot
+- AGENTS, README, TODO, PROGRESS, API-Spec security bullet, compose `LOG_LEVEL`
+
+## 2026-08-21 — Standing UX note: Jira-like UI
+
+Stakeholder direction: product UI/UX must feel like **Atlassian Jira** (issue search / filters / dense list), not a generic admin CRUD theme.
+
+Documented in [UI-UX-JIRA.md](UI-UX-JIRA.md). Reference screenshot saved at [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png). Cross-linked from AGENTS, TODO, SPRINT-PLAN, and README. Frontend tickets (lists, dashboard, detail chrome, RD-115) must follow this before done.
+
+## 2026-08-21 — Backend structured logging (documented)
+
+Added a zero-dependency logger (`server/src/config/logger.js`): levels `error|warn|info|debug` via `LOG_LEVEL` (default debug in dev, info in prod, error in tests). Pretty lines in development; JSON in production.
+
+Wired:
+- HTTP access log middleware (`requestLogger`) — method, path, status, duration_ms, user when present; skips `/health` and test env
+- `errorHandler` logs validation/warn vs 500 errors with stack
+- Process startup/shutdown + uncaughtException / unhandledRejection in `index.js`
+
+**Docs:** full operator/developer guide in [BACKEND-LOGGING.md](BACKEND-LOGGING.md); cross-links in [AGENTS.md](AGENTS.md), root README, `.env.example` files, and compose `LOG_LEVEL`. `server/.env.example` documents `LOG_LEVEL`. **50 tests green.**
+
 ## 2026-08-21 — Interview feedback confirmed/extended; recruiter/sales reports get interview + closure depth (RD-132)
 
 **Feedback:** Already supported on `InterviewRound` (`feedback`, `rating`) via `PATCH /interview-rounds/:id`. Extended so recruiters can also submit **feedback + rating + result on create** (`POST /submissions/:id/interview-rounds`) — useful for logging a completed internal screen in one step. Completing a result auto-sets `completed_at`.

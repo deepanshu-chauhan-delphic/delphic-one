@@ -1,6 +1,6 @@
 # Requirement Management Dashboard
 
-Internal requirement/recruitment pipeline dashboard. See [docs/Requirement-Dashboard-System-Design-v2.md](docs/Requirement-Dashboard-System-Design-v2.md) and [docs/API-Spec-and-Build-Plan.md](docs/API-Spec-and-Build-Plan.md) for the full spec and build plan.
+Internal requirement/recruitment pipeline dashboard. See [docs/Requirement-Dashboard-System-Design-v2.md](docs/Requirement-Dashboard-System-Design-v2.md) and [docs/API-Spec-and-Build-Plan.md](docs/API-Spec-and-Build-Plan.md) for the full spec and build plan. Backend logging: [docs/BACKEND-LOGGING.md](docs/BACKEND-LOGGING.md). **UI/UX must be Jira-like:** [docs/UI-UX-JIRA.md](docs/UI-UX-JIRA.md).
 
 ## Stack
 
@@ -25,7 +25,9 @@ docker compose run --rm --entrypoint "" server sh -c "node prisma/seed.js"
 - API: http://localhost:4000
 - Postgres (host tools, e.g. `psql`): `localhost:5434`
 
-Copy `.env.example` to `.env` first if you want to override any port or secret — see that file for the full list. To generate a *new* Prisma migration after changing `server/prisma/schema.prisma`, run it from the host (not inside a `docker compose run` container — see `docs/AGENTS.md` for why) with `DATABASE_URL` pointed at `localhost:5434`.
+Copy `.env.example` to `.env` first if you want to override any port, secret, or `LOG_LEVEL` — see that file for the full list. API logs: `docker compose logs -f server` (JSON when the server runs with `NODE_ENV=production`). Details: [docs/BACKEND-LOGGING.md](docs/BACKEND-LOGGING.md).
+
+To generate a *new* Prisma migration after changing `server/prisma/schema.prisma`, run it from the host (not inside a `docker compose run` container — see `docs/AGENTS.md` for why) with `DATABASE_URL` pointed at `localhost:5434`.
 
 ## Local setup (without Docker)
 
@@ -33,7 +35,7 @@ Copy `.env.example` to `.env` first if you want to override any port or secret �
 npm install --workspaces
 
 cp server/.env.example server/.env
-# edit server/.env with your local DATABASE_URL and JWT secrets
+# edit server/.env with your local DATABASE_URL, JWT secrets, and optional LOG_LEVEL
 
 npm run migrate      # prisma migrate dev — creates the DB schema
 npm run seed         # prisma db seed equivalent (prisma/seed.js)

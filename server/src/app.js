@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const env = require('./config/env');
+const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 
 const authRoutes = require('./modules/auth/auth.routes');
@@ -25,6 +26,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json());
+app.use(requestLogger);
 app.use('/uploads', express.static(path.resolve(env.uploadDir)));
 
 const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false });

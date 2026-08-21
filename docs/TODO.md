@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend for this sprint is **complete and green** (47 tests). Uncommitted work still on disk — do not commit unless asked. **Next work is frontend:** start Day 1 tickets RD-101–104 (and later RD-125 interview rounds, RD-126 users, RD-127 unlock, RD-128 change-password).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend for this sprint is **complete and green** (50 tests), including structured logging ([BACKEND-LOGGING.md](BACKEND-LOGGING.md)). **UI/UX must be Jira-like** ([UI-UX-JIRA.md](UI-UX-JIRA.md)). Ticket Done/Open snapshot: [SPRINT-PLAN.md](SPRINT-PLAN.md#ticket-status-snapshot-aug-21). **Next work is frontend:** Day 1 tickets RD-101–104 under the Jira UX note (then RD-125 interview rounds, RD-127 unlock, RD-128 change-password).
 
 ## Backend
 
@@ -14,8 +14,9 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] RD-124 recruiter/vendor avg-day metrics.
 - [x] Ownership on account/requirement mutate paths.
 - [x] RD-130 admin / comments / documents split to routes/controller/service/validation.
-- [x] Test suite: **7 suites / 48 tests** green (`cd server && npm test`). Still no linter (RD-116).
+- [x] Test suite: **8 suites / 50 tests** green (`cd server && npm test`). Still no linter (RD-116).
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
+- [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 
 ## Frontend (open — see sprint tickets)
 
@@ -27,7 +28,8 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] **RD-126** Admin Users page (create BDA/Sales/Recruiter/Admin; deactivate).
 - [x] **RD-131** Temporary one-click role login on login page (disable/remove before real auth).
 - [ ] **RD-127** Unlock UI · **RD-128** Change password.
-- [ ] RD-115 spec UI audit.
+- [ ] RD-115 spec UI audit (**must include Jira-like density/filter/list check** — [UI-UX-JIRA.md](UI-UX-JIRA.md)).
+- [ ] Align existing list pages + shell to Jira-like UX (top chrome, filters, dense rows) using [references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png).
 
 ## Infra / CI
 
@@ -37,4 +39,6 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 ## Docs
 
 - [x] SPRINT-PLAN updated with missing tickets (RD-125–130) and DONE marks (Aug 21).
+- [x] Backend logging guide: [BACKEND-LOGGING.md](BACKEND-LOGGING.md) (linked from AGENTS + README).
+- [x] Jira-like UI/UX standing note: [UI-UX-JIRA.md](UI-UX-JIRA.md) + reference screenshot.
 - [ ] Keep this file and PROGRESS.md current each session.

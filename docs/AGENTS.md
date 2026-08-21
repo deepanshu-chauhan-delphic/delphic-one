@@ -8,6 +8,8 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 Full spec: [docs/Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md)
 API contract + build plan: [docs/API-Spec-and-Build-Plan.md](API-Spec-and-Build-Plan.md)
+Backend logging: [docs/BACKEND-LOGGING.md](BACKEND-LOGGING.md)
+**UI/UX (standing):** [docs/UI-UX-JIRA.md](UI-UX-JIRA.md) — product must feel like Jira (issue search / dense filters + list). Reference: [docs/references/jira-like-dashboard-reference.png](references/jira-like-dashboard-reference.png).
 
 ## Stack
 
@@ -28,8 +30,8 @@ client/src/
 
 server/src/
   modules/<domain>/      # <domain>.routes.js, .controller.js, .service.js, .validation.js
-  middleware/            # auth, errorHandler, lockCheck
-  config/                # db.js (Prisma client singleton), env.js
+  middleware/            # auth, requestLogger, errorHandler, lockCheck
+  config/                # db.js, env.js, logger.js (structured stdout logging)
 
 server/prisma/
   schema.prisma          # single schema — all 11 tables as Prisma models
@@ -50,7 +52,18 @@ Domain modules follow a consistent 4-file pattern: `routes` → `controller` →
 
 ```bash
 docker compose up -d --build
-docker compose run --rm --entrypoint "" server sh -c "node prisma/seed.js"
+```
+
+Seed (PowerShell-safe — empty `--entrypoint ""` breaks on Windows):
+
+```powershell
+docker compose run --rm --entrypoint sh server -c "node prisma/seed.js"
+```
+
+Or if the server container is already running:
+
+```powershell
+docker compose exec server node prisma/seed.js
 ```
 
 Client: http://localhost:8081 · API: http://localhost:4000 · Postgres (host access, e.g. for `psql`): `localhost:5434`.
@@ -59,7 +72,7 @@ Client: http://localhost:8081 · API: http://localhost:4000 · Postgres (host ac
 
 ```bash
 npm install --workspaces
-cp server/.env.example server/.env   # set DATABASE_URL + JWT secrets
+cp server/.env.example server/.env   # set DATABASE_URL + JWT secrets; optional LOG_LEVEL
 npm run migrate
 npm run seed
 npm run dev:server   # http://localhost:4000
@@ -67,6 +80,17 @@ npm run dev:client   # http://localhost:5173
 ```
 
 Seeded users (password `Password123!`): `admin@delphic.local`, `sales1@delphic.local`, `bda1@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
+
+## Backend logging
+
+Zero-dependency structured logger. Full guide: [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
+
+- Env: `LOG_LEVEL=debug|info|warn|error` (defaults: debug in development, info in production, error in tests).
+- Production (`NODE_ENV=production`) emits one JSON object per line; development prints a readable line.
+- Automatic: HTTP access (`requestLogger`), validation/errors (`errorHandler`), start/shutdown/crash hooks (`index.js`).
+- Health checks (`GET /api/v1/health`) are not access-logged. Tests do not emit access logs.
+- In modules: `const logger = require('../../config/logger');` then `logger.info('event_name', { … })`. Never log passwords, JWTs, or upload bodies.
+- Docker: `docker compose logs -f server` (optional root `.env` `LOG_LEVEL`).
 
 **Temporary testing:** the login page has one-click buttons for Admin / BDA / Sales / Recruiter. Hide with `VITE_DISABLE_QUICK_LOGIN=true` when moving to real auth. Only **admin** can create new users (Users page in the nav); share email + password with BDA / Sales / Recruiter / other admins.
 
@@ -77,5 +101,7 @@ Seeded users (password `Password123!`): `admin@delphic.local`, `sales1@delphic.l
 ## Working conventions
 
 - Keep [docs/PROGRESS.md](PROGRESS.md) and [docs/TODO.md](TODO.md) up to date as work lands — check them at the start of a session and update them at the end.
+- Prefer `logger` over bare `console.*` in server code. See [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
+- **Frontend must follow Jira-like UX** ([UI-UX-JIRA.md](UI-UX-JIRA.md)). Dense tables, filter bar, Create, inline status, avatar stacks — not a generic CRUD admin look. Compare list/dashboard work to the reference screenshot before calling UI tickets done.
 - Deploy workflow (`.github/workflows/deploy.yml`) is a no-op until `DEPLOY_ENABLED` repo variable + VPS secrets are set — don't assume deploys are live.
 - Initial scaffold is committed and pushed to `main`, `staging`, and `dev` on `github.com/deepanshu-chauhan-delphic/delphic-one` as of 2026-08-20. Migrations have not yet been run against a real PostgreSQL instance — do that before trusting the schema.
