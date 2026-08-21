@@ -10,6 +10,20 @@ Re-wired post-merge gaps on Dev B detail pages:
 - **RD-127:** Admin `UnlockButton` on locked requirement header, locked seat rows, and locked submission header (Account already wired).
 - **RD-115:** Spec walkthrough updated — Job form, put-forward, kanban, interview, Notes/Files/Unlock marked Present; only RD-114 charts and RD-128 change-password remain as known FE gaps.
 
+## 2026-08-21 — Staging updated with merged Dev A + Dev B
+
+Fast-forwarded `staging` to `4b0b61b` (same tip as `dev-deep`: `origin/dev` merge + status docs). Pushed to `origin/staging`.
+
+## 2026-08-21 — Local `dev-deep` pulled from `dev` (no conflicts)
+
+Fast-forwarded local `dev-deep` to `origin/dev` (`c01e99f`). No merge conflicts.
+
+Brought in Dev A work already on `dev`: accounts (RD-101/102), profiles (RD-105), assign recruiter (RD-106), Notes/Files (RD-109/110), dashboard (RD-113), unlock (RD-127), RD-115 walkthrough, plus conflict-resolution commit from the main/dev merge.
+
+**Branch tip after pull:** `c01e99f` (`origin/dev`); docs note commit followed on `dev-deep` / `staging`.
+
+**Open remaining (after RD-110/127 follow-up):** RD-114, RD-116, RD-119–122, RD-128.
+
 ## 2026-08-21 — Merged Dev A + Dev B onto main
 
 Pulled Dev B Days 1–3 (RD-103/104, RD-107/108, RD-111/125/112) and restored Dev A work (accounts, candidates, assign, notes/files, dashboard, unlock, UX). Conflict-resolved App routes and list pages; both Create/Put-forward and Assign/filter UX kept.

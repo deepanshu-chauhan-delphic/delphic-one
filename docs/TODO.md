@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 done including RD-110 Notes/Files and RD-127 Unlock on all four detail surfaces. **Next:** RD-114 (reports charts) · RD-128 (change password) · RD-116 linter · RD-120 CI · RD-121 deploy. Spec: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Dev A + Dev B Days 1–3 done including RD-110 Notes/Files and RD-127 Unlock on all four detail surfaces. **Open (7):** RD-114 reports · RD-128 change password · RD-116 linter · RD-120 CI · RD-121 deploy · RD-119 E2E · RD-122 deploy day. Spec: [RD-115-SPEC-WALKTHROUGH.md](RD-115-SPEC-WALKTHROUGH.md).
 
 ## Backend
 

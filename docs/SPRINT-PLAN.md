@@ -2,7 +2,7 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green**. Frontend create/edit/detail/stage/interview/kanban/unlock/notes-files for accounts, jobs, candidates, and submissions are **in place**. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, linter/CI/E2E, and deploy day.
+Where things stand on Aug 21: database, login, Docker, every API endpoint from the spec, ownership rules, role-scoped dashboard, stuck lists, avg-day report metrics, stage-machine tests, admin/comments/documents module split, and structured backend logging are **done and green**. Frontend create/edit/detail/stage/interview/kanban/unlock/notes-files for accounts, jobs, candidates, and submissions are **in place**. Remaining open work is mainly **reports charts (RD-114)**, **change password (RD-128)**, linter/CI/E2E, and deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
 
 **UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets.
 
