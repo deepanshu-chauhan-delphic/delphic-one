@@ -2,6 +2,18 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [docs/TODO.md](TODO.md) for what's next and [docs/AGENTS.md](AGENTS.md) for project context.
 
+## 2026-08-21 — Dev B Day 1: RD-103 + RD-104 (requirements UI)
+
+Implemented Job Requirement frontend for Dev B Aug 22 tickets:
+
+- **RD-104:** `/requirements/new`, `/requirements/:id/edit` — create/edit form (active client, seats_total on create, tech stack, budget, etc.); list **+ Create**; detail **status** buttons + **Add seat** modal.
+- **RD-103:** `/requirements/:id` — info panels, seats table with per-seat stage controls (open→interviewing→offer→bgv→closed with `joined_at`, drop+reason), assigned recruiters + assignment history, requirement status history. Badge colors for seat stages. Modal for confirmations.
+
+Shared stage maps: `server/.../stageMachines.js` + `client/src/lib/requirementStages.js` (keep in sync).
+
+**Tests:** `stage-machines.test.js`, `requirements-crud-ui.test.js` — **62** tests green.  
+**How to test manually:** [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
+
 ## 2026-08-21 — Docs synced; logging + Jira UX noted; ticket snapshot
 
 Documented and linked for the next session:

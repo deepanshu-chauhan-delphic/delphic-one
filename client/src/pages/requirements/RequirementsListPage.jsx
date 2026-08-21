@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import apiClient from '../../lib/apiClient';
+import { Link } from 'react-router-dom';
+import apiClient from '../../lib/apiClient.js';
+import { useAuth } from '../../lib/authContext.jsx';
+import { canCreateRequirement } from '../../lib/requirementStages.js';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 
 export default function RequirementsListPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
@@ -17,7 +21,15 @@ export default function RequirementsListPage() {
   }, [status]);
 
   const columns = [
-    { key: 'title', header: 'Title' },
+    {
+      key: 'title',
+      header: 'Work',
+      render: (r) => (
+        <Link to={`/requirements/${r.id}`} className="font-medium text-primary-700 hover:underline">
+          {r.title}
+        </Link>
+      ),
+    },
     { key: 'account', header: 'Client', render: (r) => r.account?.name || '—' },
     { key: 'status', header: 'Status', render: (r) => <Badge value={r.status} /> },
     { key: 'priority', header: 'Priority', render: (r) => <Badge value={r.priority} /> },
@@ -35,20 +47,32 @@ export default function RequirementsListPage() {
         </div>
       ),
     },
+    {
+      key: 'owner',
+      header: 'Owner',
+      render: (r) => r.sales_owner?.name || '—',
+    },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-heading text-xl font-semibold text-tertiary-900">Requirements</h1>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
-          <option value="">All statuses</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In progress</option>
-          <option value="on_hold">On hold</option>
-          <option value="closed">Closed</option>
-          <option value="dropped">Dropped</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border px-3 py-2 text-sm">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="in_progress">In progress</option>
+            <option value="on_hold">On hold</option>
+            <option value="closed">Closed</option>
+            <option value="dropped">Dropped</option>
+          </select>
+          {canCreateRequirement(user) && (
+            <Link to="/requirements/new" className="btn-primary">
+              + Create
+            </Link>
+          )}
+        </div>
       </div>
       <DataTable columns={columns} rows={rows} loading={loading} />
     </div>

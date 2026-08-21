@@ -4,7 +4,7 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 
 **Sprint tickets live in [docs/SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend for this sprint is **complete and green** (50 tests), including structured logging ([BACKEND-LOGGING.md](BACKEND-LOGGING.md)). **UI/UX must be Jira-like** ([UI-UX-JIRA.md](UI-UX-JIRA.md)). Ticket Done/Open snapshot: [SPRINT-PLAN.md](SPRINT-PLAN.md#ticket-status-snapshot-aug-21). **Next work is frontend:** Day 1 tickets RD-101–104 under the Jira UX note (then RD-125 interview rounds, RD-127 unlock, RD-128 change-password).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Backend green (**62** tests). Dev B Day 1 **RD-103 / RD-104 DONE** — requirement create/edit/detail + seat stages; how to test: [TESTING-RD-103-104.md](TESTING-RD-103-104.md). **UI/UX must be Jira-like** ([UI-UX-JIRA.md](UI-UX-JIRA.md)). Ticket snapshot: [SPRINT-PLAN.md](SPRINT-PLAN.md#ticket-status-snapshot-aug-21). **Next:** Dev A Day 1 (RD-101/102) or Dev B Day 2 (RD-107/108).
 
 ## Backend
 
@@ -14,14 +14,15 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] RD-124 recruiter/vendor avg-day metrics.
 - [x] Ownership on account/requirement mutate paths.
 - [x] RD-130 admin / comments / documents split to routes/controller/service/validation.
-- [x] Test suite: **8 suites / 50 tests** green (`cd server && npm test`). Still no linter (RD-116).
+- [x] Test suite: **10 suites / 62 tests** green (`cd server && npm test`). Still no linter (RD-116).
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 - [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 
 ## Frontend (open — see sprint tickets)
 
 - [x] List pages + login + layout/logout wired to API.
-- [ ] RD-101–104 — account/requirement detail + forms + **seat stage controls**.
+- [x] **RD-103 / RD-104** Requirement detail + create/edit + status + seats stage controls + add seat — [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
+- [ ] RD-101–102 — account/requirement detail + forms (**accounts** still open; requirements done above).
 - [ ] RD-105–108 — profile/submission detail + create flows + assign popup.
 - [ ] RD-109–112, **RD-125** — notes/files, submission stages, **interview rounds (internal + client)**, kanban.
 - [ ] RD-113–114 — role dashboard widgets + real report charts (APIs ready).
@@ -41,4 +42,5 @@ Working task list. Check off / move to [docs/PROGRESS.md](PROGRESS.md) as items 
 - [x] SPRINT-PLAN updated with missing tickets (RD-125–130) and DONE marks (Aug 21).
 - [x] Backend logging guide: [BACKEND-LOGGING.md](BACKEND-LOGGING.md) (linked from AGENTS + README).
 - [x] Jira-like UI/UX standing note: [UI-UX-JIRA.md](UI-UX-JIRA.md) + reference screenshot.
+- [x] RD-103/104 test guide: [TESTING-RD-103-104.md](TESTING-RD-103-104.md).
 - [ ] Keep this file and PROGRESS.md current each session.

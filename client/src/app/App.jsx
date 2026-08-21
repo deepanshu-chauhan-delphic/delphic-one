@@ -5,6 +5,8 @@ import LoginPage from '../pages/auth/LoginPage.jsx';
 import DashboardPage from '../pages/dashboard/DashboardPage.jsx';
 import AccountsListPage from '../pages/accounts/AccountsListPage.jsx';
 import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx';
+import RequirementDetailPage from '../pages/requirements/RequirementDetailPage.jsx';
+import RequirementFormPage from '../pages/requirements/RequirementFormPage.jsx';
 import ProfilesListPage from '../pages/profiles/ProfilesListPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
@@ -32,6 +34,9 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="accounts" element={<AccountsListPage />} />
         <Route path="requirements" element={<RequirementsListPage />} />
+        <Route path="requirements/new" element={<RequirementFormPage />} />
+        <Route path="requirements/:id/edit" element={<RequirementFormPage />} />
+        <Route path="requirements/:id" element={<RequirementDetailPage />} />
         <Route path="profiles" element={<ProfilesListPage />} />
         <Route path="submissions" element={<SubmissionsListPage />} />
         <Route path="reports" element={<ReportsPage />} />

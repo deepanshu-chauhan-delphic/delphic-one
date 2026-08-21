@@ -21,10 +21,12 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 ## Ticket status snapshot (Aug 21)
 
-### Done (9)
+### Done (11)
 
 | Ticket | Name |
 |---|---|
+| RD-103 | Job Requirement detail + seat stage controls + assignees |
+| RD-104 | Add/Edit Job Requirement + status + Add seat |
 | RD-117 | Stage-machine automated tests |
 | RD-118 | Auth + locking automated tests |
 | RD-123 | Stuck leads / stuck requirements on dashboard (API) |
@@ -37,14 +39,12 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 
 Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](BACKEND-LOGGING.md).
 
-### Open (22)
+### Open (21)
 
 | Ticket | Name |
 |---|---|
 | RD-101 | Client/Vendor detail page + stage move |
 | RD-102 | Add/Edit Client/Vendor forms |
-| RD-103 | Job Requirement detail + seat stage controls |
-| RD-104 | Add Job Requirement + status + Add seat |
 | RD-105 | Candidate detail + Add/Edit + resume upload |
 | RD-106 | Assign recruiter popup + assignment history |
 | RD-107 | Submission detail page |
@@ -73,8 +73,8 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 |---|---|---|
 | RD-101 | Dev A | Full detail page for one Client/Vendor — all their info, current status, stage history, a button to move them to the next stage (popup for reason / meeting fields when required) |
 | RD-102 | Dev A | "Add new Client/Vendor" and "Edit" forms (company, POC, vendor/client-specific fields) |
-| RD-103 | Dev B | Full detail page for one Job Requirement — info panels, **seats table with per-seat stage controls** (Open → Interviewing → Offer → BGV → Closed/Dropped, including `joined_at` when closing), who's assigned |
-| RD-104 | Dev B | "Add new Job Requirement" form, requirement status button (Open → In Progress → On Hold → Closed/Dropped), and **Add seat** |
+| RD-103 | Dev B | ~~Full detail page for one Job Requirement — info panels, **seats table with per-seat stage controls** (Open → Interviewing → Offer → BGV → Closed/Dropped, including `joined_at` when closing), who's assigned~~ **DONE (Aug 21)** — `/requirements/:id` |
+| RD-104 | Dev B | ~~"Add new Job Requirement" form, requirement status button (Open → In Progress → On Hold → Closed/Dropped), and **Add seat**~~ **DONE (Aug 21)** — `/requirements/new`, `/:id/edit`, status + add-seat on detail |
 
 ## Day 2 — Sat Aug 23 — Candidates & putting them forward
 
@@ -141,7 +141,7 @@ Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md
 | Area | Backend | Frontend ticket(s) |
 |---|---|---|
 | Accounts CRUD + stages | Done | RD-101, RD-102 |
-| Requirements + seats + assign | Done | RD-103, RD-104, RD-106 |
+| Requirements + seats + assign | Done | **RD-103 DONE**, **RD-104 DONE**, RD-106 |
 | Profiles + resume upload | Done | RD-105, RD-109/110 |
 | Submissions + margin + stages | Done | RD-107, RD-108, RD-111 |
 | Interview rounds (incl. **internal** + feedback) | Done (API; feedback on create/PATCH) | **RD-125** UI |

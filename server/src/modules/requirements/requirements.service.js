@@ -1,21 +1,8 @@
 const prisma = require('../../config/db');
-
-const STATUS_TRANSITIONS = {
-  open: ['in_progress', 'on_hold', 'closed', 'dropped'],
-  in_progress: ['on_hold', 'closed', 'dropped'],
-  on_hold: ['open', 'in_progress', 'dropped'],
-  closed: [],
-  dropped: [],
-};
-
-const SEAT_TRANSITIONS = {
-  open: ['interviewing', 'dropped'],
-  interviewing: ['offer', 'dropped'],
-  offer: ['bgv', 'dropped'],
-  bgv: ['closed', 'dropped'],
-  closed: [],
-  dropped: [],
-};
+const {
+  REQUIREMENT_STATUS_TRANSITIONS,
+  SEAT_STATUS_TRANSITIONS,
+} = require('./stageMachines');
 
 function serialize(row) {
   if (!row) return null;
@@ -140,7 +127,7 @@ async function changeStatus(id, { to_status, reason }, user) {
     if (!requirement) return { error: 'not_found' };
     if (!canMutateRequirement(requirement, user)) return { error: 'forbidden' };
     if (requirement.is_locked) return { error: 'locked' };
-    if (!(STATUS_TRANSITIONS[requirement.status] || []).includes(to_status)) return { error: 'invalid_transition' };
+    if (!(REQUIREMENT_STATUS_TRANSITIONS[requirement.status] || []).includes(to_status)) return { error: 'invalid_transition' };
     if (to_status === 'dropped' && !reason) return { error: 'reason_required' };
 
     if (to_status === 'closed') {
@@ -283,7 +270,7 @@ async function changeSeatStatus(seatId, { to_status, reason, joined_at }, userId
     const seat = await tx.requirementSeat.findUnique({ where: { id: seatId } });
     if (!seat) return { error: 'not_found' };
     if (seat.is_locked) return { error: 'locked' };
-    if (!(SEAT_TRANSITIONS[seat.seat_status] || []).includes(to_status)) return { error: 'invalid_transition' };
+    if (!(SEAT_STATUS_TRANSITIONS[seat.seat_status] || []).includes(to_status)) return { error: 'invalid_transition' };
     if (to_status === 'dropped' && !reason) return { error: 'reason_required' };
     if (to_status === 'closed' && !joined_at) return { error: 'joined_at_required' };
 
