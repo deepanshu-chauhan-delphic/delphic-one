@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
+import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMutateSubmission,
@@ -95,9 +96,13 @@ export default function RequirementKanbanPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to={`/requirements/${id}`} className="text-xs text-primary-600 hover:underline">
-            ← {requirement.title}
-          </Link>
+          <Breadcrumbs
+            items={[
+              { label: 'Requirements', to: '/requirements' },
+              { label: requirement.title, to: `/requirements/${id}` },
+              { label: 'Pipeline board' },
+            ]}
+          />
           <h1 className="mt-1 font-heading text-xl font-semibold text-tertiary-900">Pipeline board</h1>
           <p className="mt-1 text-sm text-tertiary-500">
             {requirement.account?.name || '—'} · {submissions.length} candidate(s)

@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
+import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import ProfileFormPage from './ProfileFormPage.jsx';
@@ -87,12 +88,13 @@ export default function ProfileDetailPage() {
   return (
     <div className="space-y-4">
       <div className="border-b pb-3">
-        <div className="mb-2 flex items-center gap-2 text-xs text-tertiary-500">
-          <Link to="/profiles" className="text-primary-700 hover:underline">Profiles</Link>
-          <span>/</span>
-          <span>{profileKey(profile.id)}</span>
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <Breadcrumbs
+          items={[
+            { label: 'Profiles', to: '/profiles' },
+            { label: profileKey(profile.id) },
+          ]}
+        />
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm font-medium text-primary-700">{profileKey(profile.id)}</span>

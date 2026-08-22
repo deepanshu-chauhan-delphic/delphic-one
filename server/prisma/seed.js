@@ -405,6 +405,10 @@ async function seedRequirements(users, accounts) {
       req_type: 'developer',
       status: 'open',
       description: 'Need Java 17 + Spring Boot. No submissions yet — aging.',
+      job_description:
+        'We are looking for a Senior Java Developer to design and build backend services for our client\'s core platform.\n\n' +
+        'Responsibilities:\n- Design and implement REST APIs using Java 17 and Spring Boot\n- Own service reliability and performance for high-traffic endpoints\n- Mentor junior engineers and review code\n\n' +
+        'Requirements:\n- 5-10 years of backend development experience\n- Strong hands-on experience with Spring Boot and Kafka\n- Experience with microservices architecture',
       designation: 'Senior Java Developer',
       department: 'Engineering',
       seats_total: 2,
@@ -434,6 +438,10 @@ async function seedRequirements(users, accounts) {
       req_type: 'developer',
       status: 'in_progress',
       description: 'SPA work on customer portal.',
+      job_description:
+        'Join the team building a customer-facing single-page application in React and TypeScript.\n\n' +
+        'Responsibilities:\n- Build responsive UI components with React and TypeScript\n- Collaborate with design on the customer portal experience\n- Write unit and integration tests\n\n' +
+        'Requirements:\n- 3-7 years of frontend experience\n- Strong React + TypeScript skills\n- Familiarity with Tailwind CSS a plus',
       designation: 'Frontend Engineer',
       department: 'Product',
       seats_total: 4,

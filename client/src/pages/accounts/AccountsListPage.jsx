@@ -8,6 +8,7 @@ import Drawer from '../../components/ui/Drawer.jsx';
 import ListToolbar from '../../components/ui/ListToolbar.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
+import { accountAccent } from '../../lib/accountAccent.js';
 
 function AccountPeek({ row, onClose, onChanged }) {
   const { user } = useAuth();
@@ -25,9 +26,15 @@ function AccountPeek({ row, onClose, onChanged }) {
       .finally(() => setLoading(false));
   }, [row]);
 
+  const accent = accountAccent(detail.id);
+
   return (
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
+      <div className={`flex items-center gap-2 rounded-xl border-l-4 bg-tertiary-50 px-3 py-2 ${accent.border}`}>
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
+        <span className={`text-xs font-medium ${accent.text}`}>This account&rsquo;s color — same everywhere it appears</span>
+      </div>
       <dl className="grid gap-4 sm:grid-cols-2">
         <PeekField label="Key">{accountKey(detail.id)}</PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
@@ -151,10 +158,17 @@ export default function AccountsListPage() {
         key: 'account',
         header: 'Account',
         render: (row) => (
-          <div>
-            <div className="font-medium text-primary-700">{accountKey(row.id)}</div>
-            <div className="text-tertiary-900">{row.name}</div>
-            {row.poc_name && <div className="mt-0.5 text-xs text-tertiary-500">{row.poc_name}</div>}
+          <div className="flex items-start gap-2">
+            <span
+              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${accountAccent(row.id).dot}`}
+              aria-hidden="true"
+              title="Account color"
+            />
+            <div>
+              <div className="font-medium text-primary-700">{accountKey(row.id)}</div>
+              <div className="text-tertiary-900">{row.name}</div>
+              {row.poc_name && <div className="mt-0.5 text-xs text-tertiary-500">{row.poc_name}</div>}
+            </div>
           </div>
         ),
       },

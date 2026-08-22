@@ -11,6 +11,7 @@ const emptyForm = {
   req_type: 'developer',
   seats_total: 1,
   description: '',
+  job_description: '',
   designation: '',
   department: '',
   primary_tech_stack: [],
@@ -41,6 +42,7 @@ function buildPayload(form, { isCreate }) {
     title: form.title.trim(),
     req_type: form.req_type,
     description: form.description.trim() || undefined,
+    job_description: form.job_description.trim() || undefined,
     designation: form.designation.trim() || undefined,
     department: form.department.trim() || undefined,
     primary_tech_stack: form.primary_tech_stack,
@@ -76,6 +78,7 @@ function hydrateForm(req) {
     req_type: req.req_type || 'developer',
     seats_total: req.seats_total || 1,
     description: req.description || '',
+    job_description: req.job_description || '',
     designation: req.designation || '',
     department: req.department || '',
     primary_tech_stack: req.primary_tech_stack || [],
@@ -288,12 +291,24 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Description</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Short summary</label>
               <textarea
-                rows={3}
+                rows={2}
                 value={form.description}
                 onChange={(e) => updateField('description', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="One or two lines shown on lists and cards"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Job description</label>
+              <textarea
+                rows={6}
+                value={form.job_description}
+                onChange={(e) => updateField('job_description', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="Full job description — responsibilities, requirements, etc."
               />
             </div>
 

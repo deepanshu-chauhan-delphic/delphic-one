@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import apiClient from '../lib/apiClient.js';
-import Drawer from './ui/Drawer.jsx';
+import Modal from './ui/Modal.jsx';
 import Tooltip from './ui/Tooltip.jsx';
 
 function apiErrorMessage(error, fallback) {
@@ -52,11 +52,9 @@ export default function UnlockButton({ entityType, entityId, onUnlocked, label =
         </button>
       </Tooltip>
 
-      <Drawer
+      <Modal
         open={open}
         title="Unlock record"
-        tone="edit"
-        size="sm"
         onClose={close}
         footer={
           <>
@@ -84,7 +82,7 @@ export default function UnlockButton({ entityType, entityId, onUnlocked, label =
             />
           </label>
         </form>
-      </Drawer>
+      </Modal>
     </>
   );
 }

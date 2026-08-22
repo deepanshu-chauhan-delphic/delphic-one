@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
-import Drawer from '../../components/ui/Drawer.jsx';
+import Modal from '../../components/ui/Modal.jsx';
+import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import Tooltip from '../../components/ui/Tooltip.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
@@ -224,9 +225,12 @@ export default function SubmissionDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/submissions" className="text-xs text-primary-600 hover:underline">
-            ← Submissions
-          </Link>
+          <Breadcrumbs
+            items={[
+              { label: 'Submissions', to: '/submissions' },
+              { label: submission.profile?.name || 'Submission' },
+            ]}
+          />
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className="font-heading text-xl font-semibold text-tertiary-900">
               {submission.profile?.name || 'Submission'}
@@ -662,10 +666,8 @@ export default function SubmissionDetailPage() {
         </ul>
       </section>
 
-      <Drawer
+      <Modal
         open={Boolean(stageModal)}
-        size="sm"
-        tone={requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal) ? 'danger' : 'edit'}
         title={`Move to ${stageModal?.replace(/_/g, ' ') || ''}`}
         onClose={() => !busy && setStageModal(null)}
         footer={
@@ -704,7 +706,7 @@ export default function SubmissionDetailPage() {
             Confirm moving this submission to {stageModal?.replace(/_/g, ' ')}.
           </p>
         )}
-      </Drawer>
+      </Modal>
     </div>
   );
 }

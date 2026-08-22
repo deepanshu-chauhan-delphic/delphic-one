@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import apiClient from '../lib/apiClient.js';
-import Drawer from './ui/Drawer.jsx';
+import Modal from './ui/Modal.jsx';
 
-export default function ChangePasswordDrawer({ open, onClose }) {
+export default function ChangePasswordModal({ open, onClose }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,12 +55,10 @@ export default function ChangePasswordDrawer({ open, onClose }) {
   }
 
   return (
-    <Drawer
+    <Modal
       open={open}
       title="Change password"
       onClose={handleClose}
-      size="sm"
-      tone="edit"
       footer={
         <>
           <button type="button" className="btn-secondary" onClick={handleClose}>
@@ -111,6 +109,6 @@ export default function ChangePasswordDrawer({ open, onClose }) {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-700">{success}</p>}
       </form>
-    </Drawer>
+    </Modal>
   );
 }

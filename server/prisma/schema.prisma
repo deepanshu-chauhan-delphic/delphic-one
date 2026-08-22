@@ -279,6 +279,7 @@ model Requirement {
   status     RequirementStatus  @default(open)
 
   description     String?
+  job_description String?
   jd_document_url String?
   designation     String?
   department      String?

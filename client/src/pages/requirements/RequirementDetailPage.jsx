@@ -5,7 +5,9 @@ import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import Modal from '../../components/ui/Modal.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
+import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import Tooltip from '../../components/ui/Tooltip.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
@@ -240,9 +242,12 @@ export default function RequirementDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/requirements" className="text-xs text-primary-600 hover:underline">
-            ← Requirements
-          </Link>
+          <Breadcrumbs
+            items={[
+              { label: 'Requirements', to: '/requirements' },
+              { label: requirement.title },
+            ]}
+          />
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className="font-heading text-xl font-semibold text-tertiary-900">{requirement.title}</h1>
             <Badge value={requirement.status} />
@@ -401,6 +406,13 @@ export default function RequirementDetailPage() {
         </section>
       </div>
 
+      {requirement.job_description && (
+        <section className="rounded-lg border bg-white p-4">
+          <h2 className="text-sm font-semibold text-tertiary-800">Job description</h2>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-tertiary-700">{requirement.job_description}</p>
+        </section>
+      )}
+
       {/* Seats */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -440,13 +452,11 @@ export default function RequirementDetailPage() {
         />
       </div>
 
-      {/* Requirement status drawer */}
-      <Drawer
+      {/* Requirement status confirmation */}
+      <Modal
         open={Boolean(statusModal)}
         title={`Move requirement to ${statusModal?.replace(/_/g, ' ') || ''}`}
-        tone={statusModal === 'dropped' ? 'danger' : 'edit'}
         onClose={() => !busy && setStatusModal(null)}
-        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setStatusModal(null)}>
@@ -481,15 +491,13 @@ export default function RequirementDetailPage() {
         {!requiresDropReason(statusModal) && statusModal !== 'closed' && (
           <p className="text-tertiary-600">Confirm moving this requirement to {statusModal?.replace(/_/g, ' ')}.</p>
         )}
-      </Drawer>
+      </Modal>
 
-      {/* Seat stage drawer */}
-      <Drawer
+      {/* Seat stage confirmation */}
+      <Modal
         open={Boolean(seatModal)}
         title={`Move ${seatModal?.seatLabel || 'seat'} → ${seatModal?.toStatus?.replace(/_/g, ' ') || ''}`}
-        tone={seatModal?.toStatus === 'dropped' ? 'danger' : 'edit'}
         onClose={() => !busy && setSeatModal(null)}
-        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setSeatModal(null)}>
@@ -535,15 +543,13 @@ export default function RequirementDetailPage() {
         {!requiresDropReason(seatModal?.toStatus) && !requiresJoinedAt(seatModal?.toStatus) && (
           <p className="text-tertiary-600">Confirm this seat stage change.</p>
         )}
-      </Drawer>
+      </Modal>
 
-      {/* Add seat drawer */}
-      <Drawer
+      {/* Add seat confirmation */}
+      <Modal
         open={addSeatOpen}
         title="Add seat"
-        tone="create"
         onClose={() => !busy && setAddSeatOpen(false)}
-        size="sm"
         footer={
           <>
             <button type="button" className="btn-secondary" disabled={busy} onClick={() => setAddSeatOpen(false)}>
@@ -562,7 +568,7 @@ export default function RequirementDetailPage() {
           className="w-full rounded-md border px-3 py-2 text-sm"
           placeholder="e.g. Seat 3 — Backend"
         />
-      </Drawer>
+      </Modal>
 
       <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="md" tone="edit">
         {editOpen && (

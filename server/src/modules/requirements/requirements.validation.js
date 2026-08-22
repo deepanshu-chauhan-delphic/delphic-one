@@ -2,6 +2,7 @@ const { z } = require('zod');
 
 const baseFields = {
   description: z.string().optional(),
+  job_description: z.string().optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
 

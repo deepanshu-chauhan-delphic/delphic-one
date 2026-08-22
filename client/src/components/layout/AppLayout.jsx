@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../lib/authContext.jsx';
 import { usePermissions } from '../../lib/permissions.js';
-import ChangePasswordDrawer from '../ChangePasswordDrawer.jsx';
+import ChangePasswordModal from '../ChangePasswordModal.jsx';
 import IconButton from '../ui/IconButton.jsx';
 import Avatar from '../ui/Avatar.jsx';
 import { NAV_ITEMS } from './navItems.js';
@@ -248,7 +248,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <ChangePasswordDrawer open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>
   );
 }

@@ -4,11 +4,14 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import Modal from '../../components/ui/Modal.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
+import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
+import { accountAccent } from '../../lib/accountAccent.js';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, formatAccountValue } from './accountUtils.js';
 
 function DetailField({ label, value, children }) {
@@ -29,7 +32,7 @@ function DetailSection({ title, children }) {
   );
 }
 
-function StageMoveDrawer({ account, error, saving, open, onClose, onMove }) {
+function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
   const stages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const [toStage, setToStage] = useState(stages[0] || '');
   const [reason, setReason] = useState('');
@@ -52,10 +55,9 @@ function StageMoveDrawer({ account, error, saving, open, onClose, onMove }) {
   }
 
   return (
-    <Drawer
+    <Modal
       open={open}
       title="Move account stage"
-      tone={toStage === 'dropped' ? 'danger' : 'edit'}
       onClose={() => !saving && onClose()}
       footer={
         <>
@@ -119,7 +121,7 @@ function StageMoveDrawer({ account, error, saving, open, onClose, onMove }) {
           </label>
         )}
       </form>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -196,24 +198,34 @@ export default function AccountDetailPage() {
   const canMutate = canMutateAccount(account, user);
   const nextStages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const additionalContacts = Array.isArray(account.additional_contacts) ? account.additional_contacts : [];
+  const accent = accountAccent(account.id);
 
   return (
     <div className="space-y-4">
-      <div className="border-b pb-3">
-        <div className="mb-2 flex items-center gap-2 text-xs text-tertiary-500">
-          <Link to="/accounts" className="text-primary-700 hover:underline">Accounts</Link>
-          <span>/</span>
-          <span>{accountKey(account.id)}</span>
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm font-medium text-primary-700">{accountKey(account.id)}</span>
-              <Badge value={account.stage} />
-              {account.is_locked && <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Locked</span>}
+      <div className={`border-b border-l-4 pb-3 pl-3 ${accent.border}`}>
+        <Breadcrumbs
+          items={[
+            { label: 'Accounts', to: '/accounts' },
+            { label: accountKey(account.id) },
+          ]}
+        />
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${accent.dot}`}
+              aria-hidden="true"
+            >
+              {account.name?.slice(0, 2).toUpperCase()}
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm font-medium text-primary-700">{accountKey(account.id)}</span>
+                <Badge value={account.stage} />
+                {account.is_locked && <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Locked</span>}
+              </div>
+              <h1 className="mt-1 font-heading text-2xl font-semibold text-tertiary-900">{account.name}</h1>
+              <p className="mt-1 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
             </div>
-            <h1 className="mt-1 font-heading text-2xl font-semibold text-tertiary-900">{account.name}</h1>
-            <p className="mt-1 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canMutate && !account.is_locked && (
@@ -357,7 +369,7 @@ export default function AccountDetailPage() {
       </div>
 
       {account && (
-        <StageMoveDrawer
+        <StageMoveModal
           account={account}
           open={isStageModalOpen}
           error={stageError}
