@@ -59,12 +59,14 @@ export default function AppLayout() {
 
   const navContent = (
     <>
-      <div className={`flex items-center gap-2 px-3 py-4 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-sm font-bold text-white">
+      <div className={`flex items-center gap-2.5 px-3 py-3.5 ${collapsed ? 'justify-center' : ''}`}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-[13px] font-bold tracking-tight text-white shadow-sm ring-1 ring-primary-700/20">
           D
         </div>
         {!collapsed && (
-          <span className="font-heading text-lg font-semibold text-tertiary-900">Delphic</span>
+          <span className="font-heading text-base font-semibold tracking-tight text-primary-700">
+            Delphic
+          </span>
         )}
       </div>
       <nav className="flex-1 space-y-1 px-2">

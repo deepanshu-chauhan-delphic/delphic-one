@@ -46,21 +46,26 @@ function funnelChartData(funnel) {
 
 function StuckLeadsPanel({ rows }) {
   return (
-    <section className="rounded-2xl border bg-white shadow-soft">
-      <h2 className="border-b px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">Stuck leads</h2>
-      <ul className="divide-y">
+    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+        Stuck leads
+      </h2>
+      <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (
-          <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+          <li
+            key={row.id}
+            className="flex items-center justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
+          >
             <Link to={`/accounts/${row.id}`} className="font-medium text-primary-700 transition-colors hover:underline">
               {row.name}
             </Link>
-            <span className="shrink-0 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">
+            <span className="shrink-0 rounded-md bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700">
               {row.days_in_stage}d in stage
             </span>
           </li>
         ))}
         {(!rows || rows.length === 0) && (
-          <li className="px-4 py-4 text-sm text-tertiary-400">No stuck leads (7+ days).</li>
+          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No stuck leads (7+ days).</li>
         )}
       </ul>
     </section>
@@ -69,24 +74,29 @@ function StuckLeadsPanel({ rows }) {
 
 function StuckRequirementsPanel({ rows }) {
   return (
-    <section className="rounded-2xl border bg-white shadow-soft">
-      <h2 className="border-b px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">Stuck requirements</h2>
-      <ul className="divide-y">
+    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+        Stuck requirements
+      </h2>
+      <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (
-          <li key={row.id} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
+          <li
+            key={row.id}
+            className="flex items-start justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
+          >
             <div className="min-w-0">
               <Link to={`/requirements/${row.id}`} className="font-medium text-primary-700 transition-colors hover:underline">
                 {row.title}
               </Link>
               <div className="mt-0.5 text-xs text-tertiary-500">{row.submissions_count} submissions</div>
             </div>
-            <span className="shrink-0 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">
+            <span className="shrink-0 rounded-md bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700">
               {row.days_open}d open
             </span>
           </li>
         ))}
         {(!rows || rows.length === 0) && (
-          <li className="px-4 py-4 text-sm text-tertiary-400">No stuck requirements (7+ days).</li>
+          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No stuck requirements (7+ days).</li>
         )}
       </ul>
     </section>
@@ -95,14 +105,19 @@ function StuckRequirementsPanel({ rows }) {
 
 function RecentActivityPanel({ rows }) {
   return (
-    <section className="rounded-2xl border bg-white shadow-soft">
-      <h2 className="border-b px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">Recent activity</h2>
-      <ul className="divide-y">
+    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+        Recent activity
+      </h2>
+      <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((item, index) => {
           const path = entityPath(item.entity_type, item.entity_id);
           const label = item.entity_label || item.entity_type;
           return (
-            <li key={`${item.entity_id}-${item.timestamp}-${index}`} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
+            <li
+              key={`${item.entity_id}-${item.timestamp}-${index}`}
+              className="flex items-start justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
+            >
               <div className="min-w-0 text-tertiary-700">
                 <span className="font-medium text-tertiary-900">{item.user?.name || 'Someone'}</span>
                 {' '}
@@ -123,7 +138,7 @@ function RecentActivityPanel({ rows }) {
           );
         })}
         {(!rows || rows.length === 0) && (
-          <li className="px-4 py-4 text-sm text-tertiary-400">No recent activity.</li>
+          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No recent activity.</li>
         )}
       </ul>
     </section>
@@ -140,10 +155,10 @@ function PipelineSection({ funnel, role }) {
   const ctaPath = isBda ? '/accounts' : '/requirements';
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-2.5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="font-heading text-lg font-semibold text-tertiary-900">{title}</h2>
+          <h2 className="font-heading text-base font-semibold tracking-tight text-tertiary-900">{title}</h2>
           <p className="mt-0.5 text-sm text-tertiary-500">
             Live counts by stage{total > 0 ? ` · ${total} total in pipeline` : ''}
           </p>
@@ -156,9 +171,9 @@ function PipelineSection({ funnel, role }) {
             {data.map((row) => (
               <span
                 key={row.stage}
-                className="rounded-full border bg-white px-2.5 py-1 text-xs tabular-nums text-tertiary-700 shadow-soft"
+                className="rounded-md border border-tertiary-200 bg-white px-2 py-0.5 text-xs tabular-nums text-tertiary-700"
               >
-                <span className="font-medium text-tertiary-900">{row.count}</span> {row.label}
+                <span className="font-semibold text-tertiary-900">{row.count}</span> {row.label}
               </span>
             ))}
           </div>
@@ -251,13 +266,13 @@ export default function DashboardPage() {
   const showStuckRequirements = role === 'admin' || role === 'sales' || role === 'recruiter';
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-tertiary-200 pb-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">
+          <h1 className="font-heading text-xl font-semibold tracking-tight text-tertiary-900">
             {user?.name ? `${user.name}'s Dashboard` : 'Dashboard'}
           </h1>
-          <p className="mt-1 text-sm text-tertiary-500">{copy.subtitle}</p>
+          <p className="mt-0.5 text-sm text-tertiary-500">{copy.subtitle}</p>
         </div>
       </div>
 

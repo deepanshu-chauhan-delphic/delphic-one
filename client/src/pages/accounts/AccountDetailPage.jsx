@@ -17,17 +17,19 @@ import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, for
 function DetailField({ label, value, children }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs font-medium uppercase tracking-wide text-tertiary-500">{label}</dt>
-      <dd className="mt-1 break-words text-sm capitalize text-tertiary-900">{children || formatAccountValue(value)}</dd>
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-tertiary-500">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm capitalize text-tertiary-900">{children || formatAccountValue(value)}</dd>
     </div>
   );
 }
 
 function DetailSection({ title, children }) {
   return (
-    <section className="rounded border bg-white">
-      <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">{title}</h2>
-      <dl className="grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
+    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold tracking-tight text-tertiary-900">
+        {title}
+      </h2>
+      <dl className="grid gap-x-5 gap-y-3 p-3.5 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
     </section>
   );
 }
@@ -70,14 +72,14 @@ function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
     >
       <form id="account-stage-form" onSubmit={submit} className="space-y-3">
         <p className="text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
-        {error && <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {error && <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
         <label className="block text-xs font-medium text-tertiary-600">
           Next stage
           <select
             required
             value={toStage}
             onChange={(event) => setToStage(event.target.value)}
-            className="mt-1 w-full rounded border px-2 py-1.5 text-sm capitalize"
+            className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm capitalize focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
           >
             {stages.map((stage) => <option key={stage} value={stage}>{formatAccountValue(stage)}</option>)}
           </select>
@@ -90,7 +92,7 @@ function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
                 required
                 value={meetingMode}
                 onChange={(event) => setMeetingMode(event.target.value)}
-                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
               >
                 <option value="online">Online</option>
                 <option value="offline">Offline</option>
@@ -103,7 +105,7 @@ function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
                 type="datetime-local"
                 value={meetingDate}
                 onChange={(event) => setMeetingDate(event.target.value)}
-                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
             </label>
           </>
@@ -116,7 +118,7 @@ function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
               rows={3}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
             />
           </label>
         )}
@@ -189,7 +191,7 @@ export default function AccountDetailPage() {
   if (error || !account) {
     return (
       <div className="space-y-3">
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error || 'Account not found'}</div>
+        <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error || 'Account not found'}</div>
         <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>
       </div>
     );
@@ -201,8 +203,8 @@ export default function AccountDetailPage() {
   const accent = accountAccent(account.id);
 
   return (
-    <div className="space-y-4">
-      <div className={`border-b border-l-4 pb-3 pl-3 ${accent.border}`}>
+    <div className="space-y-3.5">
+      <div className={`border-b border-tertiary-200 border-l-4 pb-3 pl-3 ${accent.border}`}>
         <Breadcrumbs
           items={[
             { label: 'Accounts', to: '/accounts' },
@@ -212,19 +214,19 @@ export default function AccountDetailPage() {
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span
-              className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${accent.dot}`}
+              className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white ${accent.dot}`}
               aria-hidden="true"
             >
               {account.name?.slice(0, 2).toUpperCase()}
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm font-medium text-primary-700">{accountKey(account.id)}</span>
+                <span className="font-mono text-sm font-medium tracking-tight text-primary-700">{accountKey(account.id)}</span>
                 <Badge value={account.stage} />
-                {account.is_locked && <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Locked</span>}
+                {account.is_locked && <span className="rounded-md bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-700">Locked</span>}
               </div>
-              <h1 className="mt-1 font-heading text-2xl font-semibold text-tertiary-900">{account.name}</h1>
-              <p className="mt-1 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
+              <h1 className="mt-0.5 font-heading text-xl font-semibold tracking-tight text-tertiary-900">{account.name}</h1>
+              <p className="mt-0.5 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -242,14 +244,14 @@ export default function AccountDetailPage() {
       </div>
 
       {account.is_locked && (
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           This account is locked because it reached a terminal stage. It remains available for viewing.
           {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <div className="space-y-4">
+      <div className="grid gap-3.5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="space-y-3.5">
           <DetailSection title="Company information">
             <DetailField label="Type" value={account.type} />
             <DetailField label="Industry" value={account.industry} />
@@ -311,31 +313,33 @@ export default function AccountDetailPage() {
             )}
           </DetailSection>
 
-          <section className="overflow-hidden rounded border bg-white">
-            <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Additional contacts</h2>
+          <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+            <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold tracking-tight text-tertiary-900">
+              Additional contacts
+            </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b bg-white text-xs uppercase text-tertiary-500">
+                <thead className="border-b border-tertiary-100 bg-white text-[11px] uppercase tracking-wide text-tertiary-500">
                   <tr>
-                    <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">Role</th>
-                    <th className="px-4 py-2 font-medium">Designation</th>
-                    <th className="px-4 py-2 font-medium">Email</th>
-                    <th className="px-4 py-2 font-medium">Phone</th>
+                    <th className="px-3.5 py-2 font-medium">Name</th>
+                    <th className="px-3.5 py-2 font-medium">Role</th>
+                    <th className="px-3.5 py-2 font-medium">Designation</th>
+                    <th className="px-3.5 py-2 font-medium">Email</th>
+                    <th className="px-3.5 py-2 font-medium">Phone</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-tertiary-100">
                   {additionalContacts.map((contact, index) => (
-                    <tr key={`${contact.email || contact.name}-${index}`} className="hover:bg-tertiary-50">
-                      <td className="px-4 py-2 text-tertiary-900">{formatAccountValue(contact.name)}</td>
-                      <td className="px-4 py-2">{formatAccountValue(contact.role_label)}</td>
-                      <td className="px-4 py-2">{formatAccountValue(contact.designation)}</td>
-                      <td className="px-4 py-2 normal-case">{formatAccountValue(contact.email)}</td>
-                      <td className="px-4 py-2">{formatAccountValue(contact.phone)}</td>
+                    <tr key={`${contact.email || contact.name}-${index}`} className="transition-colors hover:bg-primary-50/40">
+                      <td className="px-3.5 py-2 text-tertiary-900">{formatAccountValue(contact.name)}</td>
+                      <td className="px-3.5 py-2">{formatAccountValue(contact.role_label)}</td>
+                      <td className="px-3.5 py-2">{formatAccountValue(contact.designation)}</td>
+                      <td className="px-3.5 py-2 normal-case">{formatAccountValue(contact.email)}</td>
+                      <td className="px-3.5 py-2">{formatAccountValue(contact.phone)}</td>
                     </tr>
                   ))}
                   {additionalContacts.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-5 text-center text-tertiary-400">No additional contacts</td></tr>
+                    <tr><td colSpan={5} className="px-3.5 py-4 text-center text-tertiary-400">No additional contacts</td></tr>
                   )}
                 </tbody>
               </table>
@@ -343,24 +347,26 @@ export default function AccountDetailPage() {
           </section>
         </div>
 
-        <aside className="space-y-4 self-start xl:sticky xl:top-0">
-          <section className="rounded border bg-white">
-            <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Stage history</h2>
-            <ol className="divide-y">
+        <aside className="space-y-3.5 self-start xl:sticky xl:top-0">
+          <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
+            <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold tracking-tight text-tertiary-900">
+              Stage history
+            </h2>
+            <ol className="divide-y divide-tertiary-100">
               {history.map((entry) => (
-                <li key={entry.id} className="px-4 py-3">
+                <li key={entry.id} className="px-3.5 py-2.5 transition-colors hover:bg-primary-50/40">
                   <div className="flex items-center gap-2 text-sm">
                     <Badge value={entry.from_stage} />
                     <span className="text-tertiary-400">→</span>
                     <Badge value={entry.to_stage} />
                   </div>
-                  <p className="mt-2 text-xs text-tertiary-500">
+                  <p className="mt-1.5 text-xs text-tertiary-500">
                     {entry.changed_by?.name || 'Unknown'} · {new Date(entry.changed_at).toLocaleString()}
                   </p>
                   {entry.reason && <p className="mt-1 text-sm text-tertiary-700">{entry.reason}</p>}
                 </li>
               ))}
-              {history.length === 0 && <li className="px-4 py-5 text-sm text-tertiary-400">No stage changes yet.</li>}
+              {history.length === 0 && <li className="px-3.5 py-4 text-sm text-tertiary-400">No stage changes yet.</li>}
             </ol>
           </section>
           <NotesPanel entityType="account" entityId={account.id} />
