@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateRequirement } from '../../lib/requirementStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
-import ListToolbar from '../../components/ui/ListToolbar.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canAssignRecruiters } from '../profiles/profileUtils.js';
@@ -175,9 +175,9 @@ export default function RequirementsListPage() {
         key: 'work',
         header: 'Work',
         render: (row) => (
-          <div>
-            <div className="font-mono text-xs text-primary-700">{reqKey(row.id)}</div>
-            <div className="font-medium text-tertiary-900">{row.title}</div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-primary-600">{reqKey(row.id)}</div>
+            <div className="font-semibold text-tertiary-900">{row.title}</div>
           </div>
         ),
       },
@@ -191,7 +191,7 @@ export default function RequirementsListPage() {
         render: (row) => (
           <div className="flex flex-wrap gap-1">
             {(row.primary_tech_stack || []).slice(0, 3).map((t) => (
-              <span key={t} className="rounded-full bg-primary-50 px-1.5 py-0.5 text-xs text-primary-700">
+              <span key={t} className="rounded-full bg-canvas-muted px-2 py-0.5 text-xs text-tertiary-600">
                 {t}
               </span>
             ))}
@@ -203,55 +203,84 @@ export default function RequirementsListPage() {
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">Requirements</h1>
-          <p className="mt-1 text-sm text-tertiary-500">Open jobs, seats, and recruiter assignments.</p>
-        </div>
-        {canCreateRequirement(user) && (
-          <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+    <div className="space-y-2">
+      {canCreateRequirement(user) && (
+        <div className="flex justify-end">
+          <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
             + Create
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <ListToolbar>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setAppliedSearch(search.trim());
-          }}
-          className="flex"
-        >
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search title or client"
-            className="w-56 rounded-l-xl border px-2 py-1.5 text-sm"
-          />
-          <button type="submit" className="rounded-r-xl border border-l-0 bg-tertiary-50 px-3 text-xs font-medium text-tertiary-700">
-            Search
-          </button>
-        </form>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border bg-white px-2 py-1.5 text-sm">
-          <option value="">Status: All</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In progress</option>
-          <option value="on_hold">On hold</option>
-          <option value="closed">Closed</option>
-          <option value="dropped">Dropped</option>
-        </select>
-        <select value={priority} onChange={(e) => setPriority(e.target.value)} className="rounded-xl border bg-white px-2 py-1.5 text-sm">
-          <option value="">Priority: All</option>
-          <option value="urgent">Urgent</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </ListToolbar>
+      <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+        <div className="border-b border-tertiary-100 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-xs font-medium text-tertiary-700">
+                <Filter className="h-3.5 w-3.5" />
+                Filters
+              </span>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setAppliedSearch(search.trim());
+                }}
+                className="flex"
+              >
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search title or client"
+                  className="w-56 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+                <button
+                  type="submit"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                >
+                  Search
+                </button>
+              </form>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              >
+                <option value="">Status: All</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="on_hold">On hold</option>
+                <option value="closed">Closed</option>
+                <option value="dropped">Dropped</option>
+              </select>
+              <select
+                value={priority}
+                onChange={(event) => setPriority(event.target.value)}
+                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              >
+                <option value="">Priority: All</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-      <DataTable columns={columns} rows={rows} loading={loading} emptyLabel="No records found" onRowClick={setPeek} />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          emptyLabel="No requirements match these filters."
+          onRowClick={setPeek}
+          headerClassName="bg-[#F9FAFB]"
+          striped
+          embedded
+        />
+      </section>
+
       <div className="px-1 text-xs text-tertiary-500">
         {rows.length} of {rows.length}
       </div>

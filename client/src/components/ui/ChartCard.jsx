@@ -4,7 +4,7 @@
  */
 export default function ChartCard({ title, subtitle, action, children, className = '' }) {
   return (
-    <section className={`rounded-xl border border-tertiary-200 bg-white p-3.5 ${className}`}>
+    <section className={`rounded-xl border border-tertiary-100 bg-white p-4 shadow-card ${className}`}>
       <div className="mb-2.5 flex items-start justify-between gap-3">
         <div>
           <h2 className="font-heading text-sm font-semibold tracking-tight text-tertiary-900">{title}</h2>

@@ -21,13 +21,16 @@ const COLOR_MAP = {
   cleared: 'bg-green-50 text-green-700',
   failed: 'bg-red-50 text-red-700',
   active: 'bg-green-50 text-green-700',
-  lead: 'bg-tertiary-100 text-tertiary-700',
+  lead: 'bg-purple-50 text-purple-700',
   meeting_scheduled: 'bg-blue-50 text-blue-700',
   rescheduled: 'bg-amber-50 text-amber-700',
   urgent: 'bg-red-50 text-red-700',
   high: 'bg-amber-50 text-amber-700',
   medium: 'bg-blue-50 text-blue-700',
   low: 'bg-tertiary-100 text-tertiary-700',
+  internal: 'bg-blue-50 text-blue-700',
+  vendor: 'bg-amber-50 text-amber-800',
+  linkedin: 'bg-green-50 text-green-700',
 };
 
 export default function Badge({ value }) {

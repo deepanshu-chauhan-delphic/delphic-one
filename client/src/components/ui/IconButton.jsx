@@ -10,7 +10,7 @@ export default function IconButton({ icon: Icon, label, onClick, active = false,
       className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
         active
           ? 'border-primary-200 bg-primary-50 text-primary-700'
-          : 'border-transparent bg-tertiary-50 text-tertiary-600 hover:bg-tertiary-100 hover:text-tertiary-900'
+          : 'border-transparent bg-canvas-muted text-tertiary-600 hover:bg-white hover:text-tertiary-900'
       } ${className}`}
       onClick={onClick}
     >

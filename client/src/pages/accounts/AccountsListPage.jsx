@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
-import ListToolbar from '../../components/ui/ListToolbar.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
 import { accountAccent } from '../../lib/accountAccent.js';
@@ -79,7 +79,7 @@ export default function AccountsListPage() {
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [type, setType] = useState('');
-  const [stage, setStage] = useState('');
+  const [stage, setStage] = useState(() => searchParams.get('stage') || '');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
@@ -118,6 +118,7 @@ export default function AccountsListPage() {
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
+    setStage(searchParams.get('stage') || '');
   }, [searchParams]);
 
   function closeCreate() {
@@ -158,21 +159,21 @@ export default function AccountsListPage() {
         key: 'account',
         header: 'Account',
         render: (row) => (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2.5">
             <span
-              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${accountAccent(row.id).dot}`}
+              className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${accountAccent(row.id).dot}`}
               aria-hidden="true"
               title="Account color"
             />
-            <div>
-              <div className="font-medium text-primary-700">{accountKey(row.id)}</div>
-              <div className="text-tertiary-900">{row.name}</div>
-              {row.poc_name && <div className="mt-0.5 text-xs text-tertiary-500">{row.poc_name}</div>}
+            <div className="min-w-0 leading-snug">
+              <div className="text-sm font-medium text-primary-600">{accountKey(row.id)}</div>
+              <div className="font-semibold text-tertiary-900">{row.name}</div>
+              {row.poc_name && <div className="text-xs text-tertiary-500">{row.poc_name}</div>}
             </div>
           </div>
         ),
       },
-      { key: 'type', header: 'Type', render: (row) => <span className="capitalize">{row.type}</span> },
+      { key: 'type', header: 'Type', render: (row) => <span className="capitalize text-tertiary-700">{row.type}</span> },
       { key: 'industry', header: 'Industry', render: (row) => row.industry || '—' },
       { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
       { key: 'owner', header: 'Owner', render: (row) => row.owner?.name || '—' },
@@ -181,81 +182,123 @@ export default function AccountsListPage() {
         header: 'Created',
         render: (row) => new Date(row.created_at).toLocaleDateString(),
       },
+      {
+        key: 'actions',
+        header: '',
+        render: (row) => (
+          <button
+            type="button"
+            className="rounded-lg p-1.5 text-tertiary-400 transition-colors hover:bg-tertiary-50 hover:text-tertiary-700"
+            aria-label={`Actions for ${row.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setPeek(row);
+            }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        ),
+      },
     ],
     []
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">Clients & vendors</h1>
-          <p className="mt-1 text-sm text-tertiary-500">Track lead ownership, meetings, and account stage.</p>
-        </div>
-        {canCreateAccount(user) && (
-          <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+    <div className="space-y-2">
+      {canCreateAccount(user) && (
+        <div className="flex justify-end">
+          <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
             + Create account
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <ListToolbar>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setAppliedSearch(search.trim());
-          }}
-          className="flex"
-        >
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name or contact"
-            className="w-56 rounded-l-xl border px-2 py-1.5 text-sm"
-          />
-          <button type="submit" className="rounded-r-xl border border-l-0 bg-tertiary-50 px-3 text-xs font-medium text-tertiary-700">
-            Search
-          </button>
-        </form>
-        <select
-          value={type}
-          onChange={(event) => {
-            setPage(1);
-            setType(event.target.value);
-          }}
-          className="rounded-xl border bg-white px-2 py-1.5 text-sm"
-        >
-          <option value="">Type: All</option>
-          <option value="client">Client</option>
-          <option value="vendor">Vendor</option>
-        </select>
-        <select
-          value={stage}
-          onChange={(event) => {
-            setPage(1);
-            setStage(event.target.value);
-          }}
-          className="rounded-xl border bg-white px-2 py-1.5 text-sm"
-        >
-          <option value="">Stage: All</option>
-          <option value="lead">Lead</option>
-          <option value="meeting_scheduled">Meeting scheduled</option>
-          <option value="active">Active</option>
-          <option value="rescheduled">Rescheduled</option>
-          <option value="dropped">Dropped</option>
-        </select>
-      </ListToolbar>
+      <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+        <div className="border-b border-tertiary-100 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-xs font-medium text-tertiary-700">
+                <Filter className="h-3.5 w-3.5" />
+                Filters
+              </span>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPage(1);
+                  setAppliedSearch(search.trim());
+                }}
+                className="flex"
+              >
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name or contact"
+                  className="w-56 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+                <button
+                  type="submit"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                >
+                  Search
+                </button>
+              </form>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={type}
+                onChange={(event) => {
+                  setPage(1);
+                  setType(event.target.value);
+                }}
+                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              >
+                <option value="">Type: All</option>
+                <option value="client">Client</option>
+                <option value="vendor">Vendor</option>
+              </select>
+              <select
+                value={stage}
+                onChange={(event) => {
+                  setPage(1);
+                  setStage(event.target.value);
+                }}
+                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              >
+                <option value="">Stage: All</option>
+                <option value="lead">Lead</option>
+                <option value="meeting_scheduled">Meeting scheduled</option>
+                <option value="active">Active</option>
+                <option value="rescheduled">Rescheduled</option>
+                <option value="dropped">Dropped</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <DataTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          emptyLabel="No accounts match these filters."
+          onRowClick={setPeek}
+          headerClassName="bg-[#F9FAFB]"
+          striped
+          embedded
+        />
+      </section>
 
       {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
-
-      <DataTable columns={columns} rows={rows} loading={loading} emptyLabel="No accounts match these filters." onRowClick={setPeek} />
       <div className="flex items-center justify-between px-1 text-xs text-tertiary-500">
         <span>
           {rows.length} of {pagination.total}
         </span>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((c) => c - 1)} className="rounded-xl border bg-white px-2 py-1 disabled:opacity-40">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((c) => c - 1)}
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
+          >
             Previous
           </button>
           <span>
@@ -265,7 +308,7 @@ export default function AccountsListPage() {
             type="button"
             disabled={page >= pagination.totalPages}
             onClick={() => setPage((c) => c + 1)}
-            className="rounded-xl border bg-white px-2 py-1 disabled:opacity-40"
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
           >
             Next
           </button>

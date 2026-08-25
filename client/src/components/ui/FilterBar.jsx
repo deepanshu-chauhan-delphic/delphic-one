@@ -10,21 +10,7 @@ const DATE_PRESETS = [
 ];
 
 /**
- * Dense filter bar for date presets, individual, and department pickers.
- *
- * Args:
- *   datePreset: Active preset key.
- *   onDatePresetChange: Called with preset key.
- *   dateFrom / dateTo: Custom range values (ISO date strings).
- *   onDateFromChange / onDateToChange: Custom range setters.
- *   individuals: [{ id, name }] options for the person picker.
- *   individualId: Selected individual id.
- *   onIndividualChange: Called with id or ''.
- *   departments: [{ id, name }] options for the department picker.
- *   departmentId: Selected department id.
- *   onDepartmentChange: Called with id or ''.
- *   showIndividual / showDepartment: Toggle pickers.
- *   children: Extra filter controls on the right.
+ * Filter bar for date presets, individual, and department pickers.
  */
 export default function FilterBar({
   datePreset = 'this_month',
@@ -41,6 +27,7 @@ export default function FilterBar({
   onDepartmentChange,
   showIndividual = false,
   showDepartment = false,
+  variant = 'card',
   children,
 }) {
   const chips = [];
@@ -53,17 +40,19 @@ export default function FilterBar({
     if (dept) chips.push({ key: 'department', label: dept.name, clear: () => onDepartmentChange?.('') });
   }
 
-  return (
-    <div className="space-y-3 rounded-2xl border bg-white p-4 shadow-soft">
-      <div className="flex flex-wrap items-center gap-2">
+  const isInline = variant === 'inline';
+
+  const filters = (
+    <>
+      <div className={`flex flex-wrap items-center gap-2 ${isInline ? 'flex-1' : ''}`}>
         {DATE_PRESETS.map((preset) => (
           <button
             key={preset.key}
             type="button"
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               datePreset === preset.key
-                ? 'bg-primary-600 text-white'
-                : 'bg-tertiary-50 text-tertiary-600 hover:bg-tertiary-100'
+                ? 'border-[#0052FF] bg-[#0052FF] text-white shadow-sm'
+                : 'border-tertiary-100 bg-canvas-muted text-tertiary-600 hover:border-tertiary-200 hover:bg-tertiary-50'
             }`}
             onClick={() => onDatePresetChange?.(preset.key)}
           >
@@ -72,13 +61,94 @@ export default function FilterBar({
         ))}
       </div>
 
+      {(showIndividual || showDepartment || children) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {showIndividual && (
+            <select
+              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              value={individualId}
+              onChange={(e) => onIndividualChange?.(e.target.value)}
+              aria-label="Filter by individual"
+            >
+              <option value="">All people</option>
+              {individuals.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {showDepartment && (
+            <select
+              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              value={departmentId}
+              onChange={(e) => onDepartmentChange?.(e.target.value)}
+              aria-label="Filter by department"
+            >
+              <option value="">All departments</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {children}
+        </div>
+      )}
+    </>
+  );
+
+  if (isInline) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {filters}
+        </div>
+        {datePreset === 'custom' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-tertiary-500">
+              From
+              <input
+                type="date"
+                className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+                value={dateFrom || ''}
+                onChange={(e) => onDateFromChange?.(e.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-tertiary-500">
+              To
+              <input
+                type="date"
+                className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+                value={dateTo || ''}
+                onChange={(e) => onDateToChange?.(e.target.value)}
+              />
+            </label>
+          </div>
+        )}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <FilterChip key={chip.key} label={chip.label} onRemove={chip.clear} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-tertiary-200 bg-white p-4 shadow-card">
+      {filters}
+
       {datePreset === 'custom' && (
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
             From
             <input
               type="date"
-              className="rounded-xl border px-2 py-1.5 text-sm text-tertiary-800"
+              className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
               value={dateFrom || ''}
               onChange={(e) => onDateFromChange?.(e.target.value)}
             />
@@ -87,47 +157,13 @@ export default function FilterBar({
             To
             <input
               type="date"
-              className="rounded-xl border px-2 py-1.5 text-sm text-tertiary-800"
+              className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
               value={dateTo || ''}
               onChange={(e) => onDateToChange?.(e.target.value)}
             />
           </label>
         </div>
       )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        {showIndividual && (
-          <select
-            className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
-            value={individualId}
-            onChange={(e) => onIndividualChange?.(e.target.value)}
-            aria-label="Filter by individual"
-          >
-            <option value="">All people</option>
-            {individuals.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {showDepartment && (
-          <select
-            className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
-            value={departmentId}
-            onChange={(e) => onDepartmentChange?.(e.target.value)}
-            aria-label="Filter by department"
-          >
-            <option value="">All departments</option>
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {children}
-      </div>
 
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-2">

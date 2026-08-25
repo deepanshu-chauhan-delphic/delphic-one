@@ -36,7 +36,7 @@ export default function Tooltip({ label, children, side = 'top', block = false }
 
   return (
     <span
-      className={block ? 'relative block w-full' : 'relative inline-flex'}
+      className={block ? 'relative block h-full w-full' : 'relative inline-flex'}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}

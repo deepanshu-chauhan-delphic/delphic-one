@@ -25,6 +25,9 @@ export default function DataTable({
   selectedIds = [],
   onSelectionChange,
   actions = [],
+  headerClassName = 'bg-white',
+  striped = false,
+  embedded = false,
 }) {
   const selected = new Set(selectedIds);
   const allIds = rows.map((r) => r.id);
@@ -49,12 +52,16 @@ export default function DataTable({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-2xl border bg-white shadow-soft">
-        <table className="min-w-full divide-y">
-          <thead className="sticky top-0 z-10 bg-tertiary-50/95 backdrop-blur">
+      <div
+        className={`overflow-x-auto bg-white ${
+          embedded ? '' : 'rounded-2xl border border-tertiary-100 shadow-card'
+        }`}
+      >
+        <table className="min-w-full divide-y divide-tertiary-100">
+          <thead className={`sticky top-0 z-10 border-b border-tertiary-100 ${headerClassName}`}>
             <tr>
               {selectable && (
-                <th className="w-10 px-3 py-3">
+                <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -67,19 +74,19 @@ export default function DataTable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-tertiary-500"
+                  className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary-500"
                 >
                   {col.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-tertiary-100">
+          <tbody className="divide-y divide-tertiary-100 bg-white">
             {loading &&
               Array.from({ length: 6 }).map((_, rowIndex) => (
                 <tr key={`skeleton-${rowIndex}`}>
                   {displayColumns.map((col, colIndex) => (
-                    <td key={col.key || colIndex} className="px-4 py-2.5">
+                    <td key={col.key || colIndex} className="px-4 py-1.5">
                       <Skeleton className="h-4 w-full max-w-[10rem]" />
                     </td>
                   ))}
@@ -93,16 +100,16 @@ export default function DataTable({
               </tr>
             )}
             {!loading &&
-              rows.map((row) => (
+              rows.map((row, rowIndex) => (
                 <tr
                   key={row.id}
-                  className={`transition-colors hover:bg-primary-50/40 ${onRowClick ? 'cursor-pointer' : ''} ${
-                    selected.has(row.id) ? 'bg-primary-50/60' : ''
+                  className={`transition-colors hover:bg-tertiary-50/80 ${onRowClick ? 'cursor-pointer' : ''} ${
+                    selected.has(row.id) ? 'bg-primary-50/40' : striped && rowIndex % 2 === 1 ? 'bg-canvas-muted/60' : 'bg-white'
                   }`}
                   onClick={() => onRowClick?.(row)}
                 >
                   {selectable && (
-                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selected.has(row.id)}
@@ -113,7 +120,7 @@ export default function DataTable({
                     </td>
                   )}
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-2.5 text-sm text-tertiary-700">
+                    <td key={col.key} className="px-4 py-1.5 text-sm text-tertiary-700">
                       {col.render ? col.render(row) : row[col.key]}
                     </td>
                   ))}

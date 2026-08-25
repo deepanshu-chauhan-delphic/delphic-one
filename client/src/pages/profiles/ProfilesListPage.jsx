@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
-import ListToolbar from '../../components/ui/ListToolbar.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import ProfileFormPage from './ProfileFormPage.jsx';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
@@ -129,9 +129,9 @@ export default function ProfilesListPage() {
         key: 'candidate',
         header: 'Candidate',
         render: (row) => (
-          <div>
-            <div className="font-medium text-primary-700">{profileKey(row.id)}</div>
-            <span className="text-tertiary-900">{row.name}</span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-primary-600">{profileKey(row.id)}</div>
+            <div className="font-semibold text-tertiary-900">{row.name}</div>
           </div>
         ),
       },
@@ -156,73 +156,107 @@ export default function ProfilesListPage() {
         render: (row) => (row.expected_ctc != null ? `${row.expected_ctc_currency} ${row.expected_ctc}` : '—'),
       },
       { key: 'source', header: 'Source', render: (row) => <Badge value={row.source} /> },
+      {
+        key: 'actions',
+        header: '',
+        render: (row) => (
+          <button
+            type="button"
+            className="rounded-lg p-1.5 text-tertiary-400 transition-colors hover:bg-tertiary-50 hover:text-tertiary-700"
+            aria-label={`Actions for ${row.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setPeek(row);
+            }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        ),
+      },
     ],
     []
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">Candidates</h1>
-          <p className="mt-1 text-sm text-tertiary-500">Profiles with skills, CTC, and resume attachments.</p>
-        </div>
-        {canCreateProfile(user) && (
-          <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+    <div className="space-y-2">
+      {canCreateProfile(user) && (
+        <div className="flex justify-end">
+          <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
             + Add candidate
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <ListToolbar>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setAppliedSearch(search.trim());
-          }}
-          className="flex"
-        >
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, company, skills…"
-            className="w-64 rounded-l-xl border px-2 py-1.5 text-sm"
-          />
-          <button type="submit" className="rounded-r-xl border border-l-0 bg-tertiary-50 px-3 text-xs font-medium text-tertiary-700">
-            Search
-          </button>
-        </form>
-        <select
-          value={source}
-          onChange={(event) => {
-            setPage(1);
-            setSource(event.target.value);
-          }}
-          className="rounded-xl border bg-white px-2 py-1.5 text-sm"
-        >
-          <option value="">Source: All</option>
-          <option value="internal">Internal</option>
-          <option value="vendor">Vendor</option>
-          <option value="linkedin">LinkedIn</option>
-        </select>
-      </ListToolbar>
+      <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+        <div className="border-b border-tertiary-100 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-xs font-medium text-tertiary-700">
+                <Filter className="h-3.5 w-3.5" />
+                Filters
+              </span>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPage(1);
+                  setAppliedSearch(search.trim());
+                }}
+                className="flex"
+              >
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name, company, skills…"
+                  className="w-64 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+                <button
+                  type="submit"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                >
+                  Search
+                </button>
+              </form>
+            </div>
+            <select
+              value={source}
+              onChange={(event) => {
+                setPage(1);
+                setSource(event.target.value);
+              }}
+              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+            >
+              <option value="">Source: All</option>
+              <option value="internal">Internal</option>
+              <option value="vendor">Vendor</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </div>
+        </div>
+
+        <DataTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          emptyLabel="No candidates match these filters."
+          onRowClick={setPeek}
+          headerClassName="bg-[#F9FAFB]"
+          striped
+          embedded
+        />
+      </section>
 
       {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
-
-      <DataTable
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        emptyLabel="No candidates match these filters."
-        onRowClick={setPeek}
-      />
       <div className="flex items-center justify-between px-1 text-xs text-tertiary-500">
         <span>
           {rows.length} of {pagination.total}
         </span>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((c) => c - 1)} className="rounded-xl border bg-white px-2 py-1 disabled:opacity-40">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((c) => c - 1)}
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
+          >
             Previous
           </button>
           <span>
@@ -232,7 +266,7 @@ export default function ProfilesListPage() {
             type="button"
             disabled={page >= pagination.totalPages}
             onClick={() => setPage((c) => c + 1)}
-            className="rounded-xl border bg-white px-2 py-1 disabled:opacity-40"
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
           >
             Next
           </button>

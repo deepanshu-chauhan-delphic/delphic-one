@@ -18,14 +18,16 @@
   --space-4: 1rem;
   --space-6: 1.5rem;
 
-  --color-bg: 248 250 252;
+  --color-bg: 248 249 253;
+  --color-sidebar: 243 245 250;
   --color-surface: 255 255 255;
-  --color-border: 226 232 240;
+  --color-border: 232 235 242;
+  --color-border-subtle: 237 240 247;
   --color-text: 15 23 42;
   --color-text-muted: 100 116 139;
 
-  --color-primary: 55 99 244;
-  --color-primary-soft: 219 230 254;
+  --color-primary: 0 82 255;
+  --color-primary-soft: 238 244 255;
   --color-primary-contrast: 255 255 255;
 
   --color-success: 22 163 74;
@@ -78,4 +80,11 @@ h3,
 
 .btn-ghost {
   @apply btn bg-transparent text-tertiary-600 hover:bg-tertiary-100 hover:text-tertiary-900;
+}
+
+/* Figma canvas — pale lavender-grey with soft purple/blue glow */
+.dashboard-canvas-glow {
+  background-image:
+    radial-gradient(ellipse 70% 55% at 12% -5%, rgb(99 102 241 / 0.09), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 88% 0%, rgb(59 130 246 / 0.06), transparent 52%);
 }

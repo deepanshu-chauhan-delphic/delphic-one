@@ -24,6 +24,7 @@ import { rangeForPreset } from '../../lib/datePresets.js';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import FilterBar from '../../components/ui/FilterBar.jsx';
+import { ExcelIcon, PdfIcon } from '../../components/ui/ExportIcons.jsx';
 import {
   agingSections,
   chartBarsForReport,
@@ -254,14 +255,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">Reports</h1>
-          <p className="mt-1 text-sm text-tertiary-500">
-            {loading ? 'Loading…' : payload ? 'Click a row to open details' : 'Pick filters to load'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
           <select
             value={active}
             onChange={(e) => {
@@ -269,7 +263,7 @@ export default function ReportsPage() {
               setIndividualId('');
               setDrawerRow(null);
             }}
-            className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
+            className="rounded-lg border border-tertiary-100 bg-white px-3 py-2 text-sm text-tertiary-700 shadow-soft"
             aria-label="Report type"
           >
             {available.map((r) => (
@@ -280,15 +274,28 @@ export default function ReportsPage() {
           </select>
           <Can user={user} capability="exportReports">
             <>
-              <button type="button" className="btn-secondary px-3 py-2" onClick={() => exportReport('xlsx')} disabled={exporting}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-2 text-sm font-medium text-tertiary-700 shadow-soft transition-colors hover:bg-canvas-muted disabled:opacity-50"
+                onClick={() => exportReport('xlsx')}
+                disabled={exporting}
+                aria-label="Export Excel"
+              >
+                <ExcelIcon />
                 Excel
               </button>
-              <button type="button" className="btn-secondary px-3 py-2" onClick={() => exportReport('pdf')} disabled={exporting}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-2 text-sm font-medium text-tertiary-700 shadow-soft transition-colors hover:bg-canvas-muted disabled:opacity-50"
+                onClick={() => exportReport('pdf')}
+                disabled={exporting}
+                aria-label="Export PDF"
+              >
+                <PdfIcon />
                 PDF
               </button>
             </>
           </Can>
-        </div>
       </div>
 
       <FilterBar

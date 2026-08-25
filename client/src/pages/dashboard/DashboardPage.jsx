@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { ChevronRight, ExternalLink } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -21,7 +22,7 @@ import ChartCard from '../../components/ui/ChartCard.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
 import FilterBar from '../../components/ui/FilterBar.jsx';
 import Skeleton from '../../components/ui/Skeleton.jsx';
-import { FUNNEL_STAGE_LABELS, ROLE_COPY, statsForRole } from './dashboardWidgets.js';
+import { funnelChartData, stageFilterHref, statsForRole } from './dashboardWidgets.js';
 
 const cardMotion = {
   initial: { opacity: 0, y: 12 },
@@ -36,36 +37,31 @@ function entityPath(entityType, entityId) {
   return null;
 }
 
-function funnelChartData(funnel) {
-  return Object.entries(funnel || {}).map(([stage, count]) => ({
-    stage,
-    label: FUNNEL_STAGE_LABELS[stage] || stage,
-    count: count || 0,
-  }));
-}
-
 function StuckLeadsPanel({ rows }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
-      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+    <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+      <h2 className="border-b border-tertiary-100 px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">
         Stuck leads
       </h2>
       <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (
-          <li
-            key={row.id}
-            className="flex items-center justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
-          >
-            <Link to={`/accounts/${row.id}`} className="font-medium text-primary-700 transition-colors hover:underline">
-              {row.name}
+          <li key={row.id}>
+            <Link
+              to={`/accounts/${row.id}`}
+              className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-tertiary-50/80"
+            >
+              <span className="font-medium text-primary-600">{row.name}</span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full bg-warning-50 px-2.5 py-0.5 text-xs font-medium text-warning-700">
+                  {row.days_in_stage}d in stage
+                </span>
+                <ChevronRight className="h-4 w-4 text-tertiary-400" />
+              </span>
             </Link>
-            <span className="shrink-0 rounded-md bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700">
-              {row.days_in_stage}d in stage
-            </span>
           </li>
         ))}
         {(!rows || rows.length === 0) && (
-          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No stuck leads (7+ days).</li>
+          <li className="px-4 py-4 text-sm text-tertiary-400">No stuck leads (7+ days).</li>
         )}
       </ul>
     </section>
@@ -74,29 +70,32 @@ function StuckLeadsPanel({ rows }) {
 
 function StuckRequirementsPanel({ rows }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
-      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+    <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+      <h2 className="border-b border-tertiary-100 px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">
         Stuck requirements
       </h2>
       <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (
-          <li
-            key={row.id}
-            className="flex items-start justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
-          >
-            <div className="min-w-0">
-              <Link to={`/requirements/${row.id}`} className="font-medium text-primary-700 transition-colors hover:underline">
-                {row.title}
-              </Link>
-              <div className="mt-0.5 text-xs text-tertiary-500">{row.submissions_count} submissions</div>
-            </div>
-            <span className="shrink-0 rounded-md bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700">
-              {row.days_open}d open
-            </span>
+          <li key={row.id}>
+            <Link
+              to={`/requirements/${row.id}`}
+              className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-tertiary-50/80"
+            >
+              <div className="min-w-0">
+                <div className="font-medium text-primary-600">{row.title}</div>
+                <div className="mt-0.5 text-xs text-tertiary-500">{row.submissions_count} submissions</div>
+              </div>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full bg-warning-50 px-2.5 py-0.5 text-xs font-medium text-warning-700">
+                  {row.days_open}d open
+                </span>
+                <ChevronRight className="h-4 w-4 text-tertiary-400" />
+              </span>
+            </Link>
           </li>
         ))}
         {(!rows || rows.length === 0) && (
-          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No stuck requirements (7+ days).</li>
+          <li className="px-4 py-4 text-sm text-tertiary-400">No stuck requirements (7+ days).</li>
         )}
       </ul>
     </section>
@@ -105,8 +104,8 @@ function StuckRequirementsPanel({ rows }) {
 
 function RecentActivityPanel({ rows }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
-      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold text-tertiary-900">
+    <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+      <h2 className="border-b border-tertiary-100 px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">
         Recent activity
       </h2>
       <ul className="divide-y divide-tertiary-100">
@@ -116,19 +115,19 @@ function RecentActivityPanel({ rows }) {
           return (
             <li
               key={`${item.entity_id}-${item.timestamp}-${index}`}
-              className="flex items-start justify-between gap-3 px-3.5 py-2 text-sm transition-colors hover:bg-primary-50/40"
+              className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm"
             >
               <div className="min-w-0 text-tertiary-700">
-                <span className="font-medium text-tertiary-900">{item.user?.name || 'Someone'}</span>
+                <span className="font-semibold text-tertiary-900">{item.user?.name || 'Someone'}</span>
                 {' '}
                 {item.action}
                 {' on '}
                 {path ? (
-                  <Link to={path} className="text-primary-700 transition-colors hover:underline">
+                  <Link to={path} className="font-medium text-primary-600 hover:underline">
                     {label}
                   </Link>
                 ) : (
-                  <span>{label}</span>
+                  <span className="font-medium text-primary-600">{label}</span>
                 )}
               </div>
               <time className="shrink-0 text-xs text-tertiary-400">
@@ -138,15 +137,42 @@ function RecentActivityPanel({ rows }) {
           );
         })}
         {(!rows || rows.length === 0) && (
-          <li className="px-3.5 py-3.5 text-sm text-tertiary-400">No recent activity.</li>
+          <li className="px-4 py-4 text-sm text-tertiary-400">No recent activity.</li>
         )}
       </ul>
+      <div className="border-t border-tertiary-100 px-4 py-2.5">
+        <Link to="/reports" className="text-xs font-medium text-primary-600 hover:underline">
+          View all activity
+        </Link>
+      </div>
     </section>
   );
 }
 
+function StageMixLegend({ rows, role }) {
+  return (
+    <ul className="shrink-0 space-y-2.5 py-1">
+      {rows.map((row, index) => (
+        <li key={row.stage}>
+          <Link
+            to={stageFilterHref(row.stage, role)}
+            className="flex items-center gap-2 text-sm text-tertiary-600 transition-colors hover:text-tertiary-900"
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: CHART_PALETTE[index % CHART_PALETTE.length] }}
+            />
+            <span className="min-w-[1.25rem] font-semibold tabular-nums text-tertiary-900">{row.count}</span>
+            <span>{row.label}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PipelineSection({ funnel, role }) {
-  const data = useMemo(() => funnelChartData(funnel), [funnel]);
+  const data = useMemo(() => funnelChartData(funnel, role), [funnel, role]);
   const total = data.reduce((sum, row) => sum + row.count, 0);
   const pieData = data.filter((row) => row.count > 0).map((row) => ({ name: row.label, value: row.count }));
   const isBda = role === 'bda';
@@ -155,33 +181,48 @@ function PipelineSection({ funnel, role }) {
   const ctaPath = isBda ? '/accounts' : '/requirements';
 
   return (
-    <section className="space-y-2.5">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
+    <section className="rounded-2xl border border-tertiary-100 bg-white p-4 shadow-card md:p-5">
+      {/* Figma: title left · button + all stage counts on one right-hand line */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0 shrink-0">
           <h2 className="font-heading text-base font-semibold tracking-tight text-tertiary-900">{title}</h2>
           <p className="mt-0.5 text-sm text-tertiary-500">
             Live counts by stage{total > 0 ? ` · ${total} total in pipeline` : ''}
           </p>
         </div>
-        <Link to={ctaPath} className="btn-secondary text-xs">
-          {ctaLabel}
-        </Link>
-        {total > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {data.map((row) => (
+
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-3 overflow-x-auto">
+          <Link
+            to={ctaPath}
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0052FF] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+          >
+            {ctaLabel}
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+
+          {data.map((row, index) => (
+            <Link
+              key={row.stage}
+              to={stageFilterHref(row.stage, role)}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-tertiary-100 bg-canvas-muted px-2.5 py-1.5 text-xs text-tertiary-600 transition-colors hover:border-tertiary-200 hover:bg-white"
+            >
               <span
-                key={row.stage}
-                className="rounded-md border border-tertiary-200 bg-white px-2 py-0.5 text-xs tabular-nums text-tertiary-700"
-              >
-                <span className="font-semibold text-tertiary-900">{row.count}</span> {row.label}
-              </span>
-            ))}
-          </div>
-        )}
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: CHART_PALETTE[index % CHART_PALETTE.length] }}
+              />
+              <span className="font-semibold tabular-nums text-tertiary-900">{row.count}</span>
+              {row.label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Funnel" subtitle={isBda ? 'Leads at each stage' : 'Submissions at each stage'} className="lg:col-span-2">
+        <ChartCard
+          title="Funnel"
+          subtitle={isBda ? 'Leads at each stage' : 'Submissions at each stage'}
+          className="border-0 p-0 shadow-none lg:col-span-2"
+        >
           {total === 0 ? (
             <p className="py-16 text-center text-sm text-tertiary-400">
               {isBda ? 'No leads in the pipeline yet.' : 'No submissions in the pipeline yet.'}
@@ -190,32 +231,41 @@ function PipelineSection({ funnel, role }) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#5c6f86' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#5c6f86' }} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#5c6f86' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#5c6f86' }} allowDecimals={false} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={chartTooltipStyle} />
-                  <Bar dataKey="count" name="Submissions" fill={CHART_COLORS.primary} radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="count" name="Count" radius={[6, 6, 0, 0]}>
+                    {data.map((row, index) => (
+                      <Cell key={row.stage} fill={CHART_PALETTE[index % CHART_PALETTE.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </ChartCard>
 
-        <ChartCard title="Stage mix" subtitle="Share of pipeline">
-          {pieData.length === 0 ? (
+        <ChartCard title="Stage mix" subtitle="Share of pipeline" className="border-0 p-0 shadow-none">
+          {total === 0 ? (
             <p className="py-16 text-center text-sm text-tertiary-400">No stage mix yet.</p>
           ) : (
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
-                    {pieData.map((entry, index) => (
-                      <Cell key={entry.name} fill={CHART_PALETTE[index % CHART_PALETTE.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={chartTooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex h-72 items-center gap-4">
+              <div className="h-full min-w-0 flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={2}>
+                      {pieData.map((entry, index) => {
+                        const stageIndex = data.findIndex((row) => row.label === entry.name);
+                        const colorIndex = stageIndex >= 0 ? stageIndex : index;
+                        return <Cell key={entry.name} fill={CHART_PALETTE[colorIndex % CHART_PALETTE.length]} />;
+                      })}
+                    </Pie>
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <StageMixLegend rows={data} role={role} />
             </div>
           )}
         </ChartCard>
@@ -236,7 +286,6 @@ export default function DashboardPage() {
 
   const showDeptFilter = can('filterByDepartment');
   const role = user?.role || 'admin';
-  // Admin always sees pipeline; sales/recruiter/bda via viewPipeline (bda sees an account-stage funnel).
   const showPipeline = role === 'admin' || can('viewPipeline');
 
   useEffect(() => {
@@ -260,31 +309,24 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [departmentId]);
 
-  const copy = ROLE_COPY[role] || ROLE_COPY.admin;
   const stats = statsForRole(role, summary);
   const showStuckLeads = role === 'admin' || role === 'bda';
   const showStuckRequirements = role === 'admin' || role === 'sales' || role === 'recruiter';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-tertiary-200 pb-3">
-        <div>
-          <h1 className="font-heading text-xl font-semibold tracking-tight text-tertiary-900">
-            {user?.name ? `${user.name}'s Dashboard` : 'Dashboard'}
-          </h1>
-          <p className="mt-0.5 text-sm text-tertiary-500">{copy.subtitle}</p>
-        </div>
-      </div>
-
+    <div className="space-y-5">
       {showDeptFilter && (
-        <FilterBar
-          datePreset={datePreset}
-          onDatePresetChange={setDatePreset}
-          showDepartment
-          departments={departments}
-          departmentId={departmentId}
-          onDepartmentChange={setDepartmentId}
-        />
+        <div className="mt-3 rounded-2xl border border-tertiary-100 bg-white px-4 py-3 shadow-card">
+          <FilterBar
+            variant="inline"
+            datePreset={datePreset}
+            onDatePresetChange={setDatePreset}
+            showDepartment
+            departments={departments}
+            departmentId={departmentId}
+            onDepartmentChange={setDepartmentId}
+          />
+        </div>
       )}
 
       {error && (
@@ -292,35 +334,41 @@ export default function DashboardPage() {
       )}
 
       {loading && !summary ? (
-        <div className="space-y-4">
-          <Skeleton className="h-80" rounded="2xl" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[1, 2, 3, 4].map((n) => (
-              <Skeleton key={n} className="h-24" rounded="2xl" />
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <Skeleton key={n} className="h-28" rounded="xl" />
             ))}
           </div>
+          <Skeleton className="h-80" rounded="xl" />
         </div>
       ) : (
         <>
-          {showPipeline && (
-            <motion.div {...cardMotion}>
-              <PipelineSection funnel={summary?.pipeline_funnel} role={role} />
-            </motion.div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-3 xl:grid-cols-6">
             {stats.map((stat, index) => (
-              <motion.div key={stat.label} {...cardMotion} transition={{ ...cardMotion.transition, delay: index * 0.03 }}>
+              <motion.div
+                key={stat.label}
+                className="h-full"
+                {...cardMotion}
+                transition={{ ...cardMotion.transition, delay: index * 0.03 }}
+              >
                 <KpiCard
                   label={stat.label}
                   value={stat.value}
                   hint={stat.hint}
                   description={stat.description}
-                  accent={index === 0}
+                  icon={stat.icon}
+                  theme={stat.theme}
                 />
               </motion.div>
             ))}
           </div>
+
+          {showPipeline && (
+            <motion.div {...cardMotion}>
+              <PipelineSection funnel={summary?.pipeline_funnel} role={role} />
+            </motion.div>
+          )}
 
           <div className={`grid gap-4 ${showStuckLeads || showStuckRequirements ? 'xl:grid-cols-2' : ''}`}>
             <div className="space-y-4">

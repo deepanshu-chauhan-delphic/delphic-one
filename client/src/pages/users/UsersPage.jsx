@@ -167,15 +167,21 @@ export default function UsersPage() {
 
   const columns = useMemo(
     () => [
-      { key: 'name', header: 'Name', render: (row) => row.name },
-      { key: 'email', header: 'Email', render: (row) => <span className="font-mono text-tertiary-700">{row.email}</span> },
-      { key: 'role', header: 'Role', render: (row) => <span className="capitalize">{row.role}</span> },
-      { key: 'dept', header: 'Department', render: (row) => row.department?.name || 'Unassigned' },
+      { key: 'name', header: 'Name', render: (row) => <span className="font-semibold text-tertiary-900">{row.name}</span> },
+      { key: 'email', header: 'Email', render: (row) => <span className="text-tertiary-500">{row.email}</span> },
+      { key: 'role', header: 'Role', render: (row) => <span className="capitalize text-tertiary-700">{row.role}</span> },
+      { key: 'dept', header: 'Department', render: (row) => row.department?.name || <span className="text-tertiary-400">Unassigned</span> },
       {
         key: 'status',
         header: 'Status',
         render: (row) => (
-          <span className={row.active ? 'text-success-700' : 'text-tertiary-400'}>{row.active ? 'Active' : 'Inactive'}</span>
+          <span
+            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              row.active ? 'bg-green-50 text-green-700' : 'bg-tertiary-100 text-tertiary-600'
+            }`}
+          >
+            {row.active ? 'Active' : 'Inactive'}
+          </span>
         ),
       },
       {
@@ -183,11 +189,15 @@ export default function UsersPage() {
         header: 'Actions',
         render: (row) =>
           row.id !== user.id ? (
-            <button type="button" className="btn-secondary text-xs" onClick={() => toggleActive(row)}>
+            <button
+              type="button"
+              className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+              onClick={() => toggleActive(row)}
+            >
               {row.active ? 'Deactivate' : 'Activate'}
             </button>
           ) : (
-            '—'
+            <span className="text-tertiary-400">—</span>
           ),
       },
     ],
@@ -197,15 +207,9 @@ export default function UsersPage() {
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-tertiary-900">Users</h1>
-          <p className="mt-1 text-sm text-tertiary-500">
-            Only admins can create accounts. Assign a department so reports can filter by team.
-          </p>
-        </div>
-        <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
           + Create user
         </button>
       </div>
@@ -222,20 +226,34 @@ export default function UsersPage() {
         </div>
       )}
 
-      <DataTable columns={columns} rows={rows} loading={loading} emptyLabel="No users yet." />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        emptyLabel="No users yet."
+        headerClassName="bg-[#F5F7FF]"
+      />
 
-      <section className="rounded-2xl border bg-white shadow-soft">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="font-heading text-sm font-semibold text-tertiary-800">Departments</h2>
-          <button type="button" className="btn-secondary text-xs" onClick={() => setDeptDrawer({})}>
+      <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
+        <div className="flex items-center justify-between border-b border-tertiary-100 px-4 py-2.5">
+          <h2 className="font-heading text-sm font-semibold text-tertiary-900">Departments</h2>
+          <button
+            type="button"
+            className="rounded-lg border border-[#0052FF] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+            onClick={() => setDeptDrawer({})}
+          >
             + Add department
           </button>
         </div>
-        <ul className="divide-y">
+        <ul className="divide-y divide-tertiary-100">
           {departments.map((dept) => (
             <li key={dept.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-              <span className="text-tertiary-900">{dept.name}</span>
-              <button type="button" className="text-xs font-medium text-primary-700 hover:underline" onClick={() => setDeptDrawer(dept)}>
+              <span className="font-medium text-tertiary-900">{dept.name}</span>
+              <button
+                type="button"
+                className="text-xs font-medium text-primary-600 transition-colors hover:underline"
+                onClick={() => setDeptDrawer(dept)}
+              >
                 Edit
               </button>
             </li>
