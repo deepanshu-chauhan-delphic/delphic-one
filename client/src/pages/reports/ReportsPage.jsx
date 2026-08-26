@@ -301,6 +301,7 @@ export default function ReportsPage() {
       <FilterBar
         datePreset={datePreset}
         onDatePresetChange={setDatePreset}
+        showDatePresets={active !== 'aging'}
         dateFrom={dateFrom}
         dateTo={dateTo}
         onDateFromChange={(v) => {

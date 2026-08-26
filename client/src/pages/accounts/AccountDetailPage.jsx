@@ -4,13 +4,13 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
-import Modal from '../../components/ui/Modal.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
+import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, formatAccountValue } from './accountUtils.js';
 
@@ -31,99 +31,6 @@ function DetailSection({ title, children }) {
       </h2>
       <dl className="grid gap-x-5 gap-y-3 p-3.5 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
     </section>
-  );
-}
-
-function StageMoveModal({ account, error, saving, open, onClose, onMove }) {
-  const stages = ACCOUNT_TRANSITIONS[account.stage] || [];
-  const [toStage, setToStage] = useState(stages[0] || '');
-  const [reason, setReason] = useState('');
-  const [meetingMode, setMeetingMode] = useState('online');
-  const [meetingDate, setMeetingDate] = useState('');
-
-  useEffect(() => {
-    if (open) setToStage(stages[0] || '');
-  }, [open, account.stage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function submit(event) {
-    event.preventDefault();
-    const body = { to_stage: toStage };
-    if (toStage === 'dropped') body.reason = reason.trim();
-    if (toStage === 'meeting_scheduled') {
-      body.meeting_mode = meetingMode;
-      body.meeting_date = new Date(meetingDate).toISOString();
-    }
-    onMove(body);
-  }
-
-  return (
-    <Modal
-      open={open}
-      title="Move account stage"
-      onClose={() => !saving && onClose()}
-      footer={
-        <>
-          <button type="button" form="account-stage-form" onClick={onClose} disabled={saving} className="btn-secondary">Cancel</button>
-          <button type="submit" form="account-stage-form" disabled={saving || !toStage} className="btn-primary">
-            {saving ? 'Moving…' : 'Move stage'}
-          </button>
-        </>
-      }
-    >
-      <form id="account-stage-form" onSubmit={submit} className="space-y-3">
-        <p className="text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
-        {error && <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
-        <label className="block text-xs font-medium text-tertiary-600">
-          Next stage
-          <select
-            required
-            value={toStage}
-            onChange={(event) => setToStage(event.target.value)}
-            className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm capitalize focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
-          >
-            {stages.map((stage) => <option key={stage} value={stage}>{formatAccountValue(stage)}</option>)}
-          </select>
-        </label>
-        {toStage === 'meeting_scheduled' && (
-          <>
-            <label className="block text-xs font-medium text-tertiary-600">
-              Meeting mode
-              <select
-                required
-                value={meetingMode}
-                onChange={(event) => setMeetingMode(event.target.value)}
-                className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
-              >
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-tertiary-600">
-              Meeting date and time
-              <input
-                required
-                type="datetime-local"
-                value={meetingDate}
-                onChange={(event) => setMeetingDate(event.target.value)}
-                className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
-              />
-            </label>
-          </>
-        )}
-        {toStage === 'dropped' && (
-          <label className="block text-xs font-medium text-tertiary-600">
-            Reason
-            <textarea
-              required
-              rows={3}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              className="mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
-            />
-          </label>
-        )}
-      </form>
-    </Modal>
   );
 }
 
@@ -230,6 +137,7 @@ export default function AccountDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link to={`/pipeline/${id}`} className="btn-secondary">Pipeline board</Link>
             {canMutate && !account.is_locked && (
               <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>
             )}
@@ -375,7 +283,7 @@ export default function AccountDetailPage() {
       </div>
 
       {account && (
-        <StageMoveModal
+        <AccountStageMoveDrawer
           account={account}
           open={isStageModalOpen}
           error={stageError}
@@ -388,10 +296,11 @@ export default function AccountDetailPage() {
         />
       )}
 
-      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="md" tone="edit">
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="lg" tone="edit">
         {editOpen && (
           <AccountFormPage
             asPanel
+            accountId={id}
             onCancel={closeEdit}
             onDone={() => {
               closeEdit();

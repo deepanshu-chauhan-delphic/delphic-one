@@ -50,7 +50,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 - **Client:** React + Vite + Tailwind CSS (`client/`)
 - **Server:** Node.js / Express + Prisma ORM on PostgreSQL (`server/`)
-- **Deploy:** Dockerized (`docker-compose.yml`: `db`/`server`/`client` services, `server/Dockerfile`, `client/Dockerfile` → Nginx runtime). `ecosystem.config.js`/`nginx.conf.example` (bare PM2+Nginx VPS layout) also still exist from before dockerization — `deploy.yml` targets that older layout, not the Docker images; this needs to be reconciled before enabling auto-deploy. GitHub Actions on push to `main`.
+- **Deploy:** Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`), `start-delphic.sh` / `setup-vm.sh`, host nginx + Let's Encrypt (`nginx.conf.example`). Deploy workflow SSHs and runs `./start-delphic.sh --prod`. GitHub Actions on push to `main`.
 
 ## Repo layout
 

@@ -22,6 +22,7 @@ import ChartCard from '../../components/ui/ChartCard.jsx';
 import KpiCard from '../../components/ui/KpiCard.jsx';
 import FilterBar from '../../components/ui/FilterBar.jsx';
 import Skeleton from '../../components/ui/Skeleton.jsx';
+import { rangeForPreset } from '../../lib/datePresets.js';
 import { funnelChartData, stageFilterHref, statsForRole } from './dashboardWidgets.js';
 
 const cardMotion = {
@@ -177,8 +178,8 @@ function PipelineSection({ funnel, role }) {
   const pieData = data.filter((row) => row.count > 0).map((row) => ({ name: row.label, value: row.count }));
   const isBda = role === 'bda';
   const title = isBda ? 'Lead pipeline' : 'Submission pipeline';
-  const ctaLabel = isBda ? 'View all leads' : 'View pipeline board';
-  const ctaPath = isBda ? '/accounts' : '/requirements';
+  const ctaLabel = 'View pipeline board';
+  const ctaPath = '/pipeline';
 
   return (
     <section className="rounded-2xl border border-tertiary-100 bg-white p-4 shadow-card md:p-5">
@@ -283,6 +284,9 @@ export default function DashboardPage() {
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState('');
   const [datePreset, setDatePreset] = useState('this_month');
+  const initialRange = useMemo(() => rangeForPreset('this_month'), []);
+  const [dateFrom, setDateFrom] = useState(initialRange.date_from);
+  const [dateTo, setDateTo] = useState(initialRange.date_to);
 
   const showDeptFilter = can('filterByDepartment');
   const role = user?.role || 'admin';
@@ -296,6 +300,13 @@ export default function DashboardPage() {
       .catch(() => setDepartments([]));
     return undefined;
   }, [showDeptFilter]);
+
+  useEffect(() => {
+    if (datePreset === 'custom') return;
+    const range = rangeForPreset(datePreset);
+    setDateFrom(range.date_from);
+    setDateTo(range.date_to);
+  }, [datePreset]);
 
   useEffect(() => {
     setLoading(true);
@@ -321,6 +332,16 @@ export default function DashboardPage() {
             variant="inline"
             datePreset={datePreset}
             onDatePresetChange={setDatePreset}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={(value) => {
+              setDatePreset('custom');
+              setDateFrom(value);
+            }}
+            onDateToChange={(value) => {
+              setDatePreset('custom');
+              setDateTo(value);
+            }}
             showDepartment
             departments={departments}
             departmentId={departmentId}

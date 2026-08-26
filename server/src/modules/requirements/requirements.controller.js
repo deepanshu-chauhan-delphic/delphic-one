@@ -39,12 +39,23 @@ const list = asyncHandler(async (req, res) => {
   return ok(res, rows, { pagination });
 });
 
+function assertCanViewRequirement(user, requirement) {
+  if (user.role === 'admin') return null;
+  if (user.role === 'sales' && requirement.sales_owner?.id !== user.id) {
+    return 'You do not own this record';
+  }
+  if (user.role === 'recruiter') {
+    const assigned = (requirement.assigned_recruiters || []).some((row) => row.id === user.id);
+    if (!assigned) return 'You do not own this record';
+  }
+  return null;
+}
+
 const getOne = asyncHandler(async (req, res) => {
   const requirement = await service.getById(req.params.id);
   if (!requirement) return fail(res, 404, 'Not found');
-  if (req.user.role === 'sales' && requirement.sales_owner?.id !== req.user.id) {
-    return fail(res, 403, 'You do not own this record');
-  }
+  const denied = assertCanViewRequirement(req.user, requirement);
+  if (denied) return fail(res, 403, denied);
   return ok(res, requirement);
 });
 
@@ -84,16 +95,28 @@ const unassign = asyncHandler(async (req, res) => {
 });
 
 const assignments = asyncHandler(async (req, res) => {
+  const requirement = await service.getById(req.params.id);
+  if (!requirement) return fail(res, 404, 'Not found');
+  const denied = assertCanViewRequirement(req.user, requirement);
+  if (denied) return fail(res, 403, denied);
   const rows = await service.getAssignments(req.params.id);
   return ok(res, rows);
 });
 
 const history = asyncHandler(async (req, res) => {
+  const requirement = await service.getById(req.params.id);
+  if (!requirement) return fail(res, 404, 'Not found');
+  const denied = assertCanViewRequirement(req.user, requirement);
+  if (denied) return fail(res, 403, denied);
   const rows = await service.getHistory(req.params.id);
   return ok(res, rows);
 });
 
 const getSeats = asyncHandler(async (req, res) => {
+  const requirement = await service.getById(req.params.id);
+  if (!requirement) return fail(res, 404, 'Not found');
+  const denied = assertCanViewRequirement(req.user, requirement);
+  if (denied) return fail(res, 403, denied);
   const rows = await service.getSeats(req.params.id);
   return ok(res, rows);
 });

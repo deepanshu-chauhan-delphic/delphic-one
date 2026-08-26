@@ -7,15 +7,22 @@ import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
-import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
 import { accountAccent } from '../../lib/accountAccent.js';
+import AccountFormPage from './AccountFormPage.jsx';
+import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
+import {
+  ACCOUNT_TRANSITIONS,
+  accountKey,
+  apiErrorMessage,
+  canCreateAccount,
+  canMutateAccount,
+} from './accountUtils.js';
 
-function AccountPeek({ row, onClose, onChanged }) {
+function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [detail, setDetail] = useState(row);
   const [loading, setLoading] = useState(true);
-  const canEdit = canMutateAccount(user);
 
   useEffect(() => {
     setLoading(true);
@@ -26,15 +33,12 @@ function AccountPeek({ row, onClose, onChanged }) {
       .finally(() => setLoading(false));
   }, [row]);
 
-  const accent = accountAccent(detail.id);
+  const canEdit = canMutateAccount(detail, user) && !detail.is_locked;
+  const nextStages = ACCOUNT_TRANSITIONS[detail.stage] || [];
 
   return (
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
-      <div className={`flex items-center gap-2 rounded-xl border-l-4 bg-tertiary-50 px-3 py-2 ${accent.border}`}>
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
-        <span className={`text-xs font-medium ${accent.text}`}>This account&rsquo;s color — same everywhere it appears</span>
-      </div>
       <dl className="grid gap-4 sm:grid-cols-2">
         <PeekField label="Key">{accountKey(detail.id)}</PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
@@ -50,9 +54,17 @@ function AccountPeek({ row, onClose, onChanged }) {
         </PeekField>
       </dl>
       <PeekActions>
+        <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}`)}>
+          Open details
+        </button>
         {canEdit && (
-          <button type="button" className="btn-primary" onClick={() => navigate(`/accounts/${detail.id}?edit=1`)}>
+          <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}?edit=1`)}>
             Edit account
+          </button>
+        )}
+        {canEdit && nextStages.length > 0 && (
+          <button type="button" className="btn-primary" onClick={() => onRequestStageMove(detail)}>
+            Move stage
           </button>
         )}
         <button
@@ -84,15 +96,9 @@ export default function AccountsListPage() {
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [peek, setPeek] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [form, setForm] = useState({
-    type: 'client',
-    name: '',
-    industry: '',
-    poc_name: '',
-    poc_email: '',
-  });
+  const [stageTarget, setStageTarget] = useState(null);
+  const [stageError, setStageError] = useState('');
+  const [movingStage, setMovingStage] = useState(false);
 
   function reload() {
     setLoading(true);
@@ -123,33 +129,25 @@ export default function AccountsListPage() {
 
   function closeCreate() {
     setCreateOpen(false);
-    setCreateError('');
     if (searchParams.get('create')) {
       searchParams.delete('create');
       setSearchParams(searchParams, { replace: true });
     }
   }
 
-  async function createAccount(event) {
-    event.preventDefault();
-    setCreating(true);
-    setCreateError('');
+  async function moveStage(body) {
+    if (!stageTarget) return;
+    setMovingStage(true);
+    setStageError('');
     try {
-      const body = {
-        type: form.type,
-        name: form.name.trim(),
-        industry: form.industry.trim() || undefined,
-        poc_name: form.poc_name.trim() || undefined,
-        poc_email: form.poc_email.trim() || undefined,
-      };
-      const { data } = await apiClient.post('/accounts', body);
-      closeCreate();
+      const { data } = await apiClient.post(`/accounts/${stageTarget.id}/stage`, body);
+      setStageTarget(null);
+      setPeek(data.data || stageTarget);
       reload();
-      setPeek(data.data);
-    } catch (err) {
-      setCreateError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to create');
+    } catch (requestError) {
+      setStageError(apiErrorMessage(requestError, 'Failed to move account stage'));
     } finally {
-      setCreating(false);
+      setMovingStage(false);
     }
   }
 
@@ -316,68 +314,43 @@ export default function AccountsListPage() {
       </div>
 
       <Drawer open={Boolean(peek)} title={peek?.name || 'Account'} onClose={() => setPeek(null)} size="md" tone="info">
-        {peek && <AccountPeek row={peek} onClose={() => setPeek(null)} onChanged={reload} />}
+        {peek && (
+          <AccountPeek
+            row={peek}
+            onClose={() => setPeek(null)}
+            onChanged={reload}
+            onRequestStageMove={(account) => {
+              setStageError('');
+              setStageTarget(account);
+            }}
+          />
+        )}
       </Drawer>
 
-      <Drawer open={createOpen} title="Create account" onClose={closeCreate} size="md" tone="create">
-        <form onSubmit={createAccount} className="space-y-3">
-          {createError && (
-            <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{createError}</div>
-          )}
-          <label className="block text-xs font-medium text-tertiary-500">
-            Type *
-            <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="client">Client</option>
-              <option value="vendor">Vendor</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Name *
-            <input
-              required
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Industry
-            <input
-              value={form.industry}
-              onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            POC name
-            <input
-              value={form.poc_name}
-              onChange={(e) => setForm((f) => ({ ...f, poc_name: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            POC email
-            <input
-              type="email"
-              value={form.poc_email}
-              onChange={(e) => setForm((f) => ({ ...f, poc_email: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" className="btn-secondary" onClick={closeCreate}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={creating}>
-              {creating ? 'Creating…' : 'Create'}
-            </button>
-          </div>
-        </form>
+      <AccountStageMoveDrawer
+        account={stageTarget}
+        open={Boolean(stageTarget)}
+        error={stageError}
+        saving={movingStage}
+        onClose={() => {
+          setStageError('');
+          setStageTarget(null);
+        }}
+        onMove={moveStage}
+      />
+
+      <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="lg" tone="create">
+        {createOpen && (
+          <AccountFormPage
+            asPanel
+            onCancel={closeCreate}
+            onDone={(newId) => {
+              closeCreate();
+              reload();
+              if (newId) setPeek({ id: newId, name: 'Account' });
+            }}
+          />
+        )}
       </Drawer>
     </div>
   );

@@ -1,11 +1,18 @@
 /**
+ * Format a Date as YYYY-MM-DD in local time (safe for `<input type="date">`).
+ */
+export function formatLocalDate(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
  * Map filter bar date presets to ISO date_from / date_to (YYYY-MM-DD).
  */
 export function rangeForPreset(preset, now = new Date()) {
   const y = now.getFullYear();
   const m = now.getMonth();
-  const pad = (n) => String(n).padStart(2, '0');
-  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const iso = formatLocalDate;
 
   if (preset === 'last_month') {
     const from = new Date(y, m - 1, 1);

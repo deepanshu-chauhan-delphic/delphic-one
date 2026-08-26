@@ -28,10 +28,16 @@ function serialize(row) {
 }
 
 async function list(filters) {
-  const { requirement_id, seat_id, profile_id, stage, submitted_by, search, sort_by, sort_order, page, limit } = filters;
+  const {
+    account_id, requirement_id, seat_id, profile_id, stage, submitted_by, search, sort_by, sort_order, page, limit,
+  } = filters;
+
+  const seatFilter = {};
+  if (requirement_id) seatFilter.requirement_id = requirement_id;
+  if (account_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), account_id };
 
   const where = {
-    ...(requirement_id ? { seat: { requirement_id } } : {}),
+    ...(Object.keys(seatFilter).length ? { seat: seatFilter } : {}),
     ...(seat_id ? { requirement_seat_id: seat_id } : {}),
     ...(profile_id ? { profile_id } : {}),
     ...(stage ? { stage } : {}),

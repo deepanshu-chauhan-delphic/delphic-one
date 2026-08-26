@@ -50,6 +50,7 @@ const stageSchema = z.object({
 });
 
 const listQuerySchema = z.object({
+  account_id: z.string().uuid().optional(),
   requirement_id: z.string().uuid().optional(),
   seat_id: z.string().uuid().optional(),
   profile_id: z.string().uuid().optional(),

@@ -1,6 +1,41 @@
 require('dotenv').config();
 
-module.exports = {
+const PLACEHOLDER_SECRETS = new Set([
+  'dev_access_secret_change_me',
+  'dev_refresh_secret_change_me',
+  'change_me_access',
+  'change_me_refresh',
+  'local_dev_access_secret_do_not_use_in_prod_01',
+  'local_dev_refresh_secret_do_not_use_in_prod_01',
+]);
+
+function isWeakSecret(value) {
+  if (!value || typeof value !== 'string') return true;
+  if (value.length < 32) return true;
+  if (value.startsWith('local_dev_')) return true;
+  return PLACEHOLDER_SECRETS.has(value);
+}
+
+function assertProductionConfig(config, rawEnv = process.env) {
+  if (config.nodeEnv !== 'production') return;
+
+  const problems = [];
+  if (!config.databaseUrl) problems.push('DATABASE_URL is required');
+  if (isWeakSecret(config.jwt.accessSecret)) {
+    problems.push('JWT_ACCESS_SECRET must be set to a non-placeholder value of at least 32 characters');
+  }
+  if (isWeakSecret(config.jwt.refreshSecret)) {
+    problems.push('JWT_REFRESH_SECRET must be set to a non-placeholder value of at least 32 characters');
+  }
+  if (!rawEnv.CORS_ORIGIN) {
+    problems.push('CORS_ORIGIN must be set explicitly in production');
+  }
+  if (problems.length > 0) {
+    throw new Error(`Production config invalid:\n- ${problems.join('\n- ')}`);
+  }
+}
+
+const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 4000,
   logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
@@ -15,3 +50,9 @@ module.exports = {
   uploadDir: process.env.UPLOAD_DIR || './uploads',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 10,
 };
+
+assertProductionConfig(env);
+
+module.exports = env;
+module.exports.assertProductionConfig = assertProductionConfig;
+module.exports.isWeakSecret = isWeakSecret;

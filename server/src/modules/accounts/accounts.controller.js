@@ -55,6 +55,11 @@ const changeStage = asyncHandler(async (req, res) => {
 });
 
 const history = asyncHandler(async (req, res) => {
+  const account = await accountsService.getById(req.params.id);
+  if (!account) return fail(res, 404, 'Not found');
+  if (req.user.role === 'bda' && account.owner?.id !== req.user.id) {
+    return fail(res, 403, 'You do not own this record');
+  }
   const rows = await accountsService.getHistory(req.params.id);
   return ok(res, rows);
 });

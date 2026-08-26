@@ -51,6 +51,13 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
 
   if (!asPanel && !isEditing && !canCreateProfile(user)) return <Navigate to="/profiles" replace />;
   if (!asPanel && isEditing && !canEditProfile(user)) return <Navigate to={`/profiles/${id}`} replace />;
+  if (asPanel && !isEditing && !canCreateProfile(user)) {
+    return (
+      <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+        Only recruiters or admins can create candidate profiles.
+      </div>
+    );
+  }
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));

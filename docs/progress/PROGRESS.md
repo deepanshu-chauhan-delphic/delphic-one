@@ -2,6 +2,38 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-26 — Pipeline DnD + card actions menu on every board
+
+All pipeline boards now support drag-and-drop between columns, and stage/status moves live in a ⋯ dropdown on each card (no more “Move stage” / → button rows).
+
+- Shared: `CardActionsMenu`, `pipelineDnd.jsx` (DroppableColumn / DraggableCard / sensors).
+- Boards: Lead, Job, Candidate, Requirement kanban, Account matrix.
+- Transitions that need a reason/meeting form still open the existing drawers (pre-filled target stage when dropped/selected).
+
+## 2026-08-26 — Role-specific pipelines (BDA leads / Sales jobs / Recruiter candidates)
+
+`/pipeline` is no longer a single account picker for everyone. `PipelineShell` picks a role board; admin can switch via `?view=lead|jobs|candidates`.
+
+- **BDA:** Lead pipeline — accounts as cards in account-stage columns; move stage via existing drawer; drill into `/pipeline/:accountId`.
+- **Sales:** Job pipeline — requirements as cards in status columns; expand for submission previews; status moves via `POST /requirements/:id/status`.
+- **Recruiter:** Candidate pipeline — own submissions as cards in submission-stage columns.
+- **Admin:** Switcher across all three.
+- **Backend:** `GET /submissions` (and getOne) auto-scopes recruiters to `submitted_by = self`.
+- Dashboard pipeline CTA now always goes to `/pipeline`.
+- Capabilities: `viewLeadPipeline` / `viewJobPipeline` / `viewCandidatePipeline`.
+- Tests: `pipelineBoardUtils.test.mjs`, `permissions.pipeline.test.mjs`, `submissions-recruiter-scope.test.js`.
+
+## 2026-08-26 — BDA account create/edit/stage gaps + matching list forms
+
+BDA (and admin) create-account from the Accounts list used a stripped mini-form (type/name/industry/POC only), so client/vendor commercial fields and contacts were missing. Peek also called `canMutateAccount(user)` with the wrong arity, so Edit never appeared, and there was no Move stage from the list.
+
+**Fixes:**
+- Accounts list create now mounts full `AccountFormPage` (company, contacts, client/vendor commercial).
+- Peek: correct `canMutateAccount(account, user)`; actions Open details / Edit / Move stage.
+- Shared `AccountStageMoveDrawer` used from list peek, account detail, and pipeline board.
+- Same stripped-create pattern on Requirements list → full `RequirementFormPage`.
+- Regression test: `client/src/pages/accounts/accountUtils.test.mjs`.
+
 ## 2026-08-21 — UX audit pass: all-drawer forms, tooltips, skill picker, richer seed, pipeline visibility, report accuracy
 
 Full audit (API↔frontend mapping, dead UI, modal/drawer compliance, seed/pipeline/reports) followed by a fix pass across client and server. Verified end-to-end via `npm run lint` (0 errors), `npm run build`, and a live Docker stack re-seed + login/report checks through the client proxy.

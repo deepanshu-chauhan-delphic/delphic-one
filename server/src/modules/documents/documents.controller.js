@@ -7,6 +7,7 @@ const ERROR_STATUS = {
   file_required: [422, 'file is required'],
   not_found: [404, 'Not found'],
   forbidden: [403, 'Not permitted'],
+  filters_required: [400, 'entity_type and entity_id are required'],
 };
 
 function mapError(res, error) {
@@ -16,13 +17,14 @@ function mapError(res, error) {
 
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
-  const rows = await service.list(query);
-  return ok(res, rows);
+  const result = await service.list(query, req.user);
+  if (result.error) return mapError(res, result.error);
+  return ok(res, result.documents);
 });
 
 const create = asyncHandler(async (req, res) => {
   const meta = createMetaSchema.parse(req.body);
-  const result = await service.create({ ...meta, file: req.file }, req.user.id);
+  const result = await service.create({ ...meta, file: req.file }, req.user);
   if (result.error) return mapError(res, result.error);
   return created(res, result.document);
 });

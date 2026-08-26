@@ -33,4 +33,21 @@ apiClient.interceptors.response.use(
   }
 );
 
+/**
+ * Download a protected /uploads file with the bearer token and open it in a new tab.
+ */
+export async function openAuthenticatedFile(fileUrl) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(fileUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download file (${response.status})`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 export default apiClient;

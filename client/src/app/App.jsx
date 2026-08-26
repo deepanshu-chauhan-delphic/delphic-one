@@ -6,6 +6,8 @@ import LoginPage from '../pages/auth/LoginPage.jsx';
 import DashboardPage from '../pages/dashboard/DashboardPage.jsx';
 import AccountsListPage from '../pages/accounts/AccountsListPage.jsx';
 import AccountDetailPage from '../pages/accounts/AccountDetailPage.jsx';
+import PipelineShell from '../pages/pipeline/PipelineShell.jsx';
+import AccountPipelineBoardPage from '../pages/accounts/AccountPipelineBoardPage.jsx';
 import RequirementsListPage from '../pages/requirements/RequirementsListPage.jsx';
 import RequirementDetailPage from '../pages/requirements/RequirementDetailPage.jsx';
 import RequirementKanbanPage from '../pages/requirements/RequirementKanbanPage.jsx';
@@ -36,6 +38,12 @@ function EditRedirect({ base }) {
   return <Navigate to={`/${base}/${id}?edit=1`} replace />;
 }
 
+/** Keep old /accounts/:id/board links working → /pipeline/:accountId */
+function AccountBoardRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/pipeline/${id}`} replace />;
+}
+
 /**
  * Redirect when the current user lacks the required capability.
  */
@@ -62,8 +70,25 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="accounts" element={<AccountsListPage />} />
         <Route path="accounts/new" element={<Navigate to="/accounts?create=1" replace />} />
+        <Route path="accounts/:id/board" element={<AccountBoardRedirect />} />
         <Route path="accounts/:id" element={<AccountDetailPage />} />
         <Route path="accounts/:id/edit" element={<EditRedirect base="accounts" />} />
+        <Route
+          path="pipeline"
+          element={
+            <RequirePermission capability="viewPipeline">
+              <PipelineShell />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="pipeline/:accountId"
+          element={
+            <RequirePermission capability="viewPipeline">
+              <AccountPipelineBoardPage />
+            </RequirePermission>
+          }
+        />
         <Route path="requirements" element={<RequirementsListPage />} />
         <Route path="requirements/new" element={<Navigate to="/requirements?create=1" replace />} />
         <Route path="requirements/:id/edit" element={<EditRedirect base="requirements" />} />

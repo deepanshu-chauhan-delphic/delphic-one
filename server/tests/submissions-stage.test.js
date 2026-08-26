@@ -156,6 +156,7 @@ describe('submission stage machine', () => {
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
       round_type: 'client_l1',
       round_name: 'L1',
+      scheduled_at: new Date().toISOString(),
     });
     expect(round.status).toBe(201);
 
@@ -195,6 +196,7 @@ describe('submission stage machine', () => {
 
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
       round_type: 'client_l1',
+      scheduled_at: new Date().toISOString(),
     });
     await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
       result: 'pass',
@@ -244,6 +246,7 @@ describe('submission stage machine', () => {
 
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
       round_type: 'client_hr',
+      scheduled_at: new Date().toISOString(),
     });
     expect(round.status).toBe(201);
 

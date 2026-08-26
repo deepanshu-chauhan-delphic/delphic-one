@@ -11,6 +11,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "generate": "prisma generate",
     "seed": "node prisma/seed.js",
+    "seed:admin": "node prisma/seed-admin.js",
     "studio": "prisma studio",
     "test": "jest --runInBand"
   },

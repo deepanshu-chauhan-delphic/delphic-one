@@ -8,6 +8,7 @@ build/
 npm-debug.log*
 .DS_Store
 uploads/
+uploads_test/
 coverage/
 .vscode/
 *.local

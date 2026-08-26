@@ -1,3 +1,5 @@
+import { rangeForPreset } from '../../lib/datePresets.js';
+
 /**
  * Report view helpers for RD-114 — columns, charts, and role visibility.
  */
@@ -16,12 +18,8 @@ export function reportsForRole(role) {
 }
 
 export function defaultDateRange() {
-  const to = new Date();
-  const from = new Date(to.getFullYear(), to.getMonth(), 1);
-  return {
-    dateFrom: from.toISOString().slice(0, 10),
-    dateTo: to.toISOString().slice(0, 10),
-  };
+  const range = rangeForPreset('this_month');
+  return { dateFrom: range.date_from, dateTo: range.date_to };
 }
 
 function cell(value) {

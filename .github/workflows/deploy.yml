@@ -7,11 +7,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    needs: []
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to VPS
+      - name: Deploy to EC2
         if: ${{ vars.DEPLOY_ENABLED == 'true' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -19,13 +18,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /var/www/delphic_one
+            set -euo pipefail
+            cd /opt/delphic
             git pull origin main
-            npm install --workspace server
-            npm install --workspace client
-            npm run build --workspace client
-            npm run migrate --workspace server
-            pm2 reload ecosystem.config.js --env production
+            chmod +x start-delphic.sh setup-vm.sh
+            ./start-delphic.sh --prod --no-boot
+            curl -sf http://127.0.0.1:4000/api/v1/health | grep -q '"status":"ok"'
 
       - name: Deploy disabled notice
         if: ${{ vars.DEPLOY_ENABLED != 'true' }}

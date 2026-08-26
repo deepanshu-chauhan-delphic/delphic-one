@@ -22,6 +22,9 @@ const ROLE_CAPS = {
     'assignRecruiters',
     'viewDashboardCharts',
     'viewPipeline',
+    'viewLeadPipeline',
+    'viewJobPipeline',
+    'viewCandidatePipeline',
   ]),
   sales: new Set([
     'viewReports',
@@ -34,6 +37,7 @@ const ROLE_CAPS = {
     'assignRecruiters',
     'viewDashboardCharts',
     'viewPipeline',
+    'viewJobPipeline',
   ]),
   recruiter: new Set([
     'viewReports',
@@ -43,8 +47,9 @@ const ROLE_CAPS = {
     'createProfile',
     'viewDashboardCharts',
     'viewPipeline',
+    'viewCandidatePipeline',
   ]),
-  bda: new Set(['editAccount', 'viewPipeline']),
+  bda: new Set(['editAccount', 'viewPipeline', 'viewLeadPipeline']),
 };
 
 /**

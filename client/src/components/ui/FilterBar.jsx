@@ -19,6 +19,7 @@ export default function FilterBar({
   dateTo,
   onDateFromChange,
   onDateToChange,
+  showDatePresets = true,
   individuals = [],
   individualId = '',
   onIndividualChange,
@@ -44,22 +45,24 @@ export default function FilterBar({
 
   const filters = (
     <>
-      <div className={`flex flex-wrap items-center gap-2 ${isInline ? 'flex-1' : ''}`}>
-        {DATE_PRESETS.map((preset) => (
-          <button
-            key={preset.key}
-            type="button"
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-              datePreset === preset.key
-                ? 'border-[#0052FF] bg-[#0052FF] text-white shadow-sm'
-                : 'border-tertiary-100 bg-canvas-muted text-tertiary-600 hover:border-tertiary-200 hover:bg-tertiary-50'
-            }`}
-            onClick={() => onDatePresetChange?.(preset.key)}
-          >
-            {preset.label}
-          </button>
-        ))}
-      </div>
+      {showDatePresets && (
+        <div className={`flex flex-wrap items-center gap-2 ${isInline ? 'flex-1' : ''}`}>
+          {DATE_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                datePreset === preset.key
+                  ? 'border-[#0052FF] bg-[#0052FF] text-white shadow-sm'
+                  : 'border-tertiary-100 bg-canvas-muted text-tertiary-600 hover:border-tertiary-200 hover:bg-tertiary-50'
+              }`}
+              onClick={() => onDatePresetChange?.(preset.key)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {(showIndividual || showDepartment || children) && (
         <div className="flex flex-wrap items-center gap-3">
@@ -99,30 +102,35 @@ export default function FilterBar({
     </>
   );
 
+  const showCustomDates = showDatePresets && datePreset === 'custom' && onDateFromChange && onDateToChange;
+  const dateInputClass = 'min-w-[10.5rem] rounded-lg border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-800';
+
   if (isInline) {
     return (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {filters}
         </div>
-        {datePreset === 'custom' && (
+        {showCustomDates && (
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-tertiary-500">
               From
               <input
                 type="date"
-                className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+                className={dateInputClass}
                 value={dateFrom || ''}
-                onChange={(e) => onDateFromChange?.(e.target.value)}
+                max={dateTo || undefined}
+                onChange={(e) => onDateFromChange(e.target.value)}
               />
             </label>
             <label className="flex items-center gap-2 text-xs text-tertiary-500">
               To
               <input
                 type="date"
-                className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+                className={dateInputClass}
                 value={dateTo || ''}
-                onChange={(e) => onDateToChange?.(e.target.value)}
+                min={dateFrom || undefined}
+                onChange={(e) => onDateToChange(e.target.value)}
               />
             </label>
           </div>
@@ -142,24 +150,26 @@ export default function FilterBar({
     <div className="space-y-3 rounded-xl border border-tertiary-200 bg-white p-4 shadow-card">
       {filters}
 
-      {datePreset === 'custom' && (
+      {showCustomDates && (
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
             From
             <input
               type="date"
-              className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+              className={dateInputClass}
               value={dateFrom || ''}
-              onChange={(e) => onDateFromChange?.(e.target.value)}
+              max={dateTo || undefined}
+              onChange={(e) => onDateFromChange(e.target.value)}
             />
           </label>
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
             To
             <input
               type="date"
-              className="rounded-lg border border-tertiary-200 px-2 py-1.5 text-sm text-tertiary-800"
+              className={dateInputClass}
               value={dateTo || ''}
-              onChange={(e) => onDateToChange?.(e.target.value)}
+              min={dateFrom || undefined}
+              onChange={(e) => onDateToChange(e.target.value)}
             />
           </label>
         </div>

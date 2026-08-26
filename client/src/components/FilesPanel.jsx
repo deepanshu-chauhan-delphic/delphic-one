@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import apiClient from '../lib/apiClient.js';
+import apiClient, { openAuthenticatedFile } from '../lib/apiClient.js';
 
 function apiErrorMessage(error, fallback) {
   return error.response?.data?.errors?.[0]?.message || error.response?.data?.message || fallback;
@@ -74,6 +74,15 @@ export default function FilesPanel({
     }
   }
 
+  async function openFile(fileUrl) {
+    setError('');
+    try {
+      await openAuthenticatedFile(fileUrl);
+    } catch (requestError) {
+      setError(requestError.message || 'Failed to open file');
+    }
+  }
+
   return (
     <section className="overflow-hidden rounded border bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-tertiary-50 px-4 py-2">
@@ -119,9 +128,13 @@ export default function FilesPanel({
               <tr key={doc.id} className="hover:bg-tertiary-50">
                 <td className="px-4 py-2">{doc.label}</td>
                 <td className="px-4 py-2">
-                  <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-primary-700 hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => openFile(doc.file_url)}
+                    className="text-primary-700 hover:underline"
+                  >
                     Open
-                  </a>
+                  </button>
                 </td>
                 <td className="px-4 py-2 text-tertiary-500">
                   {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : '—'}

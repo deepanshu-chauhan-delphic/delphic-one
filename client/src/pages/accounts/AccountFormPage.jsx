@@ -101,8 +101,9 @@ function buildAccountBody(form, isEditing) {
   return body;
 }
 
-export default function AccountFormPage({ asPanel = false, onDone, onCancel }) {
-  const { id } = useParams();
+export default function AccountFormPage({ asPanel = false, onDone, onCancel, accountId: accountIdProp }) {
+  const { id: paramId } = useParams();
+  const id = accountIdProp || paramId;
   const { user } = useAuth();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
@@ -114,6 +115,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel }) {
 
   useEffect(() => {
     if (!isEditing) return;
+    setLoading(true);
     apiClient
       .get(`/accounts/${id}`)
       .then(({ data }) => {
@@ -125,6 +127,13 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel }) {
   }, [id, isEditing]);
 
   if (!asPanel && !isEditing && !canCreateAccount(user)) return <Navigate to="/accounts" replace />;
+  if (asPanel && !isEditing && !canCreateAccount(user)) {
+    return (
+      <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+        Only BDA or admin can create accounts.
+      </div>
+    );
+  }
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));

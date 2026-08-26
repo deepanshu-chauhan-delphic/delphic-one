@@ -18,6 +18,7 @@ const {
 let salesToken;
 let recruiterToken;
 let requirement;
+let accountId;
 let seatId;
 let profile;
 let submissionId;
@@ -29,6 +30,7 @@ beforeEach(async () => {
   ({ access_token: salesToken } = await loginAs(sales));
   ({ access_token: recruiterToken } = await loginAs(recruiter));
   const account = await createActiveClientAccount(sales.id);
+  accountId = account.id;
   requirement = await createRequirement(salesToken, account.id, { seats_total: 1 });
   const seats = await authed(request(app).get(`/api/v1/requirements/${requirement.id}/seats`), salesToken);
   seatId = seats.body.data[0].id;
@@ -83,6 +85,7 @@ describe('RD-125 interview rounds UI (API)', () => {
     ).send({
       round_type: 'internal',
       round_name: 'Recruiter screen',
+      scheduled_at: new Date().toISOString(),
       interviewer_name: 'Alex',
       result: 'pass',
       feedback: 'Strong communicator',
@@ -141,5 +144,33 @@ describe('RD-112 kanban data (list by requirement)', () => {
     expect(list.status).toBe(200);
     expect(list.body.data.length).toBeGreaterThanOrEqual(2);
     expect(list.body.data.every((s) => s.requirement.id === requirement.id)).toBe(true);
+  });
+});
+
+describe('account pipeline board (list by account)', () => {
+  test('lists only submissions whose requirement belongs to the account', async () => {
+    const sales = await createUser({ role: 'sales' });
+    const { access_token: otherSalesToken } = await loginAs(sales);
+    const otherAccount = await createActiveClientAccount(sales.id);
+    const otherReq = await createRequirement(otherSalesToken, otherAccount.id, { seats_total: 1 });
+    const otherSeats = await authed(request(app).get(`/api/v1/requirements/${otherReq.id}/seats`), otherSalesToken);
+    const otherProfile = await createProfile(recruiterToken, { name: 'Other Account Candidate' });
+    await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: otherSeats.body.data[0].id,
+      profile_id: otherProfile.id,
+      proposed_rate: 80,
+      proposed_rate_currency: 'INR',
+      vendor_rate: 50,
+      vendor_rate_currency: 'INR',
+    });
+
+    const list = await authed(request(app).get('/api/v1/submissions'), recruiterToken).query({
+      account_id: accountId,
+      limit: 100,
+    });
+    expect(list.status).toBe(200);
+    expect(list.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(list.body.data.every((s) => s.requirement.id === requirement.id)).toBe(true);
+    expect(list.body.data.some((s) => s.requirement.id === otherReq.id)).toBe(false);
   });
 });

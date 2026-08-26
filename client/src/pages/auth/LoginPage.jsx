@@ -34,7 +34,7 @@ export default function LoginPage() {
   }
 
   async function handleQuickLogin(account) {
-    setQuickRole(account.role);
+    setQuickRole(account.email);
     setEmail(account.email);
     setPassword(TEST_PASSWORD);
     await signIn(account.email, TEST_PASSWORD);
@@ -83,13 +83,13 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-2">
               {QUICK_LOGIN_ACCOUNTS.map((account) => (
                 <button
-                  key={account.role}
+                  key={account.email}
                   type="button"
                   disabled={submitting}
                   onClick={() => handleQuickLogin(account)}
                   className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-tertiary-800 hover:bg-amber-100 disabled:opacity-50"
                 >
-                  {quickRole === account.role ? 'Signing in…' : account.label}
+                  {quickRole === account.email ? 'Signing in…' : account.label}
                 </button>
               ))}
             </div>

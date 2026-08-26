@@ -32,6 +32,8 @@ function mapError(res, error) {
 
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
+  // Recruiters only see their own submissions (candidate pipeline scope).
+  if (req.user.role === 'recruiter') query.submitted_by = req.user.id;
   const { rows, pagination } = await service.list(query);
   return ok(res, rows, { pagination });
 });
@@ -39,6 +41,9 @@ const list = asyncHandler(async (req, res) => {
 const getOne = asyncHandler(async (req, res) => {
   const submission = await service.getById(req.params.id);
   if (!submission) return fail(res, 404, 'Not found');
+  if (req.user.role === 'recruiter' && submission.submitted_by?.id !== req.user.id) {
+    return fail(res, 403, 'You do not own this record');
+  }
   return ok(res, submission);
 });
 
@@ -63,6 +68,11 @@ const changeStage = asyncHandler(async (req, res) => {
 });
 
 const history = asyncHandler(async (req, res) => {
+  const submission = await service.getById(req.params.id);
+  if (!submission) return fail(res, 404, 'Not found');
+  if (req.user.role === 'recruiter' && submission.submitted_by?.id !== req.user.id) {
+    return fail(res, 403, 'You do not own this record');
+  }
   const rows = await service.getHistory(req.params.id);
   return ok(res, rows);
 });

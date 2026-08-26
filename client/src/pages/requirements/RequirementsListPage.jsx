@@ -8,9 +8,9 @@ import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
-import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canAssignRecruiters } from '../profiles/profileUtils.js';
 import AssignRecruiterDrawer from './AssignRecruiterDrawer.jsx';
+import RequirementFormPage from './RequirementFormPage.jsx';
 
 function reqKey(id) {
   return `REQ-${String(id).slice(0, 8).toUpperCase()}`;
@@ -94,17 +94,6 @@ export default function RequirementsListPage() {
   const [assignTarget, setAssignTarget] = useState(null);
   const [peek, setPeek] = useState(null);
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
-  const [accounts, setAccounts] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [form, setForm] = useState({
-    account_id: '',
-    title: '',
-    req_type: 'developer',
-    priority: 'medium',
-    primary_tech_stack: [],
-    seats_total: '1',
-  });
 
   function reload() {
     setLoading(true);
@@ -127,45 +116,11 @@ export default function RequirementsListPage() {
     if (searchParams.get('create') === '1') setCreateOpen(true);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!createOpen) return undefined;
-    apiClient
-      .get('/accounts', { params: { type: 'client', limit: 100 } })
-      .then(({ data }) => setAccounts(data.data || []))
-      .catch(() => setAccounts([]));
-    return undefined;
-  }, [createOpen]);
-
   function closeCreate() {
     setCreateOpen(false);
-    setCreateError('');
     if (searchParams.get('create')) {
       searchParams.delete('create');
       setSearchParams(searchParams, { replace: true });
-    }
-  }
-
-  async function createRequirement(event) {
-    event.preventDefault();
-    setCreating(true);
-    setCreateError('');
-    try {
-      const body = {
-        account_id: form.account_id,
-        title: form.title.trim(),
-        req_type: form.req_type,
-        priority: form.priority,
-        primary_tech_stack: form.primary_tech_stack,
-        seats_total: Number(form.seats_total) || 1,
-      };
-      const { data } = await apiClient.post('/requirements', body);
-      closeCreate();
-      reload();
-      setPeek(data.data);
-    } catch (err) {
-      setCreateError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to create');
-    } finally {
-      setCreating(false);
     }
   }
 
@@ -297,89 +252,18 @@ export default function RequirementsListPage() {
         )}
       </Drawer>
 
-      <Drawer open={createOpen} title="Create requirement" onClose={closeCreate} size="md" tone="create">
-        <form onSubmit={createRequirement} className="space-y-3">
-          {createError && (
-            <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{createError}</div>
-          )}
-          <label className="block text-xs font-medium text-tertiary-500">
-            Client *
-            <select
-              required
-              value={form.account_id}
-              onChange={(e) => setForm((f) => ({ ...f, account_id: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="">Select client…</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Title *
-            <input
-              required
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Type *
-            <select
-              value={form.req_type}
-              onChange={(e) => setForm((f) => ({ ...f, req_type: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="developer">Developer</option>
-              <option value="project">Project</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Priority
-            <select
-              value={form.priority}
-              onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Primary tech
-            <div className="mt-1">
-              <SkillPicker
-                value={form.primary_tech_stack}
-                onChange={(next) => setForm((f) => ({ ...f, primary_tech_stack: next }))}
-                placeholder="Search or type a technology…"
-              />
-            </div>
-          </label>
-          <label className="block text-xs font-medium text-tertiary-500">
-            Seats
-            <input
-              type="number"
-              min={1}
-              value={form.seats_total}
-              onChange={(e) => setForm((f) => ({ ...f, seats_total: e.target.value }))}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" className="btn-secondary" onClick={closeCreate}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={creating}>
-              {creating ? 'Creating…' : 'Create'}
-            </button>
-          </div>
-        </form>
+      <Drawer open={createOpen} title="Create requirement" onClose={closeCreate} size="lg" tone="create">
+        {createOpen && (
+          <RequirementFormPage
+            asPanel
+            onCancel={closeCreate}
+            onDone={(newId) => {
+              closeCreate();
+              reload();
+              if (newId) setPeek({ id: newId, title: 'Requirement' });
+            }}
+          />
+        )}
       </Drawer>
     </div>
   );

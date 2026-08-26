@@ -13,7 +13,13 @@ function toOptionalNumber(value) {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel }) {
+export default function SubmissionCreatePage({
+  asPanel = false,
+  onDone,
+  onCancel,
+  initialRequirementId = '',
+  accountId = '',
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
@@ -25,7 +31,7 @@ export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel
 
   const [form, setForm] = useState({
     profile_id: '',
-    requirement_id: '',
+    requirement_id: initialRequirementId || '',
     requirement_seat_id: '',
     proposed_rate: '',
     proposed_rate_type: 'monthly',
@@ -39,6 +45,7 @@ export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel
 
   const selectedProfile = profiles.find((p) => p.id === form.profile_id);
   const vendorRequired = selectedProfile?.source === 'vendor';
+  const requirementLocked = Boolean(initialRequirementId);
 
   const liveMargin = useMemo(
     () =>
@@ -56,16 +63,21 @@ export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel
       setError('Only recruiters or admins can put a candidate forward.');
       return;
     }
+    const reqParams = { limit: 100 };
+    if (accountId) reqParams.account_id = accountId;
     Promise.all([
       apiClient.get('/profiles', { params: { is_active: 'true', limit: 100 } }),
-      apiClient.get('/requirements', { params: { limit: 100 } }),
+      apiClient.get('/requirements', { params: reqParams }),
     ])
       .then(([profilesRes, reqsRes]) => {
         setProfiles(profilesRes.data.data || []);
         setRequirements(reqsRes.data.data || []);
+        if (initialRequirementId) {
+          setForm((prev) => ({ ...prev, requirement_id: initialRequirementId }));
+        }
       })
       .catch((err) => setError(err.response?.data?.message || 'Failed to load candidates or jobs'));
-  }, [user]);
+  }, [user, accountId, initialRequirementId]);
 
   useEffect(() => {
     if (!form.requirement_id) {
@@ -187,8 +199,9 @@ export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel
             <select
               required
               value={form.requirement_id}
+              disabled={requirementLocked}
               onChange={(e) => updateField('requirement_id', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className="w-full rounded-xl border px-3 py-2 text-sm disabled:bg-tertiary-50"
             >
               <option value="">Select job…</option>
               {requirements.map((r) => (
@@ -198,6 +211,9 @@ export default function SubmissionCreatePage({ asPanel = false, onDone, onCancel
                 </option>
               ))}
             </select>
+            {requirementLocked && (
+              <p className="mt-1 text-xs text-tertiary-500">Locked to this requirement row.</p>
+            )}
           </div>
 
           <div className={asPanel ? '' : 'sm:col-span-2'}>

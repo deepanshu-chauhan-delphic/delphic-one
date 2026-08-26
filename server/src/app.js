@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const env = require('./config/env');
+const { authenticate } = require('./middleware/auth');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -24,20 +25,24 @@ const departmentsRoutes = require('./modules/departments/departments.routes');
 
 const app = express();
 
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(requestLogger);
-app.use('/uploads', express.static(path.resolve(env.uploadDir)));
+app.use('/uploads', authenticate, express.static(path.resolve(env.uploadDir)));
 
 const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 
 app.get('/api/v1/health', (req, res) => res.json({ success: true, data: { status: 'ok' } }));
 
-// Rate limit login in real environments only — tests log in once per case and would hit 429 mid-suite.
+// Rate limit login and general API traffic outside the Jest suite.
 if (env.nodeEnv !== 'test') {
   app.use('/api/v1/auth/login', loginLimiter);
+  app.use('/api/v1', apiLimiter);
 }
+
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/accounts', accountsRoutes);

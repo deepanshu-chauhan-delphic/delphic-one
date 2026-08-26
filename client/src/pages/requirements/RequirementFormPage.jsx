@@ -99,17 +99,21 @@ function hydrateForm(req) {
   };
 }
 
-export default function RequirementFormPage({ asPanel = false, onDone, onCancel }) {
+export default function RequirementFormPage({ asPanel = false, onDone, onCancel, initialAccountId = '' }) {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({
+    ...emptyForm,
+    account_id: initialAccountId || '',
+  }));
   const [accounts, setAccounts] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState(null);
+  const accountLocked = Boolean(initialAccountId) && !isEdit;
 
   useEffect(() => {
     if (!canCreateRequirement(user) && !isEdit) {
@@ -122,7 +126,12 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
       .then(({ data }) => setAccounts(data.data || []))
       .catch(() => setAccounts([]));
 
-    if (!isEdit) return;
+    if (!isEdit) {
+      if (initialAccountId) {
+        setForm((prev) => ({ ...prev, account_id: initialAccountId }));
+      }
+      return;
+    }
 
     setLoading(true);
     apiClient
@@ -137,7 +146,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
       })
       .catch((err) => setError(err.response?.data?.message || 'Failed to load requirement'))
       .finally(() => setLoading(false));
-  }, [id, isEdit, user]);
+  }, [id, isEdit, user, initialAccountId]);
 
   function updateField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -173,6 +182,14 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
     return <div className="text-sm text-tertiary-500">Loading…</div>;
   }
 
+  if (!isEdit && !canCreateRequirement(user)) {
+    return (
+      <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+        {error || 'Only sales or admin can create requirements.'}
+      </div>
+    );
+  }
+
   const blocked = isEdit && existing && !canMutateRequirement(existing, user);
 
   function handleCancel() {
@@ -206,8 +223,9 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
                 <select
                   required
                   value={form.account_id}
+                  disabled={accountLocked}
                   onChange={(e) => updateField('account_id', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-tertiary-50"
                 >
                   <option value="">Select active client…</option>
                   {accounts.map((a) => (
@@ -216,6 +234,9 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel 
                     </option>
                   ))}
                 </select>
+                {accountLocked && (
+                  <p className="mt-1 text-xs text-tertiary-500">Locked to this pipeline account.</p>
+                )}
                 {accounts.length === 0 && (
                   <p className="mt-1 text-xs text-amber-700">No active client accounts found. Activate a client first.</p>
                 )}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
@@ -47,22 +48,33 @@ function StageStepper({ stage }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         {SUBMISSION_PIPELINE.map((s, idx) => {
-          const done = currentIdx >= 0 && idx <= currentIdx;
-          const current = s === stage;
+          const isPast = currentIdx >= 0 && idx < currentIdx;
+          const isCurrent = s === stage || (currentIdx >= 0 && idx === currentIdx && !isTerminalFail);
+          const isDone = isPast || isCurrent;
+
           return (
-            <div
-              key={s}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium capitalize ${
-                current
-                  ? 'bg-primary-600 text-white'
-                  : done
-                    ? 'bg-primary-100 text-primary-800'
-                    : 'bg-tertiary-100 text-tertiary-500'
-              }`}
-            >
-              {s.replace(/_/g, ' ')}
+            <div key={s} className="flex items-center gap-1.5">
+              {idx > 0 && (
+                <ChevronRight
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    currentIdx >= 0 && idx <= currentIdx ? 'text-green-500' : 'text-tertiary-300'
+                  }`}
+                  aria-hidden="true"
+                />
+              )}
+              <div
+                className={`rounded-md px-2 py-1 text-[11px] font-medium capitalize ${
+                  isCurrent
+                    ? 'bg-green-600 text-white ring-2 ring-green-200'
+                    : isDone
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-tertiary-100 text-tertiary-500'
+                }`}
+              >
+                {s.replace(/_/g, ' ')}
+              </div>
             </div>
           );
         })}
@@ -371,6 +383,13 @@ export default function SubmissionDetailPage() {
         </section>
       </div>
 
+      <InterviewRoundsPanel
+        submissionId={id}
+        rounds={submission.interview_rounds || []}
+        canEdit={canEdit}
+        onChanged={load}
+      />
+
       <form onSubmit={handleSave} className="space-y-4">
         <section className="rounded-lg border bg-white p-4">
           <h2 className="text-sm font-semibold text-tertiary-800">Commercials & margin</h2>
@@ -632,13 +651,6 @@ export default function SubmissionDetailPage() {
           </button>
         )}
       </form>
-
-      <InterviewRoundsPanel
-        submissionId={id}
-        rounds={submission.interview_rounds || []}
-        canEdit={canEdit}
-        onChanged={load}
-      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <NotesPanel entityType="submission" entityId={submission.id} />
