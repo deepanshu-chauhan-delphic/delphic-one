@@ -6,7 +6,7 @@ import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from 
 
 const EMPTY_CONTACT = { name: '', email: '', phone: '', designation: '', role_label: '' };
 const EMPTY_FORM = {
-  type: 'client',
+  type: '',
   name: '',
   industry: '',
   company_size: '',
@@ -14,6 +14,9 @@ const EMPTY_FORM = {
   location_city: '',
   location_country: '',
   gst_or_tax_id: '',
+  lead_generated_date: '',
+  location: '',
+  linkedin_url: '',
   poc_name: '',
   poc_email: '',
   poc_phone: '',
@@ -49,6 +52,10 @@ function formFromAccount(account) {
   return {
     ...EMPTY_FORM,
     ...account,
+    type: account.type || '',
+    lead_generated_date: account.lead_generated_date ? account.lead_generated_date.slice(0, 10) : '',
+    location: account.location || '',
+    linkedin_url: account.linkedin_url || '',
     additional_contacts: contacts.length ? contacts.map((contact) => ({ ...EMPTY_CONTACT, ...contact })) : [{ ...EMPTY_CONTACT }],
     vendor_specializations: (account.vendor_specializations || []).join(', '),
     vendor_rate_min: rateRange.min ?? '',
@@ -71,6 +78,9 @@ function buildAccountBody(form, isEditing) {
     location_city: form.location_city.trim(),
     location_country: form.location_country.trim(),
     gst_or_tax_id: form.gst_or_tax_id.trim(),
+    lead_generated_date: form.lead_generated_date || undefined,
+    location: form.location.trim(),
+    linkedin_url: form.linkedin_url.trim(),
     poc_name: form.poc_name.trim(),
     poc_email: form.poc_email.trim(),
     poc_phone: form.poc_phone.trim(),
@@ -81,7 +91,7 @@ function buildAccountBody(form, isEditing) {
     source: form.source.trim(),
   };
 
-  if (!isEditing) body.type = form.type;
+  if (!isEditing && form.type) body.type = form.type;
 
   if (form.type === 'vendor') {
     body.vendor_specializations = form.vendor_specializations.split(',').map((value) => value.trim()).filter(Boolean);
@@ -226,13 +236,14 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Company</h2>
           <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
-            <Field label="Account type" required>
+            <Field label="Account type">
               <select
                 value={form.type}
                 onChange={(event) => updateField('type', event.target.value)}
                 disabled={isEditing}
                 className={INPUT_CLASS}
               >
+                <option value="">Undecided (lead)</option>
                 <option value="client">Client</option>
                 <option value="vendor">Vendor</option>
               </select>
@@ -257,6 +268,20 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
             </Field>
             <Field label="Lead source">
               <input value={form.source} onChange={(event) => updateField('source', event.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Lead generated date">
+              <input
+                type="date"
+                value={form.lead_generated_date}
+                onChange={(event) => updateField('lead_generated_date', event.target.value)}
+                className={INPUT_CLASS}
+              />
+            </Field>
+            <Field label="Location">
+              <input value={form.location} onChange={(event) => updateField('location', event.target.value)} className={INPUT_CLASS} placeholder="e.g. Pune, India" />
+            </Field>
+            <Field label="LinkedIn URL">
+              <input type="url" value={form.linkedin_url} onChange={(event) => updateField('linkedin_url', event.target.value)} className={INPUT_CLASS} />
             </Field>
             <Field label="City">
               <input value={form.location_city} onChange={(event) => updateField('location_city', event.target.value)} className={INPUT_CLASS} />
@@ -316,6 +341,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           </div>
         </section>
 
+        {form.type ? (
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold capitalize text-tertiary-800">
             {form.type} commercial details
@@ -389,6 +415,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
             </div>
           )}
         </section>
+        ) : null}
 
         <div className="flex justify-end gap-2 border-t pt-4">
           <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>

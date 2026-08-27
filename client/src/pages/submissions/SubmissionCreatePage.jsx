@@ -28,6 +28,7 @@ export default function SubmissionCreatePage({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingSeats, setLoadingSeats] = useState(false);
+  const [benchOnly, setBenchOnly] = useState(false);
 
   const [form, setForm] = useState({
     profile_id: '',
@@ -46,6 +47,7 @@ export default function SubmissionCreatePage({
   const selectedProfile = profiles.find((p) => p.id === form.profile_id);
   const vendorRequired = selectedProfile?.source === 'vendor';
   const requirementLocked = Boolean(initialRequirementId);
+  const visibleProfiles = benchOnly ? profiles.filter((p) => p.source === 'direct' && p.on_bench) : profiles;
 
   const liveMargin = useMemo(
     () =>
@@ -173,7 +175,13 @@ export default function SubmissionCreatePage({
       <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
         <div className={asPanel ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>
           <div className={asPanel ? '' : 'sm:col-span-2'}>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Candidate *</label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label className="block text-xs font-medium text-tertiary-500">Candidate *</label>
+              <label className="flex items-center gap-1.5 text-xs text-tertiary-600">
+                <input type="checkbox" checked={benchOnly} onChange={(e) => setBenchOnly(e.target.checked)} />
+                On bench only
+              </label>
+            </div>
             <select
               required
               value={form.profile_id}
@@ -181,11 +189,11 @@ export default function SubmissionCreatePage({
               className="w-full rounded-xl border px-3 py-2 text-sm"
             >
               <option value="">Select candidate…</option>
-              {profiles.map((p) => (
+              {visibleProfiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                   {p.current_company ? ` — ${p.current_company}` : ''}
-                  {p.source ? ` (${p.source})` : ''}
+                  {p.source ? ` (${p.source}${p.on_bench ? ', on bench' : ''})` : ''}
                 </option>
               ))}
             </select>

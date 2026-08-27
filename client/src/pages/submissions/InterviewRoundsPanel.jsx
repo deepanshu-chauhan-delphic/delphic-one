@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import apiClient from '../../lib/apiClient.js';
 import Drawer from '../../components/ui/Drawer.jsx';
+import { canManageInterviewRound, roundTypeLabel } from '../../lib/submissionStages.js';
 
 const ROUND_TYPES = [
-  { value: 'internal', label: 'Internal (recruiter)', color: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { value: 'client_l1', label: 'Client L1', color: 'bg-violet-50 text-violet-800 border-violet-200' },
-  { value: 'client_l2', label: 'Client L2', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
-  { value: 'client_hr', label: 'Client HR', color: 'bg-teal-50 text-teal-800 border-teal-200' },
-  { value: 'client_final', label: 'Client final', color: 'bg-amber-50 text-amber-900 border-amber-200' },
+  { value: 'internal_r1', label: 'Internal Round 1', color: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { value: 'internal_r2', label: 'Internal Round 2', color: 'bg-cyan-50 text-cyan-800 border-cyan-200' },
+  { value: 'client_r1', label: 'Client Round 1', color: 'bg-violet-50 text-violet-800 border-violet-200' },
+  { value: 'client_r2', label: 'Client Round 2', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { value: 'client_r3', label: 'Client Round 3', color: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200' },
+  { value: 'hr_cto_ceo', label: 'HR, CTO & CEO Round', color: 'bg-amber-50 text-amber-900 border-amber-200' },
 ];
 
 const RESULT_COLORS = {
@@ -21,7 +23,7 @@ const RESULT_COLORS = {
 const RESULTS = ['pending', 'pass', 'fail', 'no_show', 'rescheduled'];
 
 const emptyForm = {
-  round_type: 'internal',
+  round_type: 'internal_r1',
   round_name: '',
   scheduled_at: '',
   duration_minutes: '60',
@@ -48,7 +50,7 @@ function fromLocalInput(value) {
 
 function hydrate(round) {
   return {
-    round_type: round.round_type || 'internal',
+    round_type: round.round_type || 'internal_r1',
     round_name: round.round_name || '',
     scheduled_at: toLocalInput(round.scheduled_at),
     duration_minutes: round.duration_minutes != null ? String(round.duration_minutes) : '',
@@ -80,16 +82,22 @@ function roundTypeMeta(type) {
   return ROUND_TYPES.find((t) => t.value === type) || ROUND_TYPES[0];
 }
 
-export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, onChanged }) {
+export default function InterviewRoundsPanel({ submissionId, submission, rounds, user, missingMandatoryRounds, onChanged }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const locked = !!submission?.is_locked;
+  const allowedRoundTypes = locked
+    ? []
+    : ROUND_TYPES.filter((t) => canManageInterviewRound(submission, t.value, user)).map((t) => t.value);
+  const canAddAnyRound = allowedRoundTypes.length > 0;
+
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, round_type: allowedRoundTypes[0] || emptyForm.round_type });
     setError('');
     setOpen(true);
   }
@@ -136,12 +144,19 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
           <h2 className="font-heading text-sm font-semibold text-sky-900">Interview rounds</h2>
           <p className="mt-0.5 text-xs text-sky-700/80">Each round needs an interview date when opened.</p>
         </div>
-        {canEdit && (
+        {canAddAnyRound && (
           <button type="button" className="btn-primary text-xs" onClick={openCreate}>
             + Add round
           </button>
         )}
       </div>
+
+      {(missingMandatoryRounds || []).length > 0 && (
+        <div className="mt-3 rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+          Missing mandatory round{missingMandatoryRounds.length > 1 ? 's' : ''}:{' '}
+          {missingMandatoryRounds.map(roundTypeLabel).join(', ')}
+        </div>
+      )}
 
       {(rounds || []).length === 0 ? (
         <p className="mt-3 text-sm text-tertiary-500">No rounds yet. Add an internal screen or client round with a date.</p>
@@ -186,7 +201,7 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
                       {(r.result || 'pending').replace(/_/g, ' ')}
                     </span>
                     {r.rating != null && <span className="text-xs text-amber-700">★ {r.rating}</span>}
-                    {canEdit && (
+                    {!locked && canManageInterviewRound(submission, r.round_type, user) && (
                       <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => openEdit(r)}>
                         Edit
                       </button>
@@ -228,7 +243,7 @@ export default function InterviewRoundsPanel({ submissionId, rounds, canEdit, on
                 onChange={(e) => updateField('round_type', e.target.value)}
                 className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
               >
-                {ROUND_TYPES.map((t) => (
+                {ROUND_TYPES.filter((t) => allowedRoundTypes.includes(t.value)).map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>

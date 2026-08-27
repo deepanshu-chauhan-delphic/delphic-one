@@ -6,6 +6,7 @@ const COLOR_MAP = {
   dropped: 'bg-red-50 text-red-700',
   interviewing: 'bg-indigo-50 text-indigo-700',
   offer: 'bg-purple-50 text-purple-700',
+  offer_sent: 'bg-purple-50 text-purple-700',
   bgv: 'bg-cyan-50 text-cyan-700',
   sourced: 'bg-slate-100 text-slate-700',
   internal_screening: 'bg-indigo-50 text-indigo-700',
@@ -28,7 +29,7 @@ const COLOR_MAP = {
   high: 'bg-amber-50 text-amber-700',
   medium: 'bg-blue-50 text-blue-700',
   low: 'bg-tertiary-100 text-tertiary-700',
-  internal: 'bg-blue-50 text-blue-700',
+  direct: 'bg-blue-50 text-blue-700',
   vendor: 'bg-amber-50 text-amber-800',
   linkedin: 'bg-green-50 text-green-700',
 };

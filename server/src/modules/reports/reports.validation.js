@@ -14,6 +14,7 @@ const dateRangeSchema = z.object({
   sales_id: optionalUuid,
   bda_id: optionalUuid,
   vendor_id: optionalUuid,
+  client_id: optionalUuid,
 });
 
 const agingSchema = z.object({

@@ -38,7 +38,7 @@ describe('RD-104 create / update requirement (form API)', () => {
     const res = await authed(request(app).post('/api/v1/requirements'), salesToken).send({
       account_id: account.id,
       title: 'Python + AI/ML Engineer',
-      req_type: 'developer',
+      req_type: 'recruitment',
       seats_total: 2,
       priority: 'high',
       primary_tech_stack: ['Python', 'PyTorch'],
@@ -67,7 +67,7 @@ describe('RD-104 create / update requirement (form API)', () => {
     const res = await authed(request(app).post('/api/v1/requirements'), salesToken).send({
       account_id: lead.id,
       title: 'Should fail',
-      req_type: 'developer',
+      req_type: 'recruitment',
       seats_total: 1,
     });
     expect(res.status).toBeGreaterThanOrEqual(400);

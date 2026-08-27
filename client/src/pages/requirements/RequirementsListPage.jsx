@@ -40,7 +40,7 @@ function RequirementPeek({ row, onClose, onAssign }) {
         <PeekField label="Client">{detail.account?.name || '—'}</PeekField>
         <PeekField label="Status"><Badge value={detail.status} /></PeekField>
         <PeekField label="Priority"><Badge value={detail.priority} /></PeekField>
-        <PeekField label="Type"><span className="capitalize">{detail.req_type || '—'}</span></PeekField>
+        <PeekField label="Type">{detail.req_type ? <Badge value={detail.req_type} /> : '—'}</PeekField>
         <PeekField label="Seats">{`${detail.seats_closed ?? 0}/${detail.seats_total ?? 0}`}</PeekField>
         <PeekField label="Sales owner">{detail.sales_owner?.name || '—'}</PeekField>
         <div className="sm:col-span-2">
@@ -87,8 +87,8 @@ export default function RequirementsListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('');
-  const [priority, setPriority] = useState('');
+  const [status, setStatus] = useState(() => searchParams.get('status') || '');
+  const [priority, setPriority] = useState(() => searchParams.get('priority') || '');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [assignTarget, setAssignTarget] = useState(null);
@@ -114,6 +114,8 @@ export default function RequirementsListPage() {
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
+    setStatus(searchParams.get('status') || '');
+    setPriority(searchParams.get('priority') || '');
   }, [searchParams]);
 
   function closeCreate() {
@@ -205,7 +207,7 @@ export default function RequirementsListPage() {
                 <option value="">Status: All</option>
                 <option value="open">Open</option>
                 <option value="in_progress">In progress</option>
-                <option value="on_hold">On hold</option>
+                <option value="on_hold">Hold</option>
                 <option value="closed">Closed</option>
                 <option value="dropped">Dropped</option>
               </select>

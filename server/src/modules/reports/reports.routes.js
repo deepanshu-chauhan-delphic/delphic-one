@@ -15,6 +15,7 @@ const REPORTS = {
   'sales-performance': (q) => service.salesPerformance(q),
   'bda-performance': (q) => service.bdaPerformance(q),
   'vendor-performance': (q) => service.vendorPerformance(q),
+  'client-performance': (q) => service.clientPerformance(q),
   aging: (q) => service.aging(q),
   closure: (q) => service.closure(q),
 };
@@ -56,6 +57,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const query = dateRangeSchema.parse(req.query);
     const data = await service.vendorPerformance(query);
+    return ok(res, data);
+  })
+);
+
+router.get(
+  '/client-performance',
+  authorize('admin', 'sales'),
+  asyncHandler(async (req, res) => {
+    const query = dateRangeSchema.parse(req.query);
+    const data = await service.clientPerformance(query);
     return ok(res, data);
   })
 );

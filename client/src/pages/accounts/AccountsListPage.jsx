@@ -42,7 +42,7 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
       <dl className="grid gap-4 sm:grid-cols-2">
         <PeekField label="Key">{accountKey(detail.id)}</PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
-        <PeekField label="Type"><span className="capitalize">{detail.type}</span></PeekField>
+        <PeekField label="Type"><span className="capitalize">{detail.type || 'Unclassified'}</span></PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
         <PeekField label="Industry">{detail.industry || '—'}</PeekField>
         <PeekField label="Owner">{detail.owner?.name || '—'}</PeekField>
@@ -90,7 +90,7 @@ export default function AccountsListPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
-  const [type, setType] = useState('');
+  const [type, setType] = useState(() => searchParams.get('type') || '');
   const [stage, setStage] = useState(() => searchParams.get('stage') || '');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
@@ -125,6 +125,7 @@ export default function AccountsListPage() {
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStage(searchParams.get('stage') || '');
+    setType(searchParams.get('type') || '');
   }, [searchParams]);
 
   function closeCreate() {
@@ -171,7 +172,7 @@ export default function AccountsListPage() {
           </div>
         ),
       },
-      { key: 'type', header: 'Type', render: (row) => <span className="capitalize text-tertiary-700">{row.type}</span> },
+      { key: 'type', header: 'Type', render: (row) => <span className="capitalize text-tertiary-700">{row.type || 'Unclassified'}</span> },
       { key: 'industry', header: 'Industry', render: (row) => row.industry || '—' },
       { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
       { key: 'owner', header: 'Owner', render: (row) => row.owner?.name || '—' },
@@ -253,6 +254,7 @@ export default function AccountsListPage() {
                 <option value="">Type: All</option>
                 <option value="client">Client</option>
                 <option value="vendor">Vendor</option>
+                <option value="unclassified">Unclassified</option>
               </select>
               <select
                 value={stage}

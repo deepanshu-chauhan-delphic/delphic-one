@@ -8,7 +8,7 @@ import { canCreateRequirement, canMutateRequirement } from '../../lib/requiremen
 const emptyForm = {
   account_id: '',
   title: '',
-  req_type: 'developer',
+  req_type: 'recruitment',
   seats_total: 1,
   description: '',
   job_description: '',
@@ -75,7 +75,7 @@ function hydrateForm(req) {
     ...emptyForm,
     account_id: req.account?.id || '',
     title: req.title || '',
-    req_type: req.req_type || 'developer',
+    req_type: req.req_type || 'recruitment',
     seats_total: req.seats_total || 1,
     description: req.description || '',
     job_description: req.job_description || '',
@@ -260,7 +260,8 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
                 onChange={(e) => updateField('req_type', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
               >
-                <option value="developer">Developer</option>
+                <option value="managed_services">Managed Services</option>
+                <option value="recruitment">Recruitment</option>
                 <option value="project">Project</option>
               </select>
             </div>

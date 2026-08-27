@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Drawer from '../../components/ui/Drawer.jsx';
+import apiClient from '../../lib/apiClient.js';
 import { ACCOUNT_TRANSITIONS, formatAccountValue } from './accountUtils.js';
 
 const INPUT_CLASS =
@@ -30,6 +31,9 @@ export default function AccountStageMoveDrawer({
   const [reason, setReason] = useState('');
   const [meetingMode, setMeetingMode] = useState('online');
   const [meetingDate, setMeetingDate] = useState('');
+  const [meetingLocation, setMeetingLocation] = useState('');
+  const [attendeeIds, setAttendeeIds] = useState([]);
+  const [salesUsers, setSalesUsers] = useState([]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +42,23 @@ export default function AccountStageMoveDrawer({
     setReason('');
     setMeetingMode('online');
     setMeetingDate('');
+    setMeetingLocation('');
+    setAttendeeIds((account?.meeting_attendees || []).map((a) => a.id));
   }, [open, account?.stage, preferredToStage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    apiClient
+      .get('/users', { params: { role: 'sales', active: true, limit: 100 } })
+      .then(({ data }) => setSalesUsers(data.data || []))
+      .catch(() => setSalesUsers([]));
+  }, [open]);
+
+  function toggleAttendee(userId) {
+    setAttendeeIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  }
 
   function submit(event) {
     event.preventDefault();
@@ -47,6 +67,8 @@ export default function AccountStageMoveDrawer({
     if (toStage === 'meeting_scheduled') {
       body.meeting_mode = meetingMode;
       body.meeting_date = new Date(meetingDate).toISOString();
+      if (meetingMode === 'offline') body.meeting_location = meetingLocation.trim();
+      body.meeting_attendee_ids = attendeeIds;
     }
     onMove(body);
   }
@@ -115,6 +137,35 @@ export default function AccountStageMoveDrawer({
                 className={INPUT_CLASS}
               />
             </label>
+            {meetingMode === 'offline' && (
+              <label className="block text-xs font-medium text-tertiary-600">
+                Meeting location
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Client office, Sector 5"
+                  value={meetingLocation}
+                  onChange={(event) => setMeetingLocation(event.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </label>
+            )}
+            <div className="block text-xs font-medium text-tertiary-600">
+              Sales attendees
+              <div className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-md border border-tertiary-200 p-2">
+                {salesUsers.length === 0 && <p className="text-xs text-tertiary-400">No sales users found.</p>}
+                {salesUsers.map((salesUser) => (
+                  <label key={salesUser.id} className="flex items-center gap-2 text-sm font-normal text-tertiary-700">
+                    <input
+                      type="checkbox"
+                      checked={attendeeIds.includes(salesUser.id)}
+                      onChange={() => toggleAttendee(salesUser.id)}
+                    />
+                    {salesUser.name}
+                  </label>
+                ))}
+              </div>
+            </div>
           </>
         )}
         {toStage === 'dropped' && (

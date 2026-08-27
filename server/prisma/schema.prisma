@@ -56,8 +56,9 @@ enum ProfileCurrency {
 }
 
 enum ReqType {
+  managed_services
+  recruitment
   project
-  developer
 }
 
 enum RequirementStatus {
@@ -116,7 +117,7 @@ enum Gender {
 }
 
 enum ProfileSource {
-  internal
+  direct
   vendor
   linkedin
 }
@@ -127,7 +128,7 @@ enum SubmissionStage {
   submitted_to_client
   interview_scheduled
   interview_result
-  offer
+  offer_sent
   bgv
   closed
   backout
@@ -148,11 +149,12 @@ enum BgvStatus {
 }
 
 enum RoundType {
-  internal
-  client_l1
-  client_l2
-  client_hr
-  client_final
+  internal_r1
+  internal_r2
+  client_r1
+  client_r2
+  client_r3
+  hr_cto_ceo
 }
 
 enum RoundResult {
@@ -198,6 +200,8 @@ model User {
 
   department            Department?            @relation(fields: [department_id], references: [id])
   owned_accounts        Account[]              @relation("AccountOwner")
+  classified_accounts   Account[]              @relation("AccountClassifiedBy")
+  meeting_attendances   AccountMeetingAttendee[]
   sales_requirements     Requirement[]          @relation("RequirementSalesOwner")
   assignments            RequirementAssignment[] @relation("AssignmentUser")
   assignments_made       RequirementAssignment[] @relation("AssignmentAssignedBy")
@@ -223,8 +227,8 @@ model Department {
 }
 
 model Account {
-  id       String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type     AccountType
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type     AccountType?
   name     String
   stage    AccountStage @default(lead)
 
@@ -235,6 +239,10 @@ model Account {
   location_country  String?
   gst_or_tax_id     String?
 
+  lead_generated_date DateTime? @db.Date
+  location            String?
+  linkedin_url        String?
+
   poc_name        String?
   poc_email       String?
   poc_phone       String?
@@ -242,10 +250,11 @@ model Account {
 
   additional_contacts Json @default("[]")
 
-  source        String?
-  meeting_mode  MeetingMode?
-  meeting_date  DateTime?
-  meeting_notes String?
+  source           String?
+  meeting_mode     MeetingMode?
+  meeting_date     DateTime?
+  meeting_location String?
+  meeting_notes    String?
 
   vendor_specializations String[]
   vendor_rate_range      Json?
@@ -256,18 +265,36 @@ model Account {
   client_payment_terms    String?
   client_agreement_url    String?
 
-  owner_id  String   @db.Uuid
-  owner     User     @relation("AccountOwner", fields: [owner_id], references: [id])
+  owner_id        String    @db.Uuid
+  owner           User      @relation("AccountOwner", fields: [owner_id], references: [id])
+  classified_at   DateTime?
+  classified_by   String?   @db.Uuid
+  classified_by_user User?  @relation("AccountClassifiedBy", fields: [classified_by], references: [id])
   is_locked Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  requirements    Requirement[]
-  vendor_profiles Profile[]      @relation("ProfileVendorAccount")
+  requirements      Requirement[]
+  vendor_profiles    Profile[]                @relation("ProfileVendorAccount")
+  meeting_attendees  AccountMeetingAttendee[]
 
   @@index([type, stage])
   @@index([owner_id])
+  @@index([lead_generated_date])
   @@map("accounts")
+}
+
+model AccountMeetingAttendee {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String   @db.Uuid
+  account    Account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id])
+  created_at DateTime @default(now())
+
+  @@unique([account_id, user_id])
+  @@index([account_id])
+  @@map("account_meeting_attendees")
 }
 
 model Requirement {
@@ -407,6 +434,7 @@ model Profile {
   added_by_user     User     @relation("ProfileAddedBy", fields: [added_by], references: [id])
   recruiter_notes   String?
 
+  on_bench   Boolean  @default(false)
   is_active  Boolean  @default(true)
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
@@ -416,6 +444,7 @@ model Profile {
   @@index([source])
   @@index([added_by])
   @@index([is_active])
+  @@index([source, on_bench])
   @@map("profiles")
 }
 

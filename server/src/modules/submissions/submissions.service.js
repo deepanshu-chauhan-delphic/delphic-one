@@ -1,5 +1,5 @@
 const prisma = require('../../config/db');
-const { SUBMISSION_STAGE_TRANSITIONS, computeMargin } = require('./stageMachines');
+const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds } = require('./stageMachines');
 
 const INCLUDE = {
   seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
@@ -20,10 +20,13 @@ function serialize(row) {
   return {
     ...rest,
     seat: seat ? { id: seat.id, seat_label: seat.seat_label, requirement_id: seat.requirement_id } : null,
-    requirement: seat ? { id: seat.requirement.id, title: seat.requirement.title, account_name: seat.requirement.account.name } : null,
+    requirement: seat
+      ? { id: seat.requirement.id, title: seat.requirement.title, account_name: seat.requirement.account.name, sales_owner_id: seat.requirement.sales_owner_id }
+      : null,
     profile,
     submitted_by: submitted_by_user,
     interview_rounds,
+    missing_mandatory_rounds: interview_rounds ? computeMissingMandatoryRounds(interview_rounds) : undefined,
   };
 }
 
@@ -119,7 +122,7 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
     if (to_stage === 'backout' && !(backout_reason || reason)) return { error: 'backout_reason_required' };
     if (to_stage === 'rejected' && !(rejection_reason || reason)) return { error: 'rejection_reason_required' };
 
-    if (to_stage === 'offer') {
+    if (to_stage === 'offer_sent') {
       const rounds = await tx.interviewRound.findMany({ where: { submission_id: id } });
       const allResolved = rounds.length > 0 && rounds.every((r) => r.result !== 'pending');
       if (!allResolved) return { error: 'rounds_not_resolved' };
@@ -172,10 +175,31 @@ async function getHistory(id) {
   return prisma.stageHistory.findMany({ where: { entity_type: 'submission', entity_id: id }, orderBy: { changed_at: 'asc' } });
 }
 
-async function addInterviewRound(submissionId, data, userId) {
+function canManageInterviewRound(submission, requirementSalesOwnerId, roundType, user) {
+  if (user.role === 'admin') return true;
+  if (user.role === 'recruiter') return submission.submitted_by === user.id;
+  if (user.role === 'sales') {
+    return CLIENT_ROUND_TYPES.includes(roundType) && requirementSalesOwnerId === user.id;
+  }
+  return false;
+}
+
+async function loadRequirementSalesOwnerId(tx, submission) {
+  const seat = await tx.requirementSeat.findUnique({
+    where: { id: submission.requirement_seat_id },
+    include: { requirement: { select: { sales_owner_id: true } } },
+  });
+  return seat?.requirement?.sales_owner_id ?? null;
+}
+
+async function addInterviewRound(submissionId, data, user) {
+  const userId = user.id;
   return prisma.$transaction(async (tx) => {
     const submission = await tx.submission.findUnique({ where: { id: submissionId } });
     if (!submission) return { error: 'not_found' };
+
+    const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
+    if (!canManageInterviewRound(submission, salesOwnerId, data.round_type, user)) return { error: 'forbidden' };
 
     const last = await tx.interviewRound.findFirst({ where: { submission_id: submissionId }, orderBy: { round_number: 'desc' } });
     const round_number = last ? last.round_number + 1 : 1;
@@ -228,10 +252,16 @@ async function addInterviewRound(submissionId, data, userId) {
   });
 }
 
-async function updateInterviewRound(id, patch, userId) {
+async function updateInterviewRound(id, patch, user) {
+  const userId = user.id;
   return prisma.$transaction(async (tx) => {
     const existing = await tx.interviewRound.findUnique({ where: { id } });
     if (!existing) return { error: 'not_found' };
+
+    const submission = await tx.submission.findUnique({ where: { id: existing.submission_id } });
+    if (!submission) return { error: 'not_found' };
+    const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
+    if (!canManageInterviewRound(submission, salesOwnerId, existing.round_type, user)) return { error: 'forbidden' };
 
     const finalPatch = { ...patch };
     if (finalPatch.scheduled_at) finalPatch.scheduled_at = new Date(finalPatch.scheduled_at);
@@ -275,4 +305,5 @@ module.exports = {
   getHistory,
   addInterviewRound,
   updateInterviewRound,
+  canManageInterviewRound,
 };

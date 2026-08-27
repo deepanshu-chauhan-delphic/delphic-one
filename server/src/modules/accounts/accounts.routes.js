@@ -13,5 +13,6 @@ router.get('/:id/history', controller.history);
 router.post('/', authorize('bda', 'admin'), controller.create);
 router.patch('/:id', authorize('bda', 'admin'), lockCheck('accounts'), controller.update);
 router.post('/:id/stage', authorize('bda', 'admin'), controller.changeStage);
+router.post('/:id/classify', authorize('bda', 'admin'), controller.classify);
 
 module.exports = router;

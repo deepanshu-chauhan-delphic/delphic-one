@@ -16,6 +16,10 @@ const baseFields = {
   location_country: z.string().optional(),
   gst_or_tax_id: z.string().optional(),
 
+  lead_generated_date: z.string().optional(),
+  location: z.string().optional(),
+  linkedin_url: z.string().optional(),
+
   poc_name: z.string().optional(),
   poc_email: z.string().email().optional().or(z.literal('')),
   poc_phone: z.string().optional(),
@@ -34,7 +38,7 @@ const baseFields = {
 };
 
 const createSchema = z.object({
-  type: z.enum(['client', 'vendor']),
+  type: z.enum(['client', 'vendor']).optional(),
   name: z.string().min(1),
   ...baseFields,
 });
@@ -49,10 +53,16 @@ const stageSchema = z.object({
   reason: z.string().optional(),
   meeting_mode: z.enum(['online', 'offline']).optional(),
   meeting_date: z.string().datetime().optional(),
+  meeting_location: z.string().optional(),
+  meeting_attendee_ids: z.array(z.string().uuid()).optional(),
+});
+
+const classifySchema = z.object({
+  type: z.enum(['client', 'vendor']),
 });
 
 const listQuerySchema = z.object({
-  type: z.enum(['client', 'vendor']).optional(),
+  type: z.enum(['client', 'vendor', 'unclassified']).optional(),
   stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
   owner_id: z.string().uuid().optional(),
   industry: z.string().optional(),
@@ -65,4 +75,4 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-module.exports = { createSchema, updateSchema, stageSchema, listQuerySchema };
+module.exports = { createSchema, updateSchema, stageSchema, classifySchema, listQuerySchema };

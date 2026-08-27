@@ -83,7 +83,7 @@ describe('RD-125 interview rounds UI (API)', () => {
       request(app).post(`/api/v1/submissions/${submissionId}/interview-rounds`),
       recruiterToken
     ).send({
-      round_type: 'internal',
+      round_type: 'internal_r1',
       round_name: 'Recruiter screen',
       scheduled_at: new Date().toISOString(),
       interviewer_name: 'Alex',
@@ -92,7 +92,7 @@ describe('RD-125 interview rounds UI (API)', () => {
       rating: 8,
     });
     expect(create.status).toBe(201);
-    expect(create.body.data.round_type).toBe('internal');
+    expect(create.body.data.round_type).toBe('internal_r1');
     expect(create.body.data.result).toBe('pass');
     expect(create.body.data.rating).toBe(8);
 
@@ -114,13 +114,13 @@ describe('RD-125 interview rounds UI (API)', () => {
       request(app).post(`/api/v1/submissions/${submissionId}/interview-rounds`),
       recruiterToken
     ).send({
-      round_type: 'client_l1',
+      round_type: 'client_r1',
       scheduled_at: '2026-08-25T10:00:00.000Z',
       interviewer_name: 'Hiring Manager',
       result: 'pending',
     });
     expect(create.status).toBe(201);
-    expect(create.body.data.round_type).toBe('client_l1');
+    expect(create.body.data.round_type).toBe('client_r1');
     expect(create.body.data.result).toBe('pending');
   });
 });

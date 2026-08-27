@@ -32,7 +32,7 @@ beforeEach(async () => {
   requirement = await createRequirement(salesToken, account.id, { seats_total: 1 });
   const seats = await authed(request(app).get(`/api/v1/requirements/${requirement.id}/seats`), salesToken);
   seatId = seats.body.data[0].id;
-  profile = await createProfile(recruiterToken, { source: 'internal' });
+  profile = await createProfile(recruiterToken, { source: 'direct' });
 });
 
 afterAll(async () => {

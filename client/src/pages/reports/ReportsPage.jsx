@@ -250,6 +250,8 @@ export default function ReportsPage() {
     drawerRow?.recruiter?.name ||
     drawerRow?.sales_person?.name ||
     drawerRow?.vendor?.name ||
+    drawerRow?.client?.name ||
+    drawerRow?.bda?.name ||
     drawerRow?.group_label ||
     'Row details';
 

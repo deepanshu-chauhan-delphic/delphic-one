@@ -194,7 +194,7 @@ export default function SubmissionsListPage() {
                 'submitted_to_client',
                 'interview_scheduled',
                 'interview_result',
-                'offer',
+                'offer_sent',
                 'bgv',
                 'closed',
                 'backout',

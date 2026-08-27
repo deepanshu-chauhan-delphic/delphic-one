@@ -28,6 +28,7 @@ async function wipeAll() {
   await prisma.requirementAssignment.deleteMany();
   await prisma.requirementSeat.deleteMany();
   await prisma.requirement.deleteMany();
+  await prisma.accountMeetingAttendee.deleteMany();
   await prisma.account.deleteMany();
   await prisma.user.deleteMany();
   await prisma.department.deleteMany();
@@ -151,6 +152,9 @@ async function seedAccounts(users) {
       company_size: 'mid',
       location_city: 'Bangalore',
       location_country: 'IN',
+      lead_generated_date: daysAgo(9),
+      location: 'Bangalore, India',
+      linkedin_url: 'https://linkedin.com/company/meeting-scheduled-ltd',
       poc_name: 'Ravi Meet',
       poc_email: 'ravi@meetingsched.example',
       meeting_mode: 'online',
@@ -333,14 +337,54 @@ async function seedAccounts(users) {
       company_size: 'mid',
       location_city: 'Kolkata',
       location_country: 'IN',
+      lead_generated_date: daysAgo(12),
+      location: 'Kolkata, India',
+      linkedin_url: 'https://linkedin.com/company/meeting-pending-ltd',
       poc_name: 'Sanjay Meet',
       poc_email: 'sanjay@meetingpending.example',
       meeting_mode: 'offline',
       meeting_date: daysAgo(-2),
+      meeting_location: 'Client HQ, Salt Lake Sector V, Kolkata',
       source: 'referral',
       owner_id: bda2.id,
       created_at: daysAgo(8),
       updated_at: daysAgo(1),
+    },
+  });
+
+  const unclassifiedLead1 = await prisma.account.create({
+    data: {
+      type: null,
+      name: 'Fresh Inbound Lead LLP',
+      stage: 'lead',
+      industry: 'Manufacturing',
+      lead_generated_date: daysAgo(3),
+      location: 'Surat, India',
+      linkedin_url: 'https://linkedin.com/company/fresh-inbound-lead',
+      poc_name: 'Nikita Fresh',
+      poc_email: 'nikita@freshinbound.example',
+      source: 'linkedin',
+      owner_id: bda.id,
+      created_at: daysAgo(3),
+      updated_at: daysAgo(3),
+    },
+  });
+
+  const unclassifiedLead2 = await prisma.account.create({
+    data: {
+      type: null,
+      name: 'Undecided Systems Inc',
+      stage: 'lead',
+      industry: 'Consulting',
+      lead_generated_date: daysAgo(6),
+      location: 'Remote / US',
+      linkedin_url: 'https://linkedin.com/company/undecided-systems',
+      poc_name: 'Chris Undecided',
+      poc_email: 'chris@undecidedsystems.example',
+      source: 'referral',
+      owner_id: bda2.id,
+      created_at: daysAgo(6),
+      updated_at: daysAgo(6),
     },
   });
 
@@ -470,6 +514,30 @@ async function seedAccounts(users) {
         changed_by: bda2.id,
         changed_at: daysAgo(1),
       },
+      {
+        entity_type: 'account',
+        entity_id: unclassifiedLead1.id,
+        from_stage: null,
+        to_stage: 'lead',
+        changed_by: bda.id,
+        changed_at: daysAgo(3),
+      },
+      {
+        entity_type: 'account',
+        entity_id: unclassifiedLead2.id,
+        from_stage: null,
+        to_stage: 'lead',
+        changed_by: bda2.id,
+        changed_at: daysAgo(6),
+      },
+    ],
+  });
+
+  await prisma.accountMeetingAttendee.createMany({
+    data: [
+      { account_id: meetingLead.id, user_id: sales.id },
+      { account_id: bda2MeetingLead.id, user_id: sales2.id },
+      { account_id: bda2MeetingLead.id, user_id: sales.id },
     ],
   });
 
@@ -517,6 +585,8 @@ async function seedAccounts(users) {
     bda2StuckLead,
     bda2ActiveClient,
     bda2MeetingLead,
+    unclassifiedLead1,
+    unclassifiedLead2,
   };
 }
 
@@ -533,7 +603,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: activeClient.id,
       title: 'Stuck Senior Java Developer',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'open',
       description: 'Need Java 17 + Spring Boot. No submissions yet — aging.',
       job_description:
@@ -566,7 +636,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: activeClient.id,
       title: 'React Frontend Engineer',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'in_progress',
       description: 'SPA work on customer portal.',
       job_description:
@@ -626,7 +696,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: activeClient.id,
       title: 'Closed QA Automation (filled)',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'closed',
       description: 'Filled this month — for closed_this_month metric.',
       designation: 'QA Automation',
@@ -650,7 +720,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: secondClient.id,
       title: 'Data Engineer (on hold — budget review)',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'on_hold',
       description: 'Client paused hiring pending Q3 budget approval.',
       designation: 'Data Engineer',
@@ -677,7 +747,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: activeClient.id,
       title: 'Dropped Mobile Engineer',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'dropped',
       description: 'Client cancelled after headcount freeze.',
       designation: 'Mobile Engineer',
@@ -701,7 +771,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: bda2ActiveClient.id,
       title: 'Stuck Python Developer',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'open',
       description: 'Python + Django role — aging with no client submissions yet.',
       designation: 'Python Developer',
@@ -729,9 +799,9 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: bda2ActiveClient.id,
       title: 'Node Backend Engineer',
-      req_type: 'developer',
+      req_type: 'managed_services',
       status: 'in_progress',
-      description: 'API platform work for analytics product.',
+      description: 'Ongoing managed API platform support for analytics product.',
       designation: 'Backend Engineer',
       department: 'Platform',
       seats_total: 3,
@@ -758,7 +828,7 @@ async function seedRequirements(users, accounts) {
     data: {
       account_id: bda2ActiveClient.id,
       title: 'Closed UX Designer (filled)',
-      req_type: 'developer',
+      req_type: 'recruitment',
       status: 'closed',
       description: 'Filled this month — for sales2 closed_this_month metric.',
       designation: 'UX Designer',
@@ -1129,7 +1199,7 @@ async function seedProfiles(users, accounts) {
       current_ctc: 1800000,
       expected_ctc: 2200000,
       notice_period_days: 30,
-      source: 'internal',
+      source: 'direct',
       added_by: rec1.id,
       recruiter_notes: 'Strong SPA portfolio.',
       is_active: true,
@@ -1189,7 +1259,8 @@ async function seedProfiles(users, accounts) {
       current_designation: 'SDET',
       total_experience_years: 4,
       primary_skills: ['Selenium', 'Java', 'TestNG'],
-      source: 'internal',
+      source: 'direct',
+      on_bench: true,
       added_by: rec1.id,
       is_active: true,
       created_at: daysAgo(40),
@@ -1203,7 +1274,7 @@ async function seedProfiles(users, accounts) {
       current_location: 'Chennai',
       total_experience_years: 3,
       primary_skills: ['Python'],
-      source: 'internal',
+      source: 'direct',
       added_by: rec2.id,
       is_active: false,
       created_at: daysAgo(100),
@@ -1225,7 +1296,8 @@ async function seedProfiles(users, accounts) {
       current_ctc: 1600000,
       expected_ctc: 1900000,
       notice_period_days: 30,
-      source: 'internal',
+      source: 'direct',
+      on_bench: true,
       added_by: rec2.id,
       is_active: true,
       created_at: daysAgo(70),
@@ -1284,7 +1356,7 @@ async function seedProfiles(users, accounts) {
       current_ctc: 2100000,
       expected_ctc: 2500000,
       notice_period_days: 30,
-      source: 'internal',
+      source: 'direct',
       added_by: rec1.id,
       is_active: true,
       created_at: daysAgo(250),
@@ -1303,7 +1375,7 @@ async function seedProfiles(users, accounts) {
       current_ctc: 1100000,
       expected_ctc: 1400000,
       notice_period_days: 15,
-      source: 'internal',
+      source: 'direct',
       added_by: rec1.id,
       is_active: true,
       created_at: daysAgo(20),
@@ -1347,7 +1419,7 @@ async function seedProfiles(users, accounts) {
       current_ctc: 1900000,
       expected_ctc: 2300000,
       notice_period_days: 45,
-      source: 'internal',
+      source: 'direct',
       added_by: rec2.id,
       is_active: true,
       created_at: daysAgo(11),
@@ -1366,7 +1438,7 @@ async function seedProfiles(users, accounts) {
       current_ctc: 1400000,
       expected_ctc: 1700000,
       notice_period_days: 30,
-      source: 'internal',
+      source: 'direct',
       added_by: rec1.id,
       is_active: true,
       created_at: daysAgo(35),
@@ -1445,7 +1517,7 @@ async function seedSubmissions(users, reqs, profiles) {
     data: {
       requirement_seat_id: devopsSeat.id,
       profile_id: neha.id,
-      stage: 'offer',
+      stage: 'offer_sent',
       proposed_rate: 95000,
       proposed_rate_type: 'monthly',
       proposed_rate_currency: 'USD',
@@ -1660,7 +1732,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: interviewing.id,
         round_number: 1,
-        round_type: 'internal',
+        round_type: 'internal_r1',
         round_name: 'Internal screen',
         scheduled_at: daysAgo(4),
         duration_minutes: 45,
@@ -1673,7 +1745,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: interviewing.id,
         round_number: 2,
-        round_type: 'client_l1',
+        round_type: 'client_r1',
         round_name: 'Client L1',
         scheduled_at: daysAgo(-1),
         duration_minutes: 60,
@@ -1685,7 +1757,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: closed.id,
         round_number: 1,
-        round_type: 'client_final',
+        round_type: 'hr_cto_ceo',
         round_name: 'Final',
         scheduled_at: daysAgo(22),
         result: 'pass',
@@ -1695,7 +1767,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: interviewResult.id,
         round_number: 1,
-        round_type: 'internal',
+        round_type: 'internal_r1',
         round_name: 'Internal screen',
         scheduled_at: daysAgo(9),
         duration_minutes: 30,
@@ -1708,7 +1780,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: interviewResult.id,
         round_number: 2,
-        round_type: 'client_l1',
+        round_type: 'client_r1',
         round_name: 'Client L1',
         scheduled_at: daysAgo(5),
         duration_minutes: 45,
@@ -1718,7 +1790,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: interviewResult.id,
         round_number: 3,
-        round_type: 'client_l1',
+        round_type: 'client_r1',
         round_name: 'Client L1 (rescheduled)',
         scheduled_at: daysAgo(2),
         duration_minutes: 45,
@@ -1728,7 +1800,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: inBgv.id,
         round_number: 1,
-        round_type: 'client_l2',
+        round_type: 'client_r2',
         round_name: 'Client L2',
         scheduled_at: daysAgo(16),
         duration_minutes: 60,
@@ -1741,7 +1813,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: backedOut.id,
         round_number: 1,
-        round_type: 'client_l1',
+        round_type: 'client_r1',
         round_name: 'Client L1',
         scheduled_at: daysAgo(43),
         result: 'pass',
@@ -1750,7 +1822,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: rejected.id,
         round_number: 1,
-        round_type: 'internal',
+        round_type: 'internal_r1',
         round_name: 'Internal screen',
         scheduled_at: daysAgo(208),
         result: 'fail',
@@ -1761,7 +1833,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: sales2Interviewing.id,
         round_number: 1,
-        round_type: 'internal',
+        round_type: 'internal_r1',
         round_name: 'Internal screen',
         scheduled_at: daysAgo(5),
         duration_minutes: 45,
@@ -1774,7 +1846,7 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: sales2Interviewing.id,
         round_number: 2,
-        round_type: 'client_l1',
+        round_type: 'client_r1',
         round_name: 'Client L1',
         scheduled_at: daysAgo(-2),
         duration_minutes: 60,
@@ -1786,12 +1858,38 @@ async function seedSubmissions(users, reqs, profiles) {
       {
         submission_id: sales2Closed.id,
         round_number: 1,
-        round_type: 'client_final',
+        round_type: 'hr_cto_ceo',
         round_name: 'Final',
         scheduled_at: daysAgo(14),
         result: 'pass',
         rating: 5,
         completed_at: daysAgo(14),
+      },
+      {
+        submission_id: interviewResult.id,
+        round_number: 4,
+        round_type: 'internal_r2',
+        round_name: 'Tech team deep-dive',
+        scheduled_at: daysAgo(4),
+        duration_minutes: 45,
+        interviewer_name: 'Recruiter Two',
+        result: 'pass',
+        feedback: 'Good architecture instincts, cleared internal bar.',
+        rating: 4,
+        completed_at: daysAgo(4),
+      },
+      {
+        submission_id: inBgv.id,
+        round_number: 2,
+        round_type: 'client_r3',
+        round_name: 'Client L3',
+        scheduled_at: daysAgo(12),
+        duration_minutes: 45,
+        interviewer_name: 'Priya Client',
+        result: 'pass',
+        feedback: 'Confirmed fit with the delivery lead.',
+        rating: 4,
+        completed_at: daysAgo(12),
       },
     ],
   });
@@ -1826,7 +1924,7 @@ async function seedSubmissions(users, reqs, profiles) {
         entity_type: 'submission',
         entity_id: offered.id,
         from_stage: 'interview_result',
-        to_stage: 'offer',
+        to_stage: 'offer_sent',
         changed_by: rec2.id,
         changed_at: daysAgo(1),
       },
@@ -1932,14 +2030,14 @@ async function seedSubmissions(users, reqs, profiles) {
         entity_type: 'submission',
         entity_id: inBgv.id,
         from_stage: 'interview_result',
-        to_stage: 'offer',
+        to_stage: 'offer_sent',
         changed_by: rec1.id,
         changed_at: daysAgo(14),
       },
       {
         entity_type: 'submission',
         entity_id: inBgv.id,
-        from_stage: 'offer',
+        from_stage: 'offer_sent',
         to_stage: 'bgv',
         changed_by: rec1.id,
         changed_at: daysAgo(6),
@@ -1964,14 +2062,14 @@ async function seedSubmissions(users, reqs, profiles) {
         entity_type: 'submission',
         entity_id: backedOut.id,
         from_stage: 'submitted_to_client',
-        to_stage: 'offer',
+        to_stage: 'offer_sent',
         changed_by: rec2.id,
         changed_at: daysAgo(42),
       },
       {
         entity_type: 'submission',
         entity_id: backedOut.id,
-        from_stage: 'offer',
+        from_stage: 'offer_sent',
         to_stage: 'backout',
         changed_by: rec2.id,
         reason: 'Candidate accepted a counter-offer from current employer',
@@ -2102,14 +2200,14 @@ async function seedSubmissions(users, reqs, profiles) {
         entity_type: 'submission',
         entity_id: sales2Closed.id,
         from_stage: 'submitted_to_client',
-        to_stage: 'offer',
+        to_stage: 'offer_sent',
         changed_by: rec1.id,
         changed_at: daysAgo(12),
       },
       {
         entity_type: 'submission',
         entity_id: sales2Closed.id,
-        from_stage: 'offer',
+        from_stage: 'offer_sent',
         to_stage: 'closed',
         changed_by: rec1.id,
         reason: 'Joined',

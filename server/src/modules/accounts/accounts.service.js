@@ -10,13 +10,24 @@ const TRANSITIONS = {
 
 function serialize(row) {
   if (!row) return null;
-  const { owner_id, owner, ...rest } = row;
-  return { ...rest, owner: owner ? { id: owner.id, name: owner.name } : null };
+  const { owner_id, owner, classified_by, classified_by_user, meeting_attendees, ...rest } = row;
+  return {
+    ...rest,
+    owner: owner ? { id: owner.id, name: owner.name } : null,
+    classified_by: classified_by_user ? { id: classified_by_user.id, name: classified_by_user.name } : null,
+    meeting_attendees: meeting_attendees ? meeting_attendees.map((a) => ({ id: a.user.id, name: a.user.name })) : undefined,
+  };
 }
+
+const ACCOUNT_INCLUDE = {
+  owner: { select: { id: true, name: true } },
+  classified_by_user: { select: { id: true, name: true } },
+  meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
+};
 
 async function list({ type, stage, owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
   const where = {
-    ...(type ? { type } : {}),
+    ...(type === 'unclassified' ? { type: null } : type ? { type } : {}),
     ...(stage ? { stage } : {}),
     ...(owner_id ? { owner_id } : {}),
     ...(industry ? { industry: { contains: industry, mode: 'insensitive' } } : {}),
@@ -38,7 +49,7 @@ async function list({ type, stage, owner_id, industry, search, created_from, cre
     prisma.account.count({ where }),
     prisma.account.findMany({
       where,
-      include: { owner: { select: { id: true, name: true } } },
+      include: ACCOUNT_INCLUDE,
       orderBy: { [sort_by]: sort_order },
       take: limit,
       skip: (page - 1) * limit,
@@ -49,7 +60,7 @@ async function list({ type, stage, owner_id, industry, search, created_from, cre
 }
 
 async function getById(id) {
-  const row = await prisma.account.findUnique({ where: { id }, include: { owner: { select: { id: true, name: true } } } });
+  const row = await prisma.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE });
   return serialize(row);
 }
 
@@ -62,7 +73,7 @@ function canMutateAccount(account, user) {
 async function create(data, ownerId) {
   const row = await prisma.account.create({
     data: { ...data, owner_id: ownerId },
-    include: { owner: { select: { id: true, name: true } } },
+    include: ACCOUNT_INCLUDE,
   });
   return serialize(row);
 }
@@ -75,8 +86,39 @@ async function update(id, patch, user) {
   const row = await prisma.account.update({
     where: { id },
     data: patch,
-    include: { owner: { select: { id: true, name: true } } },
+    include: ACCOUNT_INCLUDE,
   });
+  return { account: serialize(row) };
+}
+
+function canClassifyAccount(account, user) {
+  return canMutateAccount(account, user) && account?.type == null;
+}
+
+async function classifyLead(id, { type }, user) {
+  const account = await prisma.account.findUnique({ where: { id } });
+  if (!account) return { error: 'not_found' };
+  if (!canMutateAccount(account, user)) return { error: 'forbidden' };
+  if (account.type != null) return { error: 'already_classified' };
+
+  const [row] = await prisma.$transaction([
+    prisma.account.update({
+      where: { id },
+      data: { type, classified_at: new Date(), classified_by: user.id },
+      include: ACCOUNT_INCLUDE,
+    }),
+    prisma.stageHistory.create({
+      data: {
+        entity_type: 'account',
+        entity_id: id,
+        from_stage: null,
+        to_stage: type,
+        changed_by: user.id,
+        reason: 'Lead classified',
+      },
+    }),
+  ]);
+
   return { account: serialize(row) };
 }
 
@@ -84,7 +126,7 @@ function canTransition(from, to) {
   return (TRANSITIONS[from] || []).includes(to);
 }
 
-async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date }, user) {
+async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, meeting_location, meeting_attendee_ids }, user) {
   return prisma.$transaction(async (tx) => {
     const account = await tx.account.findUnique({ where: { id } });
     if (!account) return { error: 'not_found' };
@@ -95,19 +137,37 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date },
     if (to_stage === 'meeting_scheduled' && (!meeting_mode || !meeting_date)) {
       return { error: 'meeting_fields_required' };
     }
+    if (to_stage === 'meeting_scheduled' && meeting_mode === 'offline' && !meeting_location) {
+      return { error: 'meeting_location_required' };
+    }
 
     const patch = { stage: to_stage };
     if (to_stage === 'meeting_scheduled') {
       patch.meeting_mode = meeting_mode;
       patch.meeting_date = new Date(meeting_date);
+      patch.meeting_location = meeting_mode === 'offline' ? meeting_location : null;
     }
     if (to_stage === 'dropped') patch.is_locked = true;
 
     const updated = await tx.account.update({
       where: { id },
       data: patch,
-      include: { owner: { select: { id: true, name: true } } },
+      include: ACCOUNT_INCLUDE,
     });
+
+    if (to_stage === 'meeting_scheduled' && meeting_attendee_ids) {
+      await tx.accountMeetingAttendee.deleteMany({ where: { account_id: id } });
+      if (meeting_attendee_ids.length > 0) {
+        await tx.accountMeetingAttendee.createMany({
+          data: meeting_attendee_ids.map((user_id) => ({ account_id: id, user_id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const withAttendees = meeting_attendee_ids
+      ? await tx.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE })
+      : updated;
 
     const historyRow = await tx.stageHistory.create({
       data: {
@@ -120,7 +180,7 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date },
       },
     });
 
-    return { account: serialize(updated), history: historyRow };
+    return { account: serialize(withAttendees), history: historyRow };
   });
 }
 
@@ -140,4 +200,15 @@ async function getHistory(id) {
   }));
 }
 
-module.exports = { list, getById, create, update, changeStage, getHistory, canTransition, canMutateAccount };
+module.exports = {
+  list,
+  getById,
+  create,
+  update,
+  changeStage,
+  classifyLead,
+  getHistory,
+  canTransition,
+  canMutateAccount,
+  canClassifyAccount,
+};

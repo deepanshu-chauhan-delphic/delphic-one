@@ -194,7 +194,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Source" required>
               <select required value={form.source} onChange={(e) => updateField('source', e.target.value)} className={INPUT_CLASS}>
-                <option value="internal">Internal</option>
+                <option value="direct">Direct</option>
                 <option value="vendor">Vendor</option>
                 <option value="linkedin">LinkedIn</option>
               </select>
@@ -207,6 +207,18 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
                     <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                   ))}
                 </select>
+              </Field>
+            )}
+            {form.source === 'direct' && (
+              <Field label="On bench">
+                <label className="mt-1.5 flex items-center gap-2 text-sm text-tertiary-700">
+                  <input
+                    type="checkbox"
+                    checked={form.on_bench}
+                    onChange={(e) => updateField('on_bench', e.target.checked)}
+                  />
+                  Currently available for a new submission
+                </label>
               </Field>
             )}
             <Field label="Resume file">

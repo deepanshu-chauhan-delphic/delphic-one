@@ -322,9 +322,9 @@ export default function SubmissionDetailPage() {
             )}
           </div>
         )}
-        {(submission.stage === 'interview_result' || nextSubmissionStages(submission.stage).includes('offer')) && (
+        {(submission.stage === 'interview_result' || nextSubmissionStages(submission.stage).includes('offer_sent')) && (
           <p className="mt-2 text-xs text-tertiary-400">
-            Moving to offer requires every interview round to have a non-pending result.
+            Moving to offer sent requires every interview round to have a non-pending result.
           </p>
         )}
         {submission.stage === 'bgv' && (
@@ -385,8 +385,10 @@ export default function SubmissionDetailPage() {
 
       <InterviewRoundsPanel
         submissionId={id}
+        submission={submission}
         rounds={submission.interview_rounds || []}
-        canEdit={canEdit}
+        user={user}
+        missingMandatoryRounds={submission.missing_mandatory_rounds}
         onChanged={load}
       />
 

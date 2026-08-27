@@ -104,6 +104,31 @@ describe('RD-114 reports JSON for tables/charts', () => {
     });
     expect(res.status).toBe(403);
   });
+
+  test('client-performance mirrors vendor-performance shape for client accounts', async () => {
+    const res = await authed(request(app).get('/api/v1/reports/client-performance'), adminToken).query({
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0]).toEqual(
+      expect.objectContaining({
+        client: expect.objectContaining({ id: expect.any(String), name: expect.any(String) }),
+        requirements_total: expect.any(Number),
+        submissions_total: expect.any(Number),
+      })
+    );
+  });
+
+  test('recruiter cannot open client-performance', async () => {
+    const res = await authed(request(app).get('/api/v1/reports/client-performance'), recruiterToken).query({
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('RD-114 export downloads', () => {

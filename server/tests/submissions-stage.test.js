@@ -115,7 +115,7 @@ describe('submission stage machine', () => {
   test('cannot skip from sourced straight to offer', async () => {
     const sub = await createSubmission();
     const res = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
-      to_stage: 'offer',
+      to_stage: 'offer_sent',
     });
     expect(res.status).toBe(400);
   });
@@ -148,13 +148,13 @@ describe('submission stage machine', () => {
 
     // no rounds yet — offer is blocked
     const noRounds = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
-      to_stage: 'offer',
+      to_stage: 'offer_sent',
     });
     // still at submitted_to_client; offer isn't a valid next stage either, but once we reach interview_result the gate matters
     expect(noRounds.status).toBe(400);
 
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
-      round_type: 'client_l1',
+      round_type: 'client_r1',
       round_name: 'L1',
       scheduled_at: new Date().toISOString(),
     });
@@ -173,7 +173,7 @@ describe('submission stage machine', () => {
     expect(pendingOffer.status).toBe(200);
 
     const blocked = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
-      to_stage: 'offer',
+      to_stage: 'offer_sent',
     });
     expect(blocked.status).toBe(400);
     expect(blocked.body.message).toMatch(/round/i);
@@ -184,10 +184,10 @@ describe('submission stage machine', () => {
     });
 
     const offer = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
-      to_stage: 'offer',
+      to_stage: 'offer_sent',
     });
     expect(offer.status).toBe(200);
-    expect(offer.body.data.stage).toBe('offer');
+    expect(offer.body.data.stage).toBe('offer_sent');
   });
 
   test('cannot close without bgv_status cleared; full happy path locks on close', async () => {
@@ -195,14 +195,14 @@ describe('submission stage machine', () => {
     await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
 
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
-      round_type: 'client_l1',
+      round_type: 'client_r1',
       scheduled_at: new Date().toISOString(),
     });
     await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
       result: 'pass',
     });
     // now at interview_result via auto-advance
-    await advanceTo(sub.id, ['offer', 'bgv']);
+    await advanceTo(sub.id, ['offer_sent', 'bgv']);
 
     const blocked = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
       to_stage: 'closed',
@@ -234,7 +234,7 @@ describe('submission stage machine', () => {
       'submitted_to_client',
       'interview_scheduled',
       'interview_result',
-      'offer',
+      'offer_sent',
       'bgv',
       'closed',
     ]);
@@ -245,7 +245,7 @@ describe('submission stage machine', () => {
     await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
 
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
-      round_type: 'client_hr',
+      round_type: 'hr_cto_ceo',
       scheduled_at: new Date().toISOString(),
     });
     expect(round.status).toBe(201);

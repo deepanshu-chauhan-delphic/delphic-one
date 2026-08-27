@@ -21,7 +21,8 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 - [ARCHITECTURE-OVERVIEW.md](architecture/ARCHITECTURE-OVERVIEW.md) — shareable diagrams, feature map, journeys
 - [HLD.md](architecture/HLD.md)
-- [Requirement-Dashboard-System-Design-v2.md](architecture/Requirement-Dashboard-System-Design-v2.md)
+- [Requirement-Dashboard-System-Design-v2.md](architecture/Requirement-Dashboard-System-Design-v2.md) — historical, an earlier already-shipped milestone despite the name
+- [V2-LEAD-PIPELINE-REQUIREMENTS.md](architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md) — lead classification, meeting attendees, candidate round taxonomy, requirement types, candidate bench flag, client-performance report
 - [API-Spec-and-Build-Plan.md](architecture/API-Spec-and-Build-Plan.md)
 
 ### UI
@@ -69,7 +70,7 @@ server/src/
   config/                # db.js, env.js, logger.js (structured stdout logging)
 
 server/prisma/
-  schema.prisma          # single schema — all 11 tables as Prisma models
+  schema.prisma          # single schema — all domain tables as Prisma models (12 as of v2, incl. account_meeting_attendees)
   seed.js                 # demo seed: users + accounts/reqs/profiles/submissions (see testing/TESTING-DEMO-SEED.md)
 
 docs/

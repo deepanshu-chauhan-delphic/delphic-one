@@ -34,6 +34,9 @@ function ProfilePeek({ row, onClose, onChanged }) {
         <PeekField label="Company">{detail.current_company || '—'}</PeekField>
         <PeekField label="Experience">{detail.total_experience_years ?? '—'}</PeekField>
         <PeekField label="Source"><Badge value={detail.source} /></PeekField>
+        {detail.source === 'direct' && (
+          <PeekField label="On bench">{detail.on_bench ? 'Yes' : 'No'}</PeekField>
+        )}
         <PeekField label="Expected CTC">
           {detail.expected_ctc != null ? `${detail.expected_ctc_currency} ${detail.expected_ctc}` : '—'}
         </PeekField>
@@ -85,6 +88,7 @@ export default function ProfilesListPage() {
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [source, setSource] = useState('');
+  const [onBench, setOnBench] = useState(false);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
@@ -96,6 +100,7 @@ export default function ProfilesListPage() {
     const params = { page, limit: 20 };
     if (appliedSearch) params.search = appliedSearch;
     if (source) params.source = source;
+    if (onBench) params.on_bench = 'true';
     apiClient
       .get('/profiles', { params })
       .then(({ data }) => {
@@ -109,7 +114,7 @@ export default function ProfilesListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, source]);
+  }, [appliedSearch, page, source, onBench]);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
@@ -156,6 +161,16 @@ export default function ProfilesListPage() {
         render: (row) => (row.expected_ctc != null ? `${row.expected_ctc_currency} ${row.expected_ctc}` : '—'),
       },
       { key: 'source', header: 'Source', render: (row) => <Badge value={row.source} /> },
+      {
+        key: 'bench',
+        header: 'Bench',
+        render: (row) =>
+          row.source === 'direct' && row.on_bench ? (
+            <span className="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">On bench</span>
+          ) : (
+            '—'
+          ),
+      },
       {
         key: 'actions',
         header: '',
@@ -226,10 +241,21 @@ export default function ProfilesListPage() {
               className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
             >
               <option value="">Source: All</option>
-              <option value="internal">Internal</option>
+              <option value="direct">Direct</option>
               <option value="vendor">Vendor</option>
               <option value="linkedin">LinkedIn</option>
             </select>
+            <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft">
+              <input
+                type="checkbox"
+                checked={onBench}
+                onChange={(event) => {
+                  setPage(1);
+                  setOnBench(event.target.checked);
+                }}
+              />
+              On bench only
+            </label>
           </div>
         </div>
 

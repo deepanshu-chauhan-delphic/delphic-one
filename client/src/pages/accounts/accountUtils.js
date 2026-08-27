@@ -24,6 +24,10 @@ export function canMutateAccount(account, user) {
   return user.role === 'admin' || (user.role === 'bda' && account.owner?.id === user.id);
 }
 
+export function canClassifyAccount(account, user) {
+  return canMutateAccount(account, user) && account?.type == null;
+}
+
 export function apiErrorMessage(error, fallback) {
   const response = error.response?.data;
   const validationMessage = response?.errors?.[0]?.message;

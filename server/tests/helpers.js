@@ -7,7 +7,7 @@ const PASSWORD = 'Password123!';
 
 async function cleanDatabase() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE stage_history, documents, comments, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, accounts, users RESTART IDENTITY CASCADE'
+    'TRUNCATE TABLE stage_history, documents, comments, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, account_meeting_attendees, accounts, users RESTART IDENTITY CASCADE'
   );
 }
 
@@ -43,7 +43,7 @@ async function createRequirement(salesToken, accountId, overrides = {}) {
   const res = await authed(request(app).post('/api/v1/requirements'), salesToken).send({
     account_id: accountId,
     title: unique('Req '),
-    req_type: 'developer',
+    req_type: 'recruitment',
     seats_total: 1,
     ...overrides,
   });
@@ -58,7 +58,7 @@ async function createProfile(recruiterToken, overrides = {}) {
     name: unique('Candidate '),
     total_experience_years: 5,
     primary_skills: ['Node.js'],
-    source: 'internal',
+    source: 'direct',
     ...overrides,
   });
   if (res.status !== 201) {

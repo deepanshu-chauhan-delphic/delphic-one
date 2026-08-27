@@ -6,6 +6,6 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.patch('/:id', authorize('recruiter', 'admin'), controller.updateRound);
+router.patch('/:id', authorize('recruiter', 'sales', 'admin'), controller.updateRound);
 
 module.exports = router;

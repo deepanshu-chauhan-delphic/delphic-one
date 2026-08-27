@@ -2,6 +2,51 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-27 — V2: lead capture, candidate pipeline round taxonomy, requirement types, candidate bench flag, client-performance report
+
+Full design + rationale: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md). Done on local branch `feature/v2-lead-pipeline-requirements`, not yet merged/pushed.
+
+**Schema + migration** (`server/prisma/schema.prisma`, two migrations `20260827115000_v2_add_enum_values` + `20260827120000_v2_lead_pipeline_requirements`, applied to local dev + test DBs):
+- `Account.type` is now nullable (a lead can exist before BDA decides client/vendor); added `lead_generated_date`, `location`, `linkedin_url`, `meeting_location`, `classified_at`, `classified_by`.
+- New `AccountMeetingAttendee` join table — multiple Sales users can be tagged to a meeting.
+- `ProfileSource`: `internal`→`direct` (`linkedin` stays separate).
+- `Profile.on_bench` — flags a candidate as currently available for a new submission.
+- `RoundType`: `internal|client_l1|client_l2|client_hr|client_final` → `internal_r1|internal_r2|client_r1|client_r2|client_r3|hr_cto_ceo` (old `client_hr`+`client_final` both collapse into the combined `hr_cto_ceo` round).
+- `SubmissionStage`: `offer`→`offer_sent`.
+- `ReqType`: `project|developer` → `managed_services|recruitment|project`.
+
+**Backend:** new `POST /accounts/:id/classify` (one-way, logged to `StageHistory`); offline meetings require `meeting_location`; `canManageInterviewRound()` lets Sales log client-facing rounds (client_r1-3, hr_cto_ceo) on requirements they own, alongside the submission's recruiter; soft `missing_mandatory_rounds` warning (internal_r1, hr_cto_ceo) serialized on submissions — existing hard gates (unresolved rounds block `offer_sent`, uncleared BGV blocks `closed`) are unchanged; `on_bench` filter on `GET /profiles`. New report `GET /reports/client-performance` mirrors `vendor-performance`, anchored on `Account.type='client'`. Extended `recruiter-performance` (`rounds_missing_mandatory_count`), `sales-performance` (`submissions_missing_hr_cto_ceo_round`), `bda-performance` (`leads_unclassified`, `leads_via_linkedin`, `avg_days_lead_to_meeting`), `vendor-performance` (offer_sent rename).
+
+**Frontend:** lead create form allows an unset type + new lead fields; account detail page gets a "Classify lead" action and meeting-attendee chips; stage-move drawer adds `meeting_location` (required when offline) and a Sales attendee picker; `InterviewRoundsPanel` reworked for the 6 new round types with per-role add/edit gating and a missing-mandatory-rounds banner; candidate list/form get an on-bench toggle + filter, and the submission candidate-picker gets an on-bench quick filter; requirement form's type dropdown is now Managed Services/Recruitment/Project; reports page adds the Client performance report and new columns on BDA/recruiter/sales performance.
+
+**Seed data:** fully remapped to the new enums; added 2 unclassified leads, meeting attendees on 2 accounts, 2 bench-flagged candidates, 1 managed-services requirement, extra `internal_r2`/`client_r3` interview rounds.
+
+**Tests:** `cd server && npm test` — **21 suites / 117 tests**, all green (added `interview-rounds-scope.test.js`, `profiles-bench.test.js`, extended `accounts-stage.test.js` and `reports-ui.test.js`). `npm run lint` — 0 errors. `npm run build --workspace client` — succeeds (3145 modules).
+
+**Not done yet:** nothing outstanding on scope — docs are the last item and this entry covers them. Still uncommitted (local branch only); merge/push/deploy pending user go-ahead.
+
+## 2026-08-26 — Entity access guards, VM deploy scripts, fail-closed env guard
+
+Same commit as the pipeline-board entries below (`a824240`), landing the backend/infra half of that work — not previously logged here.
+
+**Server — centralised entity access checks** (`server/src/lib/entityAccess.js`): `assertCanAccessEntity(user, entityType, entityId)` mirrors each entity's existing getOne ownership rule (BDA→own accounts, sales→own requirements or assigned recruiter, recruiter→own submissions, profiles open to all) and is now the single gate used by the `documents`, `comments`, and history sub-routes instead of ad hoc checks per module. `submissions.controller`/`.service` also tightened to the same recruiter-scoping used by `GET /submissions`. New tests: `entity-access.test.js`, `history-access.test.js`, `uploads-auth.test.js`.
+
+**Fail-closed env guard** (`server/src/config/env.js`): `assertProductionConfig()` now throws at boot under `NODE_ENV=production` if `DATABASE_URL`/`CORS_ORIGIN` are unset or `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are missing, under 32 chars, or match a known placeholder/dev value — a prod boot can no longer silently run on dev secrets. Test: `env.guard.test.js`.
+
+**`server/prisma/seed-admin.js`** — production-safe alternative to the destructive demo `seed.js`: creates one admin user from `ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_NAME` env vars, no-ops if an admin already exists, never truncates tables.
+
+**VM deploy tooling** (previously only `ecosystem.config.js` + `nginx.conf.example`, now removed/rewritten): `setup-vm.sh` (idempotent Ubuntu/EC2 bootstrap — Docker, Compose v2, nginx, certbot) and `start-delphic.sh` (`--prod` runs `docker-compose.yml` + new `docker-compose.prod.yml` overlay with loopback binds; validates `.env` has no placeholder/short secrets before starting; `--service`/`--no-boot` for systemd; installs a `delphic.service` unit). Deploy workflow (`.github/workflows/deploy.yml`) now SSHs to the VPS and runs `./start-delphic.sh --prod` instead of targeting the old bare PM2 layout. `docs/AGENTS.md` deploy line updated to match. `.gitattributes` added (LF-only for `*.sh`/compose files, so scripts don't break with CRLF from a Windows checkout).
+
+RD-121 (deploy story) is effectively delivered by this; RD-122 (deploy day) is still open pending `DEPLOY_ENABLED` + VPS secrets being set for real.
+
+## 2026-08-25 — Dashboard filter polish + list spacing tightened
+
+Client-only visual pass (`07e461e`, not previously logged): `AppLayout`, `FilterBar`, `DataTable`, `ListToolbar`, `KpiCard`, `Badge`, `ChartCard`, `IconButton`, `Tooltip` restyled; new `ExportIcons.jsx`; `dashboardWidgets.js` gained more widget config; denser rows across Accounts/Requirements/Submissions/Profiles list pages and the dashboard.
+
+## 2026-08-24 — CSS pass + Delphic logo
+
+Client-only visual pass (`0ca73e4`, not previously logged): `client/public/delphic-logo.png` added and wired into `AppLayout`; `ChartCard`/`KpiCard` and `AccountDetailPage`/`DashboardPage` layout tweaks.
+
 ## 2026-08-26 — Pipeline DnD + card actions menu on every board
 
 All pipeline boards now support drag-and-drop between columns, and stage/status moves live in a ⋯ dropdown on each card (no more “Move stage” / → button rows).

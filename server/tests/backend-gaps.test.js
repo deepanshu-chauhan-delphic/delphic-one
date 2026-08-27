@@ -196,14 +196,14 @@ describe('report avg-day metrics', () => {
           entity_type: 'submission',
           entity_id: submission.id,
           from_stage: 'submitted_to_client',
-          to_stage: 'offer',
+          to_stage: 'offer_sent',
           changed_by: recruiter.id,
           changed_at: offerAt,
         },
         {
           entity_type: 'submission',
           entity_id: submission.id,
-          from_stage: 'offer',
+          from_stage: 'offer_sent',
           to_stage: 'closed',
           changed_by: recruiter.id,
           changed_at: closedAt,
@@ -256,7 +256,7 @@ describe('report avg-day metrics', () => {
 
     const scheduledAt = new Date(Date.now() - 2 * 86400000).toISOString();
     const round = await authed(request(app).post(`/api/v1/submissions/${sub.body.data.id}/interview-rounds`), recruiterToken).send({
-      round_type: 'internal',
+      round_type: 'internal_r1',
       round_name: 'Recruiter screen',
       scheduled_at: scheduledAt,
       result: 'pass',

@@ -42,6 +42,7 @@ const baseFields = {
 
   vendor_profile_id: z.string().optional(),
   recruiter_notes: z.string().optional(),
+  on_bench: z.boolean().optional(),
 };
 
 const createSchema = z
@@ -49,7 +50,7 @@ const createSchema = z
     name: z.string().min(1),
     total_experience_years: z.number(),
     primary_skills: z.array(z.string()).min(1),
-    source: z.enum(['internal', 'vendor', 'linkedin']),
+    source: z.enum(['direct', 'vendor', 'linkedin']),
     vendor_account_id: z.string().uuid().optional(),
     ...baseFields,
   })
@@ -62,14 +63,14 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   total_experience_years: z.number().optional(),
   primary_skills: z.array(z.string()).min(1).optional(),
-  source: z.enum(['internal', 'vendor', 'linkedin']).optional(),
+  source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
   vendor_account_id: z.string().uuid().optional(),
   is_active: z.boolean().optional(),
   ...baseFields,
 });
 
 const listQuerySchema = z.object({
-  source: z.enum(['internal', 'vendor', 'linkedin']).optional(),
+  source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
   vendor_id: z.string().uuid().optional(),
   primary_skills: z.string().optional(),
   experience_min: z.coerce.number().optional(),
@@ -88,6 +89,10 @@ const listQuerySchema = z.object({
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   preferred_work_mode: z.enum(['remote', 'onsite', 'hybrid']).optional(),
   is_active: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  on_bench: z
     .enum(['true', 'false'])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),

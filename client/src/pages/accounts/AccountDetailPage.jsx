@@ -12,7 +12,7 @@ import UnlockButton from '../../components/UnlockButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
 import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
-import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canMutateAccount, formatAccountValue } from './accountUtils.js';
+import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canClassifyAccount, canMutateAccount, formatAccountValue } from './accountUtils.js';
 
 function DetailField({ label, value, children }) {
   return (
@@ -46,6 +46,8 @@ export default function AccountDetailPage() {
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
+  const [classifying, setClassifying] = useState(false);
+  const [classifyError, setClassifyError] = useState('');
 
   async function loadAccount() {
     setLoading(true);
@@ -94,6 +96,19 @@ export default function AccountDetailPage() {
     }
   }
 
+  async function classifyLead(type) {
+    setClassifying(true);
+    setClassifyError('');
+    try {
+      await apiClient.post(`/accounts/${id}/classify`, { type });
+      await loadAccount();
+    } catch (requestError) {
+      setClassifyError(apiErrorMessage(requestError, 'Failed to classify lead'));
+    } finally {
+      setClassifying(false);
+    }
+  }
+
   if (loading) return <DetailSkeleton />;
   if (error || !account) {
     return (
@@ -133,7 +148,9 @@ export default function AccountDetailPage() {
                 {account.is_locked && <span className="rounded-md bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-700">Locked</span>}
               </div>
               <h1 className="mt-0.5 font-heading text-xl font-semibold tracking-tight text-tertiary-900">{account.name}</h1>
-              <p className="mt-0.5 text-sm capitalize text-tertiary-500">{account.type} · Owner: {account.owner?.name || '—'}</p>
+              <p className="mt-0.5 text-sm capitalize text-tertiary-500">
+                {account.type || 'Unclassified lead'} · Owner: {account.owner?.name || '—'}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -144,12 +161,26 @@ export default function AccountDetailPage() {
             {canMutate && !account.is_locked && nextStages.length > 0 && (
               <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
             )}
+            {canClassifyAccount(account, user) && !account.is_locked && (
+              <>
+                <button type="button" disabled={classifying} className="btn-secondary" onClick={() => classifyLead('client')}>
+                  Classify as Client
+                </button>
+                <button type="button" disabled={classifying} className="btn-secondary" onClick={() => classifyLead('vendor')}>
+                  Classify as Vendor
+                </button>
+              </>
+            )}
             {user?.role === 'admin' && account.is_locked && (
               <UnlockButton entityType="account" entityId={account.id} onUnlocked={loadAccount} />
             )}
           </div>
         </div>
       </div>
+
+      {classifyError && (
+        <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{classifyError}</div>
+      )}
 
       {account.is_locked && (
         <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
@@ -170,6 +201,11 @@ export default function AccountDetailPage() {
             <DetailField label="Location" value={[account.location_city, account.location_country].filter(Boolean).join(', ')} />
             <DetailField label="GST / Tax ID" value={account.gst_or_tax_id} />
             <DetailField label="Source" value={account.source} />
+            <DetailField label="Lead generated" value={account.lead_generated_date ? new Date(account.lead_generated_date).toLocaleDateString() : null} />
+            <DetailField label="Lead location" value={account.location} />
+            <DetailField label="LinkedIn">
+              {account.linkedin_url ? <a href={account.linkedin_url} target="_blank" rel="noreferrer" className="normal-case text-primary-700 hover:underline">{account.linkedin_url}</a> : '—'}
+            </DetailField>
             <DetailField label="Created" value={new Date(account.created_at).toLocaleString()} />
             <DetailField label="Updated" value={new Date(account.updated_at).toLocaleString()} />
           </DetailSection>
@@ -186,9 +222,20 @@ export default function AccountDetailPage() {
           <DetailSection title="Meeting information">
             <DetailField label="Mode" value={account.meeting_mode} />
             <DetailField label="Date" value={account.meeting_date ? new Date(account.meeting_date).toLocaleString() : null} />
+            <DetailField label="Location" value={account.meeting_location} />
             <DetailField label="Notes" value={account.meeting_notes} />
+            <DetailField label="Attendees">
+              {account.meeting_attendees?.length
+                ? account.meeting_attendees.map((a) => (
+                    <span key={a.id} className="mr-1 inline-block rounded-full bg-tertiary-100 px-2 py-0.5 text-xs normal-case text-tertiary-700">
+                      {a.name}
+                    </span>
+                  ))
+                : '—'}
+            </DetailField>
           </DetailSection>
 
+          {account.type && (
           <DetailSection title={account.type === 'vendor' ? 'Vendor details' : 'Client details'}>
             {account.type === 'vendor' ? (
               <>
@@ -220,6 +267,7 @@ export default function AccountDetailPage() {
               </>
             )}
           </DetailSection>
+          )}
 
           <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
             <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold tracking-tight text-tertiary-900">

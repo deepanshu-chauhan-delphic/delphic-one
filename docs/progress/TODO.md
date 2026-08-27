@@ -4,7 +4,9 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **Sprint tickets live in [SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entry first.** Product UI + **RD-114/128** + **RD-116 lint** + **RD-120 Docker CI smoke** + **RD-133 UI redesign** + **UX audit fix pass** (all-drawer forms, skill picker, tooltips, pipeline visibility, report accuracy, richer seed) done. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign guide: [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + **RD-114/128** + **RD-116 lint** + **RD-120 Docker CI smoke** + **RD-133 UI redesign** + **UX audit fix pass** + role-specific pipeline boards with DnD + entity access guards + VM deploy scripts (`setup-vm.sh` / `start-delphic.sh`) all done. **Open (2):** RD-119 E2E · RD-122 deploy day (needs `DEPLOY_ENABLED` + VPS secrets set for real). RD-121 (deploy story) effectively delivered by the VM scripts — see PROGRESS.md 2026-08-26 entry. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign guide: [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
+
+**V2 (2026-08-27, done, on local branch `feature/v2-lead-pipeline-requirements`, uncommitted):** lead capture (nullable account type + classify flow + meeting attendees/location), candidate round taxonomy rename, requirement types, candidate bench flag, client-performance report. Full detail: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md) and PROGRESS.md 2026-08-27 entry. **Not yet done:** commit/push, merge to `dev`/`staging`, and a manual end-to-end click-through in the browser (implementation is test/lint/build-verified but nobody has clicked through the new UI yet).
 
 ## Backend
 
@@ -38,14 +40,27 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] **RD-128** Change password (Dev B) — header avatar menu — [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
 - [x] RD-115 spec UI audit + Jira-like list polish — [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md).
 - [x] **RD-133** UI redesign — RHS drawers, list peeks, pipeline KPIs, BDA/Sales reports — [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
-- [x] UX audit fix pass — all remaining forms/modals converted to RHS drawers, searchable skill/tech-stack picker, hover tooltips, BDA pipeline funnel, report KPI accuracy fixes, richer seed data, skeleton loading states. See top [PROGRESS.md](PROGRESS.md) entry.
+- [x] UX audit fix pass — all remaining forms/modals converted to RHS drawers, searchable skill/tech-stack picker, hover tooltips, BDA pipeline funnel, report KPI accuracy fixes, richer seed data, skeleton loading states.
+- [x] Role-specific pipeline boards (BDA leads / Sales jobs / Recruiter candidates / Admin switcher) with shared drag-and-drop shell and card actions menu.
+- [x] BDA account create/edit/stage gaps closed; Accounts/Requirements list create now use the full form, not the stripped mini-form.
+- [x] Dashboard filter + list spacing polish (Aug 24–25 CSS passes), Delphic logo.
+- [x] **V2** — lead classify flow + meeting location/attendees UI; interview rounds panel reworked for 6 named round types + role gating + missing-mandatory banner; candidate on-bench toggle/filter + submission picker quick filter; requirement type dropdown (managed services/recruitment/project); reports page Client performance tab + new BDA/recruiter/sales columns.
+- [ ] **V2** manual click-through in the browser — implementation is verified by tests/lint/build only so far, not by hand.
 
 ## Infra / CI
 
 - [x] GitHub repo + Docker compose stack.
 - [x] RD-116 linter — `npm run lint` (ESLint 9, client + server).
 - [x] RD-120 Docker CI smoke — compose up, health, seed, login (API + client proxy).
-- [ ] RD-121 deploy story (Docker vs PM2) · RD-122 deploy day.
+- [x] Server-side entity access guards (`entityAccess.js`) + recruiter scoping on submissions/documents/comments/history.
+- [x] Fail-closed production env guard (`assertProductionConfig` — rejects missing/placeholder/short JWT secrets, missing `DATABASE_URL`/`CORS_ORIGIN`).
+- [x] `seed-admin.js` — non-destructive prod admin bootstrap.
+- [x] RD-121 deploy story — `setup-vm.sh` (VM bootstrap) + `start-delphic.sh --prod` (`docker-compose.prod.yml` overlay, secret validation, systemd unit); `deploy.yml` now SSHs and runs it.
+- [ ] RD-122 deploy day — still needs `DEPLOY_ENABLED` + VPS secrets set for a real run.
+- [x] **V2** schema + migration (`server/prisma/schema.prisma`, `20260827115000_v2_add_enum_values` + `20260827120000_v2_lead_pipeline_requirements`), applied to local dev + test DBs only.
+- [x] **V2** backend — `POST /accounts/:id/classify`, meeting location/attendees, interview-round role scoping, candidate bench filter, `GET /reports/client-performance` + extended existing reports.
+- [x] **V2** seed data remapped to new enums + new demo rows.
+- [x] **V2** test coverage: new `interview-rounds-scope.test.js`, `profiles-bench.test.js`, extended `accounts-stage.test.js`/`reports-ui.test.js`. 117/117 green.
 
 ## Docs
 
@@ -58,4 +73,5 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] Demo seed test guide: [TESTING-DEMO-SEED.md](../testing/TESTING-DEMO-SEED.md).
 - [x] RD-115 walkthrough log: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md).
 - [x] RD-114/128 test guide: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
+- [x] **V2** design doc: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md); [HLD.md](../architecture/HLD.md) and [API-Spec-and-Build-Plan.md](../architecture/API-Spec-and-Build-Plan.md) updated in place for the new schema/endpoints.
 - [ ] Keep this file and PROGRESS.md current each session.

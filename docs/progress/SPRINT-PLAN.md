@@ -2,7 +2,9 @@
 
 Plain-language ticket breakdown for two full-stack developers. Goal: everything — including testing — is finished by end of day **Aug 27**. **Aug 28 is deploy day only**, no new feature work.
 
-Where things stand on Aug 21: product UI + backend + **RD-114 reports** + **RD-128 change password** + **RD-116 linter** + **RD-120 Docker compose CI smoke** + **RD-133 UI redesign** are **done**. **Open (3):** RD-119 E2E · RD-121 deploy story · RD-122 deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
+Where things stand as of Aug 26: product UI + backend + **RD-114 reports** + **RD-128 change password** + **RD-116 linter** + **RD-120 Docker compose CI smoke** + **RD-133 UI redesign** + **RD-121 deploy story** are **done**. **Open (2):** RD-119 E2E · RD-122 deploy day — see [PROGRESS.md](PROGRESS.md) and ticket snapshot below.
+
+**Aug 27 — V2 initiative (no RD ticket numbers assigned yet):** lead capture (nullable account type, classify flow, meeting location/attendees), candidate interview round taxonomy (named rounds + soft mandatory-round warning + Sales client-round access), requirement types (managed services/recruitment/project), candidate on-bench flag, new client-performance report. Implemented, tested (117/117), lint-clean, builds clean — on local branch `feature/v2-lead-pipeline-requirements`, not committed/pushed. Full detail: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
 **UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets. Post–Aug 21 list/create flows also follow the **RHS drawer** rules in [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
 
@@ -55,16 +57,16 @@ Both developers are full-stack. Each owns complete features end-to-end so neithe
 | RD-131 | Temporary one-click role login |
 | RD-132 | Interview feedback API + richer interview/closure report metrics |
 | RD-133 | UI redesign — blue theme, RHS drawers, list peeks, pipeline KPIs, BDA/Sales reports |
+| RD-121 | Live deploy story — `setup-vm.sh` + `start-delphic.sh --prod` (Docker Compose, not PM2), `deploy.yml` SSHs and runs it |
 
-Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
+Also done (not an RD ticket): structured backend logging — [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md); role-specific pipeline boards with drag-and-drop; server entity access guards + fail-closed prod env validation; `seed-admin.js` prod bootstrap.
 
-### Open (3)
+### Open (2)
 
 | Ticket | Name |
 |---|---|
 | RD-119 | Full E2E click-through (all roles) |
-| RD-121 | Live deploy story (Docker vs PM2) |
-| RD-122 | Deploy day |
+| RD-122 | Deploy day — needs `DEPLOY_ENABLED` + VPS secrets set for a real run |
 
 ---
 

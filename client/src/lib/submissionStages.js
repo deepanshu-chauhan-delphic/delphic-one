@@ -5,8 +5,8 @@ export const SUBMISSION_STAGE_TRANSITIONS = {
   internal_screening: ['submitted_to_client', 'rejected', 'backout'],
   submitted_to_client: ['interview_scheduled', 'rejected', 'backout'],
   interview_scheduled: ['interview_result', 'rejected', 'backout'],
-  interview_result: ['offer', 'rejected', 'backout'],
-  offer: ['bgv', 'backout', 'rejected'],
+  interview_result: ['offer_sent', 'rejected', 'backout'],
+  offer_sent: ['bgv', 'backout', 'rejected'],
   bgv: ['closed', 'backout', 'rejected'],
   closed: [],
   backout: [],
@@ -19,10 +19,43 @@ export const SUBMISSION_PIPELINE = [
   'submitted_to_client',
   'interview_scheduled',
   'interview_result',
-  'offer',
+  'offer_sent',
   'bgv',
   'closed',
 ];
+
+// Named candidate interview rounds. Composition is intentionally flexible (rounds can be
+// added/shortened) without touching SUBMISSION_STAGE_TRANSITIONS - only these lists change.
+export const ROUND_TYPES = ['internal_r1', 'internal_r2', 'client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo'];
+
+export const ROUND_TYPE_LABELS = {
+  internal_r1: 'Internal Round 1',
+  internal_r2: 'Internal Round 2',
+  client_r1: 'Client Round 1',
+  client_r2: 'Client Round 2',
+  client_r3: 'Client Round 3',
+  hr_cto_ceo: 'HR, CTO & CEO Round',
+};
+
+export const CLIENT_ROUND_TYPES = ['client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo'];
+
+// Soft rule only - UI warns when a mandatory round/stage is missing, never blocks.
+export const MANDATORY_ROUND_TYPES = ['internal_r1', 'hr_cto_ceo'];
+export const MANDATORY_SUBMISSION_STAGES = ['sourced', 'internal_screening', 'offer_sent'];
+
+export function roundTypeLabel(type) {
+  return ROUND_TYPE_LABELS[type] || type;
+}
+
+export function canManageInterviewRound(submission, roundType, user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role === 'recruiter') return submission?.submitted_by?.id === user.id;
+  if (user.role === 'sales') {
+    return CLIENT_ROUND_TYPES.includes(roundType) && submission?.requirement?.sales_owner_id === user.id;
+  }
+  return false;
+}
 
 export function nextSubmissionStages(stage) {
   return SUBMISSION_STAGE_TRANSITIONS[stage] || [];

@@ -1,7 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created, fail } = require('../../utils/response');
 const accountsService = require('./accounts.service');
-const { createSchema, updateSchema, stageSchema, listQuerySchema } = require('./accounts.validation');
+const { createSchema, updateSchema, stageSchema, classifySchema, listQuerySchema } = require('./accounts.validation');
 
 const ERROR_STATUS = {
   not_found: [404, 'Not found'],
@@ -10,6 +10,8 @@ const ERROR_STATUS = {
   invalid_transition: [400, 'Invalid stage transition'],
   reason_required: [400, 'reason is required for this transition'],
   meeting_fields_required: [400, 'meeting_mode and meeting_date are required'],
+  meeting_location_required: [400, 'meeting_location is required for offline meetings'],
+  already_classified: [400, 'Account type is already set'],
 };
 
 const list = asyncHandler(async (req, res) => {
@@ -54,6 +56,16 @@ const changeStage = asyncHandler(async (req, res) => {
   return ok(res, result.account, { stage_history: result.history });
 });
 
+const classify = asyncHandler(async (req, res) => {
+  const body = classifySchema.parse(req.body);
+  const result = await accountsService.classifyLead(req.params.id, body, req.user);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return ok(res, result.account);
+});
+
 const history = asyncHandler(async (req, res) => {
   const account = await accountsService.getById(req.params.id);
   if (!account) return fail(res, 404, 'Not found');
@@ -64,4 +76,4 @@ const history = asyncHandler(async (req, res) => {
   return ok(res, rows);
 });
 
-module.exports = { list, getOne, create, update, changeStage, history };
+module.exports = { list, getOne, create, update, changeStage, classify, history };

@@ -32,7 +32,8 @@ export function emptyProfileForm() {
     preferred_work_mode: '',
     linkedin_url: '',
     portfolio_url: '',
-    source: 'internal',
+    source: 'direct',
+    on_bench: false,
     vendor_account_id: '',
     vendor_profile_id: '',
     recruiter_notes: '',
@@ -75,7 +76,8 @@ export function profileToForm(profile) {
     preferred_work_mode: profile.preferred_work_mode || '',
     linkedin_url: profile.linkedin_url || '',
     portfolio_url: profile.portfolio_url || '',
-    source: profile.source || 'internal',
+    source: profile.source || 'direct',
+    on_bench: Boolean(profile.on_bench),
     vendor_account_id: profile.vendor_account?.id || profile.vendor_account_id || '',
     vendor_profile_id: profile.vendor_profile_id || '',
     recruiter_notes: profile.recruiter_notes || '',
@@ -152,6 +154,9 @@ export function formToProfileBody(form) {
 
   if (form.source === 'vendor') {
     body.vendor_account_id = form.vendor_account_id || undefined;
+  }
+  if (form.source === 'direct') {
+    body.on_bench = Boolean(form.on_bench);
   }
 
   const degree = optionalText(form.education_degree);

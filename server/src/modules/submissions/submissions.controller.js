@@ -23,6 +23,7 @@ const ERROR_STATUS = {
   rejection_reason_required: [400, 'rejection_reason is required'],
   rounds_not_resolved: [400, 'All interview rounds must have a result before advancing to offer'],
   bgv_not_cleared: [400, 'bgv_status must be cleared before closing'],
+  forbidden: [403, 'You are not allowed to manage this interview round'],
 };
 
 function mapError(res, error) {
@@ -79,14 +80,14 @@ const history = asyncHandler(async (req, res) => {
 
 const addRound = asyncHandler(async (req, res) => {
   const body = interviewRoundCreateSchema.parse(req.body);
-  const result = await service.addInterviewRound(req.params.id, body, req.user.id);
+  const result = await service.addInterviewRound(req.params.id, body, req.user);
   if (result.error) return mapError(res, result.error);
   return created(res, result.round);
 });
 
 const updateRound = asyncHandler(async (req, res) => {
   const body = interviewRoundUpdateSchema.parse(req.body);
-  const result = await service.updateInterviewRound(req.params.id, body, req.user.id);
+  const result = await service.updateInterviewRound(req.params.id, body, req.user);
   if (result.error) return mapError(res, result.error);
   return ok(res, result.round);
 });

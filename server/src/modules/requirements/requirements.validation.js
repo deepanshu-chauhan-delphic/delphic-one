@@ -34,14 +34,14 @@ const baseFields = {
 const createSchema = z.object({
   account_id: z.string().uuid(),
   title: z.string().min(1),
-  req_type: z.enum(['project', 'developer']),
+  req_type: z.enum(['managed_services', 'recruitment', 'project']),
   seats_total: z.number().int().min(1).default(1),
   ...baseFields,
 });
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
-  req_type: z.enum(['project', 'developer']).optional(),
+  req_type: z.enum(['managed_services', 'recruitment', 'project']).optional(),
   ...baseFields,
 });
 
@@ -71,7 +71,7 @@ const seatStageSchema = z.object({
 
 const listQuerySchema = z.object({
   status: z.enum(['open', 'in_progress', 'on_hold', 'closed', 'dropped']).optional(),
-  req_type: z.enum(['project', 'developer']).optional(),
+  req_type: z.enum(['managed_services', 'recruitment', 'project']).optional(),
   account_id: z.string().uuid().optional(),
   sales_owner_id: z.string().uuid().optional(),
   recruiter_id: z.string().uuid().optional(),

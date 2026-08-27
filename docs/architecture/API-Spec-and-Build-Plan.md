@@ -148,7 +148,7 @@ Response 200:
 ```
 {
   id: uuid,
-  type: "client" | "vendor",
+  type: "client" | "vendor" | null,   // null = lead not yet classified (v2) — see POST /accounts/:id/classify
   name: string,
   stage: "lead" | "meeting_scheduled" | "active" | "rescheduled" | "dropped",
 
@@ -159,6 +159,11 @@ Response 200:
   location_city: string | null,
   location_country: string | null,
   gst_or_tax_id: string | null,
+
+  // Lead capture (v2)
+  lead_generated_date: date | null,
+  location: string | null,             // free-text, lighter-weight than location_city/location_country
+  linkedin_url: string | null,
 
   // Primary contact
   poc_name: string | null,
@@ -175,7 +180,9 @@ Response 200:
   source: string | null,
   meeting_mode: "online" | "offline" | null,
   meeting_date: datetime | null,
+  meeting_location: string | null,     // (v2) required when meeting_mode = "offline"
   meeting_notes: string | null,
+  meeting_attendees: [{ id: uuid, name: string }],   // (v2) Sales users tagged to the meeting
 
   // Vendor-specific (null for clients)
   vendor_specializations: string[] | null,
@@ -190,6 +197,8 @@ Response 200:
 
   // System
   owner: { id: uuid, name: string },
+  classified_by: { id: uuid, name: string } | null,   // (v2) who resolved type client/vendor, if via classify
+  classified_at: datetime | null,                      // (v2)
   is_locked: boolean,
   created_at: datetime,
   updated_at: datetime
@@ -200,7 +209,7 @@ Response 200:
 **Roles:** all (BDA sees own; sales/recruiter see all; admin sees all)
 ```
 Query params:
-  ?type=client|vendor
+  ?type=client|vendor|unclassified   // (v2) "unclassified" = type IS NULL
   &stage=lead|meeting_scheduled|active|rescheduled|dropped
   &owner_id=uuid
   &industry=string
@@ -231,7 +240,7 @@ Response 200:
 ```
 Request:
 {
-  type: "client" | "vendor" (required),
+  type: "client" | "vendor" (optional — v2: BDA may create a bare lead before deciding client/vendor; omit to leave unclassified, resolve later via POST /accounts/:id/classify),
   name: string (required),
 
   // Company info (all optional)
@@ -241,6 +250,11 @@ Request:
   location_city: string,
   location_country: string,
   gst_or_tax_id: string,
+
+  // Lead capture (v2, all optional)
+  lead_generated_date: date,
+  location: string,
+  linkedin_url: string,
 
   // Primary contact (all optional but recommended)
   poc_name: string,
@@ -285,13 +299,15 @@ Request:
   to_stage: "meeting_scheduled" | "active" | "rescheduled" | "dropped" (required),
   reason: string,                   // required if to_stage = "dropped"
   meeting_mode: "online" | "offline",  // required if to_stage = "meeting_scheduled"
-  meeting_date: datetime               // required if to_stage = "meeting_scheduled"
+  meeting_date: datetime,              // required if to_stage = "meeting_scheduled"
+  meeting_location: string,            // (v2) required if to_stage = "meeting_scheduled" AND meeting_mode = "offline"
+  meeting_attendee_ids: uuid[]         // (v2) optional Sales user ids to tag as meeting attendees; replaces the prior set for this account
 }
 
 Validation rules:
-  - lead → meeting_scheduled (requires meeting_mode + meeting_date)
+  - lead → meeting_scheduled (requires meeting_mode + meeting_date; meeting_location also required when meeting_mode = "offline")
   - meeting_scheduled → active | rescheduled | dropped
-  - rescheduled → meeting_scheduled (requires new meeting_mode + meeting_date)
+  - rescheduled → meeting_scheduled (requires new meeting_mode + meeting_date, same offline-location rule)
   - dropped requires reason
   - dropped is terminal — no transitions out
   - Sets is_locked = true on "dropped"
@@ -309,6 +325,23 @@ Response 200:
     changed_at: datetime
   }
 }
+```
+
+### POST /accounts/:id/classify (v2)
+**Roles:** bda (own), admin
+**Blocked if:** `type` is already set (non-null) — returns `400 { success: false, message: "Account type is already set" }`
+```
+Request:
+{
+  type: "client" | "vendor" (required)
+}
+
+Side effects:
+  - Sets type, classified_at = now(), classified_by = current user
+  - Writes a stage_history row (entity_type: "account", from_stage: null, to_stage: "client"|"vendor", reason: "Lead classified")
+
+Response 200:
+{ success: true, data: AccountObject }
 ```
 
 ### GET /accounts/:id/history
@@ -329,6 +362,8 @@ Response 200:
 }
 ```
 
+Note: a classify action (v2) also appears here as a row with `from_stage: null` and `to_stage: "client"` or `"vendor"`.
+
 ---
 
 ## 4. Requirements
@@ -339,7 +374,7 @@ Response 200:
   id: uuid,
   account: { id: uuid, name: string, type: "client" },
   title: string,
-  req_type: "project" | "developer",
+  req_type: "managed_services" | "recruitment" | "project",   // (v2) was "project" | "developer" — "developer" renamed to "recruitment", "managed_services" added
   status: "open" | "in_progress" | "on_hold" | "closed" | "dropped",
   description: string | null,
   jd_document_url: string | null,
@@ -393,7 +428,7 @@ Response 200:
 ```
 Query params:
   ?status=open|in_progress|on_hold|closed|dropped
-  &req_type=project|developer
+  &req_type=managed_services|recruitment|project
   &account_id=uuid
   &sales_owner_id=uuid
   &recruiter_id=uuid             // filter by assigned recruiter
@@ -430,7 +465,7 @@ Request:
 {
   account_id: uuid (required),          // must be active client
   title: string (required),
-  req_type: "project" | "developer" (required),
+  req_type: "managed_services" | "recruitment" | "project" (required),
   seats_total: number (default 1),
 
   description: string,
@@ -687,11 +722,12 @@ Response 200:
   other_documents: [{ label: string, url: string }],
 
   // Sourcing
-  source: "internal" | "vendor" | "linkedin",
+  source: "direct" | "vendor" | "linkedin",   // (v2) was "internal" | "vendor" | "linkedin"
   vendor_account: { id: uuid, name: string } | null,
   vendor_profile_id: string | null,
   added_by: { id: uuid, name: string },
   recruiter_notes: string | null,
+  on_bench: boolean,       // (v2) marks a "direct"-sourced candidate as currently available for a new submission
 
   // System
   is_active: boolean,
@@ -708,7 +744,8 @@ Response 200:
 **Roles:** recruiter, sales, admin
 ```
 Query params:
-  ?source=internal|vendor|linkedin
+  ?source=direct|vendor|linkedin
+  &on_bench=true|false               // (v2) filters direct-sourced candidates flagged available for a new submission
   &vendor_id=uuid
   &primary_skills=React,Java        // comma-separated, OR match
   &experience_min=number
@@ -781,10 +818,11 @@ Request:
   linkedin_url: string,
   portfolio_url: string,
 
-  source: "internal" | "vendor" | "linkedin" (required),
+  source: "direct" | "vendor" | "linkedin" (required),
   vendor_account_id: uuid,               // required if source = "vendor"
   vendor_profile_id: string,
-  recruiter_notes: string
+  recruiter_notes: string,
+  on_bench: boolean                      // (v2) only meaningful when source = "direct"
 }
 
 Response 201:
@@ -840,7 +878,8 @@ Response 200:
     source: string
   },
   stage: "sourced" | "internal_screening" | "submitted_to_client" | "interview_scheduled"
-       | "interview_result" | "offer" | "bgv" | "closed" | "backout" | "rejected",
+       | "interview_result" | "offer_sent" | "bgv" | "closed" | "backout" | "rejected",
+       // (v2) "offer" renamed to "offer_sent"
 
   // Commercials
   proposed_rate: number | null,
@@ -885,7 +924,10 @@ Response 200:
   updated_at: datetime,
 
   // Nested
-  interview_rounds: [InterviewRoundObject]
+  interview_rounds: [InterviewRoundObject],
+
+  // Computed (v2)
+  missing_mandatory_rounds: ("internal_r1" | "hr_cto_ceo")[]   // round types not yet present — soft-rule warning only, never blocks a stage move
 }
 ```
 
@@ -896,9 +938,9 @@ Query params:
   ?requirement_id=uuid
   &seat_id=uuid
   &profile_id=uuid
-  &stage=sourced|internal_screening|submitted_to_client|interview_scheduled|interview_result|offer|bgv|closed|backout|rejected
+  &stage=sourced|internal_screening|submitted_to_client|interview_scheduled|interview_result|offer_sent|bgv|closed|backout|rejected
   &submitted_by=uuid
-  &source=internal|vendor|linkedin       // profile source filter
+  &source=direct|vendor|linkedin       // profile source filter
   &vendor_id=uuid
   &margin_min=number
   &created_from=date&created_to=date
@@ -999,11 +1041,15 @@ Stage transition rules:
   internal_screening → submitted_to_client | rejected
   submitted_to_client → interview_scheduled | rejected
   interview_scheduled → interview_result | rejected
-  interview_result → offer | rejected (requires all rounds to have a result)
-  offer → bgv | backout | rejected
+  interview_result → offer_sent | rejected (requires all rounds to have a result)
+  offer_sent → bgv | backout | rejected
   bgv → closed | backout | rejected (requires bgv_status = "cleared")
   ANY → backout (with reason)
   ANY → rejected (with reason)
+
+  (v2) These gates are unchanged and unrelated to the new "missing_mandatory_rounds" soft
+  warning below — a submission can still reach offer_sent/closed with all *existing* rounds
+  resolved even if a mandatory round type (internal_r1, hr_cto_ceo) was never added at all.
 
 Side effects:
   - "backout": sets backout_stage + backout_reason; seat stays as-is (manual reopen)
@@ -1034,7 +1080,10 @@ Response 200:
   id: uuid,
   submission_id: uuid,
   round_number: number,
-  round_type: "internal" | "client_l1" | "client_l2" | "client_hr" | "client_final",
+  round_type: "internal_r1" | "internal_r2" | "client_r1" | "client_r2" | "client_r3" | "hr_cto_ceo",
+  // (v2) was "internal" | "client_l1" | "client_l2" | "client_hr" | "client_final" —
+  // old "client_hr" and "client_final" both collapsed into the combined "hr_cto_ceo" round.
+  // internal_r1 and hr_cto_ceo are the two mandatory round types (soft rule, see SubmissionObject.missing_mandatory_rounds).
   round_name: string | null,
   scheduled_at: datetime | null,
   duration_minutes: number | null,
@@ -1049,11 +1098,11 @@ Response 200:
 ```
 
 ### POST /submissions/:id/interview-rounds
-**Roles:** recruiter (own submission), admin
+**Roles:** recruiter (own submission), sales (own requirement — client-facing round types only: client_r1/r2/r3, hr_cto_ceo), admin
 ```
 Request:
 {
-  round_type: "internal" | "client_l1" | "client_l2" | "client_hr" | "client_final" (required),
+  round_type: "internal_r1" | "internal_r2" | "client_r1" | "client_r2" | "client_r3" | "hr_cto_ceo" (required),
   round_name: string,
   scheduled_at: datetime (required — interview date & time when the round is open),
   duration_minutes: number,
@@ -1066,18 +1115,23 @@ Request:
 }
 
 Side effect:
-  - Auto-increments round_number based on existing rounds for this submission
+  - Auto-increments round_number based on existing rounds for this submission (global counter, not per round_type)
   - If submission.stage = "submitted_to_client", auto-advances to "interview_scheduled"
 
 Response 201:
   { success: true, data: InterviewRoundObject }
+
+Response 403 (v2):
+  A sales user tried to log a non-client round type (internal_r1/internal_r2), or a
+  recruiter/sales user who doesn't own the submission/requirement tried to add a round.
 
 Response 422:
   Missing or empty scheduled_at
 ```
 
 ### PATCH /interview-rounds/:id
-**Roles:** recruiter, admin
+**Roles:** recruiter (own submission), sales (own requirement — client-facing round types only), admin
+**Note (v2):** `round_type` is immutable after creation and not accepted on PATCH.
 ```
 Request (all optional):
 {
@@ -1262,7 +1316,7 @@ Response 200:
       recruiter: { id: uuid, name: string },
       profiles_sourced: number,
       profiles_sourced_by_source: {
-        internal: number,
+        direct: number,   // (v2) was "internal"
         vendor: number,
         linkedin: number
       },
@@ -1282,7 +1336,8 @@ Response 200:
       avg_days_offer_to_closed: number | null,
       avg_days_total_cycle: number | null,
       requirements_worked_on: number,
-      closures_count: number              // actual joinings in period
+      closures_count: number,             // actual joinings in period
+      rounds_missing_mandatory_count: number   // (v2) submissions missing internal_r1 or hr_cto_ceo
     }
   ]
 }
@@ -1312,13 +1367,17 @@ Response 200:
       leads_dropped: number,
       conversion_rate_percentage: number,
       vendors_created: number,
-      clients_active: number,
-      vendors_active: number,
-      stuck_leads_7d: number
+      leads_unclassified: number,            // (v2) leads created in range with type still null
+      leads_via_linkedin: number,             // (v2) leads created in range with linkedin_url set
+      avg_days_lead_to_meeting: number | null,   // (v2) lead_generated_date → meeting_date, for leads that reached meeting_scheduled
+      clients_active_current: number,         // present-state snapshot, NOT scoped to date_from/date_to
+      vendors_active_current: number,         // present-state snapshot
+      stuck_leads_current: number             // present-state snapshot (STUCK_THRESHOLD_DAYS, default 7)
     }
   ]
 }
 ```
+Note: `*_current` fields are named that way because they're a snapshot "as of now," unlike the rest of this report which is scoped to `date_from`/`date_to`.
 
 ### GET /reports/sales-performance
 **Roles:** admin
@@ -1347,7 +1406,8 @@ Response 200:
       total_closed_revenue: number,
       total_margin_generated: number,
       clients_active: number,
-      closures_count: number
+      closures_count: number,
+      submissions_missing_hr_cto_ceo_round: number   // (v2) open/closed submissions on owned requirements lacking the combined HR/CTO/CEO round
       // plus interview summary fields when present
     }
   ]
@@ -1379,6 +1439,36 @@ Response 200:
       total_margin: number,
       avg_days_to_submit: number | null,  // time from requirement creation to vendor submission
       reliability_score: number | null     // computed: (closed / submitted) * 100
+    }
+  ]
+}
+```
+
+### GET /reports/client-performance (v2)
+**Roles:** admin, sales
+
+Mirrors `vendor-performance`'s shape, anchored on `Account.type === "client"` instead of `"vendor"`, via requirements owned by that client account.
+```
+Query params:
+  ?date_from=date (required)
+  &date_to=date (required)
+  &client_id=uuid
+
+Response 200:
+{
+  success: true,
+  data: [
+    {
+      client: { id: uuid, name: string },
+      requirements_total: number,
+      requirements_open: number,           // status open or in_progress
+      requirements_closed: number,
+      submissions_total: number,
+      submissions_closed: number,
+      avg_days_to_close: number | null,    // submission created_at → actual_joining_date, closed submissions only
+      total_revenue: number,               // sum final_agreed_rate on closed submissions
+      total_margin: number,
+      stuck_requirements_count: number     // open/in_progress requirements not updated in STUCK_THRESHOLD_DAYS (default 7)
     }
   ]
 }
@@ -1470,7 +1560,7 @@ Response 200:
 ```
 Query params:
   ?type=xlsx|pdf (required)
-  &report=recruiter-performance|bda-performance|sales-performance|vendor-performance|aging|closure (required)
+  &report=recruiter-performance|bda-performance|sales-performance|vendor-performance|client-performance|aging|closure (required)
   &date_from=date
   &date_to=date
   &... (same filters as the corresponding report endpoint)

@@ -9,6 +9,7 @@ export const ALL_REPORTS = [
   { key: 'sales-performance', label: 'Sales performance', roles: ['admin'] },
   { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
   { key: 'vendor-performance', label: 'Vendor performance', roles: ['admin', 'sales'] },
+  { key: 'client-performance', label: 'Client performance', roles: ['admin', 'sales'] },
   { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'] },
   { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'] },
 ];
@@ -42,6 +43,9 @@ export function columnsForReport(reportKey) {
       { key: 'leads_dropped', header: 'Dropped' },
       { key: 'conversion_rate_percentage', header: 'Conv %', render: (r) => cell(r.conversion_rate_percentage) },
       { key: 'vendors_created', header: 'Vendors added' },
+      { key: 'leads_unclassified', header: 'Unclassified' },
+      { key: 'leads_via_linkedin', header: 'Via LinkedIn' },
+      { key: 'avg_days_lead_to_meeting', header: 'Avg d lead→meeting', render: (r) => cell(r.avg_days_lead_to_meeting) },
       { key: 'clients_active_current', header: 'Active clients (now)' },
       { key: 'vendors_active_current', header: 'Active vendors (now)' },
       { key: 'stuck_leads_current', header: 'Stuck 7d+ (now)' },
@@ -58,6 +62,7 @@ export function columnsForReport(reportKey) {
       { key: 'backout_rate_percentage', header: 'Backout %', render: (r) => cell(r.backout_rate_percentage) },
       { key: 'avg_days_total_cycle', header: 'Avg cycle d', render: (r) => cell(r.avg_days_total_cycle) },
       { key: 'interviews_total', header: 'Interviews' },
+      { key: 'rounds_missing_mandatory_count', header: 'Missing mandatory rounds' },
     ];
   }
   if (reportKey === 'sales-performance') {
@@ -71,6 +76,7 @@ export function columnsForReport(reportKey) {
       { key: 'total_margin_generated', header: 'Margin', render: (r) => cell(r.total_margin_generated) },
       { key: 'clients_active', header: 'Active clients' },
       { key: 'avg_closure_days', header: 'Avg close d', render: (r) => cell(r.avg_closure_days) },
+      { key: 'submissions_missing_hr_cto_ceo_round', header: 'Missing HR/CTO/CEO round' },
     ];
   }
   if (reportKey === 'vendor-performance') {
@@ -83,6 +89,20 @@ export function columnsForReport(reportKey) {
       { key: 'backout_rate_percentage', header: 'Backout %', render: (r) => cell(r.backout_rate_percentage) },
       { key: 'total_margin', header: 'Margin', render: (r) => cell(r.total_margin) },
       { key: 'reliability_score', header: 'Reliability', render: (r) => cell(r.reliability_score) },
+    ];
+  }
+  if (reportKey === 'client-performance') {
+    return [
+      { key: 'name', header: 'Client', render: (r) => personName(r, 'client') },
+      { key: 'requirements_total', header: 'Reqs' },
+      { key: 'requirements_open', header: 'Open' },
+      { key: 'requirements_closed', header: 'Closed' },
+      { key: 'submissions_total', header: 'Subs' },
+      { key: 'submissions_closed', header: 'Subs closed' },
+      { key: 'avg_days_to_close', header: 'Avg d to close', render: (r) => cell(r.avg_days_to_close) },
+      { key: 'total_revenue', header: 'Revenue', render: (r) => cell(r.total_revenue) },
+      { key: 'total_margin', header: 'Margin', render: (r) => cell(r.total_margin) },
+      { key: 'stuck_requirements_count', header: 'Stuck reqs' },
     ];
   }
   if (reportKey === 'closure') {
@@ -103,7 +123,7 @@ export function tableRowsForReport(reportKey, data) {
   if (reportKey === 'aging') return [];
   if (!Array.isArray(data)) return [];
   return data.map((row, index) => ({
-    id: row.recruiter?.id || row.sales_person?.id || row.bda?.id || row.vendor?.id || row.group_label || String(index),
+    id: row.recruiter?.id || row.sales_person?.id || row.bda?.id || row.vendor?.id || row.client?.id || row.group_label || String(index),
     ...row,
   }));
 }
@@ -215,6 +235,14 @@ export function chartDataForReport(reportKey, data) {
       margin: Number(r.total_margin || 0),
     }));
   }
+  if (reportKey === 'client-performance') {
+    return data.map((r) => ({
+      label: r.client?.name || 'Client',
+      requirements: r.requirements_total || 0,
+      closed: r.requirements_closed || 0,
+      revenue: Number(r.total_revenue || 0),
+    }));
+  }
   return [];
 }
 
@@ -260,6 +288,13 @@ export function chartBarsForReport(reportKey) {
     return [
       { dataKey: 'closures', name: 'Closures', fill: '#3763f4' },
       { dataKey: 'margin', name: 'Margin', fill: '#16a34a' },
+    ];
+  }
+  if (reportKey === 'client-performance') {
+    return [
+      { dataKey: 'requirements', name: 'Reqs', fill: '#3763f4' },
+      { dataKey: 'closed', name: 'Closed', fill: '#16a34a' },
+      { dataKey: 'revenue', name: 'Revenue', fill: '#d97706' },
     ];
   }
   return [];

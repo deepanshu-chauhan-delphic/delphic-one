@@ -42,7 +42,7 @@ const updateSchema = z.object({
 const stageSchema = z.object({
   to_stage: z.enum([
     'internal_screening', 'submitted_to_client', 'interview_scheduled',
-    'interview_result', 'offer', 'bgv', 'closed', 'backout', 'rejected',
+    'interview_result', 'offer_sent', 'bgv', 'closed', 'backout', 'rejected',
   ]),
   reason: z.string().optional(),
   backout_reason: z.string().optional(),
@@ -64,7 +64,7 @@ const listQuerySchema = z.object({
 });
 
 const interviewRoundCreateSchema = z.object({
-  round_type: z.enum(['internal', 'client_l1', 'client_l2', 'client_hr', 'client_final']),
+  round_type: z.enum(['internal_r1', 'internal_r2', 'client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo']),
   round_name: z.string().optional(),
   scheduled_at: z.string().min(1, 'Interview date & time is required'),
   duration_minutes: z.number().int().optional(),

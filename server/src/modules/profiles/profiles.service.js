@@ -50,11 +50,12 @@ async function list(filters) {
   const {
     source, vendor_id, primary_skills, experience_min, experience_max, expected_ctc_min, expected_ctc_max,
     notice_period_max, is_serving_notice, current_location, willing_to_relocate, preferred_work_mode,
-    is_active, added_by, search, sort_by, sort_order, page, limit,
+    is_active, on_bench, added_by, search, sort_by, sort_order, page, limit,
   } = filters;
 
   const where = {
     ...(source ? { source } : {}),
+    ...(on_bench !== undefined ? { on_bench } : {}),
     ...(vendor_id ? { vendor_account_id: vendor_id } : {}),
     ...(experience_min !== undefined || experience_max !== undefined
       ? { total_experience_years: { ...(experience_min !== undefined ? { gte: experience_min } : {}), ...(experience_max !== undefined ? { lte: experience_max } : {}) } }

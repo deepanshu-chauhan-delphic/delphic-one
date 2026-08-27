@@ -3,10 +3,12 @@
 | Field | Value |
 |---|---|
 | **Product** | Delphic One — Requirement Management Dashboard |
-| **Status** | v1 implementation in progress (backend complete; frontend detail/forms open) |
-| **As of** | 2026-08-21 |
+| **Status** | v1 base implementation complete; v2 lead/pipeline/requirement/reports extension layered in (see below) |
+| **As of** | 2026-08-27 |
 | **Tenancy** | Single tenant |
-| **Related** | [Architecture Overview](ARCHITECTURE-OVERVIEW.md) · [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](../AGENTS.md) · [Sprint Plan](../progress/SPRINT-PLAN.md) |
+| **Related** | [Architecture Overview](ARCHITECTURE-OVERVIEW.md) · [System Design v2](Requirement-Dashboard-System-Design-v2.md) · [V2 Lead/Pipeline/Requirements/Reports](V2-LEAD-PIPELINE-REQUIREMENTS.md) · [API Spec](API-Spec-and-Build-Plan.md) · [AGENTS](../AGENTS.md) · [Sprint Plan](../progress/SPRINT-PLAN.md) |
+
+**Note:** entity/workflow sections below are updated in place to reflect the v2 schema changes (marked **(v2)** inline). [V2-LEAD-PIPELINE-REQUIREMENTS.md](V2-LEAD-PIPELINE-REQUIREMENTS.md) is the dedicated design doc for that effort — read it for full rationale and decisions; `Requirement-Dashboard-System-Design-v2.md` (despite its name) documents an earlier, already-shipped milestone and is left as historical record.
 
 ## Table of Contents
 
@@ -253,13 +255,14 @@ erDiagram
 | Entity | Purpose | Terminal / lock trigger |
 |---|---|---|
 | **User** | Identity + role (`bda` \| `sales` \| `recruiter` \| `admin`) | Soft-deactivate via `active` |
-| **Account** | Unified client / vendor lead | `dropped` → locked |
-| **Requirement** | Job / project need on an **active client** | `closed` / `dropped` → locked |
+| **Account** | Unified client / vendor lead. **v2:** `type` may be `null` (lead not yet classified as client/vendor — resolved via `POST /accounts/:id/classify`); carries lead-capture fields (`lead_generated_date`, `location`, `linkedin_url`) and offline-meeting fields (`meeting_location`, required when `meeting_mode = offline`) | `dropped` → locked |
+| **AccountMeetingAttendee** (v2) | Join row: Sales users tagged to an account's meeting; replaced wholesale on each `meeting_scheduled` move | — |
+| **Requirement** | Job / project need on an **active client**. **v2:** `req_type` is `managed_services` \| `recruitment` \| `project` (was `project` \| `developer`) | `closed` / `dropped` → locked |
 | **RequirementSeat** | One headcount slot | `closed` / `dropped` → locked; `joined_at` counts as closure |
 | **RequirementAssignment** | Recruiter / sales assignment history (never deleted) | Soft end via `unassigned_at` |
-| **Profile** | Candidate | Not terminal-locked like pipeline entities |
-| **Submission** | Candidate × seat pipeline row + commercials | `closed` / `rejected` (and backout path) → locked |
-| **InterviewRound** | Internal or client round + feedback / rating / result | Completing result sets `completed_at` |
+| **Profile** | Candidate. `source` is `direct` \| `vendor` \| `linkedin` (v2: `internal` renamed to `direct`). **v2:** `on_bench` flags a `direct`-sourced candidate as currently available for a new submission | Not terminal-locked like pipeline entities |
+| **Submission** | Candidate × seat pipeline row + commercials. **v2:** `stage` includes `offer_sent` (was `offer`); serializes a computed `missing_mandatory_rounds` (soft warning, never a gate) | `closed` / `rejected` (and backout path) → locked |
+| **InterviewRound** | Named round + feedback / rating / result. **v2:** `round_type` is `internal_r1` \| `internal_r2` \| `client_r1` \| `client_r2` \| `client_r3` \| `hr_cto_ceo` (was `internal` \| `client_l1` \| `client_l2` \| `client_hr` \| `client_final`; the old two client-facing HR/final types collapsed into one combined `hr_cto_ceo` round) | Completing result sets `completed_at` |
 | **StageHistory** | Append-only audit of stage moves / unlock | Immutable |
 | **Document** | Uploaded file metadata linked to entity | — |
 | **Comment** | Notes linked to entity | — |
@@ -269,9 +272,11 @@ erDiagram
 1. A **requirement** may only attach to an account with `type = client` and `stage = active`.
 2. **Seats** are created for headcount; submissions target a seat, not only a requirement.
 3. **Assignments** are historical rows; unassign sets `unassigned_at` instead of deleting.
-4. **Interview rounds** can be `internal` (recruiter) or client; submission advances toward offer only when required rounds pass.
+4. **Interview rounds** are named (internal_r1/r2, client_r1/r2/r3, hr_cto_ceo — v2); submission advances toward `offer_sent` only when every *existing* round has a non-pending result — a missing mandatory round type is a soft UI warning, not a hard gate.
 5. **Margin** is computed server-side from submission commercial fields; UI may preview but server is authoritative.
 6. **Unlock** requires Admin + mandatory reason; event is written to stage history; next terminal transition re-locks.
+7. **(v2)** An **account's `type`** may be `null` at creation (BDA doesn't yet know client/vendor); classifying it via `POST /accounts/:id/classify` is one-way — an already-classified account cannot be reclassified through that endpoint, and the classification is recorded in stage history.
+8. **(v2)** **Client-facing interview rounds** (`client_r1/r2/r3`, `hr_cto_ceo`) may be logged by either the submission's recruiter or the Sales owner of the parent requirement; internal rounds (`internal_r1/r2`) stay recruiter/admin-only.
 
 ---
 
@@ -285,7 +290,9 @@ lead → meeting_scheduled → active
                          → dropped (terminal; allowed from earlier stages)
 ```
 
-Same machine for `client` and `vendor`. Owner is the BDA (`owner_id`).
+Same machine regardless of `type` (`client`, `vendor`, or `null`/unclassified — **v2**). Owner is the BDA (`owner_id`). `type` is independent of `stage`: a lead can move through the whole meeting/active flow while still unclassified, then get classified via `POST /accounts/:id/classify` at any point (one-way, admin or owning BDA only).
+
+Offline meetings (**v2**) additionally require `meeting_location`; any number of Sales users can be tagged as `meeting_attendees` on a `meeting_scheduled` move.
 
 ### 7.2 Requirement status
 
@@ -309,10 +316,12 @@ Typically tracks the furthest-advanced active submission; recruiter may override
 
 ```text
 sourced → internal_screening → submitted_to_client → interview_scheduled
-→ interview_result → offer → bgv → closed
+→ interview_result → offer_sent → bgv → closed
 ```
 
-From **any** stage: `backout` (reason required; seat reopened manually) or `rejected` (reason required).
+(**v2:** `offer` renamed to `offer_sent`.) From **any** stage: `backout` (reason required; seat reopened manually) or `rejected` (reason required).
+
+Named interview rounds (`internal_r1`, `internal_r2`, `client_r1`, `client_r2`, `client_r3`, `hr_cto_ceo` — **v2**) live underneath this milestone pipeline as `InterviewRound` rows, not as their own `SubmissionStage` values — round composition can grow or shrink (e.g. adding a `client_r4` later) without touching this state machine. `internal_r1` and `hr_cto_ceo` are the two mandatory round types; a submission missing either is flagged via `missing_mandatory_rounds` but is never blocked from advancing on that basis alone.
 
 ### 7.5 Cross-role handoff
 
@@ -432,9 +441,11 @@ Authoritative field-level contract: [API-Spec-and-Build-Plan.md](API-Spec-and-Bu
 
 | Report | Intent |
 |---|---|
-| Recruiter performance | Sourced vs submitted vs interviewed vs closed; funnel; time-in-stage; backout/reject rates; interview feedback coverage / ratings; closures |
-| Sales performance | Lead conversion; requirements opened/closed; closure time; budget pipeline; margin; interview stats on owned requirements |
+| Recruiter performance | Sourced vs submitted vs interviewed vs closed; funnel; time-in-stage; backout/reject rates; interview feedback coverage / ratings; closures; **(v2)** count missing mandatory rounds |
+| Sales performance | Lead conversion; requirements opened/closed; closure time; budget pipeline; margin; interview stats on owned requirements; **(v2)** count of owned submissions missing the combined HR/CTO/CEO round |
+| BDA performance | Lead funnel by BDA (own account `owner_id`); **(v2)** unclassified-lead count, LinkedIn-sourced lead count, avg days lead-generated → meeting-scheduled |
 | Vendor performance | Vendor-sourced profiles through shortlist/close; margin; backout; time-to-submit |
+| **Client performance (v2)** | Mirrors vendor performance, anchored on `Account.type = client`: requirements open/closed, submissions/closures, revenue, margin, avg days to close, stuck requirements |
 | Aging / SLA | Stuck leads, requirements with no submissions, submissions stuck in stage, past `sla_days` |
 | Closure | Joins with dates, final rates, margins — by period / client / recruiter |
 
