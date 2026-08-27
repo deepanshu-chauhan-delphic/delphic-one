@@ -45,6 +45,8 @@ Internal recruitment pipeline for Delphic. Tracks **client / vendor accounts →
 ### In scope
 
 - Full core pipeline with stage machines and append-only stage history
+- Lead capture before client/vendor is known, with a one-way classify step
+- Candidate on-bench flag and filter
 - Role-based access and ownership scoping
 - Record locking on terminal states, with admin unlock + reason
 - Margin / commercials on submissions
@@ -148,13 +150,13 @@ Services do not import Express request types. Controllers stay thin.
 | Domain | Covers |
 |---|---|
 | **Auth & users** | Login, refresh, change password, admin user provisioning |
-| **Accounts** | Client / vendor leads, stage machine, BDA ownership, lock on drop |
-| **Requirements & seats** | Jobs, seats, assign / unassign history, seat stages |
-| **Profiles** | Candidates, skills, CTC, availability, resume upload |
+| **Accounts** | Client / vendor leads (type unset until BDA classifies), stage machine, one-way classify, meeting mode / location / attendees, BDA ownership, lock on drop |
+| **Requirements & seats** | Jobs (managed services / recruitment / project), seats, assign / unassign history, seat stages |
+| **Profiles** | Candidates, skills, CTC, availability, on-bench flag, resume upload |
 | **Submissions** | Put candidate forward, pipeline stages, margin, kanban by stage |
-| **Interviews** | Internal and client rounds, schedule, feedback, rating, result |
+| **Interviews** | Six named rounds (`internal_r1/r2`, `client_r1/r2/r3`, `hr_cto_ceo`), schedule, feedback, rating, result; soft warning on missing mandatory rounds |
 | **Collaboration** | Comments, documents, stage history audit |
-| **Ops & insights** | Role-scoped dashboard, stuck lists, reports, Excel / PDF export |
+| **Ops & insights** | Role-scoped dashboard with click-through KPI cards, stuck lists, reports (incl. client / vendor performance), Excel / PDF export |
 
 ---
 
@@ -179,24 +181,25 @@ Supporting entities: **RequirementAssignment**, **Comment**, **Document**, **Sta
 | Entity | Purpose | Lock trigger |
 |---|---|---|
 | **User** | Identity + role (`bda` \| `sales` \| `recruiter` \| `admin`) | Soft-deactivate via `active` |
-| **Account** | Unified client / vendor lead | `dropped` |
+| **Account** | Unified lead; `type` (`client` \| `vendor`) is null until a one-way classify | `dropped` |
 | **Requirement** | Job / project on an **active client** | `closed` / `dropped` |
 | **RequirementSeat** | One headcount slot | `closed` / `dropped`; `joined_at` counts as closure |
 | **RequirementAssignment** | Recruiter / sales assignment history (never deleted) | Soft end via `unassigned_at` |
 | **Profile** | Candidate | — |
 | **Submission** | Candidate × seat + commercials | Terminal pipeline stages |
-| **InterviewRound** | Internal or client round + feedback / rating | Completing result sets `completed_at` |
+| **InterviewRound** | One of six named rounds (`internal_r1/r2`, `client_r1/r2/r3`, `hr_cto_ceo`) + feedback / rating | Completing result sets `completed_at` |
 | **StageHistory** | Append-only audit of stage moves / unlock | Immutable |
 | **Document** / **Comment** | Files and notes linked by entity type + id | — |
 
 ### Key invariants
 
-1. A **requirement** may only attach to an account with `type = client` and `stage = active`.
-2. **Submissions** target a seat (headcount), not only a requirement.
-3. **Assignments** are historical rows; unassign sets `unassigned_at` instead of deleting.
-4. **Interview rounds** may be `internal` or client; advancement toward offer depends on required rounds passing.
-5. **Margin** is computed on the server from commercial fields.
-6. **Unlock** requires Admin + mandatory reason; audited; next terminal transition re-locks.
+1. An account's **`type`** is set once, one-way, via `POST /accounts/:id/classify` (logged to `stage_history`); a lead can sit unclassified.
+2. A **requirement** may only attach to an account with `type = client` and `stage = active`.
+3. **Submissions** target a seat (headcount), not only a requirement.
+4. **Assignments** are historical rows; unassign sets `unassigned_at` instead of deleting.
+5. **Interview rounds** use six named types; `offer_sent` is hard-gated on unresolved rounds and `closed` on uncleared BGV, plus a soft warning when mandatory rounds (`internal_r1`, `hr_cto_ceo`) are missing.
+6. **Margin** is computed on the server from commercial fields.
+7. **Unlock** requires Admin + mandatory reason; audited; next terminal transition re-locks.
 
 ---
 
@@ -211,7 +214,7 @@ sequenceDiagram
   participant Recruiter
   participant Admin
 
-  BDA->>BDA: Create lead → meeting → active client
+  BDA->>BDA: Create lead → meeting → classify → active client
   Sales->>Sales: Create requirement + seats
   Sales->>Recruiter: Assign recruiter
   Recruiter->>Recruiter: Profile → submit → interviews → join
@@ -229,10 +232,11 @@ sequenceDiagram
 
 | Step | Action | Outcome |
 |---|---|---|
-| 1. Capture lead | Create account (client or vendor) with company + POC | Stage = `lead`; BDA is owner |
-| 2. Schedule meeting | Move → `meeting_scheduled`; set mode, date, notes | Tracked; can appear on stuck list if idle |
-| 3. Convert or loop | → `active`, or `rescheduled` → meeting again | Active client unlocks Sales requirements |
-| 4. Exit | Drop with reason → record locks | Visible in reports; Admin can unlock |
+| 1. Capture lead | Create account with company + POC; `type` may be left unset | Stage = `lead`; BDA is owner |
+| 2. Schedule meeting | Move → `meeting_scheduled`; set mode, date, notes, `meeting_location` (required when offline), Sales attendees | Tracked; can appear on stuck list if idle |
+| 3. Classify | `POST /accounts/:id/classify` → `client` or `vendor` (one-way, audited) | Commercial fields for that type become relevant |
+| 4. Convert or loop | → `active`, or `rescheduled` → meeting again | Active client unlocks Sales requirements |
+| 5. Exit | Drop with reason → record locks | Visible in reports; Admin can unlock |
 
 ### Sales — open job and assign
 
@@ -250,8 +254,8 @@ sequenceDiagram
 |---|---|---|
 | 1. Add profile | Candidate + resume + skills / CTC / source | Ready to submit |
 | 2. Put forward | Submission: seat + rates; live margin | Stage = `sourced` |
-| 3. Internal screen | → `internal_screening`; internal interview + feedback | Pass → client; fail → rejected |
-| 4. Client cycle | Schedule rounds → offer → BGV | Multi-round until required rounds pass |
+| 3. Internal screen | → `internal_screening`; `internal_r1` interview + feedback | Pass → client; fail → rejected |
+| 4. Client cycle | Schedule `client_r1..r3` / `hr_cto_ceo` rounds → `offer_sent` → BGV | Multi-round; `offer_sent` gated on resolved rounds |
 | 5. Close | `closed` + `joined_at`, or backout / rejected + reason | Locks; counts in reports |
 
 ### Admin — keep the org unblocked
@@ -317,8 +321,8 @@ stateDiagram-v2
   internal_screening --> submitted_to_client
   submitted_to_client --> interview_scheduled
   interview_scheduled --> interview_result
-  interview_result --> offer
-  offer --> bgv
+  interview_result --> offer_sent
+  offer_sent --> bgv
   bgv --> closed
   sourced --> backout: reason required
   sourced --> rejected: reason required
@@ -365,13 +369,15 @@ Response envelope: `{ success: boolean, data: T, message?: string, errors?: [] }
 
 | Report | Intent |
 |---|---|
-| Recruiter performance | Sourced vs submitted vs interviewed vs closed; funnel; time-in-stage; interview feedback / ratings; closures |
-| Sales performance | Lead conversion; requirements opened/closed; closure time; budget pipeline; margin |
+| Recruiter performance | Sourced vs submitted vs interviewed vs closed; funnel; time-in-stage; interview feedback / ratings; missing-mandatory-round counts; closures |
+| Sales performance | Lead conversion; requirements opened/closed; closure time; budget pipeline; margin; submissions missing the `hr_cto_ceo` round |
 | Vendor performance | Vendor-sourced profiles through shortlist/close; margin; backout; time-to-submit |
+| Client performance | Mirror of vendor performance anchored on `type = client` accounts |
+| BDA performance | Lead funnel by owner; unclassified leads; leads via LinkedIn; avg days lead → meeting |
 | Aging / SLA | Stuck leads, requirements with no submissions, submissions stuck in stage, past `sla_days` |
 | Closure | Joins with dates, final rates, margins — by period / client / recruiter |
 
-In-app tables and charts plus server-side **Excel / PDF export**. Dashboard adds live widgets: counts, stuck lists, recent activity — different per role.
+In-app tables and charts plus server-side **Excel / PDF export**. Dashboard adds live widgets: counts, stuck lists, recent activity — different per role. Each KPI card is a **click-through** into its list page, pre-filtered to exactly what the card counts.
 
 ---
 
@@ -383,7 +389,7 @@ Base path: `/api/v1` (full contracts in the API spec).
 |---|---|
 | Auth | `POST /auth/login`, `/auth/refresh`, `/auth/change-password` |
 | Users | `GET /users/me`, admin `GET/POST/PATCH /users` |
-| Accounts | CRUD + `POST /accounts/:id/stage` |
+| Accounts | CRUD + `POST /accounts/:id/stage` + `POST /accounts/:id/classify` |
 | Requirements | CRUD + assign / unassign + status |
 | Seats | List/create under requirement + `POST /seats/:id/stage` |
 | Profiles | CRUD + resume via documents |
@@ -392,7 +398,7 @@ Base path: `/api/v1` (full contracts in the API spec).
 | Comments / documents | List/create/delete by entity |
 | Admin | `POST /admin/:entity/:id/unlock` |
 | Dashboard | Role-scoped summary + stuck lists |
-| Reports | Recruiter / sales / vendor / aging / closure + export |
+| Reports | Recruiter / sales / vendor / client / bda / aging / closure + export |
 
 ---
 

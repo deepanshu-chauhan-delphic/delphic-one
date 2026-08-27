@@ -1,21 +1,19 @@
 import { useState } from 'react';
 import apiClient from '../lib/apiClient.js';
+import { useAlerts } from '../lib/alerts/alertContext.jsx';
 import Modal from './ui/Modal.jsx';
 
 export default function ChangePasswordModal({ open, onClose }) {
+  const { pushError, pushSuccess } = useAlerts();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    setError('');
-    setSuccess('');
   }
 
   function handleClose() {
@@ -25,15 +23,13 @@ export default function ChangePasswordModal({ open, onClose }) {
 
   async function submit(event) {
     event.preventDefault();
-    setError('');
-    setSuccess('');
 
     if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
+      pushError('New password must be at least 8 characters', 'Validation');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('New password and confirmation do not match');
+      pushError('New password and confirmation do not match', 'Validation');
       return;
     }
 
@@ -43,12 +39,12 @@ export default function ChangePasswordModal({ open, onClose }) {
         current_password: currentPassword,
         new_password: newPassword,
       });
-      setSuccess('Password updated');
+      pushSuccess('Password updated');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not change password');
+      pushError(err.response?.data?.message || 'Could not change password', 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -106,8 +102,6 @@ export default function ChangePasswordModal({ open, onClose }) {
             required
           />
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-green-700">{success}</p>}
       </form>
     </Modal>
   );

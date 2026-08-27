@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
@@ -34,16 +35,15 @@ function DetailSection({ title, children }) {
 export default function ProfileDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [profile, setProfile] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
 
   async function loadProfile() {
     setLoading(true);
-    setError('');
     try {
       const [profileResponse, submissionsResponse] = await Promise.all([
         apiClient.get(`/profiles/${id}`),
@@ -52,7 +52,7 @@ export default function ProfileDetailPage() {
       setProfile(profileResponse.data.data);
       setSubmissions(submissionsResponse.data.data || []);
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to load candidate'));
+      pushError(apiErrorMessage(requestError, 'Failed to load candidate'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -75,10 +75,10 @@ export default function ProfileDetailPage() {
   }
 
   if (loading) return <DetailSkeleton />;
-  if (error || !profile) {
+  if (!profile) {
     return (
       <div className="space-y-3">
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error || 'Candidate not found'}</div>
+        <p className="text-sm text-tertiary-600">Candidate not found or could not be loaded.</p>
         <Link to="/profiles" className="text-sm text-primary-700 hover:underline">Back to profiles</Link>
       </div>
     );

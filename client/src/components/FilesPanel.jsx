@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import apiClient, { openAuthenticatedFile } from '../lib/apiClient.js';
-
-function apiErrorMessage(error, fallback) {
-  return error.response?.data?.errors?.[0]?.message || error.response?.data?.message || fallback;
-}
+import { useAlerts } from '../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../lib/alerts/apiErrorMessage.js';
 
 /**
  * Reusable files panel for account | requirement | profile | submission.
@@ -17,23 +15,22 @@ export default function FilesPanel({
   title = 'Files',
   accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.csv',
 }) {
+  const { pushError } = useAlerts();
   const [files, setFiles] = useState([]);
   const [label, setLabel] = useState(defaultLabel);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
 
   async function loadFiles() {
     if (!entityType || !entityId) return;
     setLoading(true);
-    setError('');
     try {
       const { data } = await apiClient.get('/documents', {
         params: { entity_type: entityType, entity_id: entityId },
       });
       setFiles(data.data || []);
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to load files'));
+      pushError(apiErrorMessage(requestError, 'Failed to load files'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -48,7 +45,6 @@ export default function FilesPanel({
     event.target.value = '';
     if (!file) return;
     setUploading(true);
-    setError('');
     try {
       const body = new FormData();
       body.append('entity_type', entityType);
@@ -58,28 +54,26 @@ export default function FilesPanel({
       await apiClient.post('/documents', body, { headers: { 'Content-Type': 'multipart/form-data' } });
       await loadFiles();
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to upload file'));
+      pushError(apiErrorMessage(requestError, 'Failed to upload file'), 'Something went wrong');
     } finally {
       setUploading(false);
     }
   }
 
   async function deleteFile(documentId) {
-    setError('');
     try {
       await apiClient.delete(`/documents/${documentId}`);
       await loadFiles();
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to delete file'));
+      pushError(apiErrorMessage(requestError, 'Failed to delete file'), 'Something went wrong');
     }
   }
 
   async function openFile(fileUrl) {
-    setError('');
     try {
       await openAuthenticatedFile(fileUrl);
     } catch (requestError) {
-      setError(requestError.message || 'Failed to open file');
+      pushError(requestError.message || 'Failed to open file', 'Something went wrong');
     }
   }
 
@@ -102,8 +96,6 @@ export default function FilesPanel({
           </div>
         )}
       </div>
-
-      {error && <div className="border-b bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
 
       <table className="min-w-full text-left text-sm">
         <thead className="border-b text-xs uppercase text-tertiary-500">

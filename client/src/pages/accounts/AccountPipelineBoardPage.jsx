@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import { BOARD_COLUMNS, groupBoard, stageColumnStats } from '../../lib/accountBoard.js';
 import {
@@ -146,19 +147,18 @@ export default function AccountPipelineBoardPage() {
   const accountId = accountIdParam || id;
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [account, setAccount] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [stageModal, setStageModal] = useState(null);
   const [stageReason, setStageReason] = useState('');
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const [isAccountStageOpen, setIsAccountStageOpen] = useState(false);
-  const [accountStageError, setAccountStageError] = useState('');
   const [movingAccountStage, setMovingAccountStage] = useState(false);
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [createReqOpen, setCreateReqOpen] = useState(false);
@@ -173,7 +173,6 @@ export default function AccountPipelineBoardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const [accountRes, reqRes, subRes] = await Promise.all([
         apiClient.get(`/accounts/${accountId}`),
@@ -184,7 +183,7 @@ export default function AccountPipelineBoardPage() {
       setRequirements(reqRes.data.data || []);
       setSubmissions(subRes.data.data || []);
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to load pipeline board'));
+      pushError(apiErrorMessage(err, 'Failed to load pipeline board'), 'Something went wrong');
       setAccount(null);
       setRequirements([]);
       setSubmissions([]);
@@ -214,7 +213,6 @@ export default function AccountPipelineBoardPage() {
 
   async function postStageMove(submission, to_stage, reasonText) {
     setBusyId(submission.id);
-    setError('');
     try {
       const body = { to_stage };
       if (requiresBackoutReason(to_stage)) body.backout_reason = reasonText?.trim();
@@ -224,7 +222,7 @@ export default function AccountPipelineBoardPage() {
       setStageReason('');
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Stage move failed'));
+      pushError(apiErrorMessage(err, 'Stage move failed'), 'Something went wrong');
     } finally {
       setBusyId(null);
     }
@@ -234,7 +232,7 @@ export default function AccountPipelineBoardPage() {
     if (!canMoveSubs || submission.is_locked) return;
     const allowed = SUBMISSION_STAGE_TRANSITIONS[submission.stage] || [];
     if (!allowed.includes(to_stage)) {
-      setError(`Cannot move from ${submission.stage.replace(/_/g, ' ')} to ${to_stage.replace(/_/g, ' ')}`);
+      pushError(`Cannot move from ${submission.stage.replace(/_/g, ' ')} to ${to_stage.replace(/_/g, ' ')}`, 'Validation');
       return;
     }
     if (requiresBackoutReason(to_stage) || requiresRejectionReason(to_stage)) {
@@ -254,13 +252,12 @@ export default function AccountPipelineBoardPage() {
 
   async function moveAccountStage(body) {
     setMovingAccountStage(true);
-    setAccountStageError('');
     try {
       await apiClient.post(`/accounts/${accountId}/stage`, body);
       setIsAccountStageOpen(false);
       await load();
     } catch (err) {
-      setAccountStageError(apiErrorMessage(err, 'Failed to move account stage'));
+      pushError(apiErrorMessage(err, 'Failed to move account stage'), 'Something went wrong');
     } finally {
       setMovingAccountStage(false);
     }
@@ -285,7 +282,7 @@ export default function AccountPipelineBoardPage() {
     const [toReqId, toStage] = String(over.id).split('::');
     if (!submission || !toReqId || !toStage) return;
     if (fromReqId !== toReqId) {
-      setError('Candidates can only move between stages on the same requirement.');
+      pushError('Candidates can only move between stages on the same requirement.', 'Validation');
       return;
     }
     if (submission.stage === toStage) return;
@@ -297,7 +294,7 @@ export default function AccountPipelineBoardPage() {
   if (!account) {
     return (
       <div className="space-y-2">
-        {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <p className="text-sm text-tertiary-600">Pipeline board could not be loaded.</p>
         <Link to="/pipeline" className="text-sm text-primary-600 hover:underline">← Pipeline</Link>
       </div>
     );
@@ -369,8 +366,6 @@ export default function AccountPipelineBoardPage() {
           </div>
         </div>
       </div>
-
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       {isVendor && requirements.length === 0 && (
         <div className="rounded-xl border border-tertiary-200 bg-white px-4 py-8 text-center">
@@ -573,12 +568,8 @@ export default function AccountPipelineBoardPage() {
         <AccountStageMoveDrawer
           account={account}
           open={isAccountStageOpen}
-          error={accountStageError}
           saving={movingAccountStage}
-          onClose={() => {
-            setAccountStageError('');
-            setIsAccountStageOpen(false);
-          }}
+          onClose={() => setIsAccountStageOpen(false)}
           onMove={moveAccountStage}
         />
       )}

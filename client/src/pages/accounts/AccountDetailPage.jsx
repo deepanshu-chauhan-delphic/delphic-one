@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
@@ -37,21 +38,18 @@ function DetailSection({ title, children }) {
 export default function AccountDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [account, setAccount] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [stageError, setStageError] = useState('');
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [classifying, setClassifying] = useState(false);
-  const [classifyError, setClassifyError] = useState('');
 
   async function loadAccount() {
     setLoading(true);
-    setError('');
     try {
       const [accountResponse, historyResponse] = await Promise.all([
         apiClient.get(`/accounts/${id}`),
@@ -60,7 +58,7 @@ export default function AccountDetailPage() {
       setAccount(accountResponse.data.data);
       setHistory(historyResponse.data.data || []);
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to load account'));
+      pushError(apiErrorMessage(requestError, 'Failed to load account'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -84,13 +82,12 @@ export default function AccountDetailPage() {
 
   async function moveStage(body) {
     setMovingStage(true);
-    setStageError('');
     try {
       await apiClient.post(`/accounts/${id}/stage`, body);
       setIsStageModalOpen(false);
       await loadAccount();
     } catch (requestError) {
-      setStageError(apiErrorMessage(requestError, 'Failed to move account stage'));
+      pushError(apiErrorMessage(requestError, 'Failed to move account stage'), 'Something went wrong');
     } finally {
       setMovingStage(false);
     }
@@ -98,22 +95,21 @@ export default function AccountDetailPage() {
 
   async function classifyLead(type) {
     setClassifying(true);
-    setClassifyError('');
     try {
       await apiClient.post(`/accounts/${id}/classify`, { type });
       await loadAccount();
     } catch (requestError) {
-      setClassifyError(apiErrorMessage(requestError, 'Failed to classify lead'));
+      pushError(apiErrorMessage(requestError, 'Failed to classify lead'), 'Something went wrong');
     } finally {
       setClassifying(false);
     }
   }
 
   if (loading) return <DetailSkeleton />;
-  if (error || !account) {
+  if (!account) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error || 'Account not found'}</div>
+        <p className="text-sm text-tertiary-600">Account not found or could not be loaded.</p>
         <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>
       </div>
     );
@@ -177,10 +173,6 @@ export default function AccountDetailPage() {
           </div>
         </div>
       </div>
-
-      {classifyError && (
-        <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{classifyError}</div>
-      )}
 
       {account.is_locked && (
         <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
@@ -334,12 +326,8 @@ export default function AccountDetailPage() {
         <AccountStageMoveDrawer
           account={account}
           open={isStageModalOpen}
-          error={stageError}
           saving={movingStage}
-          onClose={() => {
-            setStageError('');
-            setIsStageModalOpen(false);
-          }}
+          onClose={() => setIsStageModalOpen(false)}
           onMove={moveStage}
         />
       )}

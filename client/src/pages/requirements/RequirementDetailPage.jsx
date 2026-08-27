@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -30,13 +32,13 @@ function formatDate(value) {
 export default function RequirementDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [requirement, setRequirement] = useState(null);
   const [seats, setSeats] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [history, setHistory] = useState([]);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -49,7 +51,6 @@ export default function RequirementDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const [reqRes, seatsRes, assignRes, histRes] = await Promise.all([
         apiClient.get(`/requirements/${id}`),
@@ -62,12 +63,12 @@ export default function RequirementDetailPage() {
       setAssignments(assignRes.data.data || []);
       setHistory(histRes.data.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load requirement');
+      pushError(apiErrorMessage(err, 'Failed to load requirement'), 'Something went wrong');
       setRequirement(null);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, pushError]);
 
   useEffect(() => {
     load();
@@ -92,7 +93,6 @@ export default function RequirementDetailPage() {
   async function confirmRequirementStatus() {
     if (!statusModal) return;
     setBusy(true);
-    setError('');
     try {
       const body = { to_status: statusModal };
       if (requiresDropReason(statusModal)) body.reason = reason.trim();
@@ -101,7 +101,7 @@ export default function RequirementDetailPage() {
       setReason('');
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Status change failed');
+      pushError(apiErrorMessage(err, 'Status change failed'), 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -110,7 +110,6 @@ export default function RequirementDetailPage() {
   async function confirmSeatStage() {
     if (!seatModal) return;
     setBusy(true);
-    setError('');
     try {
       const body = { to_status: seatModal.toStatus };
       if (requiresDropReason(seatModal.toStatus)) body.reason = reason.trim();
@@ -121,7 +120,7 @@ export default function RequirementDetailPage() {
       setJoinedAt('');
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Seat stage change failed');
+      pushError(apiErrorMessage(err, 'Seat stage change failed'), 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -129,7 +128,6 @@ export default function RequirementDetailPage() {
 
   async function confirmAddSeat() {
     setBusy(true);
-    setError('');
     try {
       await apiClient.post(`/requirements/${id}/seats`, {
         seat_label: seatLabel.trim() || undefined,
@@ -138,7 +136,7 @@ export default function RequirementDetailPage() {
       setSeatLabel('');
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add seat');
+      pushError(apiErrorMessage(err, 'Failed to add seat'), 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -159,7 +157,7 @@ export default function RequirementDetailPage() {
   if (!requirement) {
     return (
       <div className="space-y-2">
-        {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <p className="text-sm text-tertiary-600">Requirement not found or could not be loaded.</p>
         <Link to="/requirements" className="text-sm text-primary-600 hover:underline">
           ← Back to requirements
         </Link>
@@ -285,8 +283,6 @@ export default function RequirementDetailPage() {
           {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
         </div>
       )}
-
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       {/* Status controls */}
       <section className="rounded-lg border bg-white p-4">

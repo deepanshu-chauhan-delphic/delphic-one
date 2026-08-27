@@ -12,7 +12,6 @@ const INPUT_CLASS =
  * Args:
  *   account: Account with at least id and stage.
  *   open: Whether the drawer is visible.
- *   error: Optional API error message.
  *   saving: Disable controls while the stage POST is in flight.
  *   onClose: Close handler.
  *   onMove: Called with the stage-change body ({ to_stage, reason?, meeting_*? }).
@@ -20,7 +19,6 @@ const INPUT_CLASS =
 export default function AccountStageMoveDrawer({
   account,
   open,
-  error,
   saving,
   onClose,
   onMove,
@@ -98,9 +96,6 @@ export default function AccountStageMoveDrawer({
     >
       <form id="account-stage-form" onSubmit={submit} className="space-y-3">
         <p className="text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
-        {error && (
-          <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
-        )}
         <label className="block text-xs font-medium text-tertiary-600">
           Next stage
           <select

@@ -6,6 +6,8 @@ Where things stand as of Aug 26: product UI + backend + **RD-114 reports** + **R
 
 **Aug 27 — V2 initiative (no RD ticket numbers assigned yet):** lead capture (nullable account type, classify flow, meeting location/attendees), candidate interview round taxonomy (named rounds + soft mandatory-round warning + Sales client-round access), requirement types (managed services/recruitment/project), candidate on-bench flag, new client-performance report. Implemented, tested (117/117), lint-clean, builds clean — on local branch `feature/v2-lead-pipeline-requirements`, not committed/pushed. Full detail: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+**Aug 27 — Interviewer multiselect + alert banners (`7ba5c90`):** internal rounds pick multiple active users; dismissable alert banners replace many inline errors.
+
 **UI/UX standing rule:** all product screens must feel **Jira-like** (dense filters + issue list). See [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md) and the reference screenshot before building or polishing FE tickets. Post–Aug 21 list/create flows also follow the **RHS drawer** rules in [UI-REDESIGN.md](../ui/UI-REDESIGN.md).
 
 Both developers are full-stack. Each owns complete features end-to-end so neither is stuck waiting on the other.

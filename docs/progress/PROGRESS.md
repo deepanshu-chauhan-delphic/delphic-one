@@ -26,6 +26,22 @@ Uncommitted work on `main` (local). Complements the role pipeline boards and V2 
 
 **Verification (2026-08-29):** `cd server && npm test` — **23 suites / 135 tests**, all green (includes new `closure-progress` + `pipeline-board`).
 
+## 2026-08-27 — Internal round interviewer multiselect + alert banners
+
+Commit `7ba5c90` (cherry-picked onto main with matrix/closure). Internal interview rounds (`internal_r1` / `internal_r2`) can assign one or more active users via `interview_round_interviewers`; UI uses searchable `MultiSelectDropdown`. Client rounds keep free-text interviewer name/email. App-wide dismissable alert banners (`AlertBannerStack` + `useAlerts`) and shared form validation helpers replace many inline error divs.
+
+## 2026-08-27 — Dashboard KPI cards drill into their filtered list view
+
+Commit `c76d0af` on `feature/v2-lead-pipeline-requirements` (follows the V2 entry below; `676db9d` + `e06b359` committed the V2 work and a CI Prisma-generate fix in between).
+
+**What:** every KPI card on the role dashboard is now a link into the matching list page, pre-filtered to exactly what the card counts — click "Active clients" → `/accounts?stage=active&type=client`, "Open requirements" → `/requirements?status=open`, "Closures this month" → `/submissions?stage=closed`, etc. Full map in `KPI_LINKS` (`client/src/pages/dashboard/dashboardWidgets.js`), one entry per KPI across all four roles (admin / bda / sales / recruiter).
+
+- **`KpiCard.jsx`** — new optional `to` prop; when set the card's root element becomes a react-router `Link` (plain `div` otherwise), with a subtle hover shadow (`cardHover`, added to `client/tailwind.config.js`) and a focus ring so linked cards read as interactive. No visual change for cards without a link.
+- **List pages now honour their filter query params on mount** so the drill-through actually lands filtered: `RequirementsListPage` now reads `?status=` / `?priority=` (previously ignored — status/priority were local state only), `AccountsListPage` now reads `?type=` (it already read `?stage=`), and both re-sync when the query string changes. `SubmissionsListPage` already honoured `?stage=`. (These three list-page edits landed folded into `676db9d`.)
+- **Semantics note:** "Interviews this week" links to `/submissions?stage=interview_scheduled` (closest available filter — not week-scoped) and "Active submissions" links to the unfiltered `/submissions` table (no single "active" stage value exists).
+
+**Verify:** `npm run build --workspace client` — succeeds (3145 modules). `npx eslint` on the five changed files — clean.
+
 ## 2026-08-27 — V2: lead capture, candidate pipeline round taxonomy, requirement types, candidate bench flag, client-performance report
 
 Full design + rationale: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md). Done on local branch `feature/v2-lead-pipeline-requirements`, not yet merged/pushed.

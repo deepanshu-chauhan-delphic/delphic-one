@@ -16,6 +16,8 @@ import {
 } from 'recharts';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { usePermissions } from '../../lib/permissions.js';
 import { CHART_COLORS, CHART_PALETTE, chartTooltipStyle } from '../../lib/chartTheme.js';
 import ChartCard from '../../components/ui/ChartCard.jsx';
@@ -277,10 +279,10 @@ function PipelineSection({ funnel, role }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const { can } = usePermissions(user);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState('');
   const [datePreset, setDatePreset] = useState('this_month');
@@ -310,15 +312,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    setError('');
     const params = {};
     if (departmentId) params.department_id = departmentId;
     apiClient
       .get('/dashboard/summary', { params })
       .then(({ data }) => setSummary(data.data))
-      .catch((err) => setError(err.response?.data?.message || 'Failed to load dashboard'))
+      .catch((err) => pushError(apiErrorMessage(err, 'Failed to load dashboard'), 'Something went wrong'))
       .finally(() => setLoading(false));
-  }, [departmentId]);
+  }, [departmentId, pushError]);
 
   const stats = statsForRole(role, summary);
   const showStuckLeads = role === 'admin' || role === 'bda';
@@ -348,10 +349,6 @@ export default function DashboardPage() {
             onDepartmentChange={setDepartmentId}
           />
         </div>
-      )}
-
-      {error && (
-        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
       )}
 
       {loading && !summary ? (

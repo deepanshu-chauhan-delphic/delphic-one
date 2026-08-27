@@ -38,6 +38,7 @@ export const ROUND_TYPE_LABELS = {
 };
 
 export const CLIENT_ROUND_TYPES = ['client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo'];
+export const INTERNAL_ROUND_TYPES = ['internal_r1', 'internal_r2'];
 
 // Soft rule only - UI warns when a mandatory round/stage is missing, never blocks.
 export const MANDATORY_ROUND_TYPES = ['internal_r1', 'hr_cto_ceo'];
@@ -45,6 +46,10 @@ export const MANDATORY_SUBMISSION_STAGES = ['sourced', 'internal_screening', 'of
 
 export function roundTypeLabel(type) {
   return ROUND_TYPE_LABELS[type] || type;
+}
+
+export function isInternalRoundType(roundType) {
+  return INTERNAL_ROUND_TYPES.includes(roundType);
 }
 
 export function canManageInterviewRound(submission, roundType, user) {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -29,7 +31,7 @@ function needsSubmissionReason(toStage) {
   return requiresBackoutReason(toStage) || requiresRejectionReason(toStage);
 }
 
-function SubmissionStageDrawer({ submission, open, error, saving, preferredToStage, onClose, onMove }) {
+function SubmissionStageDrawer({ submission, open, saving, preferredToStage, onClose, onMove }) {
   const stages = nextSubmissionStages(submission?.stage);
   const [toStage, setToStage] = useState('');
   const [reason, setReason] = useState('');
@@ -71,9 +73,6 @@ function SubmissionStageDrawer({ submission, open, error, saving, preferredToSta
     >
       <form id="candidate-stage-form" onSubmit={submit} className="space-y-3">
         <p className="text-xs text-tertiary-500">Current stage: {formatStageLabel(submission.stage)}</p>
-        {error && (
-          <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
-        )}
         <label className="block text-xs font-medium text-tertiary-600">
           Next stage
           <select
@@ -155,6 +154,7 @@ function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenD
  */
 export default function CandidatePipelineBoard() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
@@ -170,16 +170,14 @@ export default function CandidatePipelineBoard() {
     return params;
   }, [filterParams]);
   const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
-  const { cells, loading, error, reload } = usePipelineBoard({
+  const { cells, loading, reload } = usePipelineBoard({
     path: '/submissions',
     params: boardParams,
     columns: CANDIDATE_COLUMNS,
     stageField: 'stage',
   });
-  const [boardError, setBoardError] = useState('');
   const [stageTarget, setStageTarget] = useState(null);
   const [preferredToStage, setPreferredToStage] = useState('');
-  const [stageError, setStageError] = useState('');
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
@@ -189,12 +187,11 @@ export default function CandidatePipelineBoard() {
 
   async function postDirectMove(submission, toStage) {
     setMoving(true);
-    setBoardError('');
     try {
       await apiClient.post(`/submissions/${submission.id}/stage`, { to_stage: toStage });
       reload();
     } catch (err) {
-      setBoardError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to move stage');
+      pushError(apiErrorMessage(err, 'Failed to move stage'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -203,11 +200,10 @@ export default function CandidatePipelineBoard() {
   function requestMove(submission, toStage) {
     const allowed = nextSubmissionStages(submission.stage);
     if (!allowed.includes(toStage)) {
-      setBoardError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(toStage)}`);
+      pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
       return;
     }
     if (needsSubmissionReason(toStage)) {
-      setStageError('');
       setPreferredToStage(toStage);
       setStageTarget(submission);
       return;
@@ -218,14 +214,13 @@ export default function CandidatePipelineBoard() {
   async function moveStage(body) {
     if (!stageTarget) return;
     setMoving(true);
-    setStageError('');
     try {
       await apiClient.post(`/submissions/${stageTarget.id}/stage`, body);
       setStageTarget(null);
       setPreferredToStage('');
       reload();
     } catch (err) {
-      setStageError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to move stage');
+      pushError(apiErrorMessage(err, 'Failed to move stage'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -264,10 +259,6 @@ export default function CandidatePipelineBoard() {
         fields={['search', 'account_id', 'recruiter_id', 'submission_stage']}
         onChange={handleFiltersChange}
       />
-
-      {(error || boardError) && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>
-      )}
 
       <DndContext
         sensors={sensors}
@@ -338,10 +329,8 @@ export default function CandidatePipelineBoard() {
         submission={stageTarget}
         open={Boolean(stageTarget)}
         preferredToStage={preferredToStage}
-        error={stageError}
         saving={moving}
         onClose={() => {
-          setStageError('');
           setStageTarget(null);
           setPreferredToStage('');
         }}

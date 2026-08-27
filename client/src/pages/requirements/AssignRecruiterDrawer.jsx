@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { apiErrorMessage, canAssignRecruiters } from '../profiles/profileUtils.js';
 
 export default function AssignRecruiterDrawer({ requirement, onClose }) {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const canAssign = canAssignRecruiters(user);
   const [assignments, setAssignments] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [selectedRecruiterId, setSelectedRecruiterId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   async function loadData() {
     setLoading(true);
-    setError('');
     try {
       const requests = [apiClient.get(`/requirements/${requirement.id}/assignments`)];
       if (canAssign) requests.push(apiClient.get('/users', { params: { role: 'recruiter', active: true, limit: 100 } }));
@@ -24,7 +24,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
       setAssignments(assignmentsResponse.data.data || []);
       setRecruiters(usersResponse?.data?.data || []);
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to load assignments'));
+      pushError(apiErrorMessage(requestError, 'Failed to load assignments'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,6 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
     event.preventDefault();
     if (!selectedRecruiterId) return;
     setSaving(true);
-    setError('');
     try {
       await apiClient.post(`/requirements/${requirement.id}/assign`, {
         user_id: selectedRecruiterId,
@@ -48,7 +47,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
       setSelectedRecruiterId('');
       await loadData();
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to assign recruiter'));
+      pushError(apiErrorMessage(requestError, 'Failed to assign recruiter'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -56,12 +55,11 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
 
   async function unassignRecruiter(assignmentId) {
     setSaving(true);
-    setError('');
     try {
       await apiClient.post(`/requirements/${requirement.id}/unassign`, { assignment_id: assignmentId });
       await loadData();
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to unassign recruiter'));
+      pushError(apiErrorMessage(requestError, 'Failed to unassign recruiter'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -88,9 +86,6 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
       }
     >
       <p className="mb-3 text-xs text-tertiary-500">{requirement.title}</p>
-      {error && (
-        <div className="mb-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
-      )}
 
       {canAssign && (
         <form onSubmit={assignRecruiter} className="mb-4 space-y-2 rounded-xl border border-primary-100 bg-primary-50 p-3">

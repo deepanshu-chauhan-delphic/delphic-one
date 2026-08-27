@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../../lib/apiClient.js';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { groupByStage } from './pipelineBoardUtils.js';
 
 /**
@@ -12,33 +14,32 @@ import { groupByStage } from './pipelineBoardUtils.js';
  *   stageField: Field on each row that holds the stage (default "stage").
  *
  * Returns:
- *   { cells, rows, loading, error, reload }
+ *   { cells, rows, loading, reload }
  */
 export function usePipelineBoard({ path, params, columns, stageField = 'stage' }) {
+  const { pushError } = useAlerts();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const paramsKey = useMemo(() => JSON.stringify(params || {}), [params]);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const query = paramsKey ? JSON.parse(paramsKey) : {};
       const { data } = await apiClient.get(path, { params: { limit: 100, ...query } });
       setRows(data.data || []);
     } catch (err) {
       setRows([]);
-      setError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to load pipeline');
+      pushError(apiErrorMessage(err, 'Failed to load pipeline'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
-  }, [path, paramsKey]);
+  }, [path, paramsKey, pushError]);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
   const cells = groupByStage(rows, columns, stageField);
-  return { cells, rows, loading, error, reload };
+  return { cells, rows, loading, reload };
 }

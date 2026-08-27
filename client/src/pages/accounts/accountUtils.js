@@ -28,8 +28,4 @@ export function canClassifyAccount(account, user) {
   return canMutateAccount(account, user) && account?.type == null;
 }
 
-export function apiErrorMessage(error, fallback) {
-  const response = error.response?.data;
-  const validationMessage = response?.errors?.[0]?.message;
-  return validationMessage || response?.message || fallback;
-}
+export { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';

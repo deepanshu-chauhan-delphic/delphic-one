@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
@@ -91,9 +93,9 @@ function StageStepper({ stage }) {
 export default function SubmissionDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [submission, setSubmission] = useState(null);
   const [history, setHistory] = useState([]);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -115,7 +117,6 @@ export default function SubmissionDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const [subRes, histRes] = await Promise.all([
         apiClient.get(`/submissions/${id}`),
@@ -147,12 +148,12 @@ export default function SubmissionDetailPage() {
         bgv_notes: sub.bgv_notes || '',
       });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load submission');
+      pushError(apiErrorMessage(err, 'Failed to load submission'), 'Something went wrong');
       setSubmission(null);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, pushError]);
 
   useEffect(() => {
     load();
@@ -166,7 +167,6 @@ export default function SubmissionDetailPage() {
     e.preventDefault();
     if (!canEdit) return;
     setSaving(true);
-    setError('');
     try {
       const payload = {
         proposed_rate: toOptionalNumber(form.proposed_rate),
@@ -193,7 +193,7 @@ export default function SubmissionDetailPage() {
       await apiClient.patch(`/submissions/${id}`, payload);
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save changes');
+      pushError(apiErrorMessage(err, 'Failed to save changes'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -207,7 +207,6 @@ export default function SubmissionDetailPage() {
   async function confirmStage() {
     if (!stageModal) return;
     setBusy(true);
-    setError('');
     try {
       const body = { to_stage: stageModal };
       if (requiresBackoutReason(stageModal)) body.backout_reason = stageReason.trim();
@@ -217,7 +216,7 @@ export default function SubmissionDetailPage() {
       setStageReason('');
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Stage change failed');
+      pushError(apiErrorMessage(err, 'Stage change failed'), 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -227,7 +226,7 @@ export default function SubmissionDetailPage() {
   if (!submission || !form) {
     return (
       <div className="space-y-2">
-        {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <p className="text-sm text-tertiary-600">Submission not found or could not be loaded.</p>
         <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
           ← Back to submissions
         </Link>
@@ -289,8 +288,6 @@ export default function SubmissionDetailPage() {
           {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
         </div>
       )}
-
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <section className="rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold text-tertiary-800">Stage</h2>

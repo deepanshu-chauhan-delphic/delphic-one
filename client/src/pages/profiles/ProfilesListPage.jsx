@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Filter, MoreVertical } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -85,10 +86,10 @@ function ProfilePeek({ row, onClose, onChanged }) {
 
 export default function ProfilesListPage() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [source, setSource] = useState('');
@@ -100,7 +101,6 @@ export default function ProfilesListPage() {
 
   function reload() {
     setLoading(true);
-    setError('');
     const params = { page, limit: 20 };
     if (appliedSearch) params.search = appliedSearch;
     if (source) params.source = source;
@@ -111,7 +111,7 @@ export default function ProfilesListPage() {
         setRows(data.data || []);
         setPagination(data.pagination || { page, total: data.data?.length || 0, totalPages: 1 });
       })
-      .catch((requestError) => setError(apiErrorMessage(requestError, 'Failed to load profiles')))
+      .catch((requestError) => pushError(apiErrorMessage(requestError, 'Failed to load profiles'), 'Something went wrong'))
       .finally(() => setLoading(false));
   }
 
@@ -280,7 +280,6 @@ export default function ProfilesListPage() {
         />
       </section>
 
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
       <div className="flex items-center justify-between px-1 text-xs text-tertiary-500">
         <span>
           {rows.length} of {pagination.total}

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
 
 const RATE_TYPES = ['monthly', 'hourly', 'annual'];
@@ -22,11 +24,11 @@ export default function SubmissionCreatePage({
   accountId = '',
 }) {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
   const [requirements, setRequirements] = useState([]);
   const [seats, setSeats] = useState([]);
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingSeats, setLoadingSeats] = useState(false);
   const [benchOnly, setBenchOnly] = useState(false);
@@ -63,7 +65,7 @@ export default function SubmissionCreatePage({
 
   useEffect(() => {
     if (!canCreateSubmission(user)) {
-      setError('Only recruiters or admins can put a candidate forward.');
+      pushError('Only recruiters or admins can put a candidate forward.', 'Validation');
       return;
     }
     const reqParams = { limit: 100 };
@@ -79,8 +81,8 @@ export default function SubmissionCreatePage({
           setForm((prev) => ({ ...prev, requirement_id: initialRequirementId }));
         }
       })
-      .catch((err) => setError(err.response?.data?.message || 'Failed to load candidates or jobs'));
-  }, [user, accountId, initialRequirementId]);
+      .catch((err) => pushError(apiErrorMessage(err, 'Failed to load candidates or jobs'), 'Something went wrong'));
+  }, [user, accountId, initialRequirementId, pushError]);
 
   useEffect(() => {
     if (!form.requirement_id) {
@@ -101,7 +103,7 @@ export default function SubmissionCreatePage({
       })
       .catch(() => {
         setSeats([]);
-        setError('Failed to load seats for this requirement');
+        pushError('Failed to load seats for this requirement', 'Something went wrong');
       })
       .finally(() => setLoadingSeats(false));
   }, [form.requirement_id]);
@@ -113,7 +115,6 @@ export default function SubmissionCreatePage({
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
-    setError('');
     try {
       const payload = {
         requirement_seat_id: form.requirement_seat_id,
@@ -131,11 +132,7 @@ export default function SubmissionCreatePage({
       if (asPanel && onDone) onDone(data.data.id);
       else navigate(`/submissions/${data.data.id}`);
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.errors?.[0]?.message ||
-          'Failed to create submission'
-      );
+      pushError(apiErrorMessage(err, 'Failed to create submission'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -144,7 +141,7 @@ export default function SubmissionCreatePage({
   if (!canCreateSubmission(user)) {
     return (
       <div className="space-y-2">
-        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error || 'Not allowed'}</div>
+        <p className="text-sm text-tertiary-600">Only recruiters or admins can put a candidate forward.</p>
         {!asPanel && (
           <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
             ← Back to submissions
@@ -170,8 +167,6 @@ export default function SubmissionCreatePage({
           <p className="mt-1 text-sm text-tertiary-500">Pick a candidate and open seat, enter rates, then submit.</p>
         </div>
       )}
-
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
 
       <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
         <div className={asPanel ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>

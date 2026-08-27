@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -21,7 +23,7 @@ import PipelineFilters from './PipelineFilters.jsx';
 const INPUT_CLASS =
   'mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
-function RequirementStatusDrawer({ requirement, open, error, saving, preferredToStatus, onClose, onMove }) {
+function RequirementStatusDrawer({ requirement, open, saving, preferredToStatus, onClose, onMove }) {
   const statuses = nextRequirementStatuses(requirement?.status);
   const [toStatus, setToStatus] = useState('');
   const [reason, setReason] = useState('');
@@ -63,9 +65,6 @@ function RequirementStatusDrawer({ requirement, open, error, saving, preferredTo
     >
       <form id="job-status-form" onSubmit={submit} className="space-y-3">
         <p className="text-xs text-tertiary-500">Current status: {formatStageLabel(requirement.status)}</p>
-        {error && (
-          <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
-        )}
         <label className="block text-xs font-medium text-tertiary-600">
           Next status
           <select
@@ -192,6 +191,7 @@ function JobCard({
  */
 export default function JobPipelineBoard() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
@@ -212,16 +212,14 @@ export default function JobPipelineBoard() {
     return params;
   }, [filterParams]);
   const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
-  const { cells, loading, error, reload } = usePipelineBoard({
+  const { cells, loading, reload } = usePipelineBoard({
     path: '/requirements',
     params: boardParams,
     columns: JOB_COLUMNS,
     stageField: 'status',
   });
-  const [boardError, setBoardError] = useState('');
   const [statusTarget, setStatusTarget] = useState(null);
   const [preferredToStatus, setPreferredToStatus] = useState('');
-  const [statusError, setStatusError] = useState('');
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -253,12 +251,11 @@ export default function JobPipelineBoard() {
 
   async function postDirectMove(requirement, toStatus) {
     setMoving(true);
-    setBoardError('');
     try {
       await apiClient.post(`/requirements/${requirement.id}/status`, { to_status: toStatus });
       reload();
     } catch (err) {
-      setBoardError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to move status');
+      pushError(apiErrorMessage(err, 'Failed to move status'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -267,11 +264,10 @@ export default function JobPipelineBoard() {
   function requestMove(requirement, toStatus) {
     const allowed = nextRequirementStatuses(requirement.status);
     if (!allowed.includes(toStatus)) {
-      setBoardError(`Cannot move from ${formatStageLabel(requirement.status)} to ${formatStageLabel(toStatus)}`);
+      pushError(`Cannot move from ${formatStageLabel(requirement.status)} to ${formatStageLabel(toStatus)}`, 'Validation');
       return;
     }
     if (requiresDropReason(toStatus)) {
-      setStatusError('');
       setPreferredToStatus(toStatus);
       setStatusTarget(requirement);
       return;
@@ -282,14 +278,13 @@ export default function JobPipelineBoard() {
   async function moveStatus(body) {
     if (!statusTarget) return;
     setMoving(true);
-    setStatusError('');
     try {
       await apiClient.post(`/requirements/${statusTarget.id}/status`, body);
       setStatusTarget(null);
       setPreferredToStatus('');
       reload();
     } catch (err) {
-      setStatusError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to move status');
+      pushError(apiErrorMessage(err, 'Failed to move status'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -328,10 +323,6 @@ export default function JobPipelineBoard() {
         fields={['search', 'account_id', 'sales_id', 'recruiter_id', 'status', 'priority']}
         onChange={handleFiltersChange}
       />
-
-      {(error || boardError) && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>
-      )}
 
       <DndContext
         sensors={sensors}
@@ -408,10 +399,8 @@ export default function JobPipelineBoard() {
         requirement={statusTarget}
         open={Boolean(statusTarget)}
         preferredToStatus={preferredToStatus}
-        error={statusError}
         saving={moving}
         onClose={() => {
-          setStatusError('');
           setStatusTarget(null);
           setPreferredToStatus('');
         }}

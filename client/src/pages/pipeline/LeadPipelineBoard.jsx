@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -73,6 +74,7 @@ function LeadCard({ account, user, isDragging, onRequestMove, onOpenBoard, onOpe
  */
 export default function LeadPipelineBoard() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
@@ -87,16 +89,14 @@ export default function LeadPipelineBoard() {
     [filterParams]
   );
   const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
-  const { cells, loading, error, reload } = usePipelineBoard({
+  const { cells, loading, reload } = usePipelineBoard({
     path: '/accounts',
     params: boardParams,
     columns: LEAD_COLUMNS,
     stageField: 'stage',
   });
-  const [boardError, setBoardError] = useState('');
   const [stageTarget, setStageTarget] = useState(null);
   const [preferredToStage, setPreferredToStage] = useState('');
-  const [stageError, setStageError] = useState('');
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
@@ -105,12 +105,11 @@ export default function LeadPipelineBoard() {
 
   async function postDirectMove(account, toStage) {
     setMoving(true);
-    setBoardError('');
     try {
       await apiClient.post(`/accounts/${account.id}/stage`, { to_stage: toStage });
       reload();
     } catch (err) {
-      setBoardError(apiErrorMessage(err, 'Failed to move account stage'));
+      pushError(apiErrorMessage(err, 'Failed to move account stage'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -119,11 +118,10 @@ export default function LeadPipelineBoard() {
   function requestMove(account, toStage) {
     const allowed = ACCOUNT_TRANSITIONS[account.stage] || [];
     if (!allowed.includes(toStage)) {
-      setBoardError(`Cannot move from ${formatStageLabel(account.stage)} to ${formatStageLabel(toStage)}`);
+      pushError(`Cannot move from ${formatStageLabel(account.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
       return;
     }
     if (needsAccountStageForm(toStage)) {
-      setStageError('');
       setPreferredToStage(toStage);
       setStageTarget(account);
       return;
@@ -134,14 +132,13 @@ export default function LeadPipelineBoard() {
   async function moveStage(body) {
     if (!stageTarget) return;
     setMoving(true);
-    setStageError('');
     try {
       await apiClient.post(`/accounts/${stageTarget.id}/stage`, body);
       setStageTarget(null);
       setPreferredToStage('');
       reload();
     } catch (err) {
-      setStageError(apiErrorMessage(err, 'Failed to move account stage'));
+      pushError(apiErrorMessage(err, 'Failed to move account stage'), 'Something went wrong');
     } finally {
       setMoving(false);
     }
@@ -177,10 +174,6 @@ export default function LeadPipelineBoard() {
       </div>
 
       <PipelineFilters fields={['search', 'bda_id']} onChange={handleFiltersChange} />
-
-      {(error || boardError) && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>
-      )}
 
       <DndContext
         sensors={sensors}
@@ -252,10 +245,8 @@ export default function LeadPipelineBoard() {
         account={stageTarget}
         open={Boolean(stageTarget)}
         preferredToStage={preferredToStage}
-        error={stageError}
         saving={moving}
         onClose={() => {
-          setStageError('');
           setStageTarget(null);
           setPreferredToStage('');
         }}

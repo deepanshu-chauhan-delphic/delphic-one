@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import apiClient from '../../lib/apiClient.js';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
+import { required, runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import Drawer from '../../components/ui/Drawer.jsx';
-import { canManageInterviewRound, roundTypeLabel } from '../../lib/submissionStages.js';
+import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
+import { canManageInterviewRound, isInternalRoundType, roundTypeLabel } from '../../lib/submissionStages.js';
 
 const ROUND_TYPES = [
   { value: 'internal_r1', label: 'Internal Round 1', color: 'bg-sky-50 text-sky-800 border-sky-200' },
@@ -27,6 +31,7 @@ const emptyForm = {
   round_name: '',
   scheduled_at: '',
   duration_minutes: '60',
+  interviewer_ids: [],
   interviewer_name: '',
   interviewer_email: '',
   meeting_link: '',
@@ -54,6 +59,7 @@ function hydrate(round) {
     round_name: round.round_name || '',
     scheduled_at: toLocalInput(round.scheduled_at),
     duration_minutes: round.duration_minutes != null ? String(round.duration_minutes) : '',
+    interviewer_ids: (round.interviewers || []).map((interviewer) => interviewer.id),
     interviewer_name: round.interviewer_name || '',
     interviewer_email: round.interviewer_email || '',
     meeting_link: round.meeting_link || '',
@@ -64,48 +70,77 @@ function hydrate(round) {
 }
 
 function buildPayload(form) {
-  return {
+  const payload = {
     round_type: form.round_type,
     round_name: form.round_name.trim() || undefined,
     scheduled_at: fromLocalInput(form.scheduled_at),
     duration_minutes: form.duration_minutes === '' ? undefined : Number(form.duration_minutes),
-    interviewer_name: form.interviewer_name.trim() || undefined,
-    interviewer_email: form.interviewer_email.trim() || '',
     meeting_link: form.meeting_link.trim() || undefined,
     result: form.result || 'pending',
     feedback: form.feedback.trim() || undefined,
     rating: form.rating === '' ? undefined : Number(form.rating),
   };
+
+  if (isInternalRoundType(form.round_type)) {
+    payload.interviewer_ids = form.interviewer_ids;
+  } else {
+    payload.interviewer_name = form.interviewer_name.trim() || undefined;
+    payload.interviewer_email = form.interviewer_email.trim() || '';
+  }
+
+  return payload;
 }
 
 function roundTypeMeta(type) {
   return ROUND_TYPES.find((t) => t.value === type) || ROUND_TYPES[0];
 }
 
+function formatInterviewerLine(round) {
+  if (isInternalRoundType(round.round_type) && round.interviewers?.length) {
+    return round.interviewers.map((interviewer) => interviewer.name).join(', ');
+  }
+  return round.interviewer_name || 'No interviewer';
+}
+
 export default function InterviewRoundsPanel({ submissionId, submission, rounds, user, missingMandatoryRounds, onChanged }) {
+  const { pushError } = useAlerts();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [activeUsers, setActiveUsers] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const locked = !!submission?.is_locked;
   const allowedRoundTypes = locked
     ? []
     : ROUND_TYPES.filter((t) => canManageInterviewRound(submission, t.value, user)).map((t) => t.value);
   const canAddAnyRound = allowedRoundTypes.length > 0;
+  const showInternalInterviewers = isInternalRoundType(form.round_type);
+  const interviewerOptions = useMemo(
+    () => activeUsers.map((user) => ({ id: user.id, label: user.name, hint: user.role })),
+    [activeUsers]
+  );
+
+  useEffect(() => {
+    if (!open || !showInternalInterviewers) return;
+    apiClient
+      .get('/users', { params: { active: true, limit: 100 } })
+      .then(({ data }) => setActiveUsers(data.data || []))
+      .catch(() => setActiveUsers([]));
+  }, [open, showInternalInterviewers]);
 
   function openCreate() {
     setEditingId(null);
     setForm({ ...emptyForm, round_type: allowedRoundTypes[0] || emptyForm.round_type });
-    setError('');
+    setFieldErrors({});
     setOpen(true);
   }
 
   function openEdit(round) {
     setEditingId(round.id);
     setForm(hydrate(round));
-    setError('');
+    setFieldErrors({});
     setOpen(true);
   }
 
@@ -114,12 +149,14 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
   }
 
   async function save() {
-    if (!form.scheduled_at) {
-      setError('Interview date & time is required.');
+    const validation = runValidations([['scheduled_at', required(form.scheduled_at, 'Interview date & time')]]);
+    if (!validation.valid) {
+      setFieldErrors(validation.fieldErrors);
+      pushError(validation.messages.join(' '), 'Please fix the form');
       return;
     }
     setBusy(true);
-    setError('');
+    setFieldErrors({});
     try {
       const payload = buildPayload(form);
       if (editingId) {
@@ -131,7 +168,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
       setOpen(false);
       await onChanged();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save interview round');
+      pushError(apiErrorMessage(err, 'Failed to save interview round'), 'Something went wrong');
     } finally {
       setBusy(false);
     }
@@ -184,7 +221,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                       {r.duration_minutes ? ` · ${r.duration_minutes} min` : ''}
                     </p>
                     <p className="mt-0.5 text-xs text-tertiary-500">
-                      {r.interviewer_name || 'No interviewer'}
+                      {formatInterviewerLine(r)}
                       {r.meeting_link ? (
                         <>
                           {' · '}
@@ -231,9 +268,6 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
           </>
         }
       >
-        {error && (
-          <div className="mb-3 rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</div>
-        )}
         <div className="space-y-3">
           {!editingId && (
             <label className="block text-xs font-medium text-tertiary-600">
@@ -270,9 +304,12 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                 type="datetime-local"
                 value={form.scheduled_at}
                 onChange={(e) => updateField('scheduled_at', e.target.value)}
-                className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm"
+                className={fieldErrorClass(fieldErrors, 'scheduled_at', 'mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm')}
               />
             </label>
+            {fieldErrors.scheduled_at && (
+              <p className="text-xs text-danger-600 mt-1">{fieldErrors.scheduled_at}</p>
+            )}
             <p className="mt-1.5 text-[11px] text-sky-700">When this round is open for the candidate.</p>
           </div>
 
@@ -287,24 +324,42 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
             />
           </label>
 
-          <label className="block text-xs font-medium text-tertiary-600">
-            Interviewer
-            <input
-              value={form.interviewer_name}
-              onChange={(e) => updateField('interviewer_name', e.target.value)}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
+          {showInternalInterviewers ? (
+            <div className="block text-xs font-medium text-tertiary-600">
+              Interviewers
+              <MultiSelectDropdown
+                value={form.interviewer_ids}
+                onChange={(interviewer_ids) => updateField('interviewer_ids', interviewer_ids)}
+                options={interviewerOptions}
+                placeholder="Select interviewers…"
+                searchPlaceholder="Search by name or role…"
+                emptyMessage="No active users found."
+                noResultsMessage="No users match your search."
+              />
+              <p className="mt-1 text-[11px] text-tertiary-500">Choose one or more active team members.</p>
+            </div>
+          ) : (
+            <>
+              <label className="block text-xs font-medium text-tertiary-600">
+                Interviewer
+                <input
+                  value={form.interviewer_name}
+                  onChange={(e) => updateField('interviewer_name', e.target.value)}
+                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                />
+              </label>
 
-          <label className="block text-xs font-medium text-tertiary-600">
-            Interviewer email
-            <input
-              type="email"
-              value={form.interviewer_email}
-              onChange={(e) => updateField('interviewer_email', e.target.value)}
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            />
-          </label>
+              <label className="block text-xs font-medium text-tertiary-600">
+                Interviewer email
+                <input
+                  type="email"
+                  value={form.interviewer_email}
+                  onChange={(e) => updateField('interviewer_email', e.target.value)}
+                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                />
+              </label>
+            </>
+          )}
 
           <label className="block text-xs font-medium text-tertiary-600">
             Meeting link

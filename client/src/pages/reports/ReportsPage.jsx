@@ -17,6 +17,8 @@ import {
 } from 'recharts';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { usePermissions, Can } from '../../lib/permissions.js';
 import { CHART_COLORS, CHART_PALETTE, chartTooltipStyle } from '../../lib/chartTheme.js';
 import ChartCard from '../../components/ui/ChartCard.jsx';
@@ -111,6 +113,7 @@ function DetailField({ label, value }) {
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const { can } = usePermissions(user);
   const available = useMemo(() => reportsForRole(user?.role || 'recruiter'), [user?.role]);
   const defaults = useMemo(() => defaultDateRange(), []);
@@ -131,8 +134,6 @@ export default function ReportsPage() {
   const [individuals, setIndividuals] = useState([]);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [exportError, setExportError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [drawerRow, setDrawerRow] = useState(null);
 
@@ -205,13 +206,12 @@ export default function ReportsPage() {
 
   async function runReport() {
     setLoading(true);
-    setError('');
     try {
       const { data } = await apiClient.get(`/reports/${active}`, { params: buildParams() });
       setPayload(data.data);
     } catch (err) {
       setPayload(null);
-      setError(err.response?.data?.message || 'Failed to load report');
+      pushError(apiErrorMessage(err, 'Failed to load report'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -236,7 +236,6 @@ export default function ReportsPage() {
   ]);
 
   async function exportReport(type) {
-    setExportError('');
     setExporting(true);
     try {
       const { data: blob } = await apiClient.get('/reports/export', {
@@ -261,7 +260,7 @@ export default function ReportsPage() {
       } else if (err.response?.data?.message) {
         message = err.response.data.message;
       }
-      setExportError(message);
+      pushError(message, 'Export failed');
     } finally {
       setExporting(false);
     }
@@ -426,11 +425,6 @@ export default function ReportsPage() {
           </select>
         )}
       </FilterBar>
-
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
-      {exportError && (
-        <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{exportError}</div>
-      )}
 
       {chartRows.length > 0 && <ReportChart reportKey={active} chartRows={chartRows} chartBars={chartBars} />}
 

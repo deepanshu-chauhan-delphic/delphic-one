@@ -4,7 +4,7 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **Sprint tickets live in [SPRINT-PLAN.md](SPRINT-PLAN.md)** (Aug 21 → Aug 28 deploy).
 
-**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
+**⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
 ## Backend
 
@@ -45,7 +45,8 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] **V2** — lead classify flow + meeting location/attendees UI; interview rounds panel reworked for 6 named round types + role gating + missing-mandatory banner; candidate on-bench toggle/filter + submission picker quick filter; requirement type dropdown (managed services/recruitment/project); reports page Client performance tab + new BDA/recruiter/sales columns.
 - [x] Closure progress rings + step breakdown on submissions/profiles; requirement × stage **Requirement map** board (`/pipeline?view=matrix`, `GET /pipeline/board`).
 - [x] Account / profile / requirement create-edit forms wired to remaining schema fields (agreement URLs, candidate compensation/relocate, req certifications/timezone/contract, meeting notes).
-- [ ] Manual click-through (V2 + closure rings + requirement map) in the browser — tests cover the new server surface; UI not yet hand-verified.
+- [x] Internal round interviewer multiselect (`interview_round_interviewers`) + app-wide alert banners / form validation helpers.
+- [ ] Manual click-through (V2 + closure rings + requirement map + interviewer multiselect) in the browser — tests cover the new server surface; UI not yet hand-verified.
 
 ## Infra / CI
 
@@ -62,6 +63,7 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] **V2** seed data remapped to new enums + new demo rows.
 - [x] **V2** test coverage: new `interview-rounds-scope.test.js`, `profiles-bench.test.js`, extended `accounts-stage.test.js`/`reports-ui.test.js`.
 - [x] Closure progress unit tests + `GET /pipeline/board` role-scope tests (`closure-progress.test.js`, `pipeline-board.test.js`). **23 suites / 135 tests** green (2026-08-29).
+- [x] Interviewer multiselect tests (`interview-round-interviewers.test.js`).
 
 ## Docs
 

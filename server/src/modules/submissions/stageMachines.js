@@ -37,6 +37,7 @@ const ROUND_TYPE_LABELS = {
 };
 
 const CLIENT_ROUND_TYPES = ['client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo'];
+const INTERNAL_ROUND_TYPES = ['internal_r1', 'internal_r2'];
 
 // Mandatory milestones per the recruiting process - enforced as a SOFT rule only (UI warns,
 // never blocks). The existing hard gates below (unresolved rounds before offer_sent, BGV
@@ -81,6 +82,7 @@ module.exports = {
   ROUND_TYPES,
   ROUND_TYPE_LABELS,
   CLIENT_ROUND_TYPES,
+  INTERNAL_ROUND_TYPES,
   MANDATORY_ROUND_TYPES,
   MANDATORY_SUBMISSION_STAGES,
   roundTypeLabel,

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 
@@ -22,28 +24,24 @@ const emptyForm = {
 };
 
 function DepartmentDrawer({ open, department, onClose, onSaved }) {
+  const { pushError } = useAlerts();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const isEditing = Boolean(department);
 
   useEffect(() => {
-    if (open) {
-      setName(department?.name || '');
-      setError('');
-    }
+    if (open) setName(department?.name || '');
   }, [open, department]);
 
   async function submit(event) {
     event.preventDefault();
     setSaving(true);
-    setError('');
     try {
       if (isEditing) await apiClient.patch(`/departments/${department.id}`, { name: name.trim() });
       else await apiClient.post('/departments', { name: name.trim() });
       onSaved();
     } catch (err) {
-      setError(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} department`);
+      pushError(apiErrorMessage(err, `Failed to ${isEditing ? 'update' : 'create'} department`), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -66,7 +64,6 @@ function DepartmentDrawer({ open, department, onClose, onSaved }) {
       }
     >
       <form id="department-form" onSubmit={submit} className="space-y-3">
-        {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
         <label className="block text-xs font-medium text-tertiary-500">
           Name
           <input
@@ -83,8 +80,8 @@ function DepartmentDrawer({ open, department, onClose, onSaved }) {
 
 export default function UsersPage() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [rows, setRows] = useState([]);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [creating, setCreating] = useState(false);
@@ -95,12 +92,11 @@ export default function UsersPage() {
 
   async function loadUsers() {
     setLoading(true);
-    setError('');
     try {
       const { data } = await apiClient.get('/users', { params: { limit: 100 } });
       setRows(data.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load users');
+      pushError(apiErrorMessage(err, 'Failed to load users'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -127,7 +123,6 @@ export default function UsersPage() {
   async function handleCreate(e) {
     e.preventDefault();
     setCreating(true);
-    setError('');
     setCreatedCreds(null);
     try {
       const payload = {
@@ -149,19 +144,18 @@ export default function UsersPage() {
       setCreateOpen(false);
       await loadUsers();
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || 'Failed to create user');
+      pushError(apiErrorMessage(err, 'Failed to create user'), 'Something went wrong');
     } finally {
       setCreating(false);
     }
   }
 
   async function toggleActive(row) {
-    setError('');
     try {
       await apiClient.patch(`/users/${row.id}`, { active: !row.active });
       await loadUsers();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update user');
+      pushError(apiErrorMessage(err, 'Failed to update user'), 'Something went wrong');
     }
   }
 
@@ -213,8 +207,6 @@ export default function UsersPage() {
           + Create user
         </button>
       </div>
-
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
 
       {createdCreds && (
         <div className="rounded-2xl border border-success-100 bg-success-50 px-4 py-3 text-sm text-success-700">

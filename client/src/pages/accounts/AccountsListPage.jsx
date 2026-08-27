@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Filter, MoreVertical } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
@@ -84,10 +85,10 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
 
 export default function AccountsListPage() {
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [type, setType] = useState(() => searchParams.get('type') || '');
@@ -97,12 +98,10 @@ export default function AccountsListPage() {
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [peek, setPeek] = useState(null);
   const [stageTarget, setStageTarget] = useState(null);
-  const [stageError, setStageError] = useState('');
   const [movingStage, setMovingStage] = useState(false);
 
   function reload() {
     setLoading(true);
-    setError('');
     const params = { page, limit: 20 };
     if (type) params.type = type;
     if (stage) params.stage = stage;
@@ -113,7 +112,7 @@ export default function AccountsListPage() {
         setRows(data.data || []);
         setPagination(data.pagination || { page, total: data.data?.length || 0, totalPages: 1 });
       })
-      .catch((requestError) => setError(apiErrorMessage(requestError, 'Failed to load accounts')))
+      .catch((requestError) => pushError(apiErrorMessage(requestError, 'Failed to load accounts'), 'Something went wrong'))
       .finally(() => setLoading(false));
   }
 
@@ -139,14 +138,13 @@ export default function AccountsListPage() {
   async function moveStage(body) {
     if (!stageTarget) return;
     setMovingStage(true);
-    setStageError('');
     try {
       const { data } = await apiClient.post(`/accounts/${stageTarget.id}/stage`, body);
       setStageTarget(null);
       setPeek(data.data || stageTarget);
       reload();
     } catch (requestError) {
-      setStageError(apiErrorMessage(requestError, 'Failed to move account stage'));
+      pushError(apiErrorMessage(requestError, 'Failed to move account stage'), 'Something went wrong');
     } finally {
       setMovingStage(false);
     }
@@ -287,7 +285,6 @@ export default function AccountsListPage() {
         />
       </section>
 
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
       <div className="flex items-center justify-between px-1 text-xs text-tertiary-500">
         <span>
           {rows.length} of {pagination.total}
@@ -332,12 +329,8 @@ export default function AccountsListPage() {
       <AccountStageMoveDrawer
         account={stageTarget}
         open={Boolean(stageTarget)}
-        error={stageError}
         saving={movingStage}
-        onClose={() => {
-          setStageError('');
-          setStageTarget(null);
-        }}
+        onClose={() => setStageTarget(null)}
         onMove={moveStage}
       />
 

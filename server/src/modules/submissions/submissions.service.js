@@ -1,6 +1,10 @@
 const prisma = require('../../config/db');
-const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds } = require('./stageMachines');
+const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds } = require('./stageMachines');
 const { computeClosureDetail } = require('../../utils/closureProgress');
+
+const INTERVIEWER_INCLUDE = {
+  interviewers: { include: { user: { select: { id: true, name: true, email: true } } } },
+};
 
 const INCLUDE = {
   seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
@@ -11,8 +15,21 @@ const INCLUDE = {
     },
   },
   submitted_by_user: { select: { id: true, name: true } },
-  interview_rounds: { orderBy: { round_number: 'asc' } },
+  interview_rounds: { orderBy: { round_number: 'asc' }, include: INTERVIEWER_INCLUDE },
 };
+
+function serializeInterviewRound(round) {
+  if (!round) return null;
+  const { interviewers, ...rest } = round;
+  return {
+    ...rest,
+    interviewers: (interviewers || []).map((row) => ({
+      id: row.user.id,
+      name: row.user.name,
+      email: row.user.email,
+    })),
+  };
+}
 
 function serialize(row) {
   if (!row) return null;
@@ -26,7 +43,7 @@ function serialize(row) {
       : null,
     profile,
     submitted_by: submitted_by_user,
-    interview_rounds,
+    interview_rounds: interview_rounds ? interview_rounds.map(serializeInterviewRound) : undefined,
     missing_mandatory_rounds: interview_rounds ? computeMissingMandatoryRounds(interview_rounds) : undefined,
     progress: interview_rounds ? computeClosureDetail(row.stage, interview_rounds) : null,
   };
@@ -194,6 +211,33 @@ async function loadRequirementSalesOwnerId(tx, submission) {
   return seat?.requirement?.sales_owner_id ?? null;
 }
 
+async function validateActiveInterviewers(tx, interviewerIds) {
+  if (!interviewerIds || interviewerIds.length === 0) return { ok: true };
+  const users = await tx.user.findMany({
+    where: { id: { in: interviewerIds }, active: true },
+    select: { id: true },
+  });
+  if (users.length !== interviewerIds.length) return { error: 'invalid_interviewers' };
+  return { ok: true };
+}
+
+async function syncInterviewers(tx, roundId, interviewerIds) {
+  if (interviewerIds === undefined) return;
+  await tx.interviewRoundInterviewer.deleteMany({ where: { interview_round_id: roundId } });
+  if (interviewerIds.length === 0) return;
+  await tx.interviewRoundInterviewer.createMany({
+    data: interviewerIds.map((user_id) => ({ interview_round_id: roundId, user_id })),
+  });
+}
+
+async function loadInterviewRound(tx, id) {
+  const round = await tx.interviewRound.findUnique({
+    where: { id },
+    include: INTERVIEWER_INCLUDE,
+  });
+  return serializeInterviewRound(round);
+}
+
 async function addInterviewRound(submissionId, data, user) {
   const userId = user.id;
   return prisma.$transaction(async (tx) => {
@@ -206,7 +250,8 @@ async function addInterviewRound(submissionId, data, user) {
     const last = await tx.interviewRound.findFirst({ where: { submission_id: submissionId }, orderBy: { round_number: 'desc' } });
     const round_number = last ? last.round_number + 1 : 1;
 
-    const payload = { ...data, submission_id: submissionId, round_number };
+    const { interviewer_ids, ...roundFields } = data;
+    const payload = { ...roundFields, submission_id: submissionId, round_number };
     if (payload.scheduled_at) payload.scheduled_at = new Date(payload.scheduled_at);
     if (payload.completed_at) payload.completed_at = new Date(payload.completed_at);
     if (['pass', 'fail', 'no_show'].includes(payload.result) && !payload.completed_at) {
@@ -214,7 +259,18 @@ async function addInterviewRound(submissionId, data, user) {
     }
     if (payload.interviewer_email === '') payload.interviewer_email = null;
 
-    const round = await tx.interviewRound.create({ data: payload });
+    if (INTERNAL_ROUND_TYPES.includes(data.round_type) && interviewer_ids !== undefined) {
+      const check = await validateActiveInterviewers(tx, interviewer_ids);
+      if (check.error) return { error: check.error };
+    }
+
+    const created = await tx.interviewRound.create({ data: payload });
+
+    if (INTERNAL_ROUND_TYPES.includes(data.round_type) && interviewer_ids !== undefined) {
+      await syncInterviewers(tx, created.id, interviewer_ids);
+    }
+
+    const round = await loadInterviewRound(tx, created.id);
 
     if (submission.stage === 'submitted_to_client') {
       await tx.submission.update({ where: { id: submissionId }, data: { stage: 'interview_scheduled' } });
@@ -265,7 +321,8 @@ async function updateInterviewRound(id, patch, user) {
     const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
     if (!canManageInterviewRound(submission, salesOwnerId, existing.round_type, user)) return { error: 'forbidden' };
 
-    const finalPatch = { ...patch };
+    const { interviewer_ids, ...patchFields } = patch;
+    const finalPatch = { ...patchFields };
     if (finalPatch.scheduled_at) finalPatch.scheduled_at = new Date(finalPatch.scheduled_at);
     if (finalPatch.completed_at) finalPatch.completed_at = new Date(finalPatch.completed_at);
     if (finalPatch.interviewer_email === '') finalPatch.interviewer_email = null;
@@ -273,7 +330,18 @@ async function updateInterviewRound(id, patch, user) {
       finalPatch.completed_at = new Date();
     }
 
-    const round = await tx.interviewRound.update({ where: { id }, data: finalPatch });
+    if (INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
+      const check = await validateActiveInterviewers(tx, interviewer_ids);
+      if (check.error) return { error: check.error };
+    }
+
+    await tx.interviewRound.update({ where: { id }, data: finalPatch });
+
+    if (INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
+      await syncInterviewers(tx, id, interviewer_ids);
+    }
+
+    const round = await loadInterviewRound(tx, id);
 
     const rounds = await tx.interviewRound.findMany({ where: { submission_id: round.submission_id } });
     const allResolved = rounds.every((r) => r.result !== 'pending');

@@ -1,27 +1,27 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { QUICK_LOGIN_ACCOUNTS, TEST_PASSWORD, isQuickLoginEnabled } from '../../lib/testAccounts.js';
 
 export default function LoginPage() {
   const { user, login } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [quickRole, setQuickRole] = useState('');
 
   if (user) return <Navigate to="/" replace />;
 
   async function signIn(nextEmail, nextPassword) {
-    setError('');
     setSubmitting(true);
     try {
       await login(nextEmail, nextPassword);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      pushError(err.response?.data?.message || 'Login failed', 'Something went wrong');
     } finally {
       setSubmitting(false);
       setQuickRole('');
@@ -46,8 +46,6 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="rounded-lg border bg-white p-8 shadow-sm">
           <h1 className="mb-1 font-heading text-xl font-semibold text-tertiary-900">Requirement Dashboard</h1>
           <p className="mb-6 text-sm text-tertiary-500">Sign in with credentials from your admin</p>
-
-          {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
           <label className="mb-1 block text-sm font-medium text-tertiary-700">Email</label>
           <input

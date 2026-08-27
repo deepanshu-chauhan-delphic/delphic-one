@@ -1,32 +1,29 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../lib/apiClient.js';
-
-function apiErrorMessage(error, fallback) {
-  return error.response?.data?.errors?.[0]?.message || error.response?.data?.message || fallback;
-}
+import { useAlerts } from '../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../lib/alerts/apiErrorMessage.js';
 
 /**
  * Reusable notes thread for account | requirement | submission | profile.
  * Props: entityType, entityId, readOnly?
  */
 export default function NotesPanel({ entityType, entityId, readOnly = false, title = 'Notes' }) {
+  const { pushError } = useAlerts();
   const [notes, setNotes] = useState([]);
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   async function loadNotes() {
     if (!entityType || !entityId) return;
     setLoading(true);
-    setError('');
     try {
       const { data } = await apiClient.get('/comments', {
         params: { entity_type: entityType, entity_id: entityId },
       });
       setNotes(data.data || []);
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to load notes'));
+      pushError(apiErrorMessage(requestError, 'Failed to load notes'), 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -40,7 +37,6 @@ export default function NotesPanel({ entityType, entityId, readOnly = false, tit
     event.preventDefault();
     if (!body.trim()) return;
     setSaving(true);
-    setError('');
     try {
       await apiClient.post('/comments', {
         entity_type: entityType,
@@ -50,7 +46,7 @@ export default function NotesPanel({ entityType, entityId, readOnly = false, tit
       setBody('');
       await loadNotes();
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'Failed to add note'));
+      pushError(apiErrorMessage(requestError, 'Failed to add note'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -61,8 +57,6 @@ export default function NotesPanel({ entityType, entityId, readOnly = false, tit
       <div className="border-b bg-tertiary-50 px-4 py-2">
         <h2 className="text-sm font-semibold text-tertiary-800">{title}</h2>
       </div>
-
-      {error && <div className="border-b bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>}
 
       <div className="max-h-80 space-y-3 overflow-y-auto p-4">
         {loading && <p className="text-sm text-tertiary-400">Loading notes…</p>}

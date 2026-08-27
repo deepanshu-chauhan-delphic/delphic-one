@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
 
 const EMPTY_CONTACT = { name: '', email: '', phone: '', designation: '', role_label: '' };
@@ -121,24 +123,30 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
   const { id: paramId } = useParams();
   const id = accountIdProp || paramId;
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
   const [account, setAccount] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!isEditing) return;
     setLoading(true);
+    setLoadFailed(false);
     apiClient
       .get(`/accounts/${id}`)
       .then(({ data }) => {
         setAccount(data.data);
         setForm(formFromAccount(data.data));
       })
-      .catch((requestError) => setError(apiErrorMessage(requestError, 'Failed to load account')))
+      .catch((requestError) => {
+        setLoadFailed(true);
+        pushError(apiErrorMessage(requestError, 'Failed to load account'), 'Something went wrong');
+      })
       .finally(() => setLoading(false));
   }, [id, isEditing]);
 
@@ -177,32 +185,36 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
 
   async function saveAccount(event) {
     event.preventDefault();
-    setError('');
-    if (form.type === 'vendor' && (form.vendor_rate_min === '') !== (form.vendor_rate_max === '')) {
-      setError('Enter both minimum and maximum vendor rates, or leave both blank.');
+    const vendorRatesMismatch =
+      form.type === 'vendor' && (form.vendor_rate_min === '') !== (form.vendor_rate_max === '');
+    const validation = runValidations([
+      ['vendor_rate_min', vendorRatesMismatch ? 'Enter both minimum and maximum vendor rates, or leave both blank.' : null],
+    ]);
+    if (!validation.valid) {
+      setFieldErrors(validation.fieldErrors);
+      pushError(validation.messages.join(' '), 'Please fix the form');
       return;
     }
 
     setSaving(true);
+    setFieldErrors({});
     try {
       const body = buildAccountBody(form, isEditing);
       const { data } = isEditing ? await apiClient.patch(`/accounts/${id}`, body) : await apiClient.post('/accounts', body);
       if (asPanel && onDone) onDone(data.data.id);
       else navigate(`/accounts/${data.data.id}`, { replace: true });
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} account`));
+      pushError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} account`), 'Something went wrong');
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) return <div className="text-sm text-tertiary-500">Loading account…</div>;
-  if (isEditing && (!account || error)) {
+  if (isEditing && (!account || loadFailed)) {
     return (
       <div className="space-y-3">
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error || 'Account not found'}
-        </div>
+        <p className="text-sm text-tertiary-600">Account not found or could not be loaded.</p>
         {!asPanel && <Link to="/accounts" className="text-sm text-primary-700 hover:underline">Back to accounts</Link>}
       </div>
     );
@@ -235,8 +247,6 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
         </div>
       )}
-
-      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <form onSubmit={saveAccount} className="space-y-4">
         <section className="rounded border bg-white">
@@ -396,8 +406,11 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                   min="0"
                   value={form.vendor_rate_min}
                   onChange={(event) => updateField('vendor_rate_min', event.target.value)}
-                  className={INPUT_CLASS}
+                  className={fieldErrorClass(fieldErrors, 'vendor_rate_min', INPUT_CLASS)}
                 />
+                {fieldErrors.vendor_rate_min && (
+                  <p className="text-xs text-danger-600 mt-1">{fieldErrors.vendor_rate_min}</p>
+                )}
               </Field>
               <Field label="Maximum rate">
                 <input

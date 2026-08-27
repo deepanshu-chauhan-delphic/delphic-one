@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
@@ -32,7 +34,7 @@ function needsReason(toStage) {
   return requiresBackoutReason(toStage) || requiresRejectionReason(toStage);
 }
 
-function StageReasonDrawer({ submission, toStage, open, error, saving, onClose, onConfirm }) {
+function StageReasonDrawer({ submission, toStage, open, saving, onClose, onConfirm }) {
   const [reason, setReason] = useState('');
 
   useEffect(() => {
@@ -65,9 +67,6 @@ function StageReasonDrawer({ submission, toStage, open, error, saving, onClose, 
       }
     >
       <div className="space-y-3">
-        {error && (
-          <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>
-        )}
         <label className="block text-xs font-medium text-tertiary-600">
           Reason
           <textarea
@@ -128,11 +127,11 @@ export default function RequirementKanbanPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const sensors = usePipelineSensors();
   const [requirement, setRequirement] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [reasonModal, setReasonModal] = useState(null);
   const [activeDrag, setActiveDrag] = useState(null);
@@ -142,7 +141,6 @@ export default function RequirementKanbanPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const [reqRes, subsRes] = await Promise.all([
         apiClient.get(`/requirements/${id}`),
@@ -151,13 +149,13 @@ export default function RequirementKanbanPage() {
       setRequirement(reqRes.data.data);
       setSubmissions(subsRes.data.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load board');
+      pushError(apiErrorMessage(err, 'Failed to load board'), 'Something went wrong');
       setRequirement(null);
       setSubmissions([]);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, pushError]);
 
   useEffect(() => {
     load();
@@ -174,7 +172,6 @@ export default function RequirementKanbanPage() {
 
   async function postMove(submission, to_stage, reasonText) {
     setBusyId(submission.id);
-    setError('');
     try {
       const body = { to_stage };
       if (requiresBackoutReason(to_stage)) body.backout_reason = reasonText?.trim();
@@ -183,7 +180,7 @@ export default function RequirementKanbanPage() {
       setReasonModal(null);
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Stage move failed');
+      pushError(apiErrorMessage(err, 'Stage move failed'), 'Something went wrong');
     } finally {
       setBusyId(null);
     }
@@ -193,7 +190,7 @@ export default function RequirementKanbanPage() {
     if (!canMove || submission.is_locked) return;
     const allowed = nextSubmissionStages(submission.stage);
     if (!allowed.includes(to_stage)) {
-      setError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(to_stage)}`);
+      pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(to_stage)}`, 'Validation');
       return;
     }
     if (needsReason(to_stage)) {
@@ -218,7 +215,7 @@ export default function RequirementKanbanPage() {
   if (!requirement) {
     return (
       <div className="space-y-2">
-        {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <p className="text-sm text-tertiary-600">Board could not be loaded.</p>
         <Link to="/requirements" className="text-sm text-primary-600 hover:underline">
           ← Requirements
         </Link>
@@ -252,8 +249,6 @@ export default function RequirementKanbanPage() {
           </button>
         </div>
       </div>
-
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <DndContext
         sensors={sensors}
@@ -318,7 +313,6 @@ export default function RequirementKanbanPage() {
         submission={reasonModal?.submission}
         toStage={reasonModal?.to_stage}
         open={Boolean(reasonModal)}
-        error={error}
         saving={busyId === reasonModal?.submission?.id}
         onClose={() => setReasonModal(null)}
         onConfirm={(reason) => postMove(reasonModal.submission, reasonModal.to_stage, reason)}

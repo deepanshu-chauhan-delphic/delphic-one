@@ -207,9 +207,10 @@ model User {
   assignments_made       RequirementAssignment[] @relation("AssignmentAssignedBy")
   profiles_added         Profile[]              @relation("ProfileAddedBy")
   submissions_created    Submission[]           @relation("SubmissionSubmittedBy")
-  stage_history_changes  StageHistory[]
-  documents_uploaded     Document[]
-  comments               Comment[]
+  stage_history_changes       StageHistory[]
+  documents_uploaded          Document[]
+  comments                    Comment[]
+  interview_round_assignments InterviewRoundInterviewer[]
 
   @@index([department_id])
   @@map("users")
@@ -518,8 +519,23 @@ model InterviewRound {
   rating          Int?
   completed_at    DateTime?
 
+  interviewers InterviewRoundInterviewer[]
+
   @@index([submission_id])
   @@map("interview_rounds")
+}
+
+model InterviewRoundInterviewer {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  interview_round_id String         @db.Uuid
+  interview_round    InterviewRound @relation(fields: [interview_round_id], references: [id], onDelete: Cascade)
+  user_id            String         @db.Uuid
+  user               User           @relation(fields: [user_id], references: [id])
+  created_at         DateTime       @default(now())
+
+  @@unique([interview_round_id, user_id])
+  @@index([interview_round_id])
+  @@map("interview_round_interviewers")
 }
 
 model StageHistory {

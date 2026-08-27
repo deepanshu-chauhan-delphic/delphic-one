@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { required, runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { emptyProfileForm, formToProfileBody, profileToForm } from './profileForm.js';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
@@ -24,13 +26,14 @@ function Field({ label, children, required = false }) {
 export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
   const [form, setForm] = useState(emptyProfileForm());
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [resumeFile, setResumeFile] = useState(null);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
     apiClient
       .get(`/profiles/${id}`)
       .then(({ data }) => setForm(profileToForm(data.data)))
-      .catch((requestError) => setError(apiErrorMessage(requestError, 'Failed to load candidate')))
+      .catch((requestError) => pushError(apiErrorMessage(requestError, 'Failed to load candidate'), 'Something went wrong'))
       .finally(() => setLoading(false));
   }, [id, isEditing]);
 
@@ -75,17 +78,20 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
 
   async function saveProfile(event) {
     event.preventDefault();
-    setError('');
-    if (!form.name.trim() || form.total_experience_years === '' || form.primary_skills.length === 0) {
-      setError('Name, experience years, and primary skills are required.');
-      return;
-    }
-    if (form.source === 'vendor' && !form.vendor_account_id) {
-      setError('Select a vendor account when source is vendor.');
+    const validation = runValidations([
+      ['name', required(form.name, 'Name')],
+      ['total_experience_years', required(form.total_experience_years, 'Experience years')],
+      ['primary_skills', form.primary_skills.length === 0 ? 'Primary skills are required.' : null],
+      ['vendor_account_id', form.source === 'vendor' && !form.vendor_account_id ? 'Select a vendor account when source is vendor.' : null],
+    ]);
+    if (!validation.valid) {
+      setFieldErrors(validation.fieldErrors);
+      pushError(validation.messages.join(' '), 'Please fix the form');
       return;
     }
 
     setSaving(true);
+    setFieldErrors({});
     try {
       const body = formToProfileBody(form);
       const { data } = isEditing
@@ -96,7 +102,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
       if (asPanel && onDone) onDone(profileId);
       else navigate(`/profiles/${profileId}`, { replace: true });
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} candidate`));
+      pushError(apiErrorMessage(requestError, `Failed to ${isEditing ? 'update' : 'create'} candidate`), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -129,8 +135,6 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
         </div>
       )}
 
-      {error && <div className="rounded-xl border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
-
       <form onSubmit={saveProfile} className="space-y-4">
         <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-sky-100 bg-sky-50/30' : 'bg-white'}`}>
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-sky-100 text-sky-900' : 'text-tertiary-800'}`}>
@@ -138,7 +142,8 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </h2>
           <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Full name" required>
-              <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className={INPUT_CLASS} />
+              <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className={fieldErrorClass(fieldErrors, 'name', INPUT_CLASS)} />
+              {fieldErrors.name && <p className="text-xs text-danger-600 mt-1">{fieldErrors.name}</p>}
             </Field>
             <Field label="Email">
               <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} className={INPUT_CLASS} />

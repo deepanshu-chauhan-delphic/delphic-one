@@ -24,11 +24,7 @@ export function canAssignRecruiters(user) {
   return user?.role === 'sales' || user?.role === 'admin';
 }
 
-export function apiErrorMessage(error, fallback) {
-  const response = error.response?.data;
-  const validationMessage = response?.errors?.[0]?.message;
-  return validationMessage || response?.message || fallback;
-}
+export { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 
 export function splitCsv(value) {
   return String(value || '')

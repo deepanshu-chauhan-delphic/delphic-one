@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
@@ -119,12 +121,12 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { pushError } = useAlerts();
   const [form, setForm] = useState(() => ({
     ...emptyForm,
     account_id: initialAccountId || '',
   }));
   const [accounts, setAccounts] = useState([]);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState(null);
@@ -132,7 +134,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
 
   useEffect(() => {
     if (!canCreateRequirement(user) && !isEdit) {
-      setError('Only sales or admin can create requirements.');
+      pushError('Only sales or admin can create requirements.', 'Validation');
       return;
     }
 
@@ -156,10 +158,10 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
         setExisting(req);
         setForm(hydrateForm(req));
         if (!canMutateRequirement(req, user)) {
-          setError('You do not own this requirement.');
+          pushError('You do not own this requirement.', 'Validation');
         }
       })
-      .catch((err) => setError(err.response?.data?.message || 'Failed to load requirement'))
+      .catch((err) => pushError(apiErrorMessage(err, 'Failed to load requirement'), 'Something went wrong'))
       .finally(() => setLoading(false));
   }, [id, isEdit, user, initialAccountId]);
 
@@ -170,7 +172,6 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
-    setError('');
     try {
       const payload = buildPayload(form, { isCreate: !isEdit });
       if (isEdit) {
@@ -183,11 +184,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
         else navigate(`/requirements/${data.data.id}`);
       }
     } catch (err) {
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data?.errors?.[0]?.message ||
-        'Failed to save requirement';
-      setError(msg);
+      pushError(apiErrorMessage(err, 'Failed to save requirement'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -199,8 +196,8 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
 
   if (!isEdit && !canCreateRequirement(user)) {
     return (
-      <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
-        {error || 'Only sales or admin can create requirements.'}
+      <div className="rounded-lg border border-tertiary-200 bg-tertiary-50 px-3 py-2 text-sm text-tertiary-700">
+        Only sales or admin can create requirements.
       </div>
     );
   }
@@ -226,8 +223,6 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
           </div>
         </div>
       )}
-
-      {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <form onSubmit={handleSubmit} className={asPanel ? 'space-y-4' : 'space-y-4 rounded-lg border bg-white p-4'}>
         <fieldset disabled={blocked || saving} className="space-y-4">

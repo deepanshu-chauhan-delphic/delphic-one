@@ -70,6 +70,7 @@ const interviewRoundCreateSchema = z.object({
   duration_minutes: z.number().int().optional(),
   interviewer_name: z.string().optional(),
   interviewer_email: z.string().email().optional().or(z.literal('')),
+  interviewer_ids: z.array(z.string().uuid()).optional(),
   meeting_link: z.string().optional(),
   // Recruiter can log feedback when creating (e.g. completed internal screen) or add later via PATCH
   result: z.enum(['pending', 'pass', 'fail', 'no_show', 'rescheduled']).optional(),
@@ -83,6 +84,7 @@ const interviewRoundUpdateSchema = z.object({
   duration_minutes: z.number().int().optional(),
   interviewer_name: z.string().optional(),
   interviewer_email: z.string().email().optional().or(z.literal('')),
+  interviewer_ids: z.array(z.string().uuid()).optional(),
   meeting_link: z.string().optional(),
   result: z.enum(['pending', 'pass', 'fail', 'no_show', 'rescheduled']).optional(),
   feedback: z.string().optional(),
