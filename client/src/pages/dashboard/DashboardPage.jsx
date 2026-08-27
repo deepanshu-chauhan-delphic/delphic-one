@@ -380,6 +380,7 @@ export default function DashboardPage() {
                   description={stat.description}
                   icon={stat.icon}
                   theme={stat.theme}
+                  to={stat.href}
                 />
               </motion.div>
             ))}

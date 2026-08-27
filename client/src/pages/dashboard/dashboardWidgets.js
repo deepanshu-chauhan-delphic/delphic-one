@@ -26,6 +26,23 @@ function withKpiMeta(stats) {
   }));
 }
 
+/**
+ * Where each KPI drills into. Every href carries the exact filter query params
+ * the target list page reads on mount, so the user lands on the pre-filtered view.
+ */
+export const KPI_LINKS = {
+  leadsActive: '/accounts?stage=lead',
+  leadsInMeeting: '/accounts?stage=meeting_scheduled',
+  clientsActive: '/accounts?stage=active&type=client',
+  vendorsActive: '/accounts?stage=active&type=vendor',
+  requirementsOpen: '/requirements?status=open',
+  requirementsInProgress: '/requirements?status=in_progress',
+  requirementsClosed: '/requirements?status=closed',
+  submissionsActive: '/submissions',
+  interviewsThisWeek: '/submissions?stage=interview_scheduled',
+  closures: '/submissions?stage=closed',
+};
+
 export const ROLE_COPY = {
   admin: {
     subtitle: 'Company-wide leads, jobs, pipeline, and aging alerts.',
@@ -57,24 +74,28 @@ export function statsForRole(role, summary) {
         value: summary.leads_active ?? 0,
         hint: stuckLeads ? `${stuckLeads} stuck 7d+` : 'In lead stage',
         description: 'Your owned accounts currently in the "lead" stage (not yet in a scheduled meeting).',
+        href: KPI_LINKS.leadsActive,
       },
       {
         label: 'In meeting',
         value: summary.leads_in_meeting ?? 0,
         hint: 'Meeting scheduled',
         description: 'Your owned accounts with a meeting scheduled or rescheduled.',
+        href: KPI_LINKS.leadsInMeeting,
       },
       {
         label: 'Active clients',
         value: summary.clients_active ?? 0,
         hint: 'Stage = active',
         description: 'Your owned client accounts currently at stage = active, as of right now.',
+        href: KPI_LINKS.clientsActive,
       },
       {
         label: 'Active vendors',
         value: summary.vendors_active ?? 0,
         hint: 'Stage = active',
         description: 'Your owned vendor accounts currently at stage = active, as of right now.',
+        href: KPI_LINKS.vendorsActive,
       },
     ]);
   }
@@ -86,36 +107,42 @@ export function statsForRole(role, summary) {
         value: summary.requirements_open ?? 0,
         hint: stuckReqs ? `${stuckReqs} stuck 7d+` : 'Currently open',
         description: 'Requirements you own with status = open right now.',
+        href: KPI_LINKS.requirementsOpen,
       },
       {
         label: 'In progress',
         value: summary.requirements_in_progress ?? 0,
         hint: 'Being worked',
         description: 'Requirements you own with status = in_progress right now.',
+        href: KPI_LINKS.requirementsInProgress,
       },
       {
         label: 'Active submissions',
         value: summary.submissions_active ?? 0,
         hint: 'In pipeline',
         description: 'Submissions against your requirements not yet closed, rejected, or backed out.',
+        href: KPI_LINKS.submissionsActive,
       },
       {
         label: 'Interviews this week',
         value: summary.interviews_scheduled_this_week ?? 0,
         hint: 'Scheduled this week',
         description: 'Interview rounds on your requirements completed or scheduled since the start of this week.',
+        href: KPI_LINKS.interviewsThisWeek,
       },
       {
         label: 'Closed this month',
         value: summary.requirements_closed_this_month ?? 0,
         hint: 'Requirements closed',
         description: 'Your requirements whose status became closed since the start of this month.',
+        href: KPI_LINKS.requirementsClosed,
       },
       {
         label: 'Closures this month',
         value: summary.closures_this_month ?? 0,
         hint: 'Joins / seat closures',
         description: 'Submissions on your requirements with an actual joining date this month.',
+        href: KPI_LINKS.closures,
       },
     ]);
   }
@@ -127,30 +154,35 @@ export function statsForRole(role, summary) {
         value: summary.requirements_open ?? 0,
         hint: stuckReqs ? `${stuckReqs} stuck 7d+` : 'Assigned to you',
         description: 'Requirements assigned to you with status = open right now.',
+        href: KPI_LINKS.requirementsOpen,
       },
       {
         label: 'In progress',
         value: summary.requirements_in_progress ?? 0,
         hint: 'Assigned to you',
         description: 'Requirements assigned to you with status = in_progress right now.',
+        href: KPI_LINKS.requirementsInProgress,
       },
       {
         label: 'Active submissions',
         value: summary.submissions_active ?? 0,
         hint: 'Your pipeline',
         description: 'Submissions you made that are not yet closed, rejected, or backed out.',
+        href: KPI_LINKS.submissionsActive,
       },
       {
         label: 'Interviews this week',
         value: summary.interviews_scheduled_this_week ?? 0,
         hint: 'Scheduled this week',
         description: 'Interview rounds on your submissions completed or scheduled since the start of this week.',
+        href: KPI_LINKS.interviewsThisWeek,
       },
       {
         label: 'Closures this month',
         value: summary.closures_this_month ?? 0,
         hint: 'Joins this month',
         description: 'Your submissions with an actual joining date this month.',
+        href: KPI_LINKS.closures,
       },
     ]);
   }
@@ -163,6 +195,7 @@ export function statsForRole(role, summary) {
       description: 'All client accounts company-wide currently in the "lead" stage.',
       icon: Target,
       theme: 'blue',
+      href: KPI_LINKS.leadsActive,
     },
     {
       label: 'Open requirements',
@@ -171,6 +204,7 @@ export function statsForRole(role, summary) {
       description: 'All requirements company-wide with status = open right now.',
       icon: Briefcase,
       theme: 'green',
+      href: KPI_LINKS.requirementsOpen,
     },
     {
       label: 'Active submissions',
@@ -179,6 +213,7 @@ export function statsForRole(role, summary) {
       description: 'All submissions company-wide not yet closed, rejected, or backed out.',
       icon: Send,
       theme: 'purple',
+      href: KPI_LINKS.submissionsActive,
     },
     {
       label: 'Interviews this week',
@@ -187,6 +222,7 @@ export function statsForRole(role, summary) {
       description: 'Interview rounds completed or scheduled since the start of this week, company-wide.',
       icon: Calendar,
       theme: 'orange',
+      href: KPI_LINKS.interviewsThisWeek,
     },
     {
       label: 'Closures this month',
@@ -195,6 +231,7 @@ export function statsForRole(role, summary) {
       description: 'All submissions company-wide with an actual joining date this month.',
       icon: TrendingUp,
       theme: 'red',
+      href: KPI_LINKS.closures,
     },
     {
       label: 'Active clients',
@@ -203,6 +240,7 @@ export function statsForRole(role, summary) {
       description: 'All client accounts company-wide currently at stage = active, as of right now.',
       icon: Building2,
       theme: 'cyan',
+      href: KPI_LINKS.clientsActive,
     },
   ]);
 }

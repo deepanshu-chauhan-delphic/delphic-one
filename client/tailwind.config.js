@@ -77,6 +77,7 @@ export default {
       boxShadow: {
         soft: '0 1px 2px 0 rgb(15 23 42 / 0.04)',
         card: '0 1px 2px 0 rgb(15 23 42 / 0.05), 0 8px 24px -6px rgb(79 70 229 / 0.08)',
+        cardHover: '0 2px 4px 0 rgb(15 23 42 / 0.06), 0 12px 32px -6px rgb(79 70 229 / 0.16)',
         drawer: '0 0 40px -8px rgb(15 23 42 / 0.18)',
       },
       transitionTimingFunction: {
