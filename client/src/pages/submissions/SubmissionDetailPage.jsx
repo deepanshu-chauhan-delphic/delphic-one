@@ -8,6 +8,8 @@ import Modal from '../../components/ui/Modal.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import Tooltip from '../../components/ui/Tooltip.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
+import ClosureStepsBreakdown from '../../components/ui/ClosureStepsBreakdown.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
@@ -258,7 +260,12 @@ export default function SubmissionDetailPage() {
             {submission.seat?.seat_label ? ` · ${submission.seat.seat_label}` : ''}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col items-center">
+            <ProgressRing percent={submission.progress?.percent ?? null} size="md" />
+            <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-tertiary-400">Closure %</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm">
           {submission.requirement?.id && (
             <>
               <Link to={`/requirements/${submission.requirement.id}`} className="btn-secondary">
@@ -272,6 +279,7 @@ export default function SubmissionDetailPage() {
           {user?.role === 'admin' && submission.is_locked && (
             <UnlockButton entityType="submission" entityId={submission.id} onUnlocked={load} />
           )}
+          </div>
         </div>
       </div>
 
@@ -331,6 +339,23 @@ export default function SubmissionDetailPage() {
           <p className="mt-2 text-xs text-tertiary-400">Closing requires BGV status cleared.</p>
         )}
       </section>
+
+      {submission.progress && (
+        <section className="rounded-lg border bg-white p-4">
+          <div className="flex items-center gap-3">
+            <ProgressRing percent={submission.progress.percent} size="md" />
+            <div>
+              <h2 className="text-sm font-semibold text-tertiary-800">Closure probability — {submission.progress.percent}%</h2>
+              <p className="text-xs text-tertiary-500">
+                {submission.progress.completed} of {submission.progress.total} pipeline steps complete.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3">
+            <ClosureStepsBreakdown steps={submission.progress.steps} />
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border bg-white p-4">

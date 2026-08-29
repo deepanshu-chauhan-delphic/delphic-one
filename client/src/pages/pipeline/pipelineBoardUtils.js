@@ -34,13 +34,11 @@ export function groupByStage(rows, columns, stageField = 'stage') {
  *   role: User role string.
  *
  * Returns:
- *   "lead" | "jobs" | "candidates"
+ *   "matrix" | "lead" | "jobs" | "candidates"
  */
 export function defaultPipelineView(role) {
-  if (role === 'bda') return 'lead';
-  if (role === 'sales') return 'jobs';
-  if (role === 'recruiter') return 'candidates';
-  return 'lead';
+  if (role === 'bda' || role === 'sales' || role === 'recruiter' || role === 'admin') return 'matrix';
+  return 'matrix';
 }
 
 /**

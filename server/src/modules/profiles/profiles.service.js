@@ -1,6 +1,7 @@
 const prisma = require('../../config/db');
+const { computeClosureDetail } = require('../../utils/closureProgress');
 
-function serialize(row, submissionCounts) {
+function serialize(row, submissionCounts, progress) {
   if (!row) return null;
   const { vendor_account_id, vendor_account, added_by, added_by_user, ...rest } = row;
 
@@ -10,17 +11,30 @@ function serialize(row, submissionCounts) {
     added_by: added_by_user,
     total_submissions_count: submissionCounts?.total ?? 0,
     active_submissions_count: submissionCounts?.active ?? 0,
+    progress: progress ?? null,
   };
 }
 
 async function decorateOne(row) {
   if (!row) return null;
-  const counts = await prisma.submission.groupBy({ by: ['stage'], where: { profile_id: row.id }, _count: { id: true } });
+  const [counts, activeSubmissions] = await Promise.all([
+    prisma.submission.groupBy({ by: ['stage'], where: { profile_id: row.id }, _count: { id: true } }),
+    prisma.submission.findMany({
+      where: { profile_id: row.id, stage: { notIn: ['rejected', 'backout'] } },
+      select: { stage: true, interview_rounds: { select: { result: true } } },
+    }),
+  ]);
   const total = counts.reduce((sum, c) => sum + c._count.id, 0);
   const active = counts
     .filter((c) => !['rejected', 'backout', 'closed'].includes(c.stage))
     .reduce((sum, c) => sum + c._count.id, 0);
-  return serialize(row, { total, active });
+
+  const progress = activeSubmissions
+    .map((s) => computeClosureDetail(s.stage, s.interview_rounds))
+    .filter(Boolean)
+    .sort((a, b) => b.percent - a.percent)[0] || null;
+
+  return serialize(row, { total, active }, progress);
 }
 
 const INCLUDE = {

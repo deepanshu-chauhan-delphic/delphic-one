@@ -115,10 +115,10 @@ flowchart TB
 | **Accounts** | Client/vendor leads, stage machine, BDA ownership, lock on drop |
 | **Requirements & seats** | Jobs, seats, assign/unassign history, seat stages |
 | **Profiles** | Candidates, skills, CTC, resume upload |
-| **Submissions** | Put forward, pipeline stages, margin, kanban |
+| **Submissions** | Put forward, pipeline stages, margin, kanban, **closure progress %** |
 | **Interviews** | Internal + client rounds, feedback, rating |
 | **Collaboration** | Comments, documents, stage history |
-| **Ops & insights** | Role dashboard, stuck lists, reports, Excel/PDF export |
+| **Ops & insights** | Role dashboard, stuck lists, reports, Excel/PDF export, **requirement × stage matrix board** |
 
 ### 3.2 Entity happy path
 
@@ -266,6 +266,7 @@ Usually derived from the furthest-advanced active submission; can be overridden.
 | Requirements + seats | View | Own | Assigned | Full |
 | Assign recruiters | — | Yes | — | Yes |
 | Profiles + submissions | View | View | CRUD | Full |
+| Requirement map board | — | Own reqs | Assigned | Full |
 | Unlock locked records | — | — | — | Yes |
 | Reports scope | Own leads | Own reqs | Own subs | Org-wide |
 

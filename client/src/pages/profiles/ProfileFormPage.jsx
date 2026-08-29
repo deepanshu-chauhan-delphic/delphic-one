@@ -146,8 +146,33 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             <Field label="Phone">
               <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} className={INPUT_CLASS} />
             </Field>
+            <Field label="Date of birth">
+              <input type="date" value={form.date_of_birth} onChange={(e) => updateField('date_of_birth', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Gender">
+              <select value={form.gender} onChange={(e) => updateField('gender', e.target.value)} className={INPUT_CLASS}>
+                <option value="">Not specified</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </Field>
             <Field label="Current location">
               <input value={form.current_location} onChange={(e) => updateField('current_location', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Willing to relocate">
+              <label className="mt-1.5 flex items-center gap-2 text-sm text-tertiary-700">
+                <input
+                  type="checkbox"
+                  checked={form.willing_to_relocate}
+                  onChange={(e) => updateField('willing_to_relocate', e.target.checked)}
+                />
+                Yes
+              </label>
+            </Field>
+            <Field label="Preferred locations (comma separated)">
+              <input value={form.preferred_locations} onChange={(e) => updateField('preferred_locations', e.target.value)} className={INPUT_CLASS} />
             </Field>
           </div>
         </section>
@@ -166,6 +191,9 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             <Field label="Total experience (years)" required>
               <input required type="number" min="0" step="0.1" value={form.total_experience_years} onChange={(e) => updateField('total_experience_years', e.target.value)} className={INPUT_CLASS} />
             </Field>
+            <Field label="Relevant experience (years)">
+              <input type="number" min="0" step="0.1" value={form.relevant_experience_years} onChange={(e) => updateField('relevant_experience_years', e.target.value)} className={INPUT_CLASS} />
+            </Field>
             <div className={asPanel ? '' : 'sm:col-span-2'}>
               <Field label="Primary skills" required>
                 <SkillPicker value={form.primary_skills} onChange={(next) => updateField('primary_skills', next)} />
@@ -176,6 +204,28 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
                 <SkillPicker value={form.secondary_skills} onChange={(next) => updateField('secondary_skills', next)} />
               </Field>
             </div>
+            <Field label="Certifications (comma separated)">
+              <input value={form.certifications} onChange={(e) => updateField('certifications', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Domain experience (comma separated)">
+              <input value={form.domain_experience} onChange={(e) => updateField('domain_experience', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+          </div>
+        </section>
+
+        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-amber-100 bg-amber-50/30' : 'bg-white'}`}>
+          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-amber-100 text-amber-900' : 'text-tertiary-800'}`}>
+            Compensation & availability
+          </h2>
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+            <Field label="Current CTC">
+              <input type="number" min="0" value={form.current_ctc} onChange={(e) => updateField('current_ctc', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Current CTC currency">
+              <select value={form.current_ctc_currency} onChange={(e) => updateField('current_ctc_currency', e.target.value)} className={INPUT_CLASS}>
+                {CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
+              </select>
+            </Field>
             <Field label="Expected CTC">
               <input type="number" min="0" value={form.expected_ctc} onChange={(e) => updateField('expected_ctc', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -183,6 +233,71 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
               <select value={form.expected_ctc_currency} onChange={(e) => updateField('expected_ctc_currency', e.target.value)} className={INPUT_CLASS}>
                 {CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
               </select>
+            </Field>
+            <Field label="CTC negotiable">
+              <label className="mt-1.5 flex items-center gap-2 text-sm text-tertiary-700">
+                <input
+                  type="checkbox"
+                  checked={form.ctc_negotiable}
+                  onChange={(e) => updateField('ctc_negotiable', e.target.checked)}
+                />
+                Yes
+              </label>
+            </Field>
+            <Field label="Notice period (days)">
+              <input type="number" min="0" value={form.notice_period_days} onChange={(e) => updateField('notice_period_days', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Currently serving notice">
+              <label className="mt-1.5 flex items-center gap-2 text-sm text-tertiary-700">
+                <input
+                  type="checkbox"
+                  checked={form.is_serving_notice}
+                  onChange={(e) => updateField('is_serving_notice', e.target.checked)}
+                />
+                Yes
+              </label>
+            </Field>
+            <Field label="Preferred work mode">
+              <select value={form.preferred_work_mode} onChange={(e) => updateField('preferred_work_mode', e.target.value)} className={INPUT_CLASS}>
+                <option value="">Not specified</option>
+                <option value="remote">Remote</option>
+                <option value="onsite">Onsite</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </Field>
+            <Field label="Last working day">
+              <input type="date" value={form.last_working_day} onChange={(e) => updateField('last_working_day', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Earliest join date">
+              <input type="date" value={form.earliest_join_date} onChange={(e) => updateField('earliest_join_date', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <Field label="CTC notes">
+                <textarea rows={2} value={form.ctc_notes} onChange={(e) => updateField('ctc_notes', e.target.value)} className={INPUT_CLASS} />
+              </Field>
+            </div>
+          </div>
+        </section>
+
+        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-emerald-100 bg-emerald-50/30' : 'bg-white'}`}>
+          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-emerald-100 text-emerald-900' : 'text-tertiary-800'}`}>
+            Education & links
+          </h2>
+          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+            <Field label="Degree">
+              <input value={form.education_degree} onChange={(e) => updateField('education_degree', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Institution">
+              <input value={form.education_institution} onChange={(e) => updateField('education_institution', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Year">
+              <input type="number" min="1950" value={form.education_year} onChange={(e) => updateField('education_year', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="LinkedIn URL">
+              <input type="url" value={form.linkedin_url} onChange={(e) => updateField('linkedin_url', e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Portfolio URL">
+              <input type="url" value={form.portfolio_url} onChange={(e) => updateField('portfolio_url', e.target.value)} className={INPUT_CLASS} />
             </Field>
           </div>
         </section>
@@ -200,14 +315,19 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
               </select>
             </Field>
             {form.source === 'vendor' && (
-              <Field label="Vendor account" required>
-                <select required value={form.vendor_account_id} onChange={(e) => updateField('vendor_account_id', e.target.value)} className={INPUT_CLASS}>
-                  <option value="">Select vendor</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                  ))}
-                </select>
-              </Field>
+              <>
+                <Field label="Vendor account" required>
+                  <select required value={form.vendor_account_id} onChange={(e) => updateField('vendor_account_id', e.target.value)} className={INPUT_CLASS}>
+                    <option value="">Select vendor</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Vendor's own profile ID">
+                  <input value={form.vendor_profile_id} onChange={(e) => updateField('vendor_profile_id', e.target.value)} className={INPUT_CLASS} />
+                </Field>
+              </>
             )}
             {form.source === 'direct' && (
               <Field label="On bench">

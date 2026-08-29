@@ -126,7 +126,7 @@ function canTransition(from, to) {
   return (TRANSITIONS[from] || []).includes(to);
 }
 
-async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, meeting_location, meeting_attendee_ids }, user) {
+async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, meeting_location, meeting_notes, meeting_attendee_ids }, user) {
   return prisma.$transaction(async (tx) => {
     const account = await tx.account.findUnique({ where: { id } });
     if (!account) return { error: 'not_found' };
@@ -146,6 +146,7 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, m
       patch.meeting_mode = meeting_mode;
       patch.meeting_date = new Date(meeting_date);
       patch.meeting_location = meeting_mode === 'offline' ? meeting_location : null;
+      if (meeting_notes !== undefined) patch.meeting_notes = meeting_notes || null;
     }
     if (to_stage === 'dropped') patch.is_locked = true;
 

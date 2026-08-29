@@ -123,6 +123,10 @@ export default function ReportsPage() {
   const [groupBy, setGroupBy] = useState('month');
   const [departmentId, setDepartmentId] = useState('');
   const [individualId, setIndividualId] = useState('');
+  const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
+  const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
+  const [explorerSearch, setExplorerSearch] = useState('');
+  const [explorerStatus, setExplorerStatus] = useState('');
   const [departments, setDepartments] = useState([]);
   const [individuals, setIndividuals] = useState([]);
   const [payload, setPayload] = useState(null);
@@ -135,6 +139,7 @@ export default function ReportsPage() {
   const showDept = can('filterByDepartment');
   const showIndividual =
     can('filterByIndividual') && ['recruiter-performance', 'sales-performance', 'bda-performance'].includes(active);
+  const isExplorer = active === 'pipeline-explorer';
 
   useEffect(() => {
     if (!available.some((r) => r.key === active) && available[0]) {
@@ -177,6 +182,15 @@ export default function ReportsPage() {
     const params = {};
     if (active === 'aging') {
       params.threshold_days = thresholdDays || 7;
+    } else if (isExplorer) {
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (explorerSearch.trim()) params.search = explorerSearch.trim();
+      if (explorerStatus) params.requirement_status = explorerStatus;
+      if (explorerStuckOnly) params.stuck_only = 'true';
+      if (explorerPastSlaOnly) params.past_sla_only = 'true';
+      params.threshold_days = thresholdDays || 7;
+      params.limit = 100;
     } else {
       params.date_from = dateFrom;
       params.date_to = dateTo;
@@ -206,7 +220,20 @@ export default function ReportsPage() {
   useEffect(() => {
     if (available.length) runReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role, active, dateFrom, dateTo, departmentId, individualId, thresholdDays, groupBy]);
+  }, [
+    user?.role,
+    active,
+    dateFrom,
+    dateTo,
+    departmentId,
+    individualId,
+    thresholdDays,
+    groupBy,
+    explorerStuckOnly,
+    explorerPastSlaOnly,
+    explorerStatus,
+    explorerSearch,
+  ]);
 
   async function exportReport(type) {
     setExportError('');
@@ -247,6 +274,7 @@ export default function ReportsPage() {
   const aging = active === 'aging' ? agingSections(payload) : [];
 
   const drawerTitle =
+    drawerRow?.requirement?.title ||
     drawerRow?.recruiter?.name ||
     drawerRow?.sales_person?.name ||
     drawerRow?.vendor?.name ||
@@ -314,7 +342,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept}
+        showDepartment={showDept && !isExplorer}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -334,6 +362,55 @@ export default function ReportsPage() {
               className="w-20 rounded-xl border px-2 py-1.5 text-sm"
             />
           </label>
+        )}
+        {isExplorer && (
+          <>
+            <input
+              value={explorerSearch}
+              onChange={(e) => setExplorerSearch(e.target.value)}
+              placeholder="Search requirement or client…"
+              className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
+            />
+            <select
+              value={explorerStatus}
+              onChange={(e) => setExplorerStatus(e.target.value)}
+              className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
+              aria-label="Requirement status"
+            >
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="on_hold">On hold</option>
+              <option value="closed">Closed</option>
+              <option value="dropped">Dropped</option>
+            </select>
+            <label className="flex items-center gap-2 text-xs text-tertiary-500">
+              <input
+                type="checkbox"
+                checked={explorerStuckOnly}
+                onChange={(e) => setExplorerStuckOnly(e.target.checked)}
+              />
+              Stuck only
+            </label>
+            <label className="flex items-center gap-2 text-xs text-tertiary-500">
+              <input
+                type="checkbox"
+                checked={explorerPastSlaOnly}
+                onChange={(e) => setExplorerPastSlaOnly(e.target.checked)}
+              />
+              Past SLA only
+            </label>
+            <label className="flex items-center gap-2 text-xs text-tertiary-500">
+              Threshold days
+              <input
+                type="number"
+                min="1"
+                value={thresholdDays}
+                onChange={(e) => setThresholdDays(e.target.value)}
+                className="w-20 rounded-xl border px-2 py-1.5 text-sm"
+              />
+            </label>
+          </>
         )}
         {active === 'closure' && (
           <select

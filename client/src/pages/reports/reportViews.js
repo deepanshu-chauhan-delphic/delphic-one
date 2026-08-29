@@ -5,6 +5,7 @@ import { rangeForPreset } from '../../lib/datePresets.js';
  */
 
 export const ALL_REPORTS = [
+  { key: 'pipeline-explorer', label: 'Pipeline explorer', roles: ['admin', 'sales', 'recruiter', 'bda'] },
   { key: 'bda-performance', label: 'BDA performance', roles: ['admin'] },
   { key: 'sales-performance', label: 'Sales performance', roles: ['admin'] },
   { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
@@ -34,6 +35,30 @@ export function personName(row, key) {
 }
 
 export function columnsForReport(reportKey) {
+  if (reportKey === 'pipeline-explorer') {
+    return [
+      { key: 'client', header: 'Client', render: (r) => r.client?.name || '—' },
+      { key: 'bda', header: 'BDA', render: (r) => r.bda?.name || '—' },
+      { key: 'requirement', header: 'Requirement', render: (r) => r.requirement?.title || '—' },
+      { key: 'status', header: 'Status', render: (r) => r.requirement?.status || '—' },
+      { key: 'sales', header: 'Sales', render: (r) => r.sales_owner?.name || '—' },
+      {
+        key: 'recruiters',
+        header: 'Recruiters',
+        render: (r) => (r.recruiters || []).map((person) => person.name).join(', ') || '—',
+      },
+      { key: 'subs', header: 'Subs', render: (r) => r.submissions?.total ?? 0 },
+      { key: 'active', header: 'Active', render: (r) => r.submissions?.active ?? 0 },
+      { key: 'closed', header: 'Closed', render: (r) => r.submissions?.closed ?? 0 },
+      { key: 'days_open', header: 'Days open', render: (r) => cell(r.aging?.days_open) },
+      { key: 'stuck', header: 'Stuck', render: (r) => (r.aging?.is_stuck ? 'Yes' : 'No') },
+      {
+        key: 'sla',
+        header: 'SLA overdue',
+        render: (r) => (r.aging?.sla_overdue_by_days > 0 ? r.aging.sla_overdue_by_days : '—'),
+      },
+    ];
+  }
   if (reportKey === 'bda-performance') {
     return [
       { key: 'name', header: 'BDA', render: (r) => personName(r, 'bda') },
@@ -121,6 +146,13 @@ export function columnsForReport(reportKey) {
 export function tableRowsForReport(reportKey, data) {
   if (!data) return [];
   if (reportKey === 'aging') return [];
+  if (reportKey === 'pipeline-explorer') {
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    return rows.map((row, index) => ({
+      id: row.id || `explorer-${index}`,
+      ...row,
+    }));
+  }
   if (!Array.isArray(data)) return [];
   return data.map((row, index) => ({
     id: row.recruiter?.id || row.sales_person?.id || row.bda?.id || row.vendor?.id || row.client?.id || row.group_label || String(index),
@@ -137,7 +169,8 @@ export function agingSections(data) {
       columns: [
         { key: 'name', header: 'Account', render: (r) => r.account?.name },
         { key: 'stage', header: 'Stage', render: (r) => r.account?.stage },
-        { key: 'owner', header: 'Owner', render: (r) => r.owner?.name },
+        { key: 'owner', header: 'BDA', render: (r) => r.owner?.name || r.bda?.name },
+        { key: 'requirements_count', header: 'Reqs' },
         { key: 'days_in_stage', header: 'Days in stage' },
       ],
       rows: (data.stuck_leads || []).map((r, i) => ({ id: r.account?.id || `lead-${i}`, ...r })),
@@ -147,9 +180,17 @@ export function agingSections(data) {
       title: 'Stuck requirements',
       columns: [
         { key: 'title', header: 'Requirement', render: (r) => r.requirement?.title },
+        { key: 'client', header: 'Client', render: (r) => r.client?.name },
+        { key: 'bda', header: 'BDA', render: (r) => r.bda?.name },
         { key: 'status', header: 'Status', render: (r) => r.requirement?.status },
         { key: 'owner', header: 'Sales', render: (r) => r.sales_owner?.name },
+        {
+          key: 'recruiters',
+          header: 'Recruiters',
+          render: (r) => (r.recruiters || []).map((person) => person.name).join(', ') || '—',
+        },
         { key: 'days_open', header: 'Days open' },
+        { key: 'days_since_last_activity', header: 'Days idle' },
         { key: 'submissions_count', header: 'Subs' },
       ],
       rows: (data.stuck_requirements || []).map((r, i) => ({ id: r.requirement?.id || `req-${i}`, ...r })),
@@ -160,6 +201,9 @@ export function agingSections(data) {
       columns: [
         { key: 'profile', header: 'Candidate', render: (r) => r.profile?.name },
         { key: 'requirement', header: 'Job', render: (r) => r.requirement?.title },
+        { key: 'client', header: 'Client', render: (r) => r.client?.name },
+        { key: 'bda', header: 'BDA', render: (r) => r.bda?.name },
+        { key: 'sales', header: 'Sales', render: (r) => r.sales_owner?.name },
         { key: 'stage', header: 'Stage', render: (r) => r.submission?.stage },
         { key: 'recruiter', header: 'Recruiter', render: (r) => r.recruiter?.name },
         { key: 'days_in_current_stage', header: 'Days in stage' },
@@ -171,6 +215,14 @@ export function agingSections(data) {
       title: 'Past SLA',
       columns: [
         { key: 'title', header: 'Requirement', render: (r) => r.requirement?.title },
+        { key: 'client', header: 'Client', render: (r) => r.client?.name },
+        { key: 'bda', header: 'BDA', render: (r) => r.bda?.name },
+        { key: 'sales', header: 'Sales', render: (r) => r.sales_owner?.name },
+        {
+          key: 'recruiters',
+          header: 'Recruiters',
+          render: (r) => (r.recruiters || []).map((person) => person.name).join(', ') || '—',
+        },
         { key: 'sla_days', header: 'SLA days', render: (r) => r.requirement?.sla_days },
         { key: 'days_open', header: 'Days open' },
         { key: 'overdue_by_days', header: 'Overdue by' },
@@ -181,6 +233,15 @@ export function agingSections(data) {
 }
 
 export function chartDataForReport(reportKey, data) {
+  if (reportKey === 'pipeline-explorer' && data && Array.isArray(data.rows)) {
+    const stuck = data.rows.filter((row) => row.aging?.is_stuck).length;
+    const sla = data.rows.filter((row) => row.aging?.sla_overdue_by_days > 0).length;
+    return [
+      { label: 'Rows', value: data.rows.length },
+      { label: 'Stuck', value: stuck },
+      { label: 'Past SLA', value: sla },
+    ];
+  }
   if (reportKey === 'aging' && data && typeof data === 'object') {
     return [
       { label: 'Stuck leads', value: (data.stuck_leads || []).length },
@@ -247,13 +308,15 @@ export function chartDataForReport(reportKey, data) {
 }
 
 export function chartTypeForReport(reportKey) {
-  if (reportKey === 'aging') return 'pie';
+  if (reportKey === 'aging' || reportKey === 'pipeline-explorer') return 'pie';
   if (reportKey === 'closure') return 'line';
   return 'bar';
 }
 
 export function chartBarsForReport(reportKey) {
-  if (reportKey === 'aging') return [{ dataKey: 'value', name: 'Count', fill: '#3763f4' }];
+  if (reportKey === 'aging' || reportKey === 'pipeline-explorer') {
+    return [{ dataKey: 'value', name: 'Count', fill: '#3763f4' }];
+  }
   if (reportKey === 'bda-performance') {
     return [
       { dataKey: 'leads', name: 'Leads', fill: '#3763f4' },

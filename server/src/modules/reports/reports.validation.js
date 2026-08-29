@@ -26,4 +26,30 @@ const closureSchema = dateRangeSchema.extend({
   group_by: z.enum(['month', 'quarter', 'client', 'recruiter']).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema };
+const boolFlag = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => v === 'true');
+
+const explorerSchema = z.object({
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
+  grain: z.enum(['requirement', 'submission']).optional(),
+  account_id: optionalUuid,
+  bda_id: optionalUuid,
+  sales_id: optionalUuid,
+  recruiter_id: optionalUuid,
+  vendor_id: optionalUuid,
+  department_id: optionalUuid,
+  search: z.string().optional(),
+  requirement_status: z.string().optional(),
+  submission_stage: z.string().optional(),
+  priority: z.string().optional(),
+  stuck_only: boolFlag,
+  past_sla_only: boolFlag,
+  threshold_days: z.coerce.number().int().min(1).max(365).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema };

@@ -518,33 +518,70 @@ async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
       updated_at: { lte: cutoff },
       ...ownerDept,
     },
-    include: { owner: { select: { id: true, name: true } } },
+    include: {
+      owner: { select: { id: true, name: true } },
+      requirements: { select: { id: true } },
+    },
   });
 
   const stuckReqsRaw = await prisma.requirement.findMany({
     where: { status: { in: ['open', 'in_progress'] }, created_at: { lte: cutoff }, ...salesDept },
-    include: { sales_owner: { select: { id: true, name: true } }, seats: true },
+    include: {
+      sales_owner: { select: { id: true, name: true } },
+      account: {
+        select: {
+          id: true,
+          name: true,
+          owner: { select: { id: true, name: true } },
+        },
+      },
+      seats: { select: { id: true } },
+      assignments: {
+        where: { role_on_req: 'recruiter', unassigned_at: null },
+        include: { user: { select: { id: true, name: true } } },
+      },
+    },
   });
 
-  const stuckReqs = await Promise.all(
-    stuckReqsRaw.map(async (r) => {
-      const seatIds = r.seats.map((s) => s.id);
-      const submissions_count = seatIds.length
-        ? await prisma.submission.count({ where: { requirement_seat_id: { in: seatIds } } })
-        : 0;
-      const lastSubmission = seatIds.length
-        ? await prisma.submission.findFirst({ where: { requirement_seat_id: { in: seatIds } }, orderBy: { created_at: 'desc' } })
-        : null;
+  const allSeatIds = stuckReqsRaw.flatMap((r) => r.seats.map((s) => s.id));
+  const submissionAgg = allSeatIds.length
+    ? await prisma.submission.groupBy({
+        by: ['requirement_seat_id'],
+        where: { requirement_seat_id: { in: allSeatIds } },
+        _count: { _all: true },
+        _max: { created_at: true, updated_at: true },
+      })
+    : [];
+  const seatAggById = new Map(submissionAgg.map((row) => [row.requirement_seat_id, row]));
 
-      return {
-        requirement: { id: r.id, title: r.title, status: r.status, priority: r.priority },
-        sales_owner: r.sales_owner,
-        days_open: Math.floor((Date.now() - new Date(r.created_at)) / 86400000),
-        submissions_count,
-        last_submission_date: lastSubmission ? lastSubmission.created_at : null,
-      };
-    })
-  );
+  const stuckReqs = stuckReqsRaw.map((r) => {
+    const seatStats = r.seats.map((seat) => seatAggById.get(seat.id)).filter(Boolean);
+    const submissions_count = seatStats.reduce((sum, row) => sum + row._count._all, 0);
+    const last_submission_date = seatStats.reduce((latest, row) => {
+      const stamp = row._max.created_at;
+      if (!stamp) return latest;
+      if (!latest) return stamp;
+      return new Date(stamp) > new Date(latest) ? stamp : latest;
+    }, null);
+    const lastActivity = last_submission_date || r.updated_at || r.created_at;
+    return {
+      requirement: {
+        id: r.id,
+        title: r.title,
+        status: r.status,
+        priority: r.priority,
+        sla_days: r.sla_days,
+      },
+      client: r.account ? { id: r.account.id, name: r.account.name } : null,
+      bda: r.account?.owner ? { id: r.account.owner.id, name: r.account.owner.name } : null,
+      sales_owner: r.sales_owner,
+      recruiters: r.assignments.map((a) => ({ id: a.user.id, name: a.user.name })),
+      days_open: Math.floor((Date.now() - new Date(r.created_at)) / 86400000),
+      days_since_last_activity: Math.floor((Date.now() - new Date(lastActivity)) / 86400000),
+      submissions_count,
+      last_submission_date,
+    };
+  });
 
   const stuckSubmissionsRaw = await prisma.submission.findMany({
     where: {
@@ -554,7 +591,24 @@ async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
     },
     include: {
       profile: { select: { id: true, name: true } },
-      seat: { include: { requirement: { select: { id: true, title: true } } } },
+      seat: {
+        include: {
+          requirement: {
+            select: {
+              id: true,
+              title: true,
+              sales_owner: { select: { id: true, name: true } },
+              account: {
+                select: {
+                  id: true,
+                  name: true,
+                  owner: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
       submitted_by_user: { select: { id: true, name: true } },
     },
   });
@@ -565,12 +619,28 @@ async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
       status: { in: ['open', 'in_progress'] },
       ...salesDept,
     },
+    include: {
+      sales_owner: { select: { id: true, name: true } },
+      account: {
+        select: {
+          id: true,
+          name: true,
+          owner: { select: { id: true, name: true } },
+        },
+      },
+      assignments: {
+        where: { role_on_req: 'recruiter', unassigned_at: null },
+        include: { user: { select: { id: true, name: true } } },
+      },
+    },
   });
 
   return {
     stuck_leads: stuckLeadsRaw.map((l) => ({
       account: { id: l.id, name: l.name, stage: l.stage },
       owner: l.owner,
+      bda: l.owner,
+      requirements_count: l.requirements.length,
       days_in_stage: Math.floor((Date.now() - new Date(l.updated_at)) / 86400000),
       last_activity: l.updated_at,
     })),
@@ -578,14 +648,29 @@ async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
     stuck_submissions: stuckSubmissionsRaw.map((s) => ({
       submission: { id: s.id, stage: s.stage },
       profile: s.profile,
-      requirement: s.seat.requirement,
+      requirement: { id: s.seat.requirement.id, title: s.seat.requirement.title },
+      client: s.seat.requirement.account
+        ? { id: s.seat.requirement.account.id, name: s.seat.requirement.account.name }
+        : null,
+      bda: s.seat.requirement.account?.owner
+        ? { id: s.seat.requirement.account.owner.id, name: s.seat.requirement.account.owner.name }
+        : null,
+      sales_owner: s.seat.requirement.sales_owner,
       recruiter: s.submitted_by_user,
       days_in_current_stage: Math.floor((Date.now() - new Date(s.updated_at)) / 86400000),
     })),
     past_sla_requirements: pastSlaRaw
       .map((r) => {
         const days_open = Math.floor((Date.now() - new Date(r.created_at)) / 86400000);
-        return { requirement: { id: r.id, title: r.title, sla_days: r.sla_days }, days_open, overdue_by_days: days_open - r.sla_days };
+        return {
+          requirement: { id: r.id, title: r.title, sla_days: r.sla_days, priority: r.priority },
+          client: r.account ? { id: r.account.id, name: r.account.name } : null,
+          bda: r.account?.owner ? { id: r.account.owner.id, name: r.account.owner.name } : null,
+          sales_owner: r.sales_owner,
+          recruiters: r.assignments.map((a) => ({ id: a.user.id, name: a.user.name })),
+          days_open,
+          overdue_by_days: days_open - r.sla_days,
+        };
       })
       .filter((r) => r.overdue_by_days > 0),
   };

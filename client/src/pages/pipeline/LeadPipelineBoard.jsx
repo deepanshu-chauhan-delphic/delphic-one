@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
@@ -12,6 +12,7 @@ import { apiErrorMessage, canCreateAccount, canMutateAccount, ACCOUNT_TRANSITION
 import { LEAD_COLUMNS, formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
+import PipelineFilters from './PipelineFilters.jsx';
 
 function needsAccountStageForm(toStage) {
   return toStage === 'meeting_scheduled' || toStage === 'dropped';
@@ -74,9 +75,21 @@ export default function LeadPipelineBoard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
+  const [filterParams, setFilterParams] = useState({});
+  const boardParams = useMemo(
+    () => ({
+      type: 'client',
+      sort_by: 'name',
+      sort_order: 'asc',
+      ...(filterParams.search ? { search: filterParams.search } : {}),
+      ...(filterParams.bda_id ? { owner_id: filterParams.bda_id } : {}),
+    }),
+    [filterParams]
+  );
+  const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
   const { cells, loading, error, reload } = usePipelineBoard({
     path: '/accounts',
-    params: { type: 'client', sort_by: 'name', sort_order: 'asc' },
+    params: boardParams,
     columns: LEAD_COLUMNS,
     stageField: 'stage',
   });
@@ -162,6 +175,8 @@ export default function LeadPipelineBoard() {
           </button>
         )}
       </div>
+
+      <PipelineFilters fields={['search', 'bda_id']} onChange={handleFiltersChange} />
 
       {(error || boardError) && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>

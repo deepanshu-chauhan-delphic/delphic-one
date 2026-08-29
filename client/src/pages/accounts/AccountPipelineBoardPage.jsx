@@ -26,6 +26,7 @@ import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
@@ -89,8 +90,9 @@ function SubmissionCard({ submission, canMove, busy, onMoveStage, isDragging, on
         {submission.seat?.seat_label || 'Seat'}
         {submission.margin != null ? ` · margin ${submission.margin}` : ''}
       </p>
-      <div className="mt-1">
+      <div className="mt-1 flex items-center justify-between gap-2">
         <Badge value={submission.stage} />
+        <ProgressRing percent={submission.progress?.percent ?? null} size="sm" />
       </div>
     </div>
   );

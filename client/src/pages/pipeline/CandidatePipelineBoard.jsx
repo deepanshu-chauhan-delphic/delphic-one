@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   SUBMISSION_PIPELINE,
   canCreateSubmission,
@@ -17,6 +18,7 @@ import SubmissionCreatePage from '../submissions/SubmissionCreatePage.jsx';
 import { formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
+import PipelineFilters from './PipelineFilters.jsx';
 
 const CANDIDATE_COLUMNS = [...SUBMISSION_PIPELINE, 'backout', 'rejected'];
 
@@ -140,8 +142,9 @@ function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenD
         </button>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'submission'}`} />
       </div>
-      <div className="mt-2">
+      <div className="mt-2 flex items-center justify-between gap-2">
         <Badge value={submission.stage} />
+        <ProgressRing percent={submission.progress?.percent ?? null} size="sm" />
       </div>
     </div>
   );
@@ -154,9 +157,22 @@ export default function CandidatePipelineBoard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
+  const [filterParams, setFilterParams] = useState({});
+  const boardParams = useMemo(() => {
+    const params = { sort_by: 'created_at', sort_order: 'desc' };
+    if (filterParams.search) params.search = filterParams.search;
+    if (filterParams.account_id) params.account_id = filterParams.account_id;
+    if (filterParams.recruiter_id) params.submitted_by = filterParams.recruiter_id;
+    if (filterParams.submission_stage) {
+      const stages = String(filterParams.submission_stage).split(',').filter(Boolean);
+      if (stages.length === 1) params.stage = stages[0];
+    }
+    return params;
+  }, [filterParams]);
+  const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
   const { cells, loading, error, reload } = usePipelineBoard({
     path: '/submissions',
-    params: { sort_by: 'created_at', sort_order: 'desc' },
+    params: boardParams,
     columns: CANDIDATE_COLUMNS,
     stageField: 'stage',
   });
@@ -243,6 +259,11 @@ export default function CandidatePipelineBoard() {
           </button>
         )}
       </div>
+
+      <PipelineFilters
+        fields={['search', 'account_id', 'recruiter_id', 'submission_stage']}
+        onChange={handleFiltersChange}
+      />
 
       {(error || boardError) && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>
