@@ -319,7 +319,6 @@ export default function AccountsListPage() {
             onClose={() => setPeek(null)}
             onChanged={reload}
             onRequestStageMove={(account) => {
-              setStageError('');
               setStageTarget(account);
             }}
           />
