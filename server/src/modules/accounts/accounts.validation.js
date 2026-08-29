@@ -32,9 +32,11 @@ const baseFields = {
   vendor_specializations: z.array(z.string()).optional(),
   vendor_rate_range: z.object({ min: z.number(), max: z.number(), currency: z.string() }).optional(),
   vendor_payment_terms: z.string().optional(),
+  vendor_agreement_url: z.string().optional(),
 
   client_billing_currency: z.enum(['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP']).optional(),
   client_payment_terms: z.string().optional(),
+  client_agreement_url: z.string().optional(),
 };
 
 const createSchema = z.object({
@@ -54,6 +56,7 @@ const stageSchema = z.object({
   meeting_mode: z.enum(['online', 'offline']).optional(),
   meeting_date: z.string().datetime().optional(),
   meeting_location: z.string().optional(),
+  meeting_notes: z.string().optional(),
   meeting_attendee_ids: z.array(z.string().uuid()).optional(),
 });
 

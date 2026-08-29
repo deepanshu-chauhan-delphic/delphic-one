@@ -301,6 +301,7 @@ Request:
   meeting_mode: "online" | "offline",  // required if to_stage = "meeting_scheduled"
   meeting_date: datetime,              // required if to_stage = "meeting_scheduled"
   meeting_location: string,            // (v2) required if to_stage = "meeting_scheduled" AND meeting_mode = "offline"
+  meeting_notes: string,               // optional free-text notes for the meeting
   meeting_attendee_ids: uuid[]         // (v2) optional Sales user ids to tag as meeting attendees; replaces the prior set for this account
 }
 
@@ -736,7 +737,8 @@ Response 200:
 
   // Computed
   active_submissions_count: number,
-  total_submissions_count: number
+  total_submissions_count: number,
+  progress: { percent, completed, total, steps } | null   // best (highest %) among non-terminal active submissions; null if none
 }
 ```
 
@@ -928,6 +930,14 @@ Response 200:
 
   // Computed (v2)
   missing_mandatory_rounds: ("internal_r1" | "hr_cto_ceo")[]   // round types not yet present — soft-rule warning only, never blocks a stage move
+
+  // Computed (closure progress)
+  progress: {                         // null when stage is rejected/backout
+    percent: number,                  // 0–100
+    completed: number,
+    total: number,                    // grows with interview-round count (min 2 interview steps)
+    steps: [{ key: string, label: string, status: "done" | "current" | "pending", detail?: string }]
+  } | null
 }
 ```
 
@@ -1575,7 +1585,48 @@ Response 200:
 
 ---
 
-## 13. Dashboard summary (home screen)
+## 13. Pipeline board (requirement × stage matrix)
+
+### GET /pipeline/board
+**Roles:** admin, sales (own requirements), recruiter (assigned requirements only). BDA is not authorized.
+```
+Query params:
+  ?search=string          // matches requirement title or account name (case-insensitive)
+  &stuck_only=true|false  // when true, only requirements past the stuck threshold that are still open/in_progress
+
+Response 200:
+{
+  success: true,
+  data: {
+    requirements: [{
+      id: uuid,
+      title: string,
+      status: string,
+      priority: string,
+      account: { id: uuid, name: string } | null,
+      sales_owner: { id: uuid, name: string } | null,
+      seats_total: number,
+      seats_closed: number,
+      created_at: datetime,
+      is_stuck: boolean
+    }],
+    submissions: [{
+      id: uuid,
+      stage: string,
+      requirement: { id: uuid },
+      profile: { id: uuid, name: string, source: string } | null,
+      submitted_by: { id: uuid, name: string } | null,
+      progress: { percent, completed, total, steps } | null   // same shape as SubmissionObject.progress
+    }]
+  }
+}
+```
+
+UI: `/pipeline?view=matrix` (“Requirement map”) — rows = requirements, columns = submission stages, cards show candidate + closure ProgressRing. Capability: `viewRequirementMatrix`.
+
+---
+
+## 14. Dashboard summary (home screen)
 
 ### GET /dashboard/summary
 **Roles:** all (scoped to user's access)
@@ -1628,7 +1679,7 @@ Response 200:
 
 ---
 
-## 14. Architecture & deployment
+## 15. Architecture & deployment
 
 ```
 Internet → Nginx (SSL via Certbot)
@@ -1642,7 +1693,7 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 
 ---
 
-## 15. Security
+## 16. Security
 
 - JWT (1h access + 7d refresh), bcrypt passwords
 - Role middleware on every route per §4 matrix
@@ -1656,7 +1707,7 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 
 ---
 
-## 16. Detailed 8-day build plan
+## 17. Detailed 8-day build plan
 
 ### Day 1 — Foundation (Aug 21)
 

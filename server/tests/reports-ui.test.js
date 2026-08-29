@@ -70,6 +70,32 @@ describe('RD-114 reports JSON for tables/charts', () => {
     );
   });
 
+  test('aging stuck requirements include client, BDA, sales, and recruiters', async () => {
+    const bda = await createUser({ role: 'bda', email: 'bda-aging@test.local' });
+    const account = await createActiveClientAccount(bda.id);
+    const requirement = await createRequirement(salesToken, account.id, { title: 'Aging Enriched Role' });
+    await prisma.requirement.update({
+      where: { id: requirement.id },
+      data: { created_at: new Date(Date.now() - 10 * 86400000) },
+    });
+    await authed(request(app).post(`/api/v1/requirements/${requirement.id}/assign`), salesToken).send({
+      user_id: (await createUser({ role: 'recruiter', email: 'rec-aging@test.local' })).id,
+      role_on_req: 'recruiter',
+    });
+
+    const res = await authed(request(app).get('/api/v1/reports/aging'), salesToken).query({ threshold_days: 7 });
+    expect(res.status).toBe(200);
+    const row = res.body.data.stuck_requirements.find((r) => r.requirement?.id === requirement.id);
+    expect(row).toEqual(
+      expect.objectContaining({
+        client: expect.objectContaining({ id: account.id }),
+        bda: expect.objectContaining({ id: bda.id }),
+        sales_owner: expect.objectContaining({ id: expect.any(String) }),
+        recruiters: expect.arrayContaining([expect.objectContaining({ id: expect.any(String) })]),
+      })
+    );
+  });
+
   test('admin can open bda-performance and sales-performance', async () => {
     const bda = await createUser({ role: 'bda', email: 'bda-report@test.local' });
     await createActiveClientAccount(bda.id);

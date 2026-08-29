@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   canCreateRequirement,
   canMutateRequirement,
@@ -15,6 +16,7 @@ import RequirementFormPage from '../requirements/RequirementFormPage.jsx';
 import { JOB_COLUMNS, formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
+import PipelineFilters from './PipelineFilters.jsx';
 
 const INPUT_CLASS =
   'mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100';
@@ -171,7 +173,10 @@ function JobCard({
                   >
                     {sub.profile?.name || 'Candidate'}
                   </button>
-                  <Badge value={sub.stage} />
+                  <div className="flex items-center gap-1.5">
+                    <Badge value={sub.stage} />
+                    <ProgressRing percent={sub.progress?.percent ?? null} size="sm" />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -189,9 +194,27 @@ export default function JobPipelineBoard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const sensors = usePipelineSensors();
+  const [filterParams, setFilterParams] = useState({});
+  const boardParams = useMemo(() => {
+    const params = { sort_by: 'created_at', sort_order: 'desc' };
+    if (filterParams.search) params.search = filterParams.search;
+    if (filterParams.account_id) params.account_id = filterParams.account_id;
+    if (filterParams.sales_id) params.sales_owner_id = filterParams.sales_id;
+    if (filterParams.recruiter_id) params.recruiter_id = filterParams.recruiter_id;
+    if (filterParams.status) {
+      const statuses = String(filterParams.status).split(',').filter(Boolean);
+      if (statuses.length === 1) params.status = statuses[0];
+    }
+    if (filterParams.priority) {
+      const priorities = String(filterParams.priority).split(',').filter(Boolean);
+      if (priorities.length === 1) params.priority = priorities[0];
+    }
+    return params;
+  }, [filterParams]);
+  const handleFiltersChange = useCallback((params) => setFilterParams(params), []);
   const { cells, loading, error, reload } = usePipelineBoard({
     path: '/requirements',
-    params: { sort_by: 'created_at', sort_order: 'desc' },
+    params: boardParams,
     columns: JOB_COLUMNS,
     stageField: 'status',
   });
@@ -300,6 +323,11 @@ export default function JobPipelineBoard() {
           </button>
         )}
       </div>
+
+      <PipelineFilters
+        fields={['search', 'account_id', 'sales_id', 'recruiter_id', 'status', 'priority']}
+        onChange={handleFiltersChange}
+      />
 
       {(error || boardError) && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{boardError || error}</div>

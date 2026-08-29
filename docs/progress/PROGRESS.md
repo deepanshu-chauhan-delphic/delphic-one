@@ -2,6 +2,30 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-29 — Closure progress rings + requirement × stage matrix board + form field wiring
+
+Uncommitted work on `main` (local). Complements the role pipeline boards and V2 lead work.
+
+**Closure probability** (`server/src/utils/closureProgress.js`):
+- `computeClosureProgress(stage, interviewRounds)` — percent whose denominator grows with interview rounds (min 2); interview phase fills as rounds resolve; `rejected`/`backout` → `null`.
+- `describeClosureSteps` / `computeClosureDetail` — step list for UI breakdown.
+- Serialized on submissions (`progress`) and on profiles (best active-submission progress).
+- UI: `ProgressRing`, `ClosureStepsBreakdown` on submission detail / list / candidate surfaces and matrix cards.
+
+**Requirement map board** (`GET /api/v1/pipeline/board`):
+- New `server/src/modules/pipeline/` (routes + service + validation). Role-scoped requirements + their submissions with progress; admin/sales/recruiter only.
+- Frontend: `RequirementMatrixBoard` under `/pipeline?view=matrix` (“Requirement map”); capability `viewRequirementMatrix` for admin/sales/recruiter (not BDA).
+- Tests: `closure-progress.test.js`, `pipeline-board.test.js`.
+
+**Form / validation wiring** (schema fields that existed but were missing from create/edit UIs):
+- Accounts: `client_agreement_url` / `vendor_agreement_url`; stage move accepts `meeting_notes`.
+- Profiles: DOB, gender, relocate, preferred locations, relevant exp, certifications, domain, current CTC, notice/serving notice, etc.
+- Requirements: certifications required, time zone, contract duration, billing notes, notice-period max.
+
+**Docs:** this entry; TODO resume point; API-Spec §13 pipeline board + `progress` on Submission/Profile; AGENTS + ARCHITECTURE-OVERVIEW capability notes.
+
+**Verification (2026-08-29):** `cd server && npm test` — **23 suites / 135 tests**, all green (includes new `closure-progress` + `pipeline-board`).
+
 ## 2026-08-27 — V2: lead capture, candidate pipeline round taxonomy, requirement types, candidate bench flag, client-performance report
 
 Full design + rationale: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md). Done on local branch `feature/v2-lead-pipeline-requirements`, not yet merged/pushed.

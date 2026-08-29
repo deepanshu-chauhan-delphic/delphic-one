@@ -32,10 +32,11 @@ assert.equal(jobCells.in_progress.length, 1);
 assert.equal(jobCells.on_hold.length, 0);
 assert.equal(jobCells.closed.length, 1);
 
-assert.equal(defaultPipelineView('bda'), 'lead');
-assert.equal(defaultPipelineView('sales'), 'jobs');
-assert.equal(defaultPipelineView('recruiter'), 'candidates');
-assert.equal(defaultPipelineView('admin'), 'lead');
+assert.equal(defaultPipelineView('bda'), 'matrix');
+assert.equal(defaultPipelineView('sales'), 'matrix');
+assert.equal(defaultPipelineView('recruiter'), 'matrix');
+assert.equal(defaultPipelineView('admin'), 'matrix');
+assert.equal(defaultPipelineView('unknown'), 'matrix');
 
 assert.equal(formatStageLabel('meeting_scheduled'), 'meeting scheduled');
 assert.equal(formatStageLabel(''), '—');

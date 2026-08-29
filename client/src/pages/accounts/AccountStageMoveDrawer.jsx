@@ -32,6 +32,7 @@ export default function AccountStageMoveDrawer({
   const [meetingMode, setMeetingMode] = useState('online');
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingLocation, setMeetingLocation] = useState('');
+  const [meetingNotes, setMeetingNotes] = useState('');
   const [attendeeIds, setAttendeeIds] = useState([]);
   const [salesUsers, setSalesUsers] = useState([]);
 
@@ -43,6 +44,7 @@ export default function AccountStageMoveDrawer({
     setMeetingMode('online');
     setMeetingDate('');
     setMeetingLocation('');
+    setMeetingNotes(account?.meeting_notes || '');
     setAttendeeIds((account?.meeting_attendees || []).map((a) => a.id));
   }, [open, account?.stage, preferredToStage]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -68,6 +70,7 @@ export default function AccountStageMoveDrawer({
       body.meeting_mode = meetingMode;
       body.meeting_date = new Date(meetingDate).toISOString();
       if (meetingMode === 'offline') body.meeting_location = meetingLocation.trim();
+      body.meeting_notes = meetingNotes.trim();
       body.meeting_attendee_ids = attendeeIds;
     }
     onMove(body);
@@ -150,6 +153,16 @@ export default function AccountStageMoveDrawer({
                 />
               </label>
             )}
+            <label className="block text-xs font-medium text-tertiary-600">
+              Meeting notes
+              <textarea
+                rows={3}
+                placeholder="Agenda, prep notes, or a summary after the meeting…"
+                value={meetingNotes}
+                onChange={(event) => setMeetingNotes(event.target.value)}
+                className={INPUT_CLASS}
+              />
+            </label>
             <div className="block text-xs font-medium text-tertiary-600">
               Sales attendees
               <div className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-md border border-tertiary-200 p-2">

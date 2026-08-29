@@ -6,6 +6,8 @@ import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import DetailSkeleton from '../../components/ui/DetailSkeleton.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
+import ClosureStepsBreakdown from '../../components/ui/ClosureStepsBreakdown.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import ProfileFormPage from './ProfileFormPage.jsx';
@@ -106,7 +108,13 @@ export default function ProfileDetailPage() {
               {profile.current_designation || '—'} · {profile.current_company || 'No company'} · Added by {profile.added_by?.name || '—'}
             </p>
           </div>
-          {canEdit && <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>}
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center">
+              <ProgressRing percent={profile.progress?.percent ?? null} size="md" />
+              <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-tertiary-400">Closure %</span>
+            </div>
+            {canEdit && <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>}
+          </div>
         </div>
       </div>
 
@@ -194,6 +202,15 @@ export default function ProfileDetailPage() {
           <section className="rounded border bg-white p-4 text-sm text-tertiary-600">
             <div>Active submissions: <span className="font-medium text-tertiary-900">{profile.active_submissions_count || 0}</span></div>
             <div className="mt-1">Total submissions: <span className="font-medium text-tertiary-900">{profile.total_submissions_count || 0}</span></div>
+            <div className="mt-3 flex items-center gap-2">
+              <ProgressRing percent={profile.progress?.percent ?? null} size="sm" />
+              <span>Closure probability (most-advanced active submission)</span>
+            </div>
+            {profile.progress?.steps && (
+              <div className="mt-2 border-t pt-2">
+                <ClosureStepsBreakdown steps={profile.progress.steps} />
+              </div>
+            )}
           </section>
         </aside>
       </div>

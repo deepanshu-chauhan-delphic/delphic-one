@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds } = require('./stageMachines');
+const { computeClosureDetail } = require('../../utils/closureProgress');
 
 const INCLUDE = {
   seat: { include: { requirement: { include: { account: { select: { id: true, name: true } } } } } },
@@ -27,6 +28,7 @@ function serialize(row) {
     submitted_by: submitted_by_user,
     interview_rounds,
     missing_mandatory_rounds: interview_rounds ? computeMissingMandatoryRounds(interview_rounds) : undefined,
+    progress: interview_rounds ? computeClosureDetail(row.stage, interview_rounds) : null,
   };
 }
 

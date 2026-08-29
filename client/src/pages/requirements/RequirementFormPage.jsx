@@ -19,16 +19,21 @@ const emptyForm = {
   domain_experience: '',
   experience_min: '',
   experience_max: '',
+  certifications_required: [],
   work_mode: '',
   work_location: '',
+  time_zone_preference: '',
   engagement_type: '',
+  contract_duration_months: '',
   priority: 'medium',
   budget_min: '',
   budget_max: '',
   budget_currency: 'INR',
   budget_type: '',
+  billing_notes: '',
   sla_days: '',
   start_date_target: '',
+  notice_period_max_days: '',
 };
 
 function toOptionalNumber(value) {
@@ -50,16 +55,21 @@ function buildPayload(form, { isCreate }) {
     domain_experience: form.domain_experience.trim() || undefined,
     experience_min: toOptionalNumber(form.experience_min),
     experience_max: toOptionalNumber(form.experience_max),
+    certifications_required: form.certifications_required,
     work_mode: form.work_mode || undefined,
     work_location: form.work_location.trim() || undefined,
+    time_zone_preference: form.time_zone_preference.trim() || undefined,
     engagement_type: form.engagement_type || undefined,
+    contract_duration_months: toOptionalNumber(form.contract_duration_months),
     priority: form.priority || undefined,
     budget_min: toOptionalNumber(form.budget_min),
     budget_max: toOptionalNumber(form.budget_max),
     budget_currency: form.budget_currency || undefined,
     budget_type: form.budget_type || undefined,
+    billing_notes: form.billing_notes.trim() || undefined,
     sla_days: toOptionalNumber(form.sla_days),
     start_date_target: form.start_date_target || undefined,
+    notice_period_max_days: toOptionalNumber(form.notice_period_max_days),
   };
 
   if (isCreate) {
@@ -86,16 +96,21 @@ function hydrateForm(req) {
     domain_experience: req.domain_experience || '',
     experience_min: req.experience_min ?? '',
     experience_max: req.experience_max ?? '',
+    certifications_required: req.certifications_required || [],
     work_mode: req.work_mode || '',
     work_location: req.work_location || '',
+    time_zone_preference: req.time_zone_preference || '',
     engagement_type: req.engagement_type || '',
+    contract_duration_months: req.contract_duration_months ?? '',
     priority: req.priority || 'medium',
     budget_min: req.budget_min ?? '',
     budget_max: req.budget_max ?? '',
     budget_currency: req.budget_currency || 'INR',
     budget_type: req.budget_type || '',
+    billing_notes: req.billing_notes || '',
     sla_days: req.sla_days ?? '',
     start_date_target: req.start_date_target ? String(req.start_date_target).slice(0, 10) : '',
+    notice_period_max_days: req.notice_period_max_days ?? '',
   };
 }
 
@@ -352,6 +367,15 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
 
+            <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Certifications required</label>
+              <SkillPicker
+                value={form.certifications_required}
+                onChange={(next) => updateField('certifications_required', next)}
+                placeholder="Add a required certification…"
+              />
+            </div>
+
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Experience min (years)</label>
               <input
@@ -394,6 +418,15 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Time zone preference</label>
+              <input
+                value={form.time_zone_preference}
+                onChange={(e) => updateField('time_zone_preference', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="e.g. IST ±2 hours"
+              />
+            </div>
 
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Engagement</label>
@@ -407,6 +440,16 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
                 <option value="part_time">Part time</option>
                 <option value="contract">Contract</option>
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Contract duration (months)</label>
+              <input
+                type="number"
+                min={0}
+                value={form.contract_duration_months}
+                onChange={(e) => updateField('contract_duration_months', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Start date target</label>
@@ -477,10 +520,29 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Notice period max (days)</label>
+              <input
+                type="number"
+                min={0}
+                value={form.notice_period_max_days}
+                onChange={(e) => updateField('notice_period_max_days', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Domain experience</label>
               <input
                 value={form.domain_experience}
                 onChange={(e) => updateField('domain_experience', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-tertiary-500">Billing notes</label>
+              <textarea
+                rows={2}
+                value={form.billing_notes}
+                onChange={(e) => updateField('billing_notes', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>

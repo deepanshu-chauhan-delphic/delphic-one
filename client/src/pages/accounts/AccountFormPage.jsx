@@ -28,8 +28,10 @@ const EMPTY_FORM = {
   vendor_rate_max: '',
   vendor_rate_currency: 'INR',
   vendor_payment_terms: '',
+  vendor_agreement_url: '',
   client_billing_currency: 'INR',
   client_payment_terms: '',
+  client_agreement_url: '',
 };
 
 const INPUT_CLASS = 'w-full rounded border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-900';
@@ -61,7 +63,9 @@ function formFromAccount(account) {
     vendor_rate_min: rateRange.min ?? '',
     vendor_rate_max: rateRange.max ?? '',
     vendor_rate_currency: rateRange.currency || 'INR',
+    vendor_agreement_url: account.vendor_agreement_url || '',
     client_billing_currency: account.client_billing_currency || 'INR',
+    client_agreement_url: account.client_agreement_url || '',
   };
 }
 
@@ -96,6 +100,7 @@ function buildAccountBody(form, isEditing) {
   if (form.type === 'vendor') {
     body.vendor_specializations = form.vendor_specializations.split(',').map((value) => value.trim()).filter(Boolean);
     body.vendor_payment_terms = form.vendor_payment_terms.trim();
+    body.vendor_agreement_url = form.vendor_agreement_url.trim();
     if (form.vendor_rate_min !== '' && form.vendor_rate_max !== '') {
       body.vendor_rate_range = {
         min: Number(form.vendor_rate_min),
@@ -106,6 +111,7 @@ function buildAccountBody(form, isEditing) {
   } else {
     body.client_billing_currency = form.client_billing_currency;
     body.client_payment_terms = form.client_payment_terms.trim();
+    body.client_agreement_url = form.client_agreement_url.trim();
   }
 
   return body;
@@ -364,6 +370,14 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                   className={INPUT_CLASS}
                 />
               </Field>
+              <Field label="Agreement URL">
+                <input
+                  type="url"
+                  value={form.client_agreement_url}
+                  onChange={(event) => updateField('client_agreement_url', event.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </Field>
             </div>
           ) : (
             <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-4'}`}>
@@ -408,6 +422,16 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                   <input
                     value={form.vendor_payment_terms}
                     onChange={(event) => updateField('vendor_payment_terms', event.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                </Field>
+              </div>
+              <div className={asPanel ? '' : 'sm:col-span-2'}>
+                <Field label="Agreement URL">
+                  <input
+                    type="url"
+                    value={form.vendor_agreement_url}
+                    onChange={(event) => updateField('vendor_agreement_url', event.target.value)}
                     className={INPUT_CLASS}
                   />
                 </Field>

@@ -18,6 +18,7 @@ export default function SubmissionCreatePage({
   onDone,
   onCancel,
   initialRequirementId = '',
+  initialProfileId = '',
   accountId = '',
 }) {
   const { user } = useAuth();
@@ -31,7 +32,7 @@ export default function SubmissionCreatePage({
   const [benchOnly, setBenchOnly] = useState(false);
 
   const [form, setForm] = useState({
-    profile_id: '',
+    profile_id: initialProfileId || '',
     requirement_id: initialRequirementId || '',
     requirement_seat_id: '',
     proposed_rate: '',

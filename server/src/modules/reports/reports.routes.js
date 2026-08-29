@@ -5,7 +5,8 @@ const { authenticate, authorize } = require('../../middleware/auth');
 const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./reports.service');
-const { dateRangeSchema, agingSchema, closureSchema } = require('./reports.validation');
+const explorerService = require('./explorer.service');
+const { dateRangeSchema, agingSchema, closureSchema, explorerSchema } = require('./reports.validation');
 
 const router = express.Router();
 router.use(authenticate);
@@ -18,6 +19,7 @@ const REPORTS = {
   'client-performance': (q) => service.clientPerformance(q),
   aging: (q) => service.aging(q),
   closure: (q) => service.closure(q),
+  'pipeline-explorer': (q, user) => explorerService.pipelineExplorer(user, q),
 };
 
 router.get(
@@ -92,6 +94,16 @@ router.get(
 );
 
 router.get(
+  '/pipeline-explorer',
+  authorize('admin', 'sales', 'recruiter', 'bda'),
+  asyncHandler(async (req, res) => {
+    const query = explorerSchema.parse(req.query);
+    const data = await explorerService.pipelineExplorer(req.user, query);
+    return ok(res, data);
+  })
+);
+
+router.get(
   '/export',
   authorize('admin', 'sales'),
   asyncHandler(async (req, res) => {
@@ -103,9 +115,10 @@ router.get(
     let query = { ...req.query };
     if (report === 'aging') query = agingSchema.parse(req.query);
     else if (report === 'closure') query = closureSchema.parse(req.query);
-    else if (report !== 'aging') query = dateRangeSchema.parse(req.query);
+    else if (report === 'pipeline-explorer') query = explorerSchema.parse(req.query);
+    else query = dateRangeSchema.parse(req.query);
 
-    const data = await fn(query);
+    const data = await fn(query, req.user);
     const sheets = buildExportSheets(report, data);
     const filename = `${report}-${new Date().toISOString().slice(0, 7)}`;
 
@@ -167,6 +180,10 @@ function buildExportSheets(report, data) {
     ];
   }
 
+  if (report === 'pipeline-explorer' && data && typeof data === 'object' && Array.isArray(data.rows)) {
+    return [{ name: 'pipeline-explorer', rows: data.rows.map((r) => flatten(r)) }];
+  }
+
   const rows = Array.isArray(data) ? data.map((r) => flatten(r)) : [flatten(data)];
   return [{ name: report, rows }];
 }
@@ -182,7 +199,11 @@ function flatten(obj, prefix = '') {
         Object.assign(out, flatten(v, key));
       }
     } else if (Array.isArray(v)) {
-      out[key] = v.length;
+      if (v.every((item) => item && typeof item === 'object' && item.name)) {
+        out[key] = v.map((item) => item.name).join(', ');
+      } else {
+        out[key] = v.length;
+      }
     } else if (v instanceof Date) {
       out[key] = v.toISOString();
     } else {

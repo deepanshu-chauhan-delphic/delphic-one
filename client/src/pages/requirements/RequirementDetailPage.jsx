@@ -340,8 +340,12 @@ export default function RequirementDetailPage() {
             <dd className="capitalize">{requirement.work_mode?.replace(/_/g, ' ') || '—'}</dd>
             <dt className="text-tertiary-500">Location</dt>
             <dd>{requirement.work_location || '—'}</dd>
+            <dt className="text-tertiary-500">Time zone</dt>
+            <dd>{requirement.time_zone_preference || '—'}</dd>
             <dt className="text-tertiary-500">Engagement</dt>
             <dd className="capitalize">{requirement.engagement_type?.replace(/_/g, ' ') || '—'}</dd>
+            <dt className="text-tertiary-500">Contract duration</dt>
+            <dd>{requirement.contract_duration_months != null ? `${requirement.contract_duration_months} months` : '—'}</dd>
             <dt className="text-tertiary-500">Budget</dt>
             <dd>
               {requirement.budget_min ?? '—'}–{requirement.budget_max ?? '—'} {requirement.budget_currency || ''}{' '}
@@ -351,11 +355,19 @@ export default function RequirementDetailPage() {
             <dd>{requirement.sla_days != null ? `${requirement.sla_days} days` : '—'}</dd>
             <dt className="text-tertiary-500">Start target</dt>
             <dd>{formatDate(requirement.start_date_target)}</dd>
+            <dt className="text-tertiary-500">Notice period max</dt>
+            <dd>{requirement.notice_period_max_days != null ? `${requirement.notice_period_max_days} days` : '—'}</dd>
             <dt className="text-tertiary-500">Sales owner</dt>
             <dd>{requirement.sales_owner?.name || '—'}</dd>
           </dl>
           {requirement.description && (
             <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm text-tertiary-700">{requirement.description}</p>
+          )}
+          {requirement.billing_notes && (
+            <div className="mt-3 border-t pt-3">
+              <p className="text-xs font-medium text-tertiary-500">Billing notes</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-tertiary-700">{requirement.billing_notes}</p>
+            </div>
           )}
         </section>
 
@@ -371,6 +383,32 @@ export default function RequirementDetailPage() {
                 </span>
               ))}
             </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-tertiary-500">Secondary stack</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(requirement.secondary_tech_stack || []).length === 0 && <span className="text-sm text-tertiary-400">—</span>}
+              {(requirement.secondary_tech_stack || []).map((t) => (
+                <span key={t} className="rounded-full bg-tertiary-100 px-2 py-0.5 text-xs text-tertiary-700">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-tertiary-500">Certifications required</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(requirement.certifications_required || []).length === 0 && <span className="text-sm text-tertiary-400">—</span>}
+              {(requirement.certifications_required || []).map((c) => (
+                <span key={c} className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                  {c}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-tertiary-500">Domain experience</p>
+            <p className="mt-1 text-sm text-tertiary-700">{requirement.domain_experience || '—'}</p>
           </div>
           <div className="mt-3">
             <p className="text-xs font-medium text-tertiary-500">Assigned recruiters</p>

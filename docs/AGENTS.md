@@ -66,6 +66,9 @@ client/src/
 
 server/src/
   modules/<domain>/      # <domain>.routes.js, .controller.js, .service.js, .validation.js
+                         # domains include accounts, requirements, profiles, submissions, pipeline
+                         # (GET /pipeline/board), admin, comments, documents, dashboard, reports, …
+  utils/closureProgress.js  # pure closure % + step breakdown for submissions/profiles/matrix
   middleware/            # auth, requestLogger, errorHandler, lockCheck
   config/                # db.js, env.js, logger.js (structured stdout logging)
 

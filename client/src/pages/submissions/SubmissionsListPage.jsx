@@ -7,6 +7,7 @@ import { canCreateSubmission } from '../../lib/submissionStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import SubmissionCreatePage from './SubmissionCreatePage.jsx';
 
@@ -36,6 +37,9 @@ function SubmissionPeek({ row, onClose }) {
         <PeekField label="Candidate">{detail.profile?.name || '—'}</PeekField>
         <PeekField label="Job">{detail.requirement?.title || '—'}</PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
+        <PeekField label="Closure probability">
+          <ProgressRing percent={detail.progress?.percent ?? null} size="md" />
+        </PeekField>
         <PeekField label="Proposed rate">
           {detail.proposed_rate ? `${detail.proposed_rate_currency} ${detail.proposed_rate}` : '—'}
         </PeekField>
@@ -70,6 +74,7 @@ export default function SubmissionsListPage() {
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
+  const [createProfileId, setCreateProfileId] = useState(searchParams.get('profile_id') || '');
   const [peek, setPeek] = useState(null);
 
   function reload() {
@@ -90,13 +95,16 @@ export default function SubmissionsListPage() {
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
+    setCreateProfileId(searchParams.get('profile_id') || '');
     setStage(searchParams.get('stage') || '');
   }, [searchParams]);
 
   function closeCreate() {
     setCreateOpen(false);
-    if (searchParams.get('create')) {
+    setCreateProfileId('');
+    if (searchParams.get('create') || searchParams.get('profile_id')) {
       searchParams.delete('create');
+      searchParams.delete('profile_id');
       setSearchParams(searchParams, { replace: true });
     }
   }
@@ -115,6 +123,11 @@ export default function SubmissionsListPage() {
       },
       { key: 'job', header: 'Job', render: (row) => row.requirement?.title || '—' },
       { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
+      {
+        key: 'closure',
+        header: 'Closure %',
+        render: (row) => <ProgressRing percent={row.progress?.percent ?? null} size="sm" />,
+      },
       {
         key: 'rate',
         header: 'Rate',
@@ -231,6 +244,7 @@ export default function SubmissionsListPage() {
       <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="md" tone="create">
         <SubmissionCreatePage
           asPanel
+          initialProfileId={createProfileId}
           onCancel={closeCreate}
           onDone={(id) => {
             closeCreate();

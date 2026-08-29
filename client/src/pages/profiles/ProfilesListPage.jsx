@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import ProfileFormPage from './ProfileFormPage.jsx';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
@@ -34,6 +35,9 @@ function ProfilePeek({ row, onClose, onChanged }) {
         <PeekField label="Company">{detail.current_company || '—'}</PeekField>
         <PeekField label="Experience">{detail.total_experience_years ?? '—'}</PeekField>
         <PeekField label="Source"><Badge value={detail.source} /></PeekField>
+        <PeekField label="Closure probability">
+          <ProgressRing percent={detail.progress?.percent ?? null} size="md" />
+        </PeekField>
         {detail.source === 'direct' && (
           <PeekField label="On bench">{detail.on_bench ? 'Yes' : 'No'}</PeekField>
         )}
@@ -66,7 +70,7 @@ function ProfilePeek({ row, onClose, onChanged }) {
           type="button"
           className="btn-secondary"
           onClick={() => {
-            navigate('/submissions?create=1');
+            navigate(`/submissions?create=1&profile_id=${detail.id}`);
           }}
         >
           Put forward
@@ -139,6 +143,11 @@ export default function ProfilesListPage() {
             <div className="font-semibold text-tertiary-900">{row.name}</div>
           </div>
         ),
+      },
+      {
+        key: 'closure',
+        header: 'Closure %',
+        render: (row) => <ProgressRing percent={row.progress?.percent ?? null} size="sm" />,
       },
       { key: 'company', header: 'Company', render: (row) => row.current_company || '—' },
       { key: 'exp', header: 'Exp', render: (row) => row.total_experience_years },
