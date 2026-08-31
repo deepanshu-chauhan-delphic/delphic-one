@@ -2,6 +2,7 @@ import { useState } from 'react';
 import apiClient from '../lib/apiClient.js';
 import { useAlerts } from '../lib/alerts/alertContext.jsx';
 import Modal from './ui/Modal.jsx';
+import PasswordInput from './ui/PasswordInput.jsx';
 
 export default function ChangePasswordModal({ open, onClose }) {
   const { pushError, pushSuccess } = useAlerts();
@@ -69,8 +70,7 @@ export default function ChangePasswordModal({ open, onClose }) {
       <form id="change-password-form" className="space-y-3" onSubmit={submit}>
         <div>
           <label className="mb-1 block text-xs font-medium text-tertiary-500">Current password</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -80,8 +80,7 @@ export default function ChangePasswordModal({ open, onClose }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-tertiary-500">New password</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -92,8 +91,7 @@ export default function ChangePasswordModal({ open, onClose }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-tertiary-500">Confirm new password</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

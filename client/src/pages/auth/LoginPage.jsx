@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { QUICK_LOGIN_ACCOUNTS, TEST_PASSWORD, isQuickLoginEnabled } from '../../lib/testAccounts.js';
+import PasswordInput from '../../components/ui/PasswordInput.jsx';
 
 export default function LoginPage() {
   const { user, login } = useAuth();
@@ -54,18 +55,19 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="mb-4 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="you@delphic.local"
+            placeholder="you@delphic.in"
           />
 
           <label className="mb-1 block text-sm font-medium text-tertiary-700">Password</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mb-6 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="••••••••"
-          />
+          <div className="mb-6">
+            <PasswordInput
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="••••••••"
+            />
+          </div>
 
           <button type="submit" disabled={submitting} className="btn-primary w-full">
             {submitting && !quickRole ? 'Signing in…' : 'Sign in'}
