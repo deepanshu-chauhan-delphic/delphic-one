@@ -477,10 +477,12 @@ npm run dev:client   # http://localhost:5173
 
 Seeded users (password `Password123!`):
 
-- `admin@delphic.local` — admin
-- `sales1@delphic.local` — sales
-- `bda1@delphic.local` — bda
-- `recruiter1@delphic.local` / `recruiter2@delphic.local` — recruiter
+- `admin@delphic.in` — admin
+- `tanvi.saxena@delphic.in` — sales
+- `chahak.pandya@delphic.in` — bda
+- `dheeraj.kumar@delphic.in` / `Garv@delphic.in` — recruiter
+
+Full roster: `server/prisma/team-roster.js`. Domain data: `npm run seed:accounts` then `npm run seed:jira` (optional `seed:vendors`).
 
 ---
 

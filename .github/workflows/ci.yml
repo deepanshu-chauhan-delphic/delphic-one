@@ -106,7 +106,7 @@ jobs:
         run: |
           RESP=$(curl -sf -X POST http://localhost:4000/api/v1/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"email":"admin@delphic.local","password":"Password123!"}')
+            -d '{"email":"admin@delphic.in","password":"Password123!"}')
           echo "$RESP" | grep -q '"success":true'
           echo "$RESP" | grep -q 'access_token'
           echo "Login OK"
@@ -116,7 +116,7 @@ jobs:
           curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/ | grep -E '200|304'
           curl -sf -X POST http://localhost:8081/api/v1/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"email":"admin@delphic.local","password":"Password123!"}' \
+            -d '{"email":"admin@delphic.in","password":"Password123!"}' \
             | grep -q '"success":true'
           echo "Client proxy login OK"
 

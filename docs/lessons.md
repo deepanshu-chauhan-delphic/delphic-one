@@ -1,6 +1,19 @@
 # Lessons
 
+## 2026-08-31: Docker CI login smoke used stale @delphic.local email
+
+**Root cause:** Team seed was switched to real `*@delphic.in` addresses (`team-roster.js`), but `.github/workflows/ci.yml` docker-smoke still POSTed `admin@delphic.local` / `Password123!`. Curl `-f` treats the 401 as exit 22.
+
+**Failure symptoms:** CI step `Login smoke` failed with `Error: Process completed with exit code 22` on the `RESP=$(curl -sf -X POST …/auth/login …)` line after a successful seed.
+
+**Fix details:** Point CI login + client-proxy smoke at `admin@delphic.in`. Updated README / AGENTS seeded-user examples to match.
+
+**Consulted sources:** `.github/workflows/ci.yml`; `server/prisma/team-roster.js`; curl man page (exit 22 = HTTP error with `-f`).
+
+**Prevention guidance:** When changing seed emails or passwords, grep the repo (especially CI workflows and smoke scripts) for the old credentials in the same change.
+
 ## 2026-08-31: PipelineFilters inline fields array caused API request storm / 429
+
 
 **Root cause:** Job/Candidate/Lead boards passed `fields={[...]}` inline. `PipelineFilters` keyed `useMemo`/`useEffect` on that array reference, so every parent re-render re-fetched `/users` and `/accounts`, which tripped `express-rate-limit` (and browser `ERR_INSUFFICIENT_RESOURCES`). Login 429s were a separate tight `max: 5/min` cap.
 
