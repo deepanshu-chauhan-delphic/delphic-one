@@ -15,6 +15,8 @@ import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSen
 import { usePipelineBoard } from './usePipelineBoard.js';
 import PipelineFilters from './PipelineFilters.jsx';
 
+const LEAD_FILTER_FIELDS = ['search', 'bda_id'];
+
 function needsAccountStageForm(toStage) {
   return toStage === 'meeting_scheduled' || toStage === 'dropped';
 }
@@ -173,7 +175,7 @@ export default function LeadPipelineBoard() {
         )}
       </div>
 
-      <PipelineFilters fields={['search', 'bda_id']} onChange={handleFiltersChange} />
+      <PipelineFilters fields={LEAD_FILTER_FIELDS} onChange={handleFiltersChange} />
 
       <DndContext
         sensors={sensors}

@@ -42,6 +42,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   req_type: z.enum(['managed_services', 'recruitment', 'project']).optional(),
+  sales_owner_id: z.string().uuid().optional(),
   ...baseFields,
 });
 
@@ -76,6 +77,7 @@ const listQuerySchema = z.object({
   sales_owner_id: z.string().uuid().optional(),
   recruiter_id: z.string().uuid().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  stuck: z.enum(['stuck', 'not_stuck']).optional(),
   tech_stack: z.string().optional(),
   search: z.string().optional(),
   sort_by: z.enum(['created_at', 'priority', 'budget_max', 'status']).default('created_at'),

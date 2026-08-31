@@ -1,11 +1,11 @@
-# How to test with demo seed data
+# How to test with seeded Delphic / Jira data
 
 | Field | Value |
 |---|---|
-| **Purpose** | Fill dashboards and list pages so you can walk role flows without creating every record by hand |
-| **Seed file** | `server/prisma/seed.js` |
-| **As of** | 2026-08-21 |
-| **Password** | `Password123!` for every `*@delphic.local` user |
+| **Purpose** | Load real team + LeadMinds clients + Jira requirements so lists and pipeline are non-empty |
+| **Order** | `seed` → `seed:accounts` → `seed:jira` → `seed:vendors` (optional) |
+| **As of** | 2026-08-31 |
+| **Password** | `Password123!` for every `*@delphic.in` user |
 
 ## Table of contents
 
@@ -13,189 +13,128 @@
 2. [What gets created](#2-what-gets-created)
 3. [Quick login](#3-quick-login)
 4. [Role walkthroughs](#4-role-walkthroughs)
-5. [API smoke checks](#5-api-smoke-checks)
-6. [Re-seed / wipe](#6-re-seed--wipe)
-7. [Common failures](#7-common-failures)
+5. [Re-seed / wipe](#5-re-seed--wipe)
+6. [Common failures](#6-common-failures)
 
 ---
 
 ## 1. Run seed
 
-### Docker (recommended)
-
-After editing `server/prisma/seed.js` on the host, copy it into the running image (compose does not bind-mount source), then run:
+### Local (host + Docker Postgres)
 
 ```powershell
-docker compose up -d --build
-docker compose cp server/prisma/seed.js server:/app/server/prisma/seed.js
-docker compose exec server node prisma/seed.js
-```
-
-Or rebuild so the image includes the new seed, then:
-
-```powershell
-docker compose up -d --build
-docker compose exec server node prisma/seed.js
-```
-
-If the server container is not running yet:
-
-```powershell
-docker compose run --rm --entrypoint sh server -c "node prisma/seed.js"
-```
-(Use a rebuilt image, or the run container still has the old baked-in seed.)
-
-- UI: http://localhost:8081  
-- API: http://localhost:4000  
-
-### Without Docker
-
-```powershell
-npm run migrate
 npm run seed
-npm run dev:server
-npm run dev:client
+npm run seed:accounts
+npm run seed:jira
+npm run seed:vendors
 ```
 
-UI: http://localhost:5173 · API: http://localhost:4000  
+UI: http://localhost:5173 · API: http://localhost:4000
 
-A successful seed prints JSON counts (users, accounts, requirements, submissions, etc.) and the login hint.
+### Docker compose
+
+```powershell
+docker compose up -d --build
+docker compose exec server mkdir -p /app/docs/jira
+docker compose cp docs/jira/Jira_all.csv server:/app/docs/jira/Jira_all.csv
+docker compose cp docs/jira/LeadMinds-Accounts.csv server:/app/docs/jira/LeadMinds-Accounts.csv
+docker compose exec server node prisma/seed.js
+docker compose exec server node prisma/seed-accounts.js
+docker compose exec server node prisma/seed-jira.js
+docker compose exec server node prisma/seed-vendors.js
+```
+
+UI: http://localhost:8081
+
+VPS / after `git pull`: [guides/PRODUCTION-SEED.md](../guides/PRODUCTION-SEED.md).
 
 ---
 
 ## 2. What gets created
 
-| Entity | Highlights |
-|---|---|
-| **Users** | admin, sales1, bda1, recruiter1, recruiter2 |
-| **Accounts** | Stuck lead (14+ days), meeting scheduled, **Acme Active Client**, Nova Softwares (active), Talent Vendor Partners |
-| **Requirements** | Stuck Java (open, aging), React Frontend (in progress), DevOps project (open), Closed QA (closed this month) |
-| **Seats** | Mix of open / interviewing / closed |
-| **Assignments** | Recruiter One / Two on live reqs |
-| **Profiles** | 4 active candidates + 1 inactive |
-| **Submissions** | Stages across sourced → closed (funnel + stuck submission) |
-| **Interviews** | Internal pass + pending client L1; one closed final |
-| **History / comments** | Recent activity feed is non-empty |
+| Step | Entity | Highlights |
+|---|---|---|
+| `seed` | Departments | Sales, HR, Vendor |
+| `seed` | Users (~13) | Real `@delphic.in` roster (admin, BDA, sales, recruiters) |
+| `seed:accounts` | Client accounts (~78) | LeadMinds export; canonical names |
+| `seed:jira` | Requirements (34) | Account-wise; full JD in `job_description`; seats; comments |
+| `seed:jira` | Assignments | Multi-assignee recruiters + comment mentions (Krupali / Dheeraj / Nikhil) |
+| `seed:vendors` | Vendor accounts (32) | Active rows from vendor tracker |
 
-Named anchors useful in the UI:
+**Client name aliases** (Jira → LeadMinds): GirnarSoft / Girnarsoft_Pragya → **Girnarsoft**; Devlabs → **Devlabsalliance**; Protonshub → Protonshub Technologies; etc. See `server/prisma/client-aliases.js`.
 
-- **Acme Active Client** — use when creating a new requirement (active client).
-- **Stuck Lead Corp** — aging lead for BDA / admin stuck lists and aging report.
-- **Stuck Senior Java Developer** — open req older than 7 days.
-- **React Frontend Engineer** — in-progress with seats and submissions.
-- **Ananya Sharma** / **Rohan Mehta** / **Neha Iyer** — active profiles for put-forward flows.
+**Sales owner:** Jira import prefers a `sales`-role owner (Tanvi) so Sales can edit recruiter assignments in the UI.
+
+Named anchors:
+
+- **Girnarsoft** — one client (both Jira Girnar variants merged)
+- **Devlabsalliance** — Devlabs Jira reqs
+- **Protonshub Technologies**, **Apaar Information Systems**, **TridhiyaTech**
 
 ---
 
 ## 3. Quick login
 
-Open `/login`. Use the role buttons (Admin / BDA / Sales / Recruiter), or sign in with:
+Open `/login`. Role buttons or:
 
 | Role | Email |
 |---|---|
-| Admin | `admin@delphic.local` |
-| BDA | `bda1@delphic.local` |
-| Sales | `sales1@delphic.local` |
-| Recruiter | `recruiter1@delphic.local` |
+| Admin | `admin@delphic.in` |
+| BDA | `chahak.pandya@delphic.in` |
+| Sales | `tanvi.saxena@delphic.in` |
+| Recruiter | `sarthak.solanki@delphic.in` |
 
-Hide buttons with `VITE_DISABLE_QUICK_LOGIN=true` when real auth lands.
+Password: `Password123!`. Hide buttons with `VITE_DISABLE_QUICK_LOGIN=true`.
 
 ---
 
 ## 4. Role walkthroughs
 
-### A. Admin — full dashboard
+### Admin
 
 1. Quick login **Admin**.
-2. Open **Dashboard**.
-3. Expect non-zero: Active leads, In meeting, Active clients, Active vendors, Open requirements, In progress, Closed this month, Active submissions.
-4. Pipeline funnel bars should show several stages (sourced, screening, submitted, interviewing, offered, closed).
-5. **Recent activity** should list stage changes (not empty).
-6. Spot-check **Accounts**, **Requirements**, **Profiles**, **Submissions** lists — rows present.
+2. **Requirements** — paginated list (20/page); expect ~34 total.
+3. Open a req — Job description filled when Jira had a Description; **Assign recruiters** editable.
+4. **Accounts** — LeadMinds clients + vendors.
 
-### B. BDA — leads and stuck account
-
-1. Quick login **BDA**.
-2. Dashboard / accounts: you own **Stuck Lead Corp**, **Meeting Scheduled Ltd**, **Acme Active Client**, **Nova Softwares**.
-3. Open Stuck Lead Corp — comment about follow-ups should exist if comments UI is wired.
-4. Optional API: `GET /dashboard/summary` as BDA should include stuck leads; requirements may be empty for pure BDA scope.
-
-### C. Sales — requirements create + stuck req
+### Sales (Tanvi)
 
 1. Quick login **Sales**.
-2. **Requirements** list: Stuck Senior Java, React Frontend, DevOps Project, Closed QA.
-3. Open **React Frontend Engineer** — seats, assignees, status history.
-4. **+ Create** a requirement against **Acme Active Client** (proves active-client filter).
-5. Reports / aging (if UI exists): stuck Java + stuck lead should appear via API.
+2. Own requirements (sales owner) — assign / unassign recruiters.
+3. Pipeline board shows all matching reqs (no 20-item page cap).
 
-### D. Recruiter — submissions and put-forward
+### BDA / Recruiter
 
-1. Quick login **Recruiter** (`recruiter1`).
-2. **Submissions** list: sourced Java, screening/interview React, closed QA, stuck submitted-to-client.
-3. Open the **interview_scheduled** submission (Ananya) — interview rounds (internal pass + pending L1).
-4. **Profiles**: Ananya, Rohan, Vikram (and inactive if shown).
-5. **+ Put forward** (if RD-107/108 UI is live): pick an active profile + open seat.
-
-### E. Recruiter Two
-
-1. Sign in as `recruiter2@delphic.local` / `Password123!` (no one-click button for rec2).
-2. You should see **DevOps Project Squad** assignment and the **offer** submission for Neha.
+1. Assignments are **view-only** (Admin or Sales owner edits them).
+2. BDA owns LeadMinds accounts where Account manager / Sales POC maps to them.
 
 ---
 
-## 5. API smoke checks
+## 5. Re-seed / wipe
 
-With Docker client proxy, or hit API on port 4000:
+`npm run seed` **deletes all** users and domain data, then recreates the team.
 
-```powershell
-# Login
-$body = '{"email":"admin@delphic.local","password":"Password123!"}'
-$login = Invoke-RestMethod -Method POST -Uri http://localhost:4000/api/v1/auth/login -ContentType application/json -Body $body
-$token = $login.data.access_token
-if (-not $token) { $token = $login.data.token }
+Then re-run accounts → jira → vendors.
 
-# Dashboard summary (expect non-zero counts + funnel + stuck + recent_activity)
-Invoke-RestMethod -Uri http://localhost:4000/api/v1/dashboard/summary -Headers @{ Authorization = "Bearer $token" }
-
-# BDA + Sales reports (admin)
-Invoke-RestMethod -Uri "http://localhost:4000/api/v1/reports/bda-performance?date_from=2026-08-01&date_to=2026-08-31" -Headers @{ Authorization = "Bearer $token" }
-Invoke-RestMethod -Uri "http://localhost:4000/api/v1/reports/sales-performance?date_from=2026-08-01&date_to=2026-08-31" -Headers @{ Authorization = "Bearer $token" }
-
-# Aging report
-Invoke-RestMethod -Uri http://localhost:4000/api/v1/reports/aging -Headers @{ Authorization = "Bearer $token" }
-```
-Through the Nginx client (port 8081), use the same paths under `/api/...` if your proxy strips that prefix — match whatever `apiClient` uses in the browser Network tab.
+Do not run the wipe seed against a shared production DB with real data. Use `seed-admin` on live prod — see [PRODUCTION-SEED.md](../guides/PRODUCTION-SEED.md).
 
 ---
 
-## 6. Re-seed / wipe
-
-Re-running the seed **deletes all** users, accounts, requirements, profiles, submissions, history, and comments, then recreates the demo set.
-
-```powershell
-docker compose exec server node prisma/seed.js
-```
-
-Do not run against a shared staging DB with real data.
-
----
-
-## 7. Common failures
+## 6. Common failures
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Empty dashboard after seed | Seed ran against a different DB than the API | Confirm `DATABASE_URL` / compose service; re-seed with `docker compose exec server` |
-| Cannot create requirement | No active client | Seed includes **Acme Active Client**; re-seed if wiped manually |
-| Login fails | Old password / wiped users | Re-seed; password is always `Password123!` |
-| Stuck lists empty | Timestamps too fresh | Seed sets `updated_at` / `created_at` &gt; 7 days ago; re-seed without editing those rows afterward |
-| Funnel all zeros | Submissions missing | Seed prints `submissions` count — should be ≥ 6 |
+| Only 20 requirements in list | Pagination default | Use Previous / Next; pipeline shows all |
+| Empty JD on detail | Empty Description in CSV, or old seed | Re-run `seed:jira` |
+| Assign recruiters greyed out | Not Admin / not sales owner | Login as Admin or Tanvi |
+| Duplicate Girnarsoft | Old import before aliases | Full `seed` then accounts + jira |
+| `CSV not found` in Docker | `docs/` not in image | `docker compose cp` the CSV files first |
 
 ---
 
 ## Related docs
 
+- [PRODUCTION-SEED.md](../guides/PRODUCTION-SEED.md) — VPS post-pull commands  
+- [AGENTS.md](../AGENTS.md) — local setup  
 - [TESTING-RD-103-104.md](TESTING-RD-103-104.md) — requirements UI  
-- [TESTING-RD-107-108.md](TESTING-RD-107-108.md) — submissions UI  
-- [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md) — pipeline / interviews  
-- [TESTING-RD-114-128.md](TESTING-RD-114-128.md) — reports + change password  
-- [AGENTS.md](../AGENTS.md) — local setup and docs index  
+- [TESTING-RD-111-125-112.md](TESTING-RD-111-125-112.md) — pipeline  

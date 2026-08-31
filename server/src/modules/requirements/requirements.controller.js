@@ -21,6 +21,8 @@ const ERROR_STATUS = {
   seats_not_closed: [400, 'All seats must be closed before closing the requirement'],
   invalid_account: [400, 'account_id must reference an active client'],
   user_not_found: [404, 'User not found'],
+  forbidden_owner_change: [403, 'Only an admin can change the sales owner'],
+  invalid_owner_role: [400, 'Sales owner must be a sales, BDA, or admin user'],
   role_mismatch: [400, 'Target user role does not match role_on_req'],
   already_assigned: [400, 'User already actively assigned with this role'],
   joined_at_required: [400, 'joined_at is required when closing a seat'],

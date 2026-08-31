@@ -1,8 +1,24 @@
 const prisma = require('../../config/db');
+const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
 const {
   REQUIREMENT_STATUS_TRANSITIONS,
   SEAT_STATUS_TRANSITIONS,
 } = require('./stageMachines');
+
+/** A requirement counts as "stuck" when it is still active and has not moved for STUCK_THRESHOLD_DAYS. */
+const STUCK_STATUSES = ['open', 'in_progress'];
+
+function stuckCutoff() {
+  return new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
+}
+
+function isStuck(row) {
+  return (
+    STUCK_STATUSES.includes(row.status)
+    && row.created_at != null
+    && new Date(row.created_at) <= stuckCutoff()
+  );
+}
 
 function serialize(row) {
   if (!row) return null;
@@ -13,6 +29,7 @@ function serialize(row) {
 
   return {
     ...rest,
+    is_stuck: isStuck(row),
     account: account ? { id: account.id, name: account.name, type: account.type } : undefined,
     sales_owner: sales_owner ? { id: sales_owner.id, name: sales_owner.name } : undefined,
     assigned_recruiters: assignments
@@ -34,10 +51,14 @@ const DECORATE_INCLUDE = {
 };
 
 async function list(filters) {
-  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, tech_stack, search, sort_by, sort_order, page, limit } = filters;
+  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
+
+  const stuckClause = { status: { in: STUCK_STATUSES }, created_at: { lte: stuckCutoff() } };
 
   const where = {
     ...(status ? { status } : {}),
+    ...(stuck === 'stuck' ? { AND: [stuckClause] } : {}),
+    ...(stuck === 'not_stuck' ? { NOT: [stuckClause] } : {}),
     ...(req_type ? { req_type } : {}),
     ...(account_id ? { account_id } : {}),
     ...(sales_owner_id ? { sales_owner_id } : {}),
@@ -112,10 +133,19 @@ async function create(data, salesOwnerId) {
   return { requirement: serialize(row) };
 }
 
+const OWNER_ROLES = ['sales', 'bda', 'admin'];
+
 async function update(id, patch, user) {
   const existing = await prisma.requirement.findUnique({ where: { id } });
   if (!existing) return { error: 'not_found' };
   if (!canMutateRequirement(existing, user)) return { error: 'forbidden' };
+
+  if (patch.sales_owner_id && patch.sales_owner_id !== existing.sales_owner_id) {
+    if (user.role !== 'admin') return { error: 'forbidden_owner_change' };
+    const target = await prisma.user.findUnique({ where: { id: patch.sales_owner_id } });
+    if (!target || !target.active) return { error: 'user_not_found' };
+    if (!OWNER_ROLES.includes(target.role)) return { error: 'invalid_owner_role' };
+  }
 
   const row = await prisma.requirement.update({ where: { id }, data: patch, include: DECORATE_INCLUDE });
   return { requirement: serialize(row) };

@@ -8,7 +8,8 @@ import { apiErrorMessage, canAssignRecruiters } from '../profiles/profileUtils.j
 export default function AssignRecruiterDrawer({ requirement, onClose }) {
   const { user } = useAuth();
   const { pushError } = useAlerts();
-  const canAssign = canAssignRecruiters(user);
+  const canAssign = canAssignRecruiters(user, requirement);
+  const isSalesButNotOwner = user?.role === 'sales' && !canAssign;
   const [assignments, setAssignments] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [selectedRecruiterId, setSelectedRecruiterId] = useState('');
@@ -76,8 +77,8 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
     <Drawer
       open
       size="md"
-      tone="info"
-      title="Assign recruiters"
+      tone={canAssign ? 'edit' : 'info'}
+      title={canAssign ? 'Assign recruiters' : 'Assignments'}
       onClose={onClose}
       footer={
         <button type="button" className="btn-secondary" onClick={onClose}>
@@ -86,6 +87,23 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
       }
     >
       <p className="mb-3 text-xs text-tertiary-500">{requirement.title}</p>
+      {requirement.sales_owner?.name && (
+        <p className="mb-3 text-xs text-tertiary-500">
+          Sales owner: <span className="font-medium text-tertiary-800">{requirement.sales_owner.name}</span>
+        </p>
+      )}
+
+      {isSalesButNotOwner && (
+        <p className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Only the sales owner (or an admin) can change recruiter assignments on this requirement.
+        </p>
+      )}
+
+      {!canAssign && !isSalesButNotOwner && (
+        <p className="mb-3 rounded-xl border border-tertiary-100 bg-tertiary-50 px-3 py-2 text-xs text-tertiary-600">
+          View only — sign in as Admin or the Sales owner to assign or unassign recruiters.
+        </p>
+      )}
 
       {canAssign && (
         <form onSubmit={assignRecruiter} className="mb-4 space-y-2 rounded-xl border border-primary-100 bg-primary-50 p-3">

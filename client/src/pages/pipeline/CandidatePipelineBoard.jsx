@@ -23,6 +23,7 @@ import { usePipelineBoard } from './usePipelineBoard.js';
 import PipelineFilters from './PipelineFilters.jsx';
 
 const CANDIDATE_COLUMNS = [...SUBMISSION_PIPELINE, 'backout', 'rejected'];
+const CANDIDATE_FILTER_FIELDS = ['search', 'account_id', 'recruiter_id', 'submission_stage'];
 
 const INPUT_CLASS =
   'mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100';
@@ -255,10 +256,7 @@ export default function CandidatePipelineBoard() {
         )}
       </div>
 
-      <PipelineFilters
-        fields={['search', 'account_id', 'recruiter_id', 'submission_stage']}
-        onChange={handleFiltersChange}
-      />
+      <PipelineFilters fields={CANDIDATE_FILTER_FIELDS} onChange={handleFiltersChange} />
 
       <DndContext
         sensors={sensors}

@@ -33,8 +33,9 @@ app.use(express.json());
 app.use(requestLogger);
 app.use('/uploads', authenticate, express.static(path.resolve(env.uploadDir)));
 
-const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false });
-const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+// Login is stricter than the general API (brute-force); both are per-IP windows.
+const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false });
 
 app.get('/api/v1/health', (req, res) => res.json({ success: true, data: { status: 'ok' } }));
 

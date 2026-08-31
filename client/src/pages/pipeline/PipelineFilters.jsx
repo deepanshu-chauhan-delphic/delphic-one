@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
@@ -56,44 +56,71 @@ export default function PipelineFilters({
   const [bdas, setBdas] = useState([]);
   const [salesUsers, setSalesUsers] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
+  const lastApiParamsKey = useRef('');
 
-  const fieldSet = useMemo(() => new Set(fields), [fields]);
-  const apiParams = useMemo(() => filtersToApiParams(filters, fields), [filters, fields]);
+  // Content key so inline fields={[...]} from parents does not retrigger fetches every render.
+  const fieldsKey = Array.isArray(fields) ? fields.join(',') : '';
+  const fieldList = useMemo(() => (fieldsKey ? fieldsKey.split(',') : []), [fieldsKey]);
+  const fieldSet = useMemo(() => new Set(fieldList), [fieldList]);
+  const apiParams = useMemo(() => filtersToApiParams(filters, fieldList), [filters, fieldList]);
 
   useEffect(() => {
     setDraftSearch(filters.search);
   }, [filters.search]);
 
   useEffect(() => {
+    const key = JSON.stringify(apiParams);
+    if (key === lastApiParamsKey.current) return;
+    lastApiParamsKey.current = key;
     onChange?.(apiParams);
   }, [apiParams, onChange]);
 
   useEffect(() => {
+    let cancelled = false;
     if (fieldSet.has('account_id')) {
       apiClient
         .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
-        .then(({ data }) => setAccounts((data.data || []).map((row) => ({ id: row.id, label: row.name }))))
-        .catch(() => setAccounts([]));
+        .then(({ data }) => {
+          if (!cancelled) setAccounts((data.data || []).map((row) => ({ id: row.id, label: row.name })));
+        })
+        .catch(() => {
+          if (!cancelled) setAccounts([]);
+        });
     }
     if (fieldSet.has('bda_id')) {
       apiClient
         .get('/users', { params: { role: 'bda', active: true, limit: 100 } })
-        .then(({ data }) => setBdas((data.data || []).map((row) => ({ id: row.id, label: row.name }))))
-        .catch(() => setBdas([]));
+        .then(({ data }) => {
+          if (!cancelled) setBdas((data.data || []).map((row) => ({ id: row.id, label: row.name })));
+        })
+        .catch(() => {
+          if (!cancelled) setBdas([]);
+        });
     }
     if (fieldSet.has('sales_id')) {
       apiClient
         .get('/users', { params: { role: 'sales', active: true, limit: 100 } })
-        .then(({ data }) => setSalesUsers((data.data || []).map((row) => ({ id: row.id, label: row.name }))))
-        .catch(() => setSalesUsers([]));
+        .then(({ data }) => {
+          if (!cancelled) setSalesUsers((data.data || []).map((row) => ({ id: row.id, label: row.name })));
+        })
+        .catch(() => {
+          if (!cancelled) setSalesUsers([]);
+        });
     }
     if (fieldSet.has('recruiter_id')) {
       apiClient
         .get('/users', { params: { role: 'recruiter', active: true, limit: 100 } })
-        .then(({ data }) => setRecruiters((data.data || []).map((row) => ({ id: row.id, label: row.name }))))
-        .catch(() => setRecruiters([]));
+        .then(({ data }) => {
+          if (!cancelled) setRecruiters((data.data || []).map((row) => ({ id: row.id, label: row.name })));
+        })
+        .catch(() => {
+          if (!cancelled) setRecruiters([]);
+        });
     }
-  }, [fieldSet]);
+    return () => {
+      cancelled = true;
+    };
+  }, [fieldsKey, fieldSet]);
 
   function patchFilters(patch) {
     const nextFilters = { ...filters, ...patch };
@@ -244,6 +271,19 @@ export default function PipelineFilters({
           />
           Stuck only
         </label>
+      )}
+
+      {fieldSet.has('stuck') && (
+        <select
+          value={filters.stuck}
+          onChange={(event) => patchFilters({ stuck: event.target.value })}
+          className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+          aria-label="Stuck"
+        >
+          <option value="all">Stuck: All</option>
+          <option value="stuck">Stuck only</option>
+          <option value="not_stuck">Not stuck</option>
+        </select>
       )}
 
       {fieldSet.has('past_sla_only') && (

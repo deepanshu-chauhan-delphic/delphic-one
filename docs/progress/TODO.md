@@ -47,6 +47,7 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] Account / profile / requirement create-edit forms wired to remaining schema fields (agreement URLs, candidate compensation/relocate, req certifications/timezone/contract, meeting notes).
 - [x] Internal round interviewer multiselect (`interview_round_interviewers`) + app-wide alert banners / form validation helpers.
 - [ ] Manual click-through (V2 + closure rings + requirement map + interviewer multiselect) in the browser — tests cover the new server surface; UI not yet hand-verified.
+- [x] Stuck requirements list normally + `stuck` tri-state filter (`GET /requirements` `is_stuck` + `?stuck=stuck|not_stuck`; requirements list page + requirement map board). Graceful token-expiry: shared refresh promise, redirect to `/login` on unrecoverable 401 (`apiClient.js`).
 
 ## Infra / CI
 

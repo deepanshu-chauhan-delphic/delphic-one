@@ -20,6 +20,8 @@ import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSen
 import { usePipelineBoard } from './usePipelineBoard.js';
 import PipelineFilters from './PipelineFilters.jsx';
 
+const JOB_FILTER_FIELDS = ['search', 'account_id', 'sales_id', 'recruiter_id', 'status', 'priority'];
+
 const INPUT_CLASS =
   'mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
@@ -319,10 +321,7 @@ export default function JobPipelineBoard() {
         )}
       </div>
 
-      <PipelineFilters
-        fields={['search', 'account_id', 'sales_id', 'recruiter_id', 'status', 'priority']}
-        onChange={handleFiltersChange}
-      />
+      <PipelineFilters fields={JOB_FILTER_FIELDS} onChange={handleFiltersChange} />
 
       <DndContext
         sensors={sensors}

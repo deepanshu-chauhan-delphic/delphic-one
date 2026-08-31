@@ -224,3 +224,84 @@ describe('requirement assignment', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('requirement sales owner reassignment', () => {
+  test('admin can reassign the sales owner; non-admin owner cannot', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const otherSales = await createUser({ role: 'sales', name: 'Other Sales' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const req = await createRequirement(salesToken, account.id);
+
+    const denied = await authed(request(app).patch(`/api/v1/requirements/${req.id}`), salesToken).send({
+      sales_owner_id: otherSales.id,
+    });
+    expect(denied.status).toBe(403);
+
+    const ok = await authed(request(app).patch(`/api/v1/requirements/${req.id}`), adminToken).send({
+      sales_owner_id: otherSales.id,
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.sales_owner.id).toBe(otherSales.id);
+  });
+
+  test('sales owner is rejected for a recruiter user', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const req = await createRequirement(salesToken, account.id);
+
+    const res = await authed(request(app).patch(`/api/v1/requirements/${req.id}`), adminToken).send({
+      sales_owner_id: recruiter.id,
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/sales, BDA, or admin/i);
+  });
+});
+
+describe('requirement stuck flag and filter', () => {
+  async function ageRequirement(id, days) {
+    await prisma.requirement.update({
+      where: { id },
+      data: { created_at: new Date(Date.now() - days * 86400000) },
+    });
+  }
+
+  test('is_stuck is true only for old, still-active requirements and the filter narrows the list', async () => {
+    const fresh = await createRequirement(salesToken, account.id);
+    const stuckReq = await createRequirement(salesToken, account.id);
+    await ageRequirement(stuckReq.id, 10);
+
+    const list = await authed(request(app).get('/api/v1/requirements'), salesToken);
+    expect(list.status).toBe(200);
+    const byId = Object.fromEntries(list.body.data.map((r) => [r.id, r]));
+    expect(byId[fresh.id].is_stuck).toBe(false);
+    expect(byId[stuckReq.id].is_stuck).toBe(true);
+
+    const stuckOnly = await authed(
+      request(app).get('/api/v1/requirements').query({ stuck: 'stuck' }),
+      salesToken
+    );
+    expect(stuckOnly.body.data.map((r) => r.id)).toEqual([stuckReq.id]);
+
+    const notStuck = await authed(
+      request(app).get('/api/v1/requirements').query({ stuck: 'not_stuck' }),
+      salesToken
+    );
+    const notStuckIds = notStuck.body.data.map((r) => r.id);
+    expect(notStuckIds).toContain(fresh.id);
+    expect(notStuckIds).not.toContain(stuckReq.id);
+  });
+
+  test('a closed requirement is never stuck even when old', async () => {
+    const req = await createRequirement(salesToken, account.id);
+    await ageRequirement(req.id, 30);
+    const seats = await authed(request(app).get(`/api/v1/requirements/${req.id}/seats`), salesToken);
+    for (const seat of seats.body.data) {
+      await authed(request(app).post(`/api/v1/seats/${seat.id}/stage`), salesToken).send({
+        to_status: 'dropped',
+        reason: 'not needed',
+      });
+    }
+    const detail = await authed(request(app).get(`/api/v1/requirements/${req.id}`), salesToken);
+    expect(detail.body.data.is_stuck).toBe(false);
+  });
+});

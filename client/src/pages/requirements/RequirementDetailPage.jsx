@@ -15,6 +15,8 @@ import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import RequirementFormPage from './RequirementFormPage.jsx';
+import AssignRecruiterDrawer from './AssignRecruiterDrawer.jsx';
+import { canAssignRecruiters } from '../profiles/profileUtils.js';
 import {
   canChangeSeatStage,
   canMutateRequirement,
@@ -48,6 +50,7 @@ export default function RequirementDetailPage() {
   const [joinedAt, setJoinedAt] = useState('');
   const [addSeatOpen, setAddSeatOpen] = useState(false);
   const [seatLabel, setSeatLabel] = useState('');
+  const [assignOpen, setAssignOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -263,6 +266,9 @@ export default function RequirementDetailPage() {
               Edit
             </button>
           )}
+          <button type="button" className="btn-secondary" onClick={() => setAssignOpen(true)}>
+            {canAssignRecruiters(user, requirement) ? 'Assign recruiters' : 'View assignments'}
+          </button>
           <Link to={`/requirements/${id}/board`} className="btn-secondary">
             Pipeline board
           </Link>
@@ -410,7 +416,7 @@ export default function RequirementDetailPage() {
             <p className="text-xs font-medium text-tertiary-500">Assigned recruiters</p>
             <ul className="mt-1 space-y-1 text-sm">
               {(requirement.assigned_recruiters || []).length === 0 && (
-                <li className="text-tertiary-400">None yet — use Assign on the requirements list</li>
+                <li className="text-tertiary-400">None yet — use Assign recruiters above</li>
               )}
               {(requirement.assigned_recruiters || []).map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
@@ -616,6 +622,16 @@ export default function RequirementDetailPage() {
           />
         )}
       </Drawer>
+
+      {assignOpen && requirement && (
+        <AssignRecruiterDrawer
+          requirement={requirement}
+          onClose={() => {
+            setAssignOpen(false);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

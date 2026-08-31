@@ -8,28 +8,60 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+function clearSessionAndRedirect() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+// Shared so a burst of concurrent 401s triggers only one refresh call.
+let refreshPromise = null;
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          const { data } = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
-          localStorage.setItem('access_token', data.data.access_token);
-          localStorage.setItem('refresh_token', data.data.refresh_token);
-          original.headers.Authorization = `Bearer ${data.data.access_token}`;
-          return apiClient(original);
-        } catch {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-        }
-      }
+
+    if (error.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    // A 401 from the refresh endpoint itself means the refresh token is dead.
+    if (String(original.url || '').includes('/auth/refresh')) {
+      clearSessionAndRedirect();
+      return Promise.reject(error);
+    }
+
+    original._retry = true;
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      clearSessionAndRedirect();
+      return Promise.reject(error);
+    }
+
+    try {
+      if (!refreshPromise) {
+        refreshPromise = axios
+          .post('/api/v1/auth/refresh', { refresh_token: refreshToken })
+          .then(({ data }) => {
+            localStorage.setItem('access_token', data.data.access_token);
+            localStorage.setItem('refresh_token', data.data.refresh_token);
+            return data.data.access_token;
+          })
+          .finally(() => {
+            refreshPromise = null;
+          });
+      }
+      const accessToken = await refreshPromise;
+      original.headers = original.headers || {};
+      original.headers.Authorization = `Bearer ${accessToken}`;
+      return apiClient(original);
+    } catch {
+      clearSessionAndRedirect();
+      return Promise.reject(error);
+    }
   }
 );
 

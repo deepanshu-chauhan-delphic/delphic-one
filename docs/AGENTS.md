@@ -33,7 +33,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 ### Testing
 
-- [TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md) — demo data inventory + role walkthroughs
+- [TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md) — team roster + LeadMinds/Jira/vendor seed walkthrough
 - [TESTING-RD-103-104.md](testing/TESTING-RD-103-104.md) — requirements UI
 - [TESTING-RD-107-108.md](testing/TESTING-RD-107-108.md) — submissions UI
 - [TESTING-RD-111-125-112.md](testing/TESTING-RD-111-125-112.md) — pipeline / interviews / kanban
@@ -46,6 +46,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 ### Guides
 
 - [BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md)
+- [PRODUCTION-SEED.md](guides/PRODUCTION-SEED.md) — VPS / post-pull seed commands (`seed` → `seed:accounts` → `seed:jira` → `seed:vendors`; `seed-admin` = safe prod bootstrap)
 
 ## Stack
 
@@ -73,16 +74,23 @@ server/src/
   config/                # db.js, env.js, logger.js (structured stdout logging)
 
 server/prisma/
-  schema.prisma          # single schema — all domain tables as Prisma models (12 as of v2, incl. account_meeting_attendees)
-  seed.js                 # demo seed: users + accounts/reqs/profiles/submissions (see testing/TESTING-DEMO-SEED.md)
+  schema.prisma          # single schema — all domain tables as Prisma models
+  team-roster.js         # Delphic @delphic.in users + Jira name/id maps
+  client-aliases.js      # Jira client name → LeadMinds canonical name
+  seed.js                # wipe + departments + team roster only
+  seed-accounts.js       # LeadMinds client accounts CSV
+  seed-jira.js           # Jira_all.csv requirements (JD, assignees, comments)
+  seed-vendors.js        # active vendor accounts from tracker sheet
+  seed-admin.js          # non-destructive prod admin bootstrap
 
 docs/
   AGENTS.md              # this file
+  jira/                  # Jira_all.csv, LeadMinds-Accounts.csv
   architecture/          # diagrams + HLD + specs
   ui/                    # UX rules + walkthroughs + references/
   testing/               # how-to-test guides
   progress/              # PROGRESS, TODO, SPRINT-PLAN
-  guides/                # logging and other operator guides
+  guides/                # logging, production seed, other operator guides
 ```
 
 Domain modules follow a consistent 4-file pattern: `routes` → `controller` → `service` → `validation` (including `admin`, `comments`, `documents`, and `dashboard` which has routes + service).
@@ -95,48 +103,44 @@ Domain modules follow a consistent 4-file pattern: `routes` → `controller` →
 
 ## Local setup
 
-**Docker (recommended, verified working):**
+**Docker (recommended):**
 
 ```bash
 docker compose up -d --build
 ```
 
-Seed (PowerShell-safe — empty `--entrypoint ""` breaks on Windows). From **repo root**:
+Full CSV seed (PowerShell-safe). From **repo root** after containers are up:
 
 ```powershell
-docker compose cp server/prisma/seed.js server:/app/server/prisma/seed.js
+docker compose exec server mkdir -p /app/docs/jira
+docker compose cp docs/jira/Jira_all.csv server:/app/docs/jira/Jira_all.csv
+docker compose cp docs/jira/LeadMinds-Accounts.csv server:/app/docs/jira/LeadMinds-Accounts.csv
 docker compose exec server node prisma/seed.js
+docker compose exec server node prisma/seed-accounts.js
+docker compose exec server node prisma/seed-jira.js
+docker compose exec server node prisma/seed-vendors.js
 ```
 
-Or if the image already includes the latest seed:
+Client: http://localhost:8081 · API: http://localhost:4000 · Postgres: `localhost:5434`.
 
-```powershell
-docker compose exec server node prisma/seed.js
-```
-
-If the server container is not running yet:
-
-```powershell
-docker compose run --rm --entrypoint sh server -c "node prisma/seed.js"
-```
-
-Client: http://localhost:8081 · API: http://localhost:4000 · Postgres (host access, e.g. for `psql`): `localhost:5434`.
-
-**Without Docker:**
+**Without Docker (hot reload):**
 
 ```bash
 npm install --workspaces
-cp server/.env.example server/.env   # set DATABASE_URL + JWT secrets; optional LOG_LEVEL
+cp server/.env.example server/.env   # DATABASE_URL → localhost:5434; JWT secrets; optional LOG_LEVEL
 npm run migrate
 npm run seed
-npm run lint         # ESLint (server + client)
+npm run seed:accounts
+npm run seed:jira
+npm run seed:vendors
+npm run lint
 npm run dev:server   # http://localhost:4000
 npm run dev:client   # http://localhost:5173
 ```
 
-Seeded users (password `Password123!`): `admin@delphic.local`, `admin2@delphic.local`, `sales1@delphic.local`, `sales2@delphic.local`, `bda1@delphic.local`, `bda2@delphic.local`, `recruiter1@delphic.local`, `recruiter2@delphic.local`.
+Seeded users (password `Password123!`): `admin@delphic.in`, `diksha.yadav@delphic.in`, `paras.gulati@delphic.in`, `chahak.pandya@delphic.in`, `dheeraj.kumar@delphic.in`, `tanvi.saxena@delphic.in`, `Garv@delphic.in`, `prashant.hada@delphic.in`, `sarthak.solanki@delphic.in`, and the rest of the roster in `server/prisma/team-roster.js`.
 
-Demo domain data (accounts, requirements, seats, profiles, submissions, interviews, history) is included in the same seed so dashboards and lists are non-empty. Full inventory and role walkthroughs: [testing/TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md). Re-running seed wipes and recreates everything.
+`npm run seed` wipes everything and loads **team only**. Domain data comes from `seed:accounts` (LeadMinds clients), `seed:jira` (requirements + JDs + assignments), and optional `seed:vendors`. VPS steps: [guides/PRODUCTION-SEED.md](guides/PRODUCTION-SEED.md). Walkthrough: [testing/TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md).
 
 ## Backend logging
 

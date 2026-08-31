@@ -29,7 +29,7 @@ const MATRIX_FIELDS = [
   'status',
   'priority',
   'submission_stage',
-  'stuck_only',
+  'stuck',
   'past_sla_only',
 ];
 

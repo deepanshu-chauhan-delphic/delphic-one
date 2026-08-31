@@ -7,10 +7,13 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
+const OWNER_ROLES = ['sales', 'bda', 'admin'];
+
 const emptyForm = {
   account_id: '',
   title: '',
   req_type: 'recruitment',
+  sales_owner_id: '',
   seats_total: 1,
   description: '',
   job_description: '',
@@ -77,6 +80,8 @@ function buildPayload(form, { isCreate }) {
   if (isCreate) {
     payload.account_id = form.account_id;
     payload.seats_total = Number(form.seats_total) || 1;
+  } else {
+    payload.sales_owner_id = form.sales_owner_id || undefined;
   }
 
   return payload;
@@ -88,6 +93,7 @@ function hydrateForm(req) {
     account_id: req.account?.id || '',
     title: req.title || '',
     req_type: req.req_type || 'recruitment',
+    sales_owner_id: req.sales_owner?.id || '',
     seats_total: req.seats_total || 1,
     description: req.description || '',
     job_description: req.job_description || '',
@@ -127,6 +133,8 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
     account_id: initialAccountId || '',
   }));
   const [accounts, setAccounts] = useState([]);
+  const [ownerOptions, setOwnerOptions] = useState([]);
+  const canEditOwner = isEdit && user?.role === 'admin';
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState(null);
@@ -142,6 +150,13 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
       .get('/accounts', { params: { type: 'client', stage: 'active', limit: 100 } })
       .then(({ data }) => setAccounts(data.data || []))
       .catch(() => setAccounts([]));
+
+    if (isEdit && user?.role === 'admin') {
+      apiClient
+        .get('/users', { params: { active: 'true', limit: 100 } })
+        .then(({ data }) => setOwnerOptions((data.data || []).filter((u) => OWNER_ROLES.includes(u.role))))
+        .catch(() => setOwnerOptions([]));
+    }
 
     if (!isEdit) {
       if (initialAccountId) {
@@ -262,6 +277,31 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
                 className="w-full rounded-md border px-3 py-2 text-sm"
               />
             </div>
+
+            {canEditOwner && (
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Sales owner</label>
+                <select
+                  value={form.sales_owner_id}
+                  onChange={(e) => updateField('sales_owner_id', e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  <option value="">Select owner…</option>
+                  {ownerOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} · {u.role}
+                    </option>
+                  ))}
+                  {existing?.sales_owner
+                    && !ownerOptions.some((u) => u.id === existing.sales_owner.id) && (
+                      <option value={existing.sales_owner.id}>{existing.sales_owner.name} (current)</option>
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-tertiary-500">
+                  Admin only. Reassigns the &ldquo;Sales&rdquo; owner shown on pipeline cards and reports.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Type *</label>
@@ -461,6 +501,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={form.budget_min}
                 onChange={(e) => updateField('budget_min', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
@@ -471,6 +512,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={form.budget_max}
                 onChange={(e) => updateField('budget_max', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"

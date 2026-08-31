@@ -2,6 +2,53 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-08-31 — LeadMinds accounts + JD seed + requirements list pagination
+
+Uncommitted work on `main` (local).
+
+- **Seed chain:** `seed` (team only) → `seed:accounts` (LeadMinds clients) → `seed:jira` (34 reqs) → `seed:vendors` (optional). Fake Acme/Stuck Lead demo data removed from base seed.
+- **`client-aliases.js`:** GirnarSoft + Girnarsoft_Pragya → Girnarsoft; Devlabs → Devlabsalliance; other Jira short names map to LeadMinds display names.
+- **`seed-jira`:** full Jira `Description` → `job_description`; sales owner prefers `sales` role (Tanvi) so assign UI works; recruiter assignments from Multi-Assignee + comment mentions.
+- **Requirements list:** Previous/Next pagination (20/page) — pipeline still loads all rows.
+- **Assign recruiters:** ownership-aware UI messaging; Assign button on requirement detail.
+- Docs: `AGENTS.md`, `guides/PRODUCTION-SEED.md`, `testing/TESTING-DEMO-SEED.md` updated for the new seed order.
+
+## 2026-08-31 — Vendor accounts seeded from the vendor tracker sheet
+
+Uncommitted work on `main` (local). `server/prisma/seed-vendors.js` is untracked.
+
+- New `server/prisma/seed-vendors.js` + `npm run seed:vendors` (root + server). Inline data array of the **32 vendors whose sheet Status is "Active"** (Hold / In Budget rows excluded, per instruction). Idempotent: wipes `source: 'vendor_csv'` accounts then recreates.
+- Each row → `Account { type: 'vendor', stage: 'active', source: 'vendor_csv' }`. POC initials map to the internal owner (`garv`→Garv, `krupali`→Krupali Vala, `prashant`→Prashant Singh Hada; blank → admin). Sheet fields: email → `poc_email`, location → `location`, Technologies → `vendor_specializations[]`, the free-text "Budget" column → `meeting_notes`.
+- Seeded locally: 32 vendor accounts (owners: Garv 10, Prashant 10, Krupali 8, Admin 4). Total accounts now 43 (11 client + 32 vendor).
+
+## 2026-08-31 — Stuck requirements: visible by default + tri-state filter, plus graceful token-expiry handling
+
+Uncommitted work on `main` (local).
+
+- **Requirements list (`GET /requirements`):** every row now carries `is_stuck` (active status `open`/`in_progress` **and** no movement for `STUCK_THRESHOLD_DAYS` = 7, using `created_at` as the movement proxy — same rule as the pipeline board). Stuck rows are **not hidden** — they list normally with a red "Stuck" pill on the Status cell and in the peek. New optional `stuck` query param: `stuck` (only stuck) / `not_stuck` (exclude stuck); absent = all. Implemented as a Prisma `AND` / `NOT` clause so pagination stays correct.
+- **Requirements list page:** added a "Stuck: All / Stuck only / Not stuck" `<select>` next to Status/Priority, URL-synced via `?stuck=`.
+- **Requirement × stage matrix board (`GET /pipeline/board`):** the old `stuck_only` checkbox is replaced (on this board only) by the same tri-state `stuck` selector. `stuck_only` still works server-side and on the other pipeline boards for backward compatibility. `usePipelineFilters` gains a `stuck` field (`'all'` default, omitted from the URL/params when `all`).
+- **Token expiry (`client/src/lib/apiClient.js`):** the 401 refresh interceptor was surfacing "Invalid or expired access token" as a page error whenever there was no refresh token, or when parallel requests raced the refresh. Now: a single shared refresh promise de-dupes concurrent 401s; a missing/failed refresh token, or a 401 from `/auth/refresh` itself, clears the session and redirects to `/login` (guarded so it doesn't loop when already there).
+- Tests: `requirements-stage.test.js` +2 (`is_stuck` truth table + `stuck` filter narrowing; closed-but-old requirement is never stuck). `usePipelineFilters.test.mjs` +1 block (tri-state round-trip, `all` omitted). Full server suite green (25 suites / 155 tests).
+
+## 2026-08-31 — Admin can reassign a requirement's Sales owner
+
+Uncommitted work on `main` (local).
+
+- **Server:** `updateSchema` gains `sales_owner_id`; `requirements.service.update()` only lets an **admin** change it, and only to a `sales` / `bda` / `admin` user that is active (`forbidden_owner_change` → 403, `invalid_owner_role` → 400, reuses `user_not_found`). Non-owner-change PATCHes are unaffected.
+- **Client:** `RequirementFormPage` shows a "Sales owner" dropdown when editing **and** the current user is admin — options are active sales/bda/admin users, plus the current owner pinned if they fall outside that set.
+- **BDA stays account-level only** (per decision) — no per-requirement BDA field. Recruiter assignment left strict (recruiters only); the existing "Assign recruiters" drawer already covers add/remove.
+- Tests: `requirements-stage.test.js` +2 (admin reassigns owner / non-admin blocked / recruiter rejected).
+
+## 2026-08-31 — Jira import repointed to full export (`Jira_all.csv`)
+
+Uncommitted work on `main` (local). Seed helper files are still untracked.
+
+- `docs/jira/Jira_all.csv` — full Jira export (142 cols, 34 `Requirement` rows, project OUT). Replaces the older 39-row `docs/jira/Jira.csv` as the import source. The 8 requirements that existed only in the old file (OUT-22313/22311/22308/22307/22301/22300/22292/22239) are intentionally dropped; 3 new ones added (OUT-22320/22319/22318).
+- `server/prisma/seed-jira.js` rewritten to parse **by header name** (old version was positional and assumed the old layout + `Comments` header; new export uses a different column order and a singular `Comment` header). Now also imports: `Number of Positions` → `seats_total` + N seats, `Requirement Type` (C2C/C2H → `contract`, Perm → `full_time`), `Budget` ("1.8 LPM" → monthly INR ₹180000, "1000/hr" → hourly, ranges → min/max, "0" → none), `Priority` "Highest" → `urgent`. Reporter now owns the requirement regardless of role (was sales-only), so Chahak (bda) and Diksha (admin) own their own rows.
+- `server/prisma/team-roster.js` — added **Biswajit Dey** (`biswajit.dey@delphic.in`, role `admin`; creator of OUT-22317) and renamed `Prashant Hada` → `Prashant Singh Hada` to match the Jira display name. All 8 Jira comment-author IDs (incl. Biswajit's creator id) map to roster users.
+- Seeded: 13 users, 11 client accounts, 34 requirements, 41 seats, 213 comments, 89 recruiter assignments (8 via comment-mention regex for dheeraj/krupali/nikhil). Owners: Tanvi 23, Chahak 9, Diksha 2.
+
 ## 2026-08-29 — Closure progress rings + requirement × stage matrix board + form field wiring
 
 Uncommitted work on `main` (local). Complements the role pipeline boards and V2 lead work.

@@ -38,7 +38,16 @@ function RequirementPeek({ row, onClose, onAssign }) {
         <PeekField label="Key">{reqKey(detail.id)}</PeekField>
         <PeekField label="Title">{detail.title}</PeekField>
         <PeekField label="Client">{detail.account?.name || '—'}</PeekField>
-        <PeekField label="Status"><Badge value={detail.status} /></PeekField>
+        <PeekField label="Status">
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <Badge value={detail.status} />
+            {detail.is_stuck && (
+              <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[10px] font-medium text-danger-700">
+                Stuck
+              </span>
+            )}
+          </span>
+        </PeekField>
         <PeekField label="Priority"><Badge value={detail.priority} /></PeekField>
         <PeekField label="Type">{detail.req_type ? <Badge value={detail.req_type} /> : '—'}</PeekField>
         <PeekField label="Seats">{`${detail.seats_closed ?? 0}/${detail.seats_total ?? 0}`}</PeekField>
@@ -69,7 +78,7 @@ function RequirementPeek({ row, onClose, onAssign }) {
             onClose();
           }}
         >
-          {canAssignRecruiters(user) ? 'Assign recruiters' : 'View assignments'}
+          {canAssignRecruiters(user, detail) ? 'Assign recruiters' : 'View assignments'}
         </button>
         <button type="button" className="btn-secondary" onClick={() => navigate(`/requirements/${detail.id}?edit=1`)}>
           Edit
@@ -87,8 +96,11 @@ export default function RequirementsListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [status, setStatus] = useState(() => searchParams.get('status') || '');
   const [priority, setPriority] = useState(() => searchParams.get('priority') || '');
+  const [stuck, setStuck] = useState(() => searchParams.get('stuck') || '');
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [assignTarget, setAssignTarget] = useState(null);
@@ -97,25 +109,30 @@ export default function RequirementsListPage() {
 
   function reload() {
     setLoading(true);
-    const params = {};
+    const params = { page, limit: 20 };
     if (status) params.status = status;
     if (priority) params.priority = priority;
+    if (stuck) params.stuck = stuck;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
       .get('/requirements', { params })
-      .then(({ data }) => setRows(data.data || []))
+      .then(({ data }) => {
+        setRows(data.data || []);
+        setPagination(data.pagination || { page, total: data.data?.length || 0, totalPages: 1 });
+      })
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, priority, status]);
+  }, [appliedSearch, page, priority, status, stuck]);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStatus(searchParams.get('status') || '');
     setPriority(searchParams.get('priority') || '');
+    setStuck(searchParams.get('stuck') || '');
   }, [searchParams]);
 
   function closeCreate() {
@@ -139,7 +156,20 @@ export default function RequirementsListPage() {
         ),
       },
       { key: 'client', header: 'Client', render: (row) => row.account?.name || '—' },
-      { key: 'status', header: 'Status', render: (row) => <Badge value={row.status} /> },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (row) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge value={row.status} />
+            {row.is_stuck && (
+              <span className="rounded-full bg-danger-50 px-2 py-0.5 text-[10px] font-medium text-danger-700">
+                Stuck
+              </span>
+            )}
+          </div>
+        ),
+      },
       { key: 'priority', header: 'Priority', render: (row) => <Badge value={row.priority} /> },
       { key: 'seats', header: 'Seats', render: (row) => `${row.seats_closed}/${row.seats_total}` },
       {
@@ -180,6 +210,7 @@ export default function RequirementsListPage() {
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  setPage(1);
                   setAppliedSearch(search.trim());
                 }}
                 className="flex"
@@ -201,7 +232,10 @@ export default function RequirementsListPage() {
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={status}
-                onChange={(event) => setStatus(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setStatus(event.target.value);
+                }}
                 className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
               >
                 <option value="">Status: All</option>
@@ -213,7 +247,10 @@ export default function RequirementsListPage() {
               </select>
               <select
                 value={priority}
-                onChange={(event) => setPriority(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setPriority(event.target.value);
+                }}
                 className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
               >
                 <option value="">Priority: All</option>
@@ -221,6 +258,19 @@ export default function RequirementsListPage() {
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
+              </select>
+              <select
+                value={stuck}
+                onChange={(event) => {
+                  setPage(1);
+                  setStuck(event.target.value);
+                }}
+                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+                aria-label="Stuck"
+              >
+                <option value="">Stuck: All</option>
+                <option value="stuck">Stuck only</option>
+                <option value="not_stuck">Not stuck</option>
               </select>
             </div>
           </div>
@@ -238,8 +288,31 @@ export default function RequirementsListPage() {
         />
       </section>
 
-      <div className="px-1 text-xs text-tertiary-500">
-        {rows.length} of {rows.length}
+      <div className="flex items-center justify-between px-1 text-xs text-tertiary-500">
+        <span>
+          {rows.length} of {pagination.total}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((c) => c - 1)}
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span>
+            Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
+          </span>
+          <button
+            type="button"
+            disabled={page >= pagination.totalPages}
+            onClick={() => setPage((c) => c + 1)}
+            className="rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 shadow-soft disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {assignTarget && <AssignRecruiterDrawer requirement={assignTarget} onClose={() => setAssignTarget(null)} />}

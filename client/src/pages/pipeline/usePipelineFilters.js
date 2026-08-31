@@ -12,6 +12,7 @@ const FILTER_KEYS = [
   'priority',
   'submission_stage',
   'stuck_only',
+  'stuck',
   'past_sla_only',
   'date_from',
   'date_to',
@@ -28,6 +29,7 @@ export function emptyPipelineFilters() {
     priority: [],
     submission_stage: [],
     stuck_only: false,
+    stuck: 'all',
     past_sla_only: false,
     date_from: '',
     date_to: '',
@@ -45,6 +47,7 @@ export function filtersFromSearchParams(searchParams) {
   next.priority = csvToList(searchParams.get('priority'));
   next.submission_stage = csvToList(searchParams.get('submission_stage'));
   next.stuck_only = searchParams.get('stuck_only') === 'true';
+  next.stuck = searchParams.get('stuck') || 'all';
   next.past_sla_only = searchParams.get('past_sla_only') === 'true';
   next.date_from = searchParams.get('date_from') || '';
   next.date_to = searchParams.get('date_to') || '';
@@ -55,6 +58,11 @@ export function applyFiltersToSearchParams(searchParams, filters) {
   const next = new URLSearchParams(searchParams);
   for (const key of FILTER_KEYS) {
     const value = filters[key];
+    if (key === 'stuck') {
+      if (value && value !== 'all') next.set(key, value);
+      else next.delete(key);
+      continue;
+    }
     if (Array.isArray(value)) {
       if (value.length) next.set(key, value.join(','));
       else next.delete(key);
@@ -87,6 +95,7 @@ export function filtersToApiParams(filters, fields = null) {
     params.submission_stage = filters.submission_stage.join(',');
   }
   if (include('stuck_only') && filters.stuck_only) params.stuck_only = 'true';
+  if (include('stuck') && filters.stuck && filters.stuck !== 'all') params.stuck = filters.stuck;
   if (include('past_sla_only') && filters.past_sla_only) params.past_sla_only = 'true';
   if (include('date_from') && filters.date_from) params.date_from = filters.date_from;
   if (include('date_to') && filters.date_to) params.date_to = filters.date_to;

@@ -61,6 +61,7 @@ async function getBoard(user, filters = {}) {
   const {
     search,
     stuck_only,
+    stuck,
     past_sla_only,
     account_id,
     bda_id,
@@ -118,7 +119,8 @@ async function getBoard(user, filters = {}) {
   });
 
   let requirements = requirementRows.map((row) => serializeRequirement(row, cutoff));
-  if (stuck_only) requirements = requirements.filter((r) => r.is_stuck);
+  if (stuck_only || stuck === 'stuck') requirements = requirements.filter((r) => r.is_stuck);
+  else if (stuck === 'not_stuck') requirements = requirements.filter((r) => !r.is_stuck);
   if (past_sla_only) requirements = requirements.filter((r) => r.past_sla);
 
   const visibleRequirementIds = new Set(requirements.map((r) => r.id));

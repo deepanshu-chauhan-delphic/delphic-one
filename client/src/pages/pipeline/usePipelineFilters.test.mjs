@@ -9,7 +9,23 @@ import {
 const empty = emptyPipelineFilters();
 assert.equal(empty.search, '');
 assert.equal(empty.stuck_only, false);
+assert.equal(empty.stuck, 'all');
 assert.deepEqual(empty.status, []);
+
+// Tri-state `stuck` filter: round-trips through params, omits the "all" default.
+const stuckParsed = filtersFromSearchParams(new URLSearchParams('stuck=not_stuck'));
+assert.equal(stuckParsed.stuck, 'not_stuck');
+assert.deepEqual(filtersToApiParams(stuckParsed, ['stuck']), { stuck: 'not_stuck' });
+assert.deepEqual(filtersToApiParams(emptyPipelineFilters(), ['stuck']), {});
+const stuckWritten = applyFiltersToSearchParams(new URLSearchParams(), {
+  ...emptyPipelineFilters(),
+  stuck: 'stuck',
+});
+assert.equal(stuckWritten.get('stuck'), 'stuck');
+assert.equal(
+  applyFiltersToSearchParams(new URLSearchParams('stuck=stuck'), emptyPipelineFilters()).get('stuck'),
+  null
+);
 
 const params = new URLSearchParams(
   'search=Backend&status=open,in_progress&stuck_only=true&sales_id=abc&past_sla_only=true'
