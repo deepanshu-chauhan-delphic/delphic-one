@@ -6,6 +6,17 @@ export const ACCOUNT_TRANSITIONS = {
   dropped: [],
 };
 
+// Every stage, for the superadmin override drawer (backward moves + straight to lead).
+export const ACCOUNT_ALL_STAGES = ['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped'];
+
+export function canOverrideStage(user) {
+  return Boolean(user?.is_superadmin);
+}
+
+export function canEditBroughtBy(user) {
+  return Boolean(user?.is_superadmin);
+}
+
 export function formatAccountValue(value) {
   if (value === null || value === undefined || value === '') return '—';
   return String(value).replace(/_/g, ' ');

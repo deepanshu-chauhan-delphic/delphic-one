@@ -29,7 +29,8 @@ assert.equal(chartTypeForReport('aging'), 'pie');
 assert.ok(reportsForRole('bda').some((r) => r.key === 'clients-without-requirements'));
 assert.ok(reportsForRole('recruiter').some((r) => r.key === 'recruiter-vendor-gaps'));
 assert.ok(!reportsForRole('recruiter').some((r) => r.key === 'clients-without-requirements'));
-assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'bda_owner'));
+assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'sales_poc'));
+assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'brought_by'));
 assert.equal(
   columnsForReport('recruiter-vendor-gaps').find((c) => c.key === 'vendor').render({ vendor: { name: 'Acme Staffing' } }),
   'Acme Staffing'

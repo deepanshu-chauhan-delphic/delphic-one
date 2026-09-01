@@ -14,7 +14,8 @@ function lockCheck(table) {
     try {
       const row = await prisma[model].findUnique({ where: { id: req.params.id }, select: { is_locked: true } });
       if (!row) return fail(res, 404, 'Not found');
-      if (row.is_locked) return fail(res, 403, 'Record is locked');
+      // A superadmin (flag resolved by loadSuperadminFlag upstream) may edit locked rows.
+      if (row.is_locked && !req.user?.is_superadmin) return fail(res, 403, 'Record is locked');
       return next();
     } catch (err) {
       return next(err);

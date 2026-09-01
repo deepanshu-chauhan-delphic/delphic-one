@@ -2,6 +2,125 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-01 — Coverage-report rework + manual interview_result
+
+Uncommitted work on `main` (local). No schema/migration change (an interim
+`sales_owner_id` field was added then reverted — "Sales POC" == the account owner /
+"POC from our end", one person, no new column). `cd server && npm test` →
+**28 suites / 178 tests green**; client `vite build` + `reportViews.test.mjs` green.
+
+### 1. "Sales POC" == account owner
+
+- Clarified: **POC from our end (`Account.owner_id`) and "Sales POC" are the same person.**
+  The LeadMinds CSV "Sales POC" column stays as free text in `meeting_notes` (not a
+  structured field). "Brought by" (`origin_owner_id`) remains the separate originator.
+- `seed-accounts.js` — BDA-owner fallback for an unrecognised "Account manager" is now
+  **Paras Gulati → Biswajit Dey** (was Chahak); added `paras`/`biswajit` manager aliases.
+
+### 2. `clients-without-requirements` report
+
+- Columns: Client · Stage · **Brought by** (`origin_owner`) · **Sales POC** (`owner`,
+  renamed from "BDA owner") · Created · Days idle. The old always-empty "Sales owner"
+  column is gone.
+- Filters: **Brought by** (`origin_owner_id`) and **Sales POC** (`bda_id` = `owner_id`),
+  both by person name from the active-user roster. **Department filter removed** from both
+  coverage reports (`coverageSchema` drops `department_id`, adds `origin_owner_id`;
+  `recruiterVendorGaps` no longer takes `department_id`).
+- **Superadmin inline edit**: on the Reports page a superadmin gets a person `<select>` in
+  the "Brought by" and "Sales POC" cells — changing it `PATCH`es the account
+  (`origin_owner_id` / `owner_id`) and refreshes the report (`ReportsPage.CoveragePersonCell`
+  + `saveCoverageField`).
+
+### 3. Interview stage stays manual
+
+- `interview_scheduled → interview_result` is **no longer auto-advanced** when all interview
+  rounds are resolved. Removed the auto-advance from `addInterviewRound` and
+  `updateInterviewRound` (`submissions.service.js`). The only remaining round side-effect is
+  `submitted_to_client → interview_scheduled` when the first round is created. Moving to
+  `interview_result` now always requires `POST /submissions/:id/stage`.
+- Tests updated in `submissions-stage.test.js`; API-Spec doc notes updated.
+
+## 2026-09-01 — Superadmin tier (`admin@delphic.in`)
+
+Uncommitted work on `main` (local). One migration added (`20260901131738_add_is_superadmin`).
+`cd server && npm test` → **28 suites / 177 tests green**; client `vite build` green.
+
+### Model
+
+- New `User.is_superadmin Boolean @default(false)` (`schema.prisma` + migration, which also
+  backfills `is_superadmin = true WHERE email = 'admin@delphic.in'`). A superadmin keeps
+  `role: 'admin'` — every existing `authorize('admin')` gate is unchanged; the flag only
+  *adds* powers. Seeds set it: `team-roster.js` (Admin entry), `seed.js` `seedUsers`,
+  `seed-admin.js` (first bootstrap admin).
+
+### Server authz — never trusts the JWT
+
+- `middleware/auth.js` gains `authorizeSuperadmin` (hard 403 gate) and `loadSuperadminFlag`
+  (non-failing) — both re-read `is_superadmin && active` from the DB every request, so a
+  demoted superadmin loses access immediately. `lockCheck` now lets a superadmin through
+  (`row.is_locked && !req.user?.is_superadmin`) — only effective where `loadSuperadminFlag`
+  ran first (accounts PATCH).
+
+### Users — full edit, update-only (no delete)
+
+- `PATCH /users/:id` (`authorize('admin')` + `loadSuperadminFlag`): `updateSchema` gains
+  `password?` and `is_superadmin?`. Service guards (`update(id, patch, actor)`): only a
+  superadmin may set `is_superadmin`, set another user's `password`, or edit a user who is
+  already a superadmin; the last active superadmin can't be demoted / deactivated
+  (`countActiveSuperadmins() <= 1` → 409 `last_superadmin`). Password is bcrypt-hashed
+  (cost 10) into `password_hash`. New `GET /users/:id`. `PUBLIC_SELECT` now returns
+  `is_superadmin` (flows to `/users/me` and `login`).
+
+### Accounts — brought-by + free-form stage override (accounts only)
+
+- `PATCH /accounts/:id` honours `origin_owner_id` ("Brought by") **only** for a superadmin
+  (validated active user); silently stripped otherwise. Superadmin also bypasses the lock
+  on this route (middleware order: `loadSuperadminFlag` → `lockCheck`).
+- New `POST /accounts/:id/stage/override` (`authorizeSuperadmin`) → `changeStageOverride`:
+  any target stage incl. `lead` / backward, ignores `canTransition` / ownership / lock /
+  meeting-field rules, `reason` required, optional `is_locked` toggle, still writes a
+  `stage_history` row with a `[override]`-prefixed reason.
+
+### Frontend
+
+- `permissions.js` — new `userCan(user, cap)` (superadmin passes everything; new
+  superadmin-only caps `editBroughtBy` / `overrideStage` / `editAnyUser`).
+  `usePermissions` exposes `isSuperadmin` and routes through `userCan`; `<Can>` too.
+  `authContext` exposes `isSuperadmin`.
+- `UsersPage` — new `EditUserDrawer` (name / email / role / dept / phone / active, plus
+  superadmin-only superadmin-toggle + password reset) behind an **Edit** button shown only
+  to a superadmin; `· super` badge on the Role column.
+- `AccountFormPage` — superadmin-only "Brought by (origin owner)" `SearchableSelect`;
+  superadmin can open the edit form on a locked account.
+- `AccountDetailPage` + new `AccountStageOverrideDrawer` — superadmin-only **Override
+  stage** button (all five stages, reason required, keep-locked checkbox).
+- New tests: `superadmin-users.test.js`, `superadmin-accounts.test.js`;
+  `helpers.createUser` takes `is_superadmin`.
+
+### Not done / notes
+
+- Delete routes were explicitly out of scope — update only.
+- A newly promoted superadmin must reload / re-login before the SPA shows the extra UI
+  (flag is read at mount via `/users/me`).
+- `client/scripts/check-permissions.mjs` still fails on a pre-existing `bda`/`viewReports`
+  assertion — unrelated to this change.
+
+## 2026-09-01 — Drop `lead_generated_date`; lead board now shows unclassified leads
+
+Uncommitted work on `main` (local). Two migrations added.
+
+### 1. Removed `Account.lead_generated_date`
+
+- Lead "generated" date is now just `created_at` (the row's creation date). Dropped the column + its index (`schema.prisma`, migration `20260901125143_drop_lead_generated_date`), the zod field (`accounts.validation.js`), the form input + request-body/formFromAccount mapping (`AccountFormPage.jsx`), the "Lead generated" detail row (`AccountDetailPage.jsx` — "Created" row already shows it), and the test payload key.
+- `reports.service.js` `avg_days_lead_to_meeting` now measures `created_at → meeting_date`.
+- Also applied migration `20260901120000_account_origin_owner` to the freshly-restored local DB (dump predated it → `origin_owner_id` missing).
+
+### 2. Lead pipeline board hid every account in the `lead` stage
+
+- `LeadPipelineBoard` hard-filtered `type: 'client'`, but an unclassified lead sits at `type IS NULL` (v2 nullable type). Result: LEAD / early columns always empty on the board even when such accounts existed.
+- `GET /accounts` gains `include_unclassified=true` (only meaningful with `type=client`) → matches `type = 'client' OR type IS NULL`. `accounts.service.list` rebuilt around an `AND` array so the type-scope OR and the search OR no longer clobber each other in the object literal. `LeadPipelineBoard` passes the new flag.
+- Verified headless (admin): LEAD/MEETING SCHEDULED columns now populate; `accounts-stage` (10) + `pipeline-board` (14) suites green.
+
 ## 2026-09-01 — Vendor name on pipeline cards + candidate-stage filter fix + coverage-gap reports
 
 Uncommitted work on `main` (local). No schema/migration changes. `cd server && npm test` → **26 suites / 163 tests green**; client `vite build` + `reportViews.test.mjs` + `usePipelineFilters.test.mjs` green.

@@ -146,9 +146,8 @@ export function columnsForReport(reportKey) {
     return [
       { key: 'client', header: 'Client', render: (r) => personName(r, 'client') },
       { key: 'stage', header: 'Stage', render: (r) => cell(r.stage) },
-      { key: 'bda_owner', header: 'BDA owner', render: (r) => personName(r, 'bda_owner') },
       { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
-      { key: 'sales_owner', header: 'Sales owner', render: (r) => personName(r, 'sales_owner') },
+      { key: 'sales_poc', header: 'Sales POC', render: (r) => personName(r, 'sales_poc') },
       { key: 'created_at', header: 'Created', render: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString() : '—') },
       { key: 'days_idle', header: 'Days idle', render: (r) => cell(r.days_idle) },
     ];
@@ -338,7 +337,7 @@ export function chartDataForReport(reportKey, data) {
     }));
   }
   if (reportKey === 'clients-without-requirements') {
-    return countBy(data, (r) => r.bda_owner?.name || 'Unassigned').map(([label, count]) => ({ label, clients: count }));
+    return countBy(data, (r) => r.sales_poc?.name || 'Unassigned').map(([label, count]) => ({ label, clients: count }));
   }
   if (reportKey === 'recruiter-vendor-gaps') {
     return countBy(data, (r) => r.recruiter?.name || 'Recruiter').map(([label, count]) => ({ label, vendors: count }));

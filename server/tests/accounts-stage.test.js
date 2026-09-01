@@ -166,7 +166,6 @@ describe('lead classification (client/vendor undecided at creation)', () => {
   test('a lead can be created without a type, then classified', async () => {
     const create = await authed(request(app).post('/api/v1/accounts'), bdaToken).send({
       name: 'Undecided Co',
-      lead_generated_date: new Date().toISOString(),
       location: 'Pune, India',
       linkedin_url: 'https://linkedin.com/company/undecided-co',
     });

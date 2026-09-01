@@ -25,7 +25,14 @@ async function login(email, password) {
   return {
     access_token: signAccessToken(user),
     refresh_token: signRefreshToken(user),
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      is_superadmin: user.is_superadmin,
+    },
   };
 }
 

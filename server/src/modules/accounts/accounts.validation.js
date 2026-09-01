@@ -16,7 +16,6 @@ const baseFields = {
   location_country: z.string().optional(),
   gst_or_tax_id: z.string().optional(),
 
-  lead_generated_date: z.string().optional(),
   location: z.string().optional(),
   linkedin_url: z.string().optional(),
 
@@ -48,8 +47,23 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   owner_id: z.string().uuid().optional(),
+  // "Brought by" — normally immutable; only honoured for a superadmin (enforced in the service).
+  origin_owner_id: z.string().uuid().optional(),
   type: z.enum(['client', 'vendor']).optional(),
   ...baseFields,
+});
+
+// Superadmin-only free-form stage move: any target stage (incl. lead / backward),
+// reason required, may also flip the lock.
+const stageOverrideSchema = z.object({
+  to_stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']),
+  reason: z.string().min(1),
+  is_locked: z.boolean().optional(),
+  meeting_mode: z.enum(['online', 'offline']).optional(),
+  meeting_date: z.string().datetime().optional(),
+  meeting_location: z.string().optional(),
+  meeting_notes: z.string().optional(),
+  meeting_attendee_ids: z.array(z.string().uuid()).optional(),
 });
 
 const stageSchema = z.object({
@@ -68,6 +82,9 @@ const classifySchema = z.object({
 
 const listQuerySchema = z.object({
   type: z.enum(['client', 'vendor', 'unclassified']).optional(),
+  // Lead pipeline: pair with type=client to also surface not-yet-classified leads
+  // (type IS NULL), which is where every account still in the `lead` stage sits.
+  include_unclassified: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
   owner_id: z.string().uuid().optional(),
   industry: z.string().optional(),
@@ -80,4 +97,11 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-module.exports = { createSchema, updateSchema, stageSchema, classifySchema, listQuerySchema };
+module.exports = {
+  createSchema,
+  updateSchema,
+  stageSchema,
+  stageOverrideSchema,
+  classifySchema,
+  listQuerySchema,
+};

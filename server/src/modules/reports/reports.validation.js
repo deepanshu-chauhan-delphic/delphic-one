@@ -23,10 +23,11 @@ const agingSchema = z.object({
 });
 
 // Coverage-gap reports (clients without requirements, recruiter-vendor gaps) —
-// present-state, no date range.
+// present-state, no date range, no department filter. clients-without-requirements
+// filters by Sales POC (account owner, `bda_id`) and by "Brought by" (`origin_owner_id`).
 const coverageSchema = z.object({
-  department_id: optionalUuid,
   bda_id: optionalUuid,
+  origin_owner_id: optionalUuid,
   recruiter_id: optionalUuid,
 });
 

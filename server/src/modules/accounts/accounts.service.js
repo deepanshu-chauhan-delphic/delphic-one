@@ -27,25 +27,34 @@ const ACCOUNT_INCLUDE = {
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
 
-async function list({ type, stage, owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
-  const where = {
-    ...(type === 'unclassified' ? { type: null } : type ? { type } : {}),
-    ...(stage ? { stage } : {}),
-    ...(owner_id ? { owner_id } : {}),
-    ...(industry ? { industry: { contains: industry, mode: 'insensitive' } } : {}),
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { poc_name: { contains: search, mode: 'insensitive' } },
-            { poc_email: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {}),
-    ...(created_from || created_to
-      ? { created_at: { ...(created_from ? { gte: new Date(created_from) } : {}), ...(created_to ? { lte: new Date(created_to) } : {}) } }
-      : {}),
-  };
+async function list({ type, include_unclassified, stage, owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
+  // Accumulate into an AND array so multiple OR-bearing clauses (type scope +
+  // search) can coexist without one clobbering the other in the object literal.
+  const and = [];
+  if (type === 'client' && include_unclassified) and.push({ OR: [{ type: 'client' }, { type: null }] });
+  else if (type === 'unclassified') and.push({ type: null });
+  else if (type) and.push({ type });
+  if (stage) and.push({ stage });
+  if (owner_id) and.push({ owner_id });
+  if (industry) and.push({ industry: { contains: industry, mode: 'insensitive' } });
+  if (search) {
+    and.push({
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { poc_name: { contains: search, mode: 'insensitive' } },
+        { poc_email: { contains: search, mode: 'insensitive' } },
+      ],
+    });
+  }
+  if (created_from || created_to) {
+    and.push({
+      created_at: {
+        ...(created_from ? { gte: new Date(created_from) } : {}),
+        ...(created_to ? { lte: new Date(created_to) } : {}),
+      },
+    });
+  }
+  const where = and.length ? { AND: and } : {};
 
   const [total, rows] = await Promise.all([
     prisma.account.count({ where }),
@@ -91,6 +100,16 @@ async function update(id, patch, user) {
     // current POC from our end — any active user of any role is a valid target.
     const target = await prisma.user.findUnique({ where: { id: patch.owner_id } });
     if (!target || !target.active) return { error: 'user_not_found' };
+  }
+
+  if ('origin_owner_id' in patch) {
+    // "Brought by" is immutable for everyone except a superadmin correcting it.
+    if (!user.is_superadmin) {
+      delete patch.origin_owner_id;
+    } else if (patch.origin_owner_id !== existing.origin_owner_id) {
+      const t = await prisma.user.findUnique({ where: { id: patch.origin_owner_id } });
+      if (!t || !t.active) return { error: 'user_not_found' };
+    }
   }
 
   const data = { ...patch };
@@ -205,6 +224,55 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, m
   });
 }
 
+// Superadmin-only: move an account to any stage (backward, or straight to `lead`),
+// ignoring ownership, the lock, and the transition map. Still audited in stage_history.
+async function changeStageOverride(id, body, user) {
+  const { to_stage, reason, is_locked, meeting_mode, meeting_date, meeting_location, meeting_notes, meeting_attendee_ids } =
+    body;
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.account.findUnique({ where: { id } });
+    if (!account) return { error: 'not_found' };
+
+    const patch = { stage: to_stage };
+    if (is_locked !== undefined) patch.is_locked = is_locked;
+    if (to_stage === 'meeting_scheduled') {
+      if (meeting_mode) patch.meeting_mode = meeting_mode;
+      if (meeting_date) patch.meeting_date = new Date(meeting_date);
+      if (meeting_mode === 'offline' && meeting_location) patch.meeting_location = meeting_location;
+      if (meeting_notes !== undefined) patch.meeting_notes = meeting_notes || null;
+    }
+
+    const updated = await tx.account.update({ where: { id }, data: patch, include: ACCOUNT_INCLUDE });
+
+    if (meeting_attendee_ids) {
+      await tx.accountMeetingAttendee.deleteMany({ where: { account_id: id } });
+      if (meeting_attendee_ids.length > 0) {
+        await tx.accountMeetingAttendee.createMany({
+          data: meeting_attendee_ids.map((user_id) => ({ account_id: id, user_id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const withAttendees = meeting_attendee_ids
+      ? await tx.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE })
+      : updated;
+
+    const historyRow = await tx.stageHistory.create({
+      data: {
+        entity_type: 'account',
+        entity_id: id,
+        from_stage: account.stage,
+        to_stage,
+        changed_by: user.id,
+        reason: `[override] ${reason}`,
+      },
+    });
+
+    return { account: serialize(withAttendees), history: historyRow };
+  });
+}
+
 async function getHistory(id) {
   const rows = await prisma.stageHistory.findMany({
     where: { entity_type: 'account', entity_id: id },
@@ -227,6 +295,7 @@ module.exports = {
   create,
   update,
   changeStage,
+  changeStageOverride,
   classifyLead,
   getHistory,
   canTransition,

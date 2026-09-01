@@ -1158,7 +1158,8 @@ Request (all optional):
 
 Side effect:
   - If result set to "pass"/"fail"/"no_show", sets completed_at = now() if not provided
-  - If all rounds have results, auto-advances submission stage to "interview_result"
+  - Does NOT change the submission stage. interview_scheduled → interview_result is a
+    manual move via POST /submissions/:id/stage (recording round results never auto-advances).
 
 Response 200:
 { success: true, data: InterviewRoundObject }
@@ -1823,8 +1824,8 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 - [ ] `PATCH /submissions/:id` — commercials, feedback, offer/BGV fields
 - [ ] `POST /submissions/:id/stage` — full state machine with all transition rules, backout/rejection handling, lock on close/reject, stage_history
 - [ ] `GET /submissions/:id/history`
-- [ ] `POST /submissions/:id/interview-rounds` — auto-increment round number, auto-advance submission stage
-- [ ] `PATCH /interview-rounds/:id` — result handling, auto-advance when all rounds complete
+- [ ] `POST /submissions/:id/interview-rounds` — auto-increment round number; auto-advance submitted_to_client → interview_scheduled only (never to interview_result)
+- [ ] `PATCH /interview-rounds/:id` — result handling only; never changes submission stage
 - [ ] `GET /submissions/:id/interview-rounds`
 - [ ] `POST /admin/:entity_type/:entity_id/unlock` — admin unlock with reason + audit log
 

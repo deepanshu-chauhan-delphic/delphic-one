@@ -44,7 +44,7 @@ afterAll(async () => {
 });
 
 describe('GET /reports/clients-without-requirements', () => {
-  test('lists client accounts with zero requirements, with BDA owner + brought by', async () => {
+  test('lists client accounts with zero requirements, with Sales POC (owner) + Brought by', async () => {
     const idle = await createActiveClientAccount(bda.id);
     const withReq = await createActiveClientAccount(bda.id);
     await createRequirement(salesToken, withReq.id, { title: 'Has a req' });
@@ -58,12 +58,26 @@ describe('GET /reports/clients-without-requirements', () => {
     const row = res.body.data.find((r) => r.client.id === idle.id);
     expect(row).toEqual(
       expect.objectContaining({
-        bda_owner: expect.objectContaining({ id: bda.id }),
+        sales_poc: expect.objectContaining({ id: bda.id }),
         brought_by: expect.objectContaining({ id: bda.id }),
-        sales_owner: null,
         days_idle: expect.any(Number),
       })
     );
+    expect(row).not.toHaveProperty('sales_owner');
+  });
+
+  test('filters by Brought by (origin_owner_id)', async () => {
+    const mine = await createActiveClientAccount(bda.id);
+    const other = await createActiveClientAccount(bda2.id);
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/clients-without-requirements').query({ origin_owner_id: bda.id }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.client.id);
+    expect(ids).toContain(mine.id);
+    expect(ids).not.toContain(other.id);
   });
 
   test('a BDA sees only their own idle clients', async () => {

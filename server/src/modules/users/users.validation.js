@@ -31,6 +31,9 @@ const updateSchema = z.object({
   phone: z.string().nullable().optional(),
   active: z.boolean().optional(),
   department_id: optionalUuid,
+  // Superadmin-only fields (enforced in the service against the acting user).
+  password: z.string().min(8).optional(),
+  is_superadmin: z.boolean().optional(),
 });
 
 module.exports = { listQuerySchema, createSchema, updateSchema };

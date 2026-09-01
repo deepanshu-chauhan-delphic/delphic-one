@@ -70,6 +70,28 @@ export function can(role, capability) {
   return ROLE_CAPS[role]?.has(capability) === true;
 }
 
+// Capabilities no ordinary role has — only a superadmin (is_superadmin flag).
+const SUPERADMIN_ONLY = new Set(['editBroughtBy', 'overrideStage', 'editAnyUser']);
+
+/**
+ * Capability check against the full auth user (not just the role string).
+ * A superadmin passes everything; otherwise superadmin-only caps are denied and
+ * the rest fall through to the role → capability map.
+ *
+ * Args:
+ *   user: Auth user object ({ role, is_superadmin, ... }).
+ *   capability: Capability key.
+ *
+ * Returns:
+ *   Whether the user is allowed.
+ */
+export function userCan(user, capability) {
+  if (!capability) return false;
+  if (user?.is_superadmin) return true;
+  if (SUPERADMIN_ONLY.has(capability)) return false;
+  return can(user?.role, capability);
+}
+
 /**
  * Hook wrapping can() against the current auth user.
  *
@@ -83,8 +105,9 @@ export function usePermissions(user) {
   const role = user?.role;
   return {
     role,
+    isSuperadmin: Boolean(user?.is_superadmin),
     can(capability) {
-      return can(role, capability);
+      return userCan(user, capability);
     },
   };
 }
@@ -93,6 +116,6 @@ export function usePermissions(user) {
  * Conditionally render children when the user has the capability.
  */
 export function Can({ user, capability, children, fallback = null }) {
-  if (!can(user?.role, capability)) return fallback;
+  if (!userCan(user, capability)) return fallback;
   return children;
 }

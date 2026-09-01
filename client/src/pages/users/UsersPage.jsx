@@ -24,6 +24,152 @@ const emptyForm = {
   department_id: '',
 };
 
+function EditUserDrawer({ open, row, departments, isSuperadmin, onClose, onSaved }) {
+  const { pushError } = useAlerts();
+  const [fields, setFields] = useState(null);
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && row) {
+      setFields({
+        name: row.name || '',
+        email: row.email || '',
+        role: row.role || 'bda',
+        phone: row.phone || '',
+        active: row.active !== false,
+        department_id: row.department?.id || '',
+        is_superadmin: Boolean(row.is_superadmin),
+      });
+      setPassword('');
+    }
+  }, [open, row]);
+
+  function set(key, value) {
+    setFields((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!fields) return;
+    const patch = {};
+    if (fields.name.trim() && fields.name.trim() !== row.name) patch.name = fields.name.trim();
+    if (fields.email.trim() && fields.email.trim() !== row.email) patch.email = fields.email.trim();
+    if (fields.role !== row.role) patch.role = fields.role;
+    const phone = fields.phone.trim();
+    if (phone !== (row.phone || '')) patch.phone = phone || null;
+    if (fields.active !== (row.active !== false)) patch.active = fields.active;
+    if (fields.department_id !== (row.department?.id || '')) patch.department_id = fields.department_id || null;
+    if (isSuperadmin && fields.is_superadmin !== Boolean(row.is_superadmin)) patch.is_superadmin = fields.is_superadmin;
+    if (isSuperadmin && password.trim()) patch.password = password.trim();
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.patch(`/users/${row.id}`, patch);
+      onSaved();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Failed to update user'), 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer
+      open={open}
+      title={row ? `Edit ${row.name}` : 'Edit user'}
+      onClose={onClose}
+      size="md"
+      tone="edit"
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button type="submit" form="edit-user-form" className="btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </>
+      }
+    >
+      {fields && (
+        <form id="edit-user-form" onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">Name</label>
+            <input value={fields.name} onChange={(e) => set('name', e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">Role</label>
+            <select value={fields.role} onChange={(e) => set('role', e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm">
+              {CREATABLE_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">Email</label>
+            <input type="email" value={fields.email} onChange={(e) => set('email', e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">Phone</label>
+            <input value={fields.phone} onChange={(e) => set('phone', e.target.value)} className="w-full rounded-xl border px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-tertiary-500">Department</label>
+            <SearchableSelect
+              value={fields.department_id}
+              onChange={(v) => set('department_id', v)}
+              placeholder="Unassigned"
+              allowClear
+              searchPlaceholder="Search departments…"
+              options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-6">
+            <input id="edit-user-active" type="checkbox" checked={fields.active} onChange={(e) => set('active', e.target.checked)} />
+            <label htmlFor="edit-user-active" className="text-sm text-tertiary-700">
+              Active
+            </label>
+          </div>
+          {isSuperadmin && (
+            <>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <input
+                  id="edit-user-super"
+                  type="checkbox"
+                  checked={fields.is_superadmin}
+                  onChange={(e) => set('is_superadmin', e.target.checked)}
+                />
+                <label htmlFor="edit-user-super" className="text-sm text-tertiary-700">
+                  Superadmin (full edit access)
+                </label>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-tertiary-500">Reset password</label>
+                <input
+                  type="text"
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="leave blank to keep current"
+                  className="w-full rounded-xl border px-3 py-2 font-mono text-sm"
+                />
+              </div>
+            </>
+          )}
+        </form>
+      )}
+    </Drawer>
+  );
+}
+
 function DepartmentDrawer({ open, department, onClose, onSaved }) {
   const { pushError } = useAlerts();
   const [name, setName] = useState('');
@@ -80,7 +226,7 @@ function DepartmentDrawer({ open, department, onClose, onSaved }) {
 }
 
 export default function UsersPage() {
-  const { user } = useAuth();
+  const { user, isSuperadmin } = useAuth();
   const { pushError } = useAlerts();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +236,7 @@ export default function UsersPage() {
   const [departments, setDepartments] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [deptDrawer, setDeptDrawer] = useState(null);
+  const [editRow, setEditRow] = useState(null);
 
   async function loadUsers() {
     setLoading(true);
@@ -164,7 +311,16 @@ export default function UsersPage() {
     () => [
       { key: 'name', header: 'Name', render: (row) => <span className="font-semibold text-tertiary-900">{row.name}</span> },
       { key: 'email', header: 'Email', render: (row) => <span className="text-tertiary-500">{row.email}</span> },
-      { key: 'role', header: 'Role', render: (row) => <span className="capitalize text-tertiary-700">{row.role}</span> },
+      {
+        key: 'role',
+        header: 'Role',
+        render: (row) => (
+          <span className="capitalize text-tertiary-700">
+            {row.role}
+            {row.is_superadmin && <span className="ml-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase not-italic text-primary-700">super</span>}
+          </span>
+        ),
+      },
       { key: 'dept', header: 'Department', render: (row) => row.department?.name || <span className="text-tertiary-400">Unassigned</span> },
       {
         key: 'status',
@@ -182,21 +338,33 @@ export default function UsersPage() {
       {
         key: 'actions',
         header: 'Actions',
-        render: (row) =>
-          row.id !== user.id ? (
-            <button
-              type="button"
-              className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
-              onClick={() => toggleActive(row)}
-            >
-              {row.active ? 'Deactivate' : 'Activate'}
-            </button>
-          ) : (
-            <span className="text-tertiary-400">—</span>
-          ),
+        render: (row) => (
+          <div className="flex gap-2">
+            {isSuperadmin && (
+              <button
+                type="button"
+                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                onClick={() => setEditRow(row)}
+              >
+                Edit
+              </button>
+            )}
+            {row.id !== user.id ? (
+              <button
+                type="button"
+                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                onClick={() => toggleActive(row)}
+              >
+                {row.active ? 'Deactivate' : 'Activate'}
+              </button>
+            ) : (
+              !isSuperadmin && <span className="text-tertiary-400">—</span>
+            )}
+          </div>
+        ),
       },
     ],
-    [user.id]
+    [user.id, isSuperadmin]
   );
 
   if (user?.role !== 'admin') return <Navigate to="/" replace />;
@@ -254,6 +422,18 @@ export default function UsersPage() {
           {departments.length === 0 && <li className="px-4 py-5 text-sm text-tertiary-400">No departments yet.</li>}
         </ul>
       </section>
+
+      <EditUserDrawer
+        open={Boolean(editRow)}
+        row={editRow}
+        departments={departments}
+        isSuperadmin={isSuperadmin}
+        onClose={() => setEditRow(null)}
+        onSaved={() => {
+          setEditRow(null);
+          loadUsers();
+        }}
+      />
 
       <DepartmentDrawer
         open={Boolean(deptDrawer)}

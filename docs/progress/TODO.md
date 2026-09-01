@@ -18,6 +18,10 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 - [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
 - [x] Comments `entity_type` includes `profile` (for Candidate Notes on RD-110).
+- [x] Superadmin tier (`User.is_superadmin`, `admin@delphic.in`): full user editing (`PATCH /users/:id` + `password`/`is_superadmin`, `GET /users/:id`), editable account `origin_owner_id`, locked-record edits, `POST /accounts/:id/stage/override`. Update-only, no deletes. Migration `20260901131738_add_is_superadmin`. See PROGRESS.md 2026-09-01.
+- [ ] Superadmin: manual browser click-through (edit a user's role/email/password; override a dropped account back to `lead`; change "Brought by"). Confirm an ordinary admin sees none of it.
+- [x] **2026-09-01** — `clients-without-requirements` report: "Sales POC" = account owner (renamed), "Brought by" kept, Department filter dropped, Brought-by + Sales-POC person filters added, superadmin can edit both people inline on the Reports page. `interview_scheduled → interview_result` is manual only (no round-result auto-advance). No schema change. See PROGRESS.md.
+- [ ] Manual click-through: superadmin edits Brought by / Sales POC inline on the Reports page; the two person filters narrow the list; ordinary admin sees plain read-only cells.
 
 ## Frontend (open — see sprint tickets)
 

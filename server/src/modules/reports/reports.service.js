@@ -372,8 +372,8 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
       const leads_via_linkedin = ownedInRange.filter((a) => !!a.linkedin_url).length;
 
       const meetingDays = ownedInRange
-        .filter((a) => a.lead_generated_date && a.meeting_date)
-        .map((a) => daysBetween(a.lead_generated_date, a.meeting_date));
+        .filter((a) => a.created_at && a.meeting_date)
+        .map((a) => daysBetween(a.created_at, a.meeting_date));
       const avg_days_lead_to_meeting = averageDays(meetingDays);
 
       // Snapshot counts "as of now" — intentionally NOT scoped to date_from/date_to like the
@@ -738,17 +738,17 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
 
 /**
  * Client accounts that have no requirements at all — the BDA brought them in but
- * no sales requirement was ever opened. `sales_owner` is null by definition here
- * (sales links to a client only through its requirements); kept as a column so the
- * BDA -> sales handoff gap is explicit.
+ * no sales requirement was ever opened. "Sales POC" is the account owner
+ * (`owner_id`, the POC from our end); "Brought by" is the originator
+ * (`origin_owner_id`). Filterable by either.
  */
-async function clientsWithoutRequirements({ bda_id, department_id }) {
+async function clientsWithoutRequirements({ bda_id, origin_owner_id }) {
   const rows = await prisma.account.findMany({
     where: {
       type: 'client',
       requirements: { none: {} },
       ...(bda_id ? { owner_id: bda_id } : {}),
-      ...(department_id ? { owner: { department_id } } : {}),
+      ...(origin_owner_id ? { origin_owner_id } : {}),
     },
     include: {
       owner: { select: { id: true, name: true } },
@@ -760,9 +760,8 @@ async function clientsWithoutRequirements({ bda_id, department_id }) {
   return rows.map((a) => ({
     client: { id: a.id, name: a.name },
     stage: a.stage,
-    bda_owner: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
     brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
-    sales_owner: null,
+    sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : { id: null, name: 'Paras Gulati' },
     created_at: a.created_at,
     days_idle: Math.floor(daysBetween(a.created_at, new Date())),
   }));
@@ -773,12 +772,11 @@ async function clientsWithoutRequirements({ bda_id, department_id }) {
  * the vendor but none of those profiles has ever been submitted. Recruiter =
  * profile.added_by; vendor = profile.vendor_account_id.
  */
-async function recruiterVendorGaps({ recruiter_id, department_id }) {
+async function recruiterVendorGaps({ recruiter_id }) {
   const profiles = await prisma.profile.findMany({
     where: {
       vendor_account_id: { not: null },
       ...(recruiter_id ? { added_by: recruiter_id } : {}),
-      ...(department_id ? { added_by_user: { department_id } } : {}),
     },
     select: {
       id: true,

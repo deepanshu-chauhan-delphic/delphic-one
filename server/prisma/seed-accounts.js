@@ -35,6 +35,8 @@ const MANAGER_NAME_TO_EMAIL = {
   chahak: 'chahak.pandya@delphic.in',
   diksha: 'diksha.yadav@delphic.in',
   tanvi: 'tanvi.saxena@delphic.in',
+  paras: 'paras.gulati@delphic.in',
+  biswajit: 'biswajit.dey@delphic.in',
 };
 
 function parseCsvRecords(text) {
@@ -190,7 +192,9 @@ function loadRows(csvPath) {
 async function loadOwners() {
   const users = await prisma.user.findMany();
   const byEmail = Object.fromEntries(users.map((u) => [u.email.toLowerCase(), u]));
-  const fallback = byEmail['chahak.pandya@delphic.in']
+  // BDA owner fallback for rows with an unrecognised Account manager: Paras, then Biswajit.
+  const fallback = byEmail['paras.gulati@delphic.in']
+    || byEmail['biswajit.dey@delphic.in']
     || byEmail['admin@delphic.in']
     || users.find((u) => u.role === 'bda')
     || users.find((u) => u.role === 'admin');

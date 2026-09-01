@@ -291,32 +291,15 @@ async function addInterviewRound(submissionId, data, user) {
       });
     }
 
-    // Completing all rounds (including a create that already has a result) can advance to interview_result
-    const rounds = await tx.interviewRound.findMany({ where: { submission_id: submissionId } });
-    const allResolved = rounds.length > 0 && rounds.every((r) => r.result !== 'pending');
-    if (allResolved) {
-      const current = await tx.submission.findUnique({ where: { id: submissionId } });
-      if (current && current.stage === 'interview_scheduled') {
-        await tx.submission.update({ where: { id: submissionId }, data: { stage: 'interview_result' } });
-        await tx.stageHistory.create({
-          data: {
-            entity_type: 'submission',
-            entity_id: submissionId,
-            from_stage: 'interview_scheduled',
-            to_stage: 'interview_result',
-            changed_by: userId,
-            reason: null,
-          },
-        });
-      }
-    }
+    // NOTE: interview_scheduled -> interview_result is deliberately a MANUAL move
+    // (POST /submissions/:id/stage). Recording round results never auto-advances the
+    // submission stage.
 
     return { round };
   });
 }
 
 async function updateInterviewRound(id, patch, user) {
-  const userId = user.id;
   return prisma.$transaction(async (tx) => {
     const existing = await tx.interviewRound.findUnique({ where: { id } });
     if (!existing) return { error: 'not_found' };
@@ -348,24 +331,8 @@ async function updateInterviewRound(id, patch, user) {
 
     const round = await loadInterviewRound(tx, id);
 
-    const rounds = await tx.interviewRound.findMany({ where: { submission_id: round.submission_id } });
-    const allResolved = rounds.every((r) => r.result !== 'pending');
-    if (allResolved) {
-      const submission = await tx.submission.findUnique({ where: { id: round.submission_id } });
-      if (submission && submission.stage === 'interview_scheduled') {
-        await tx.submission.update({ where: { id: round.submission_id }, data: { stage: 'interview_result' } });
-        await tx.stageHistory.create({
-          data: {
-            entity_type: 'submission',
-            entity_id: round.submission_id,
-            from_stage: 'interview_scheduled',
-            to_stage: 'interview_result',
-            changed_by: userId,
-            reason: null,
-          },
-        });
-      }
-    }
+    // NOTE: interview_scheduled -> interview_result stays MANUAL. Editing a round's
+    // result (pass/fail/no_show) never auto-advances the submission stage.
 
     return { round };
   });

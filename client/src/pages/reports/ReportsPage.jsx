@@ -112,6 +112,36 @@ function DetailField({ label, value }) {
   );
 }
 
+/**
+ * Inline person picker for a clients-without-requirements cell. Superadmin-only —
+ * changes the account's owner (Sales POC) or origin_owner (Brought by) in place.
+ */
+function CoveragePersonCell({ row, field, people, saving, onSave }) {
+  const current = field === 'origin_owner_id' ? row.brought_by : row.sales_poc;
+  const options = current?.id && !people.some((p) => p.id === current.id)
+    ? [{ id: current.id, name: `${current.name} (current)` }, ...people]
+    : people;
+  return (
+    <select
+      value={current?.id || ''}
+      disabled={saving}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        e.stopPropagation();
+        onSave(row.client.id, field, e.target.value);
+      }}
+      className="max-w-[11rem] rounded-md border border-tertiary-200 bg-white px-2 py-1 text-sm text-tertiary-800 disabled:opacity-50"
+    >
+      {!current?.id && <option value="">—</option>}
+      {options.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function ReportsPage() {
   const { user } = useAuth();
   const { pushError } = useAlerts();
@@ -127,6 +157,11 @@ export default function ReportsPage() {
   const [groupBy, setGroupBy] = useState('month');
   const [departmentId, setDepartmentId] = useState('');
   const [individualId, setIndividualId] = useState('');
+  // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
+  const [coveragePocId, setCoveragePocId] = useState('');
+  const [coverageBroughtById, setCoverageBroughtById] = useState('');
+  const [coveragePeople, setCoveragePeople] = useState([]);
+  const [savingCoverageId, setSavingCoverageId] = useState(null);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -140,15 +175,17 @@ export default function ReportsPage() {
 
   const isExplorer = active === 'pipeline-explorer';
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
+  const isClientsWithoutReqs = active === 'clients-without-requirements';
   const showDept = can('filterByDepartment');
   const INDIVIDUAL_ROLE_BY_REPORT = {
     'recruiter-performance': 'recruiter',
     'sales-performance': 'sales',
     'bda-performance': 'bda',
-    'clients-without-requirements': 'bda',
     'recruiter-vendor-gaps': 'recruiter',
   };
   const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
+  const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
+  const canEditCoverage = isClientsWithoutReqs && Boolean(user?.is_superadmin);
 
   useEffect(() => {
     if (!available.some((r) => r.key === active) && available[0]) {
@@ -187,6 +224,37 @@ export default function ReportsPage() {
     return undefined;
   }, [showIndividual, active]);
 
+  useEffect(() => {
+    if (!showCoveragePeople && !canEditCoverage) {
+      setCoveragePeople([]);
+      return undefined;
+    }
+    apiClient
+      .get('/users', { params: { active: 'true', limit: 100 } })
+      .then(({ data }) =>
+        setCoveragePeople(
+          [...(data.data || [])]
+            .map((u) => ({ id: u.id, name: u.name, role: u.role }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        )
+      )
+      .catch(() => setCoveragePeople([]));
+    return undefined;
+  }, [showCoveragePeople, canEditCoverage]);
+
+  async function saveCoverageField(clientId, field, value) {
+    if (!value) return;
+    setSavingCoverageId(clientId);
+    try {
+      await apiClient.patch(`/accounts/${clientId}`, { [field]: value });
+      await runReport();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Failed to update account'), 'Something went wrong');
+    } finally {
+      setSavingCoverageId(null);
+    }
+  }
+
   function buildParams() {
     const params = {};
     if (active === 'aging') {
@@ -207,12 +275,13 @@ export default function ReportsPage() {
       params.date_to = dateTo;
       if (active === 'closure') params.group_by = groupBy;
     }
-    if (departmentId) params.department_id = departmentId;
+    if (departmentId && !isCoverage) params.department_id = departmentId;
     if (individualId && active === 'recruiter-performance') params.recruiter_id = individualId;
     if (individualId && active === 'sales-performance') params.sales_id = individualId;
     if (individualId && active === 'bda-performance') params.bda_id = individualId;
-    if (individualId && active === 'clients-without-requirements') params.bda_id = individualId;
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
+    if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
+    if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
     return params;
   }
 
@@ -241,6 +310,8 @@ export default function ReportsPage() {
     individualId,
     thresholdDays,
     groupBy,
+    coveragePocId,
+    coverageBroughtById,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -279,7 +350,40 @@ export default function ReportsPage() {
   }
 
   const tableRows = tableRowsForReport(active, payload);
-  const columns = columnsForReport(active);
+  const baseColumns = columnsForReport(active);
+  const columns = canEditCoverage
+    ? baseColumns.map((col) => {
+        if (col.key === 'sales_poc') {
+          return {
+            ...col,
+            render: (row) => (
+              <CoveragePersonCell
+                row={row}
+                field="owner_id"
+                people={coveragePeople}
+                saving={savingCoverageId === row.client?.id}
+                onSave={saveCoverageField}
+              />
+            ),
+          };
+        }
+        if (col.key === 'brought_by') {
+          return {
+            ...col,
+            render: (row) => (
+              <CoveragePersonCell
+                row={row}
+                field="origin_owner_id"
+                people={coveragePeople}
+                saving={savingCoverageId === row.client?.id}
+                onSave={saveCoverageField}
+              />
+            ),
+          };
+        }
+        return col;
+      })
+    : baseColumns;
   const chartRows = chartDataForReport(active, payload);
   const chartBars = chartBarsForReport(active);
   const aging = active === 'aging' ? agingSections(payload) : [];
@@ -304,6 +408,8 @@ export default function ReportsPage() {
             onChange={(v) => {
               setActive(v);
               setIndividualId('');
+              setCoveragePocId('');
+              setCoverageBroughtById('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -349,7 +455,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept && !isExplorer}
+        showDepartment={showDept && !isExplorer && !isCoverage}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -358,6 +464,30 @@ export default function ReportsPage() {
         individualId={individualId}
         onIndividualChange={setIndividualId}
       >
+        {showCoveragePeople && (
+          <>
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by Brought by"
+              value={coverageBroughtById}
+              onChange={setCoverageBroughtById}
+              placeholder="All (brought by)"
+              searchPlaceholder="Search people…"
+              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+            />
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by Sales POC"
+              value={coveragePocId}
+              onChange={setCoveragePocId}
+              placeholder="All (Sales POC)"
+              searchPlaceholder="Search people…"
+              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+            />
+          </>
+        )}
         {active === 'aging' && (
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
             Threshold days

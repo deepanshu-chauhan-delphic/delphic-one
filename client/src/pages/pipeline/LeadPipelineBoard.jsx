@@ -83,6 +83,9 @@ export default function LeadPipelineBoard() {
   const boardParams = useMemo(
     () => ({
       type: 'client',
+      // Leads that haven't been classified client/vendor yet live at type IS NULL —
+      // that's every account still in the `lead` stage, so the lead board needs them.
+      include_unclassified: 'true',
       sort_by: 'name',
       sort_order: 'asc',
       ...(filterParams.search ? { search: filterParams.search } : {}),

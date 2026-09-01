@@ -164,8 +164,7 @@ describe('submission stage machine', () => {
     const afterRound = await authed(request(app).get(`/api/v1/submissions/${sub.id}`), recruiterToken);
     expect(afterRound.body.data.stage).toBe('interview_scheduled');
 
-    // leave round pending, try to jump via resolving path manually to interview_result then offer
-    // resolving all rounds auto-moves to interview_result
+    // interview_scheduled → interview_result is a manual move, allowed even with pending rounds
     const pendingOffer = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
       to_stage: 'interview_result',
     });
@@ -201,8 +200,8 @@ describe('submission stage machine', () => {
     await authed(request(app).patch(`/api/v1/interview-rounds/${round.body.data.id}`), recruiterToken).send({
       result: 'pass',
     });
-    // now at interview_result via auto-advance
-    await advanceTo(sub.id, ['offer_sent', 'bgv']);
+    // interview_scheduled -> interview_result is a manual move (round results never auto-advance)
+    await advanceTo(sub.id, ['interview_result', 'offer_sent', 'bgv']);
 
     const blocked = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
       to_stage: 'closed',
@@ -240,7 +239,7 @@ describe('submission stage machine', () => {
     ]);
   });
 
-  test('resolving the last pending round auto-advances interview_scheduled to interview_result', async () => {
+  test('resolving all rounds does NOT auto-advance; interview_scheduled -> interview_result stays manual', async () => {
     const sub = await createSubmission();
     await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
 
@@ -257,7 +256,15 @@ describe('submission stage machine', () => {
       result: 'pass',
     });
 
+    // Recording the result must not move the submission on its own.
     current = await authed(request(app).get(`/api/v1/submissions/${sub.id}`), recruiterToken);
-    expect(current.body.data.stage).toBe('interview_result');
+    expect(current.body.data.stage).toBe('interview_scheduled');
+
+    // Only an explicit stage move advances it.
+    const moved = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'interview_result',
+    });
+    expect(moved.status).toBe(200);
+    expect(moved.body.data.stage).toBe('interview_result');
   });
 });

@@ -4,7 +4,7 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
-import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
+import { accountKey, apiErrorMessage, canCreateAccount, canEditBroughtBy, canMutateAccount } from './accountUtils.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 
 const EMPTY_CONTACT = { name: '', email: '', phone: '', designation: '', role_label: '' };
@@ -12,13 +12,13 @@ const EMPTY_FORM = {
   type: '',
   name: '',
   owner_id: '',
+  origin_owner_id: '',
   industry: '',
   company_size: '',
   website: '',
   location_city: '',
   location_country: '',
   gst_or_tax_id: '',
-  lead_generated_date: '',
   location: '',
   linkedin_url: '',
   poc_name: '',
@@ -60,7 +60,7 @@ function formFromAccount(account) {
     ...account,
     type: account.type || '',
     owner_id: account.owner?.id || '',
-    lead_generated_date: account.lead_generated_date ? account.lead_generated_date.slice(0, 10) : '',
+    origin_owner_id: account.origin_owner?.id || '',
     location: account.location || '',
     linkedin_url: account.linkedin_url || '',
     additional_contacts: contacts.length ? contacts.map((contact) => ({ ...EMPTY_CONTACT, ...contact })) : [{ ...EMPTY_CONTACT }],
@@ -78,7 +78,7 @@ function optionalEnum(value) {
   return value || undefined;
 }
 
-function buildAccountBody(form, isEditing, canEditType) {
+function buildAccountBody(form, isEditing, canEditType, canEditOriginOwner) {
   const body = {
     name: form.name.trim(),
     industry: form.industry.trim(),
@@ -87,7 +87,6 @@ function buildAccountBody(form, isEditing, canEditType) {
     location_city: form.location_city.trim(),
     location_country: form.location_country.trim(),
     gst_or_tax_id: form.gst_or_tax_id.trim(),
-    lead_generated_date: form.lead_generated_date || undefined,
     location: form.location.trim(),
     linkedin_url: form.linkedin_url.trim(),
     poc_name: form.poc_name.trim(),
@@ -102,6 +101,7 @@ function buildAccountBody(form, isEditing, canEditType) {
 
   if (form.type && (!isEditing || canEditType)) body.type = form.type;
   if (isEditing && form.owner_id) body.owner_id = form.owner_id;
+  if (isEditing && canEditOriginOwner && form.origin_owner_id) body.origin_owner_id = form.origin_owner_id;
 
   if (form.type === 'vendor') {
     body.vendor_specializations = form.vendor_specializations.split(',').map((value) => value.trim()).filter(Boolean);
@@ -140,14 +140,16 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
   // Anyone who can edit the account can also reassign its owner/POC to any active user.
   const canEditOwner = isEditing && canMutateAccount(account, user);
   const canEditType = isEditing && user?.role === 'admin';
+  // "Brought by" is normally immutable — only a superadmin may correct it.
+  const canEditOriginOwner = isEditing && canEditBroughtBy(user);
 
   useEffect(() => {
-    if (!canEditOwner) return;
+    if (!canEditOwner && !canEditOriginOwner) return;
     apiClient
       .get('/users', { params: { active: 'true', limit: 100 } })
       .then(({ data }) => setOwnerOptions([...(data.data || [])].sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => setOwnerOptions([]));
-  }, [canEditOwner]);
+  }, [canEditOwner, canEditOriginOwner]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -215,7 +217,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
     setSaving(true);
     setFieldErrors({});
     try {
-      const body = buildAccountBody(form, isEditing, canEditType);
+      const body = buildAccountBody(form, isEditing, canEditType, canEditOriginOwner);
       const { data } = isEditing ? await apiClient.patch(`/accounts/${id}`, body) : await apiClient.post('/accounts', body);
       if (asPanel && onDone) onDone(data.data.id);
       else navigate(`/accounts/${data.data.id}`, { replace: true });
@@ -235,7 +237,12 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
       </div>
     );
   }
-  if (!asPanel && isEditing && account && (!canMutateAccount(account, user) || account.is_locked)) {
+  if (
+    !asPanel &&
+    isEditing &&
+    account &&
+    (!canMutateAccount(account, user) || (account.is_locked && !canEditBroughtBy(user)))
+  ) {
     return <Navigate to={`/accounts/${id}`} replace />;
   }
 
@@ -302,6 +309,23 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                 />
               </Field>
             )}
+            {canEditOriginOwner && (
+              <Field label="Brought by (origin owner)">
+                <SearchableSelect
+                  value={form.origin_owner_id}
+                  onChange={(v) => updateField('origin_owner_id', v)}
+                  placeholder="Select origin owner…"
+                  searchPlaceholder="Search users…"
+                  options={[
+                    ...ownerOptions.map((u) => ({ value: u.id, label: `${u.name} · ${u.role}` })),
+                    ...(account?.origin_owner && !ownerOptions.some((u) => u.id === account.origin_owner.id)
+                      ? [{ value: account.origin_owner.id, label: `${account.origin_owner.name} (current)` }]
+                      : []),
+                  ]}
+                />
+                <span className="mt-1 block text-xs text-tertiary-500">Superadmin only · normally immutable</span>
+              </Field>
+            )}
             <Field label="Company name" required>
               <input required value={form.name} onChange={(event) => updateField('name', event.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -322,14 +346,6 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
             </Field>
             <Field label="Lead source">
               <input value={form.source} onChange={(event) => updateField('source', event.target.value)} className={INPUT_CLASS} />
-            </Field>
-            <Field label="Lead generated date">
-              <input
-                type="date"
-                value={form.lead_generated_date}
-                onChange={(event) => updateField('lead_generated_date', event.target.value)}
-                className={INPUT_CLASS}
-              />
             </Field>
             <Field label="Location">
               <input value={form.location} onChange={(event) => updateField('location', event.target.value)} className={INPUT_CLASS} placeholder="e.g. Pune, India" />

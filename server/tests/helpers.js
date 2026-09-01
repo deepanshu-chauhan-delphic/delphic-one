@@ -17,11 +17,11 @@ function unique(prefix) {
   return `${prefix}${Date.now()}${counter}`;
 }
 
-async function createUser({ role, active = true, name }) {
+async function createUser({ role, active = true, name, is_superadmin = false }) {
   const email = `${unique('user')}@test.local`;
   const password_hash = await bcrypt.hash(PASSWORD, 4);
   return prisma.user.create({
-    data: { name: name || `${role} tester`, email, password_hash, role, active },
+    data: { name: name || `${role} tester`, email, password_hash, role, active, is_superadmin },
   });
 }
 

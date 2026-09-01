@@ -6,7 +6,7 @@
 const DEPARTMENT_NAMES = ['Sales', 'HR', 'Vendor'];
 
 const TEAM_ROSTER = [
-  { name: 'Admin', email: 'admin@delphic.in', role: 'admin', department: null },
+  { name: 'Admin', email: 'admin@delphic.in', role: 'admin', department: null, is_superadmin: true },
   { name: 'Diksha Yadav', email: 'diksha.yadav@delphic.in', role: 'admin', department: 'HR' },
   { name: 'Paras Gulati', email: 'paras.gulati@delphic.in', role: 'admin', department: 'HR' },
   { name: 'Biswajit Dey', email: 'biswajit.dey@delphic.in', role: 'admin', department: null },

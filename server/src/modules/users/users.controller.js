@@ -5,6 +5,11 @@ const { listQuerySchema, createSchema, updateSchema } = require('./users.validat
 
 const ERROR_STATUS = {
   email_taken: [409, 'Email already in use'],
+  not_found: [404, 'User not found'],
+  forbidden_superadmin_field: [403, 'Only a superadmin can grant superadmin'],
+  forbidden_password: [403, "Only a superadmin can set another user's password"],
+  forbidden_edit_superadmin: [403, 'Only a superadmin can edit a superadmin'],
+  last_superadmin: [409, 'Cannot remove the last superadmin'],
 };
 
 const me = asyncHandler(async (req, res) => {
@@ -21,6 +26,12 @@ const list = asyncHandler(async (req, res) => {
   return ok(res, rows, { pagination });
 });
 
+const getOne = asyncHandler(async (req, res) => {
+  const user = await usersService.getById(req.params.id);
+  if (!user) return fail(res, 404, 'User not found');
+  return ok(res, user);
+});
+
 const create = asyncHandler(async (req, res) => {
   const body = createSchema.parse(req.body);
   const result = await usersService.create(body);
@@ -33,7 +44,7 @@ const create = asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const body = updateSchema.parse(req.body);
-  const result = await usersService.update(req.params.id, body);
+  const result = await usersService.update(req.params.id, body, req.user);
   if (result.error) {
     const [status, message] = ERROR_STATUS[result.error];
     return fail(res, status, message);
@@ -41,4 +52,4 @@ const update = asyncHandler(async (req, res) => {
   return ok(res, result.user);
 });
 
-module.exports = { me, list, create, update };
+module.exports = { me, list, getOne, create, update };

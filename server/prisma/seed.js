@@ -45,6 +45,7 @@ async function seedUsers(password_hash, departments) {
         role: member.role,
         department_id,
         active: true,
+        is_superadmin: member.is_superadmin === true,
       },
     });
   }

@@ -12,3 +12,6 @@ uploads_test/
 coverage/
 .vscode/
 *.local
+
+# Local database dumps / restore safety snapshots
+*.dump

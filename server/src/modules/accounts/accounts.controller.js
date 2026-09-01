@@ -1,7 +1,14 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created, fail } = require('../../utils/response');
 const accountsService = require('./accounts.service');
-const { createSchema, updateSchema, stageSchema, classifySchema, listQuerySchema } = require('./accounts.validation');
+const {
+  createSchema,
+  updateSchema,
+  stageSchema,
+  stageOverrideSchema,
+  classifySchema,
+  listQuerySchema,
+} = require('./accounts.validation');
 
 const ERROR_STATUS = {
   not_found: [404, 'Not found'],
@@ -58,6 +65,16 @@ const changeStage = asyncHandler(async (req, res) => {
   return ok(res, result.account, { stage_history: result.history });
 });
 
+const changeStageOverride = asyncHandler(async (req, res) => {
+  const body = stageOverrideSchema.parse(req.body);
+  const result = await accountsService.changeStageOverride(req.params.id, body, req.user);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return ok(res, result.account, { stage_history: result.history });
+});
+
 const classify = asyncHandler(async (req, res) => {
   const body = classifySchema.parse(req.body);
   const result = await accountsService.classifyLead(req.params.id, body, req.user);
@@ -78,4 +95,4 @@ const history = asyncHandler(async (req, res) => {
   return ok(res, rows);
 });
 
-module.exports = { list, getOne, create, update, changeStage, classify, history };
+module.exports = { list, getOne, create, update, changeStage, changeStageOverride, classify, history };

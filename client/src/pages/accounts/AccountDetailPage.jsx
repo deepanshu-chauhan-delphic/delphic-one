@@ -12,6 +12,7 @@ import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
 import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
+import AccountStageOverrideDrawer from './AccountStageOverrideDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canClassifyAccount, canMutateAccount, formatAccountValue } from './accountUtils.js';
 
@@ -44,6 +45,7 @@ export default function AccountDetailPage() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [classifying, setClassifying] = useState(false);
@@ -93,6 +95,19 @@ export default function AccountDetailPage() {
     }
   }
 
+  async function submitOverride(body) {
+    setMovingStage(true);
+    try {
+      await apiClient.post(`/accounts/${id}/stage/override`, body);
+      setOverrideOpen(false);
+      await loadAccount();
+    } catch (requestError) {
+      pushError(apiErrorMessage(requestError, 'Failed to override account stage'), 'Something went wrong');
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
   async function classifyLead(type) {
     setClassifying(true);
     try {
@@ -116,6 +131,7 @@ export default function AccountDetailPage() {
   }
 
   const canMutate = canMutateAccount(account, user);
+  const canOverride = Boolean(user?.is_superadmin);
   const nextStages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const additionalContacts = Array.isArray(account.additional_contacts) ? account.additional_contacts : [];
   const accent = accountAccent(account.id);
@@ -154,11 +170,14 @@ export default function AccountDetailPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link to={`/pipeline/${id}`} className="btn-secondary">Pipeline board</Link>
-            {canMutate && !account.is_locked && (
+            {((canMutate && !account.is_locked) || canOverride) && (
               <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>
             )}
             {canMutate && !account.is_locked && nextStages.length > 0 && (
               <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
+            )}
+            {canOverride && (
+              <button type="button" onClick={() => setOverrideOpen(true)} className="btn-secondary">Override stage</button>
             )}
             {canClassifyAccount(account, user) && !account.is_locked && (
               <>
@@ -198,7 +217,6 @@ export default function AccountDetailPage() {
             <DetailField label="Source" value={account.source} />
             <DetailField label="Owner (POC)" value={account.owner?.name} />
             <DetailField label="Brought by" value={account.origin_owner?.name} />
-            <DetailField label="Lead generated" value={account.lead_generated_date ? new Date(account.lead_generated_date).toLocaleDateString() : null} />
             <DetailField label="Lead location" value={account.location} />
             <DetailField label="LinkedIn">
               {account.linkedin_url ? <a href={account.linkedin_url} target="_blank" rel="noreferrer" className="normal-case text-primary-700 hover:underline">{account.linkedin_url}</a> : '—'}
@@ -334,6 +352,16 @@ export default function AccountDetailPage() {
           saving={movingStage}
           onClose={() => setIsStageModalOpen(false)}
           onMove={moveStage}
+        />
+      )}
+
+      {account && canOverride && (
+        <AccountStageOverrideDrawer
+          account={account}
+          open={overrideOpen}
+          saving={movingStage}
+          onClose={() => setOverrideOpen(false)}
+          onMove={submitOverride}
         />
       )}
 

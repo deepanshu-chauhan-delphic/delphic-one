@@ -194,6 +194,7 @@ model User {
   role          UserRole
   phone         String?
   active        Boolean  @default(true)
+  is_superadmin Boolean  @default(false)
   department_id String?  @db.Uuid
   created_at    DateTime @default(now())
   updated_at    DateTime @default(now()) @updatedAt
@@ -241,7 +242,6 @@ model Account {
   location_country String?
   gst_or_tax_id    String?
 
-  lead_generated_date DateTime? @db.Date
   location            String?
   linkedin_url        String?
 
@@ -287,7 +287,6 @@ model Account {
   @@index([type, stage])
   @@index([owner_id])
   @@index([origin_owner_id])
-  @@index([lead_generated_date])
   @@map("accounts")
 }
 
