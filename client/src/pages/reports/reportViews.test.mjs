@@ -25,4 +25,14 @@ assert.equal(rendered, 'Acme Corp');
 assert.equal(chartTypeForReport('pipeline-explorer'), 'pie');
 assert.equal(chartTypeForReport('aging'), 'pie');
 
+// Coverage-gap report tabs
+assert.ok(reportsForRole('bda').some((r) => r.key === 'clients-without-requirements'));
+assert.ok(reportsForRole('recruiter').some((r) => r.key === 'recruiter-vendor-gaps'));
+assert.ok(!reportsForRole('recruiter').some((r) => r.key === 'clients-without-requirements'));
+assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'bda_owner'));
+assert.equal(
+  columnsForReport('recruiter-vendor-gaps').find((c) => c.key === 'vendor').render({ vendor: { name: 'Acme Staffing' } }),
+  'Acme Staffing'
+);
+
 console.log('reportViews.test.mjs: ok');

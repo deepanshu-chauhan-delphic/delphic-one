@@ -22,6 +22,14 @@ const agingSchema = z.object({
   department_id: optionalUuid,
 });
 
+// Coverage-gap reports (clients without requirements, recruiter-vendor gaps) —
+// present-state, no date range.
+const coverageSchema = z.object({
+  department_id: optionalUuid,
+  bda_id: optionalUuid,
+  recruiter_id: optionalUuid,
+});
+
 const closureSchema = dateRangeSchema.extend({
   group_by: z.enum(['month', 'quarter', 'client', 'recruiter']).optional(),
 });
@@ -52,4 +60,4 @@ const explorerSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema };
+module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema };

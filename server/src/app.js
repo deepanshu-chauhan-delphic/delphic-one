@@ -34,8 +34,17 @@ app.use(requestLogger);
 app.use('/uploads', authenticate, express.static(path.resolve(env.uploadDir)));
 
 // Login is stricter than the general API (brute-force); both are per-IP windows.
-const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
-const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false });
+// The general limit is generous: the dashboard is request-dense (many widgets per
+// page) and a whole office often shares one egress IP, so it must not trip in
+// normal use. Read-only GETs don't count toward the budget.
+const loginLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 6000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS',
+});
 
 app.get('/api/v1/health', (req, res) => res.json({ success: true, data: { status: 'ok' } }));
 

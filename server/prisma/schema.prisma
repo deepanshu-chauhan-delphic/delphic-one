@@ -198,15 +198,16 @@ model User {
   created_at    DateTime @default(now())
   updated_at    DateTime @default(now()) @updatedAt
 
-  department            Department?            @relation(fields: [department_id], references: [id])
-  owned_accounts        Account[]              @relation("AccountOwner")
-  classified_accounts   Account[]              @relation("AccountClassifiedBy")
-  meeting_attendances   AccountMeetingAttendee[]
-  sales_requirements     Requirement[]          @relation("RequirementSalesOwner")
-  assignments            RequirementAssignment[] @relation("AssignmentUser")
-  assignments_made       RequirementAssignment[] @relation("AssignmentAssignedBy")
-  profiles_added         Profile[]              @relation("ProfileAddedBy")
-  submissions_created    Submission[]           @relation("SubmissionSubmittedBy")
+  department                  Department?                 @relation(fields: [department_id], references: [id])
+  owned_accounts              Account[]                   @relation("AccountOwner")
+  origin_accounts             Account[]                   @relation("AccountOriginOwner")
+  classified_accounts         Account[]                   @relation("AccountClassifiedBy")
+  meeting_attendances         AccountMeetingAttendee[]
+  sales_requirements          Requirement[]               @relation("RequirementSalesOwner")
+  assignments                 RequirementAssignment[]     @relation("AssignmentUser")
+  assignments_made            RequirementAssignment[]     @relation("AssignmentAssignedBy")
+  profiles_added              Profile[]                   @relation("ProfileAddedBy")
+  submissions_created         Submission[]                @relation("SubmissionSubmittedBy")
   stage_history_changes       StageHistory[]
   documents_uploaded          Document[]
   comments                    Comment[]
@@ -228,17 +229,17 @@ model Department {
 }
 
 model Account {
-  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type     AccountType?
-  name     String
-  stage    AccountStage @default(lead)
+  id    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type  AccountType?
+  name  String
+  stage AccountStage @default(lead)
 
-  industry          String?
-  company_size      CompanySize?
-  website           String?
-  location_city     String?
-  location_country  String?
-  gst_or_tax_id     String?
+  industry         String?
+  company_size     CompanySize?
+  website          String?
+  location_city    String?
+  location_country String?
+  gst_or_tax_id    String?
 
   lead_generated_date DateTime? @db.Date
   location            String?
@@ -266,21 +267,26 @@ model Account {
   client_payment_terms    String?
   client_agreement_url    String?
 
-  owner_id        String    @db.Uuid
-  owner           User      @relation("AccountOwner", fields: [owner_id], references: [id])
-  classified_at   DateTime?
-  classified_by   String?   @db.Uuid
-  classified_by_user User?  @relation("AccountClassifiedBy", fields: [classified_by], references: [id])
-  is_locked Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now()) @updatedAt
+  owner_id           String    @db.Uuid
+  owner              User      @relation("AccountOwner", fields: [owner_id], references: [id])
+  // Immutable "brought by" — the BDA/admin who first added this client/vendor.
+  // Set once at creation and never changed; owner_id may later be reassigned.
+  origin_owner_id    String?   @db.Uuid
+  origin_owner       User?     @relation("AccountOriginOwner", fields: [origin_owner_id], references: [id])
+  classified_at      DateTime?
+  classified_by      String?   @db.Uuid
+  classified_by_user User?     @relation("AccountClassifiedBy", fields: [classified_by], references: [id])
+  is_locked          Boolean   @default(false)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @default(now()) @updatedAt
 
   requirements      Requirement[]
-  vendor_profiles    Profile[]                @relation("ProfileVendorAccount")
-  meeting_attendees  AccountMeetingAttendee[]
+  vendor_profiles   Profile[]                @relation("ProfileVendorAccount")
+  meeting_attendees AccountMeetingAttendee[]
 
   @@index([type, stage])
   @@index([owner_id])
+  @@index([origin_owner_id])
   @@index([lead_generated_date])
   @@map("accounts")
 }
@@ -299,50 +305,50 @@ model AccountMeetingAttendee {
 }
 
 model Requirement {
-  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  account_id String             @db.Uuid
-  account    Account            @relation(fields: [account_id], references: [id])
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String            @db.Uuid
+  account    Account           @relation(fields: [account_id], references: [id])
   title      String
   req_type   ReqType
-  status     RequirementStatus  @default(open)
+  status     RequirementStatus @default(open)
 
   description     String?
   job_description String?
   jd_document_url String?
   designation     String?
   department      String?
-  seats_total     Int      @default(1)
+  seats_total     Int     @default(1)
 
-  primary_tech_stack       String[]
-  secondary_tech_stack     String[]
-  domain_experience        String?
-  experience_min           Decimal? @db.Decimal(4, 1)
-  experience_max           Decimal? @db.Decimal(4, 1)
-  certifications_required  String[]
+  primary_tech_stack      String[]
+  secondary_tech_stack    String[]
+  domain_experience       String?
+  experience_min          Decimal? @db.Decimal(4, 1)
+  experience_max          Decimal? @db.Decimal(4, 1)
+  certifications_required String[]
 
-  work_mode               WorkMode?
-  work_location           String?
-  time_zone_preference    String?
-  engagement_type         EngagementType?
+  work_mode                WorkMode?
+  work_location            String?
+  time_zone_preference     String?
+  engagement_type          EngagementType?
   contract_duration_months Int?
-  start_date_target       DateTime? @db.Date
-  notice_period_max_days  Int?
+  start_date_target        DateTime?       @db.Date
+  notice_period_max_days   Int?
 
-  budget_min      Decimal?   @db.Decimal(14, 2)
-  budget_max      Decimal?   @db.Decimal(14, 2)
-  budget_currency Currency   @default(INR)
+  budget_min      Decimal?    @db.Decimal(14, 2)
+  budget_max      Decimal?    @db.Decimal(14, 2)
+  budget_currency Currency    @default(INR)
   budget_type     BudgetType?
   billing_notes   String?
 
   priority Priority @default(medium)
   sla_days Int?
 
-  sales_owner_id String   @db.Uuid
-  sales_owner    User     @relation("RequirementSalesOwner", fields: [sales_owner_id], references: [id])
-  is_locked      Boolean  @default(false)
+  sales_owner_id String    @db.Uuid
+  sales_owner    User      @relation("RequirementSalesOwner", fields: [sales_owner_id], references: [id])
+  is_locked      Boolean   @default(false)
   closed_at      DateTime?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @default(now()) @updatedAt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @default(now()) @updatedAt
 
   seats       RequirementSeat[]
   assignments RequirementAssignment[]
@@ -354,14 +360,14 @@ model Requirement {
 }
 
 model RequirementSeat {
-  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requirement_id String     @db.Uuid
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_id String      @db.Uuid
   requirement    Requirement @relation(fields: [requirement_id], references: [id], onDelete: Cascade)
   seat_label     String?
-  seat_status    SeatStatus @default(open)
+  seat_status    SeatStatus  @default(open)
   closed_at      DateTime?
-  joined_at      DateTime?  @db.Date
-  is_locked      Boolean    @default(false)
+  joined_at      DateTime?   @db.Date
+  is_locked      Boolean     @default(false)
 
   submissions Submission[]
 
@@ -371,16 +377,16 @@ model RequirementSeat {
 }
 
 model RequirementAssignment {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requirement_id String         @db.Uuid
-  requirement    Requirement    @relation(fields: [requirement_id], references: [id], onDelete: Cascade)
-  user_id        String         @db.Uuid
-  user           User           @relation("AssignmentUser", fields: [user_id], references: [id])
-  role_on_req    AssignmentRole
-  assigned_at    DateTime       @default(now())
-  unassigned_at  DateTime?
-  assigned_by    String         @db.Uuid
-  assigned_by_user User         @relation("AssignmentAssignedBy", fields: [assigned_by], references: [id])
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_id   String         @db.Uuid
+  requirement      Requirement    @relation(fields: [requirement_id], references: [id], onDelete: Cascade)
+  user_id          String         @db.Uuid
+  user             User           @relation("AssignmentUser", fields: [user_id], references: [id])
+  role_on_req      AssignmentRole
+  assigned_at      DateTime       @default(now())
+  unassigned_at    DateTime?
+  assigned_by      String         @db.Uuid
+  assigned_by_user User           @relation("AssignmentAssignedBy", fields: [assigned_by], references: [id])
 
   @@index([requirement_id])
   @@index([user_id])
@@ -390,17 +396,17 @@ model RequirementAssignment {
 model Profile {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  name               String
-  email              String?
-  phone              String?
-  date_of_birth      DateTime? @db.Date
-  gender             Gender?
-  current_location   String?
+  name                String
+  email               String?
+  phone               String?
+  date_of_birth       DateTime? @db.Date
+  gender              Gender?
+  current_location    String?
   willing_to_relocate Boolean?
   preferred_locations String[]
 
-  current_company      String?
-  current_designation  String?
+  current_company           String?
+  current_designation       String?
   total_experience_years    Decimal  @db.Decimal(4, 1)
   relevant_experience_years Decimal? @db.Decimal(4, 1)
 
@@ -410,29 +416,29 @@ model Profile {
   domain_experience String[]
   education         Json?
 
-  current_ctc            Decimal?        @db.Decimal(14, 2)
-  current_ctc_currency   ProfileCurrency @default(INR)
-  expected_ctc           Decimal?        @db.Decimal(14, 2)
-  expected_ctc_currency  ProfileCurrency @default(INR)
-  ctc_negotiable         Boolean         @default(false)
-  ctc_notes              String?
-  notice_period_days     Int?
-  is_serving_notice      Boolean         @default(false)
-  last_working_day       DateTime?       @db.Date
-  earliest_join_date     DateTime?       @db.Date
-  preferred_work_mode    WorkMode?
+  current_ctc           Decimal?        @db.Decimal(14, 2)
+  current_ctc_currency  ProfileCurrency @default(INR)
+  expected_ctc          Decimal?        @db.Decimal(14, 2)
+  expected_ctc_currency ProfileCurrency @default(INR)
+  ctc_negotiable        Boolean         @default(false)
+  ctc_notes             String?
+  notice_period_days    Int?
+  is_serving_notice     Boolean         @default(false)
+  last_working_day      DateTime?       @db.Date
+  earliest_join_date    DateTime?       @db.Date
+  preferred_work_mode   WorkMode?
 
   resume_url      String?
   linkedin_url    String?
   portfolio_url   String?
-  other_documents Json @default("[]")
+  other_documents Json    @default("[]")
 
   source            ProfileSource
-  vendor_account_id String?  @db.Uuid
-  vendor_account    Account? @relation("ProfileVendorAccount", fields: [vendor_account_id], references: [id])
+  vendor_account_id String?       @db.Uuid
+  vendor_account    Account?      @relation("ProfileVendorAccount", fields: [vendor_account_id], references: [id])
   vendor_profile_id String?
-  added_by          String   @db.Uuid
-  added_by_user     User     @relation("ProfileAddedBy", fields: [added_by], references: [id])
+  added_by          String        @db.Uuid
+  added_by_user     User          @relation("ProfileAddedBy", fields: [added_by], references: [id])
   recruiter_notes   String?
 
   on_bench   Boolean  @default(false)
@@ -450,23 +456,23 @@ model Profile {
 }
 
 model Submission {
-  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requirement_seat_id   String          @db.Uuid
-  seat                  RequirementSeat @relation(fields: [requirement_seat_id], references: [id], onDelete: Cascade)
-  profile_id            String          @db.Uuid
-  profile               Profile         @relation(fields: [profile_id], references: [id])
-  stage                 SubmissionStage @default(sourced)
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirement_seat_id String          @db.Uuid
+  seat                RequirementSeat @relation(fields: [requirement_seat_id], references: [id], onDelete: Cascade)
+  profile_id          String          @db.Uuid
+  profile             Profile         @relation(fields: [profile_id], references: [id])
+  stage               SubmissionStage @default(sourced)
 
-  proposed_rate            Decimal?  @db.Decimal(14, 2)
-  proposed_rate_type       RateType?
-  proposed_rate_currency   ProfileCurrency? @default(INR)
-  vendor_rate              Decimal?  @db.Decimal(14, 2)
-  vendor_rate_type         RateType?
-  vendor_rate_currency     ProfileCurrency?
-  margin                   Decimal?  @db.Decimal(14, 2)
-  margin_percentage        Decimal?  @db.Decimal(6, 2)
-  final_agreed_rate        Decimal?  @db.Decimal(14, 2)
-  final_agreed_rate_type   RateType?
+  proposed_rate          Decimal?         @db.Decimal(14, 2)
+  proposed_rate_type     RateType?
+  proposed_rate_currency ProfileCurrency? @default(INR)
+  vendor_rate            Decimal?         @db.Decimal(14, 2)
+  vendor_rate_type       RateType?
+  vendor_rate_currency   ProfileCurrency?
+  margin                 Decimal?         @db.Decimal(14, 2)
+  margin_percentage      Decimal?         @db.Decimal(6, 2)
+  final_agreed_rate      Decimal?         @db.Decimal(14, 2)
+  final_agreed_rate_type RateType?
 
   submission_notes String?
   client_feedback  String?
@@ -477,22 +483,22 @@ model Submission {
   rejection_stage  String?
   rejection_reason String?
 
-  offer_date            DateTime? @db.Date
-  offer_ctc             Decimal?  @db.Decimal(14, 2)
+  offer_date            DateTime?        @db.Date
+  offer_ctc             Decimal?         @db.Decimal(14, 2)
   offer_ctc_currency    ProfileCurrency?
-  expected_joining_date DateTime? @db.Date
-  actual_joining_date   DateTime? @db.Date
+  expected_joining_date DateTime?        @db.Date
+  actual_joining_date   DateTime?        @db.Date
 
-  bgv_initiated_date  DateTime? @db.Date
-  bgv_status          BgvStatus?
-  bgv_completed_date  DateTime? @db.Date
-  bgv_notes           String?
+  bgv_initiated_date DateTime?  @db.Date
+  bgv_status         BgvStatus?
+  bgv_completed_date DateTime?  @db.Date
+  bgv_notes          String?
 
-  submitted_by String   @db.Uuid
-  submitted_by_user User @relation("SubmissionSubmittedBy", fields: [submitted_by], references: [id])
-  is_locked    Boolean  @default(false)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @default(now()) @updatedAt
+  submitted_by      String   @db.Uuid
+  submitted_by_user User     @relation("SubmissionSubmittedBy", fields: [submitted_by], references: [id])
+  is_locked         Boolean  @default(false)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
 
   interview_rounds InterviewRound[]
 
@@ -503,21 +509,21 @@ model Submission {
 }
 
 model InterviewRound {
-  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  submission_id   String      @db.Uuid
-  submission      Submission  @relation(fields: [submission_id], references: [id], onDelete: Cascade)
-  round_number    Int
-  round_type      RoundType
-  round_name      String?
-  scheduled_at    DateTime?
-  duration_minutes Int?
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id     String      @db.Uuid
+  submission        Submission  @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+  round_number      Int
+  round_type        RoundType
+  round_name        String?
+  scheduled_at      DateTime?
+  duration_minutes  Int?
   interviewer_name  String?
   interviewer_email String?
   meeting_link      String?
-  result          RoundResult @default(pending)
-  feedback        String?
-  rating          Int?
-  completed_at    DateTime?
+  result            RoundResult @default(pending)
+  feedback          String?
+  rating            Int?
+  completed_at      DateTime?
 
   interviewers InterviewRoundInterviewer[]
 
@@ -539,31 +545,31 @@ model InterviewRoundInterviewer {
 }
 
 model StageHistory {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entity_type HistoryEntityType
-  entity_id   String            @db.Uuid
-  from_stage  String?
-  to_stage    String
-  changed_by  String            @db.Uuid
-  changed_by_user User          @relation(fields: [changed_by], references: [id])
-  reason      String?
-  changed_at  DateTime          @default(now())
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type     HistoryEntityType
+  entity_id       String            @db.Uuid
+  from_stage      String?
+  to_stage        String
+  changed_by      String            @db.Uuid
+  changed_by_user User              @relation(fields: [changed_by], references: [id])
+  reason          String?
+  changed_at      DateTime          @default(now())
 
   @@index([entity_type, entity_id])
   @@map("stage_history")
 }
 
 model Document {
-  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entity_type     DocumentEntityType
-  entity_id       String             @db.Uuid
-  label           String
-  file_url        String
-  file_type       String?
-  file_size_bytes Int?
-  uploaded_by     String             @db.Uuid
-  uploaded_by_user User              @relation(fields: [uploaded_by], references: [id])
-  uploaded_at     DateTime           @default(now())
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type      DocumentEntityType
+  entity_id        String             @db.Uuid
+  label            String
+  file_url         String
+  file_type        String?
+  file_size_bytes  Int?
+  uploaded_by      String             @db.Uuid
+  uploaded_by_user User               @relation(fields: [uploaded_by], references: [id])
+  uploaded_at      DateTime           @default(now())
 
   @@index([entity_type, entity_id])
   @@map("documents")

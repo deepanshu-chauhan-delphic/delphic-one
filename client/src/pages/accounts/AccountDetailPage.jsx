@@ -146,6 +146,9 @@ export default function AccountDetailPage() {
               <h1 className="mt-0.5 font-heading text-xl font-semibold tracking-tight text-tertiary-900">{account.name}</h1>
               <p className="mt-0.5 text-sm capitalize text-tertiary-500">
                 {account.type || 'Unclassified lead'} · Owner: {account.owner?.name || '—'}
+                {account.origin_owner && account.origin_owner.id !== account.owner?.id
+                  ? ` · Brought by ${account.origin_owner.name}`
+                  : ''}
               </p>
             </div>
           </div>
@@ -193,6 +196,8 @@ export default function AccountDetailPage() {
             <DetailField label="Location" value={[account.location_city, account.location_country].filter(Boolean).join(', ')} />
             <DetailField label="GST / Tax ID" value={account.gst_or_tax_id} />
             <DetailField label="Source" value={account.source} />
+            <DetailField label="Owner (POC)" value={account.owner?.name} />
+            <DetailField label="Brought by" value={account.origin_owner?.name} />
             <DetailField label="Lead generated" value={account.lead_generated_date ? new Date(account.lead_generated_date).toLocaleDateString() : null} />
             <DetailField label="Lead location" value={account.location} />
             <DetailField label="LinkedIn">

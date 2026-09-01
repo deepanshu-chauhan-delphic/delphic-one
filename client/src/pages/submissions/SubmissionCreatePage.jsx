@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 
 const RATE_TYPES = ['monthly', 'hourly', 'annual'];
 const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
@@ -178,21 +179,19 @@ export default function SubmissionCreatePage({
                 On bench only
               </label>
             </div>
-            <select
+            <SearchableSelect
               required
               value={form.profile_id}
-              onChange={(e) => updateField('profile_id', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="">Select candidate…</option>
-              {visibleProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.current_company ? ` — ${p.current_company}` : ''}
-                  {p.source ? ` (${p.source}${p.on_bench ? ', on bench' : ''})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateField('profile_id', v)}
+              placeholder="Select candidate…"
+              searchPlaceholder="Search candidates…"
+              options={visibleProfiles.map((p) => ({
+                value: p.id,
+                label: `${p.name}${p.current_company ? ` — ${p.current_company}` : ''}${
+                  p.source ? ` (${p.source}${p.on_bench ? ', on bench' : ''})` : ''
+                }`,
+              }))}
+            />
             {vendorRequired && (
               <p className="mt-1 text-xs text-warning-700">Vendor candidate — vendor rate is required.</p>
             )}
@@ -200,21 +199,18 @@ export default function SubmissionCreatePage({
 
           <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Job requirement *</label>
-            <select
+            <SearchableSelect
               required
               value={form.requirement_id}
               disabled={requirementLocked}
-              onChange={(e) => updateField('requirement_id', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm disabled:bg-tertiary-50"
-            >
-              <option value="">Select job…</option>
-              {requirements.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.title}
-                  {r.account?.name ? ` — ${r.account.name}` : ''} ({r.status})
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateField('requirement_id', v)}
+              placeholder="Select job…"
+              searchPlaceholder="Search jobs…"
+              options={requirements.map((r) => ({
+                value: r.id,
+                label: `${r.title}${r.account?.name ? ` — ${r.account.name}` : ''} (${r.status})`,
+              }))}
+            />
             {requirementLocked && (
               <p className="mt-1 text-xs text-tertiary-500">Locked to this requirement row.</p>
             )}
@@ -222,21 +218,20 @@ export default function SubmissionCreatePage({
 
           <div className={asPanel ? '' : 'sm:col-span-2'}>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Seat *</label>
-            <select
+            <SearchableSelect
               required
               disabled={!form.requirement_id || loadingSeats}
               value={form.requirement_seat_id}
-              onChange={(e) => updateField('requirement_seat_id', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
-            >
-              <option value="">{loadingSeats ? 'Loading seats…' : 'Select open seat…'}</option>
-              {seats.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.seat_label || s.id.slice(0, 8)} — {s.seat_status}
-                  {s.active_submissions_count ? ` (${s.active_submissions_count} active)` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateField('requirement_seat_id', v)}
+              placeholder={loadingSeats ? 'Loading seats…' : 'Select open seat…'}
+              searchPlaceholder="Search seats…"
+              options={seats.map((s) => ({
+                value: s.id,
+                label: `${s.seat_label || s.id.slice(0, 8)} — ${s.seat_status}${
+                  s.active_submissions_count ? ` (${s.active_submissions_count} active)` : ''
+                }`,
+              }))}
+            />
             {form.requirement_id && !loadingSeats && seats.length === 0 && (
               <p className="mt-1 text-xs text-warning-700">No open seats on this requirement.</p>
             )}

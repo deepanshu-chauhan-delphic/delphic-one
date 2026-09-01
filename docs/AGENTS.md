@@ -166,6 +166,7 @@ Zero-dependency structured logger. Full guide: [guides/BACKEND-LOGGING.md](guide
 - **Frontend must follow Jira-like UX** ([ui/UI-UX-JIRA.md](ui/UI-UX-JIRA.md)). Dense tables, filter bar, Create, inline status, avatar stacks — not a generic CRUD admin look. Compare list/dashboard work to the reference screenshot before calling UI tickets done.
 - All frontend role checks go through `can()` / `usePermissions()` / `<Can>` in `client/src/lib/permissions.js`. Do not add new scattered `user?.role ===` gates for nav, routes, or panels. See [ui/UI-REDESIGN.md](ui/UI-REDESIGN.md).
 - Product forms (create candidate, put forward, create account/requirement/user, assign recruiters, interview rounds) open in an RHS `Drawer` only — never a page-wide centered modal. List row click opens a peek drawer with actions, not a full-page navigate.
+- Dropdowns: use `components/ui/SearchableSelect.jsx` (single-select, `options`/`onChange(value)`) for any data-driven or ~6-plus-option picker, and `MultiSelectDropdown.jsx` for multi-select. Plain `<select>` is only for small fixed enums (gender, currency, work mode, stage-transition pickers, etc.).
 - Leads are owned by **BDA** (`account.owner_id`); requirements by **Sales** (`sales_owner_id`). Admin reports: `bda-performance` vs `sales-performance` must stay separate.
 - Interview round create requires `scheduled_at` (interview date & time).
 - Keep CSS lean: layout and component structure as Tailwind classNames inline; `global.css` holds only tokens for spacing, typography, font, colors, and hover/button color utilities.

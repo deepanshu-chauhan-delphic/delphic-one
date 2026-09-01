@@ -139,6 +139,11 @@ function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenD
             {submission.requirement?.title || '—'}
             {submission.requirement?.account_name ? ` · ${submission.requirement.account_name}` : ''}
           </div>
+          {submission.profile?.source === 'vendor' && submission.profile?.vendor_account?.name && (
+            <div className="mt-0.5 truncate text-[11px] text-tertiary-500">
+              via {submission.profile.vendor_account.name}
+            </div>
+          )}
         </button>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'submission'}`} />
       </div>
@@ -166,7 +171,7 @@ export default function CandidatePipelineBoard() {
     if (filterParams.recruiter_id) params.submitted_by = filterParams.recruiter_id;
     if (filterParams.submission_stage) {
       const stages = String(filterParams.submission_stage).split(',').filter(Boolean);
-      if (stages.length === 1) params.stage = stages[0];
+      if (stages.length) params.stage = stages.join(',');
     }
     return params;
   }, [filterParams]);

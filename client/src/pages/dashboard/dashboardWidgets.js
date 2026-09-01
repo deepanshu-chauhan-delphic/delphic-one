@@ -4,9 +4,11 @@
  */
 
 import {
+  AlertTriangle,
   Briefcase,
   Building2,
   Calendar,
+  ClipboardList,
   Send,
   Target,
   TrendingUp,
@@ -38,6 +40,8 @@ export const KPI_LINKS = {
   requirementsOpen: '/requirements?status=open',
   requirementsInProgress: '/requirements?status=in_progress',
   requirementsClosed: '/requirements?status=closed',
+  stuckLeads: '/accounts?stage=lead',
+  stuckRequirements: '/requirements?stuck=stuck',
   submissionsActive: '/submissions',
   interviewsThisWeek: '/submissions?stage=interview_scheduled',
   closures: '/submissions?stage=closed',
@@ -191,8 +195,8 @@ export function statsForRole(role, summary) {
     {
       label: 'Active leads',
       value: summary.leads_active ?? 0,
-      hint: stuckLeads ? `${stuckLeads} stuck 7d+` : 'Company-wide',
-      description: 'All client accounts company-wide currently in the "lead" stage.',
+      hint: 'Company-wide',
+      description: 'All accounts company-wide currently in the "lead" stage — any type, including unclassified.',
       icon: Target,
       theme: 'blue',
       href: KPI_LINKS.leadsActive,
@@ -200,11 +204,20 @@ export function statsForRole(role, summary) {
     {
       label: 'Open requirements',
       value: summary.requirements_open ?? 0,
-      hint: stuckReqs ? `${stuckReqs} stuck 7d+` : 'Company-wide',
+      hint: 'Status = open',
       description: 'All requirements company-wide with status = open right now.',
       icon: Briefcase,
       theme: 'green',
       href: KPI_LINKS.requirementsOpen,
+    },
+    {
+      label: 'In progress',
+      value: summary.requirements_in_progress ?? 0,
+      hint: 'Requirements',
+      description: 'All requirements company-wide with status = in_progress right now.',
+      icon: ClipboardList,
+      theme: 'orange',
+      href: KPI_LINKS.requirementsInProgress,
     },
     {
       label: 'Active submissions',
@@ -241,6 +254,33 @@ export function statsForRole(role, summary) {
       icon: Building2,
       theme: 'cyan',
       href: KPI_LINKS.clientsActive,
+    },
+    {
+      label: 'Active vendors',
+      value: summary.vendors_active ?? 0,
+      hint: 'Stage = active',
+      description: 'All vendor accounts company-wide currently at stage = active, as of right now.',
+      icon: Users,
+      theme: 'blue',
+      href: KPI_LINKS.vendorsActive,
+    },
+    {
+      label: 'Stuck leads',
+      value: stuckLeads,
+      hint: '7+ days in stage',
+      description: 'Accounts in a lead / meeting stage with no movement for 7+ days (top 5 shown below).',
+      icon: AlertTriangle,
+      theme: 'red',
+      href: KPI_LINKS.stuckLeads,
+    },
+    {
+      label: 'Stuck requirements',
+      value: stuckReqs,
+      hint: '7+ days open',
+      description: 'Open / in-progress requirements with no movement for 7+ days (top 5 shown below).',
+      icon: AlertTriangle,
+      theme: 'red',
+      href: KPI_LINKS.stuckRequirements,
     },
   ]);
 }

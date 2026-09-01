@@ -353,8 +353,8 @@ export default function DashboardPage() {
 
       {loading && !summary ? (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <Skeleton key={n} className="h-28" rounded="xl" />
             ))}
           </div>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-3 xl:grid-cols-4">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}

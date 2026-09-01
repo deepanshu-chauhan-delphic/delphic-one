@@ -13,6 +13,8 @@ export const ALL_REPORTS = [
   { key: 'client-performance', label: 'Client performance', roles: ['admin', 'sales'] },
   { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'] },
   { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'] },
+  { key: 'clients-without-requirements', label: 'Clients w/o requirements', roles: ['admin', 'sales', 'bda'] },
+  { key: 'recruiter-vendor-gaps', label: 'Recruiter–vendor gaps', roles: ['admin', 'recruiter'] },
 ];
 
 export function reportsForRole(role) {
@@ -140,6 +142,31 @@ export function columnsForReport(reportKey) {
       { key: 'details', header: 'Details', render: (r) => (r.details || []).length },
     ];
   }
+  if (reportKey === 'clients-without-requirements') {
+    return [
+      { key: 'client', header: 'Client', render: (r) => personName(r, 'client') },
+      { key: 'stage', header: 'Stage', render: (r) => cell(r.stage) },
+      { key: 'bda_owner', header: 'BDA owner', render: (r) => personName(r, 'bda_owner') },
+      { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
+      { key: 'sales_owner', header: 'Sales owner', render: (r) => personName(r, 'sales_owner') },
+      { key: 'created_at', header: 'Created', render: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString() : '—') },
+      { key: 'days_idle', header: 'Days idle', render: (r) => cell(r.days_idle) },
+    ];
+  }
+  if (reportKey === 'recruiter-vendor-gaps') {
+    return [
+      { key: 'recruiter', header: 'Recruiter', render: (r) => personName(r, 'recruiter') },
+      { key: 'vendor', header: 'Vendor', render: (r) => personName(r, 'vendor') },
+      { key: 'profiles_sourced', header: 'Sourced' },
+      { key: 'profiles_submitted', header: 'Submitted' },
+      {
+        key: 'last_sourced_at',
+        header: 'Last sourced',
+        render: (r) => (r.last_sourced_at ? new Date(r.last_sourced_at).toLocaleDateString() : '—'),
+      },
+      { key: 'days_since_sourced', header: 'Days since', render: (r) => cell(r.days_since_sourced) },
+    ];
+  }
   return [];
 }
 
@@ -154,6 +181,12 @@ export function tableRowsForReport(reportKey, data) {
     }));
   }
   if (!Array.isArray(data)) return [];
+  if (reportKey === 'recruiter-vendor-gaps') {
+    return data.map((row, index) => ({
+      id: `${row.recruiter?.id || 'r'}-${row.vendor?.id || index}`,
+      ...row,
+    }));
+  }
   return data.map((row, index) => ({
     id: row.recruiter?.id || row.sales_person?.id || row.bda?.id || row.vendor?.id || row.client?.id || row.group_label || String(index),
     ...row,
@@ -304,7 +337,22 @@ export function chartDataForReport(reportKey, data) {
       revenue: Number(r.total_revenue || 0),
     }));
   }
+  if (reportKey === 'clients-without-requirements') {
+    return countBy(data, (r) => r.bda_owner?.name || 'Unassigned').map(([label, count]) => ({ label, clients: count }));
+  }
+  if (reportKey === 'recruiter-vendor-gaps') {
+    return countBy(data, (r) => r.recruiter?.name || 'Recruiter').map(([label, count]) => ({ label, vendors: count }));
+  }
   return [];
+}
+
+function countBy(rows, keyFn) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = keyFn(row);
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()];
 }
 
 export function chartTypeForReport(reportKey) {
@@ -359,6 +407,12 @@ export function chartBarsForReport(reportKey) {
       { dataKey: 'closed', name: 'Closed', fill: '#16a34a' },
       { dataKey: 'revenue', name: 'Revenue', fill: '#d97706' },
     ];
+  }
+  if (reportKey === 'clients-without-requirements') {
+    return [{ dataKey: 'clients', name: 'Clients w/o reqs', fill: '#d97706' }];
+  }
+  if (reportKey === 'recruiter-vendor-gaps') {
+    return [{ dataKey: 'vendors', name: 'Vendors w/o submissions', fill: '#d97706' }];
   }
   return [];
 }

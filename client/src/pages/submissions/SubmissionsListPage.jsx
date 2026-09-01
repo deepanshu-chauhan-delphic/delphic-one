@@ -7,6 +7,7 @@ import { canCreateSubmission } from '../../lib/submissionStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import SubmissionCreatePage from './SubmissionCreatePage.jsx';
@@ -195,13 +196,14 @@ export default function SubmissionsListPage() {
                 </button>
               </form>
             </div>
-            <select
+            <SearchableSelect
+              className="w-52"
+              allowClear
               value={stage}
-              onChange={(event) => setStage(event.target.value)}
-              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-            >
-              <option value="">Stage: All</option>
-              {[
+              onChange={setStage}
+              placeholder="Stage: All"
+              searchPlaceholder="Search stage…"
+              options={[
                 'sourced',
                 'internal_screening',
                 'submitted_to_client',
@@ -212,12 +214,8 @@ export default function SubmissionsListPage() {
                 'closed',
                 'backout',
                 'rejected',
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
+              ].map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))}
+            />
           </div>
         </div>
 

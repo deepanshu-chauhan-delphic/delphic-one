@@ -60,7 +60,6 @@ function serializeRequirement(row, cutoff) {
 async function getBoard(user, filters = {}) {
   const {
     search,
-    stuck_only,
     stuck,
     past_sla_only,
     account_id,
@@ -107,6 +106,11 @@ async function getBoard(user, filters = {}) {
         OR: [
           { title: { contains: search, mode: 'insensitive' } },
           { account: { name: { contains: search, mode: 'insensitive' } } },
+          {
+            seats: {
+              some: { submissions: { some: { profile: { name: { contains: search, mode: 'insensitive' } } } } },
+            },
+          },
         ],
       },
     ];
@@ -119,7 +123,7 @@ async function getBoard(user, filters = {}) {
   });
 
   let requirements = requirementRows.map((row) => serializeRequirement(row, cutoff));
-  if (stuck_only || stuck === 'stuck') requirements = requirements.filter((r) => r.is_stuck);
+  if (stuck === 'stuck') requirements = requirements.filter((r) => r.is_stuck);
   else if (stuck === 'not_stuck') requirements = requirements.filter((r) => !r.is_stuck);
   if (past_sla_only) requirements = requirements.filter((r) => r.past_sla);
 
@@ -135,7 +139,14 @@ async function getBoard(user, filters = {}) {
           ...(stages.length ? { stage: { in: stages } } : {}),
         },
         include: {
-          profile: { select: { id: true, name: true, source: true } },
+          profile: {
+            select: {
+              id: true,
+              name: true,
+              source: true,
+              vendor_account: { select: { id: true, name: true } },
+            },
+          },
           submitted_by_user: { select: { id: true, name: true } },
           seat: { select: { requirement_id: true } },
           interview_rounds: { select: { result: true } },
@@ -143,6 +154,13 @@ async function getBoard(user, filters = {}) {
         orderBy: { created_at: 'asc' },
       })
     : [];
+
+  // Candidate-stage filter: only keep requirements that actually have a candidate
+  // in one of the selected stages (submissionRows is already stage-filtered above).
+  if (stages.length) {
+    const reqIdsWithMatch = new Set(submissionRows.map((row) => row.seat.requirement_id));
+    requirements = requirements.filter((r) => reqIdsWithMatch.has(r.id));
+  }
 
   const submissions = submissionRows.map((row) => ({
     id: row.id,

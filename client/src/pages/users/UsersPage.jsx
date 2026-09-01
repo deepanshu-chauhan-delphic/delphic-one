@@ -6,6 +6,7 @@ import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 
 const CREATABLE_ROLES = [
   { value: 'bda', label: 'BDA' },
@@ -314,18 +315,14 @@ export default function UsersPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Department</label>
-              <select
+              <SearchableSelect
                 value={form.department_id}
-                onChange={(e) => updateField('department_id', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-              >
-                <option value="">Unassigned</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateField('department_id', v)}
+                placeholder="Unassigned"
+                allowClear
+                searchPlaceholder="Search departments…"
+                options={departments.map((d) => ({ value: d.id, label: d.name }))}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Phone (optional)</label>

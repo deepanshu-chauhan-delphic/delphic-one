@@ -31,6 +31,7 @@ const MATRIX_FIELDS = [
   'submission_stage',
   'stuck',
   'past_sla_only',
+  'date_range',
 ];
 
 function CandidateCard({ submission, onOpen }) {
@@ -47,6 +48,11 @@ function CandidateCard({ submission, onOpen }) {
       <div className="mt-1 flex flex-wrap items-center gap-1">
         {submission.profile?.source && <Badge value={submission.profile.source} />}
       </div>
+      {submission.profile?.source === 'vendor' && submission.profile?.vendor_account?.name && (
+        <p className="mt-1 truncate text-[11px] text-tertiary-500">
+          via {submission.profile.vendor_account.name}
+        </p>
+      )}
       <p className="mt-1 truncate text-[11px] text-tertiary-500">
         Recruiter: {submission.submitted_by?.name || '—'}
       </p>

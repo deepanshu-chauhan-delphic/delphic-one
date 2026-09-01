@@ -26,6 +26,7 @@ import { rangeForPreset } from '../../lib/datePresets.js';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import FilterBar from '../../components/ui/FilterBar.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { ExcelIcon, PdfIcon } from '../../components/ui/ExportIcons.jsx';
 import {
   agingSections,
@@ -137,10 +138,17 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [drawerRow, setDrawerRow] = useState(null);
 
-  const showDept = can('filterByDepartment');
-  const showIndividual =
-    can('filterByIndividual') && ['recruiter-performance', 'sales-performance', 'bda-performance'].includes(active);
   const isExplorer = active === 'pipeline-explorer';
+  const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
+  const showDept = can('filterByDepartment');
+  const INDIVIDUAL_ROLE_BY_REPORT = {
+    'recruiter-performance': 'recruiter',
+    'sales-performance': 'sales',
+    'bda-performance': 'bda',
+    'clients-without-requirements': 'bda',
+    'recruiter-vendor-gaps': 'recruiter',
+  };
+  const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
 
   useEffect(() => {
     if (!available.some((r) => r.key === active) && available[0]) {
@@ -171,7 +179,7 @@ export default function ReportsPage() {
       setIndividuals([]);
       return undefined;
     }
-    const role = active === 'sales-performance' ? 'sales' : active === 'bda-performance' ? 'bda' : 'recruiter';
+    const role = INDIVIDUAL_ROLE_BY_REPORT[active] || 'recruiter';
     apiClient
       .get('/users', { params: { role, limit: 100 } })
       .then(({ data }) => setIndividuals((data.data || []).map((u) => ({ id: u.id, name: u.name }))))
@@ -183,6 +191,8 @@ export default function ReportsPage() {
     const params = {};
     if (active === 'aging') {
       params.threshold_days = thresholdDays || 7;
+    } else if (isCoverage) {
+      // present-state coverage reports take no date range
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -201,6 +211,8 @@ export default function ReportsPage() {
     if (individualId && active === 'recruiter-performance') params.recruiter_id = individualId;
     if (individualId && active === 'sales-performance') params.sales_id = individualId;
     if (individualId && active === 'bda-performance') params.bda_id = individualId;
+    if (individualId && active === 'clients-without-requirements') params.bda_id = individualId;
+    if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
     return params;
   }
 
@@ -285,22 +297,18 @@ export default function ReportsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
-          <select
+          <SearchableSelect
+            className="w-56"
+            ariaLabel="Report type"
             value={active}
-            onChange={(e) => {
-              setActive(e.target.value);
+            onChange={(v) => {
+              setActive(v);
               setIndividualId('');
               setDrawerRow(null);
             }}
-            className="rounded-lg border border-tertiary-100 bg-white px-3 py-2 text-sm text-tertiary-700 shadow-soft"
-            aria-label="Report type"
-          >
-            {available.map((r) => (
-              <option key={r.key} value={r.key}>
-                {r.label}
-              </option>
-            ))}
-          </select>
+            searchPlaceholder="Search reports…"
+            options={available.map((r) => ({ value: r.key, label: r.label }))}
+          />
           <Can user={user} capability="exportReports">
             <>
               <button
@@ -330,7 +338,7 @@ export default function ReportsPage() {
       <FilterBar
         datePreset={datePreset}
         onDatePresetChange={setDatePreset}
-        showDatePresets={active !== 'aging'}
+        showDatePresets={active !== 'aging' && !isCoverage}
         dateFrom={dateFrom}
         dateTo={dateTo}
         onDateFromChange={(v) => {
@@ -370,19 +378,22 @@ export default function ReportsPage() {
               placeholder="Search requirement or client…"
               className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
             />
-            <select
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Requirement status"
               value={explorerStatus}
-              onChange={(e) => setExplorerStatus(e.target.value)}
-              className="rounded-xl border bg-white px-3 py-2 text-sm text-tertiary-700"
-              aria-label="Requirement status"
-            >
-              <option value="">All statuses</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="on_hold">On hold</option>
-              <option value="closed">Closed</option>
-              <option value="dropped">Dropped</option>
-            </select>
+              onChange={setExplorerStatus}
+              placeholder="All statuses"
+              searchPlaceholder="Search status…"
+              options={[
+                { value: 'open', label: 'Open' },
+                { value: 'in_progress', label: 'In progress' },
+                { value: 'on_hold', label: 'On hold' },
+                { value: 'closed', label: 'Closed' },
+                { value: 'dropped', label: 'Dropped' },
+              ]}
+            />
             <label className="flex items-center gap-2 text-xs text-tertiary-500">
               <input
                 type="checkbox"

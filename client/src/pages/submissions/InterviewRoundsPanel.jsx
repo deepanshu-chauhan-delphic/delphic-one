@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { required, runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import Drawer from '../../components/ui/Drawer.jsx';
 import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { canManageInterviewRound, isInternalRoundType, roundTypeLabel } from '../../lib/submissionStages.js';
 
 const ROUND_TYPES = [
@@ -272,17 +273,16 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
           {!editingId && (
             <label className="block text-xs font-medium text-tertiary-600">
               Round type *
-              <select
+              <SearchableSelect
+                className="mt-1"
                 value={form.round_type}
-                onChange={(e) => updateField('round_type', e.target.value)}
-                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-              >
-                {ROUND_TYPES.filter((t) => allowedRoundTypes.includes(t.value)).map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateField('round_type', v)}
+                searchPlaceholder="Search round types…"
+                options={ROUND_TYPES.filter((t) => allowedRoundTypes.includes(t.value)).map((t) => ({
+                  value: t.value,
+                  label: t.label,
+                }))}
+              />
             </label>
           )}
 

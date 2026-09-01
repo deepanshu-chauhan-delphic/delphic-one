@@ -10,10 +10,11 @@ const TRANSITIONS = {
 
 function serialize(row) {
   if (!row) return null;
-  const { owner_id, owner, classified_by, classified_by_user, meeting_attendees, ...rest } = row;
+  const { owner_id, owner, origin_owner_id, origin_owner, classified_by, classified_by_user, meeting_attendees, ...rest } = row;
   return {
     ...rest,
     owner: owner ? { id: owner.id, name: owner.name } : null,
+    origin_owner: origin_owner ? { id: origin_owner.id, name: origin_owner.name } : null,
     classified_by: classified_by_user ? { id: classified_by_user.id, name: classified_by_user.name } : null,
     meeting_attendees: meeting_attendees ? meeting_attendees.map((a) => ({ id: a.user.id, name: a.user.name })) : undefined,
   };
@@ -21,6 +22,7 @@ function serialize(row) {
 
 const ACCOUNT_INCLUDE = {
   owner: { select: { id: true, name: true } },
+  origin_owner: { select: { id: true, name: true } },
   classified_by_user: { select: { id: true, name: true } },
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
@@ -72,7 +74,8 @@ function canMutateAccount(account, user) {
 
 async function create(data, ownerId) {
   const row = await prisma.account.create({
-    data: { ...data, owner_id: ownerId },
+    // origin_owner_id is the immutable "brought by" — same as the first owner, never updated after.
+    data: { ...data, owner_id: ownerId, origin_owner_id: ownerId },
     include: ACCOUNT_INCLUDE,
   });
   return serialize(row);
@@ -83,9 +86,26 @@ async function update(id, patch, user) {
   if (!existing) return { error: 'not_found' };
   if (!canMutateAccount(existing, user)) return { error: 'forbidden' };
 
+  if (patch.owner_id && patch.owner_id !== existing.owner_id) {
+    // Anyone who can edit the account may reassign the owner. The owner is just the
+    // current POC from our end — any active user of any role is a valid target.
+    const target = await prisma.user.findUnique({ where: { id: patch.owner_id } });
+    if (!target || !target.active) return { error: 'user_not_found' };
+  }
+
+  const data = { ...patch };
+  if (patch.type && patch.type !== existing.type) {
+    // Re-classifying an already-typed account is an admin-only correction.
+    if (user.role !== 'admin') return { error: 'forbidden_type_change' };
+    data.classified_at = new Date();
+    data.classified_by = user.id;
+  } else {
+    delete data.type;
+  }
+
   const row = await prisma.account.update({
     where: { id },
-    data: patch,
+    data,
     include: ACCOUNT_INCLUDE,
   });
   return { account: serialize(row) };

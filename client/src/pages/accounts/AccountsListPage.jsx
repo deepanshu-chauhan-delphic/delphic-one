@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
@@ -47,6 +48,7 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
         <PeekField label="Industry">{detail.industry || '—'}</PeekField>
         <PeekField label="Owner">{detail.owner?.name || '—'}</PeekField>
+        <PeekField label="Brought by">{detail.origin_owner?.name || '—'}</PeekField>
         <PeekField label="POC">{detail.poc_name || '—'}</PeekField>
         <PeekField label="POC email">{detail.poc_email || '—'}</PeekField>
         <PeekField label="City">{detail.location_city || '—'}</PeekField>
@@ -173,7 +175,18 @@ export default function AccountsListPage() {
       { key: 'type', header: 'Type', render: (row) => <span className="capitalize text-tertiary-700">{row.type || 'Unclassified'}</span> },
       { key: 'industry', header: 'Industry', render: (row) => row.industry || '—' },
       { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
-      { key: 'owner', header: 'Owner', render: (row) => row.owner?.name || '—' },
+      {
+        key: 'owner',
+        header: 'Owner',
+        render: (row) => (
+          <div>
+            <div>{row.owner?.name || '—'}</div>
+            {row.origin_owner && row.origin_owner.id !== row.owner?.id && (
+              <div className="text-xs text-tertiary-500">via {row.origin_owner.name}</div>
+            )}
+          </div>
+        ),
+      },
       {
         key: 'created',
         header: 'Created',
@@ -254,21 +267,24 @@ export default function AccountsListPage() {
                 <option value="vendor">Vendor</option>
                 <option value="unclassified">Unclassified</option>
               </select>
-              <select
+              <SearchableSelect
+                className="w-44"
+                allowClear
                 value={stage}
-                onChange={(event) => {
+                onChange={(next) => {
                   setPage(1);
-                  setStage(event.target.value);
+                  setStage(next);
                 }}
-                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-              >
-                <option value="">Stage: All</option>
-                <option value="lead">Lead</option>
-                <option value="meeting_scheduled">Meeting scheduled</option>
-                <option value="active">Active</option>
-                <option value="rescheduled">Rescheduled</option>
-                <option value="dropped">Dropped</option>
-              </select>
+                placeholder="Stage: All"
+                searchPlaceholder="Search stage…"
+                options={[
+                  { value: 'lead', label: 'Lead' },
+                  { value: 'meeting_scheduled', label: 'Meeting scheduled' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'rescheduled', label: 'Rescheduled' },
+                  { value: 'dropped', label: 'Dropped' },
+                ]}
+              />
             </div>
           </div>
         </div>

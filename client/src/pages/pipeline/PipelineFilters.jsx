@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Filter } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import {
   applyFiltersToSearchParams,
   emptyPipelineFilters,
@@ -46,7 +47,7 @@ const STAGE_OPTIONS = [
  *   onChange: optional callback receiving API params when filters change.
  */
 export default function PipelineFilters({
-  fields = ['search', 'stuck_only', 'past_sla_only', 'status', 'sales_id', 'bda_id', 'recruiter_id', 'account_id'],
+  fields = ['search', 'stuck', 'past_sla_only', 'status', 'sales_id', 'bda_id', 'recruiter_id', 'account_id'],
   onChange,
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -163,67 +164,55 @@ export default function PipelineFilters({
       )}
 
       {fieldSet.has('account_id') && (
-        <select
+        <SearchableSelect
+          className="w-48"
+          allowClear
+          ariaLabel="Client"
           value={filters.account_id}
-          onChange={(event) => patchFilters({ account_id: event.target.value })}
-          className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-          aria-label="Client"
-        >
-          <option value="">All clients</option>
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.label}
-            </option>
-          ))}
-        </select>
+          onChange={(account_id) => patchFilters({ account_id })}
+          placeholder="All clients"
+          searchPlaceholder="Search clients…"
+          options={accounts.map((account) => ({ value: account.id, label: account.label }))}
+        />
       )}
 
       {fieldSet.has('bda_id') && (
-        <select
+        <SearchableSelect
+          className="w-44"
+          allowClear
+          ariaLabel="BDA"
           value={filters.bda_id}
-          onChange={(event) => patchFilters({ bda_id: event.target.value })}
-          className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-          aria-label="BDA"
-        >
-          <option value="">All BDAs</option>
-          {bdas.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.label}
-            </option>
-          ))}
-        </select>
+          onChange={(bda_id) => patchFilters({ bda_id })}
+          placeholder="All BDAs"
+          searchPlaceholder="Search BDAs…"
+          options={bdas.map((user) => ({ value: user.id, label: user.label }))}
+        />
       )}
 
       {fieldSet.has('sales_id') && (
-        <select
+        <SearchableSelect
+          className="w-44"
+          allowClear
+          ariaLabel="Sales"
           value={filters.sales_id}
-          onChange={(event) => patchFilters({ sales_id: event.target.value })}
-          className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-          aria-label="Sales"
-        >
-          <option value="">All sales</option>
-          {salesUsers.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.label}
-            </option>
-          ))}
-        </select>
+          onChange={(sales_id) => patchFilters({ sales_id })}
+          placeholder="All sales"
+          searchPlaceholder="Search sales…"
+          options={salesUsers.map((user) => ({ value: user.id, label: user.label }))}
+        />
       )}
 
       {fieldSet.has('recruiter_id') && (
-        <select
+        <SearchableSelect
+          className="w-44"
+          allowClear
+          ariaLabel="Recruiter"
           value={filters.recruiter_id}
-          onChange={(event) => patchFilters({ recruiter_id: event.target.value })}
-          className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-          aria-label="Recruiter"
-        >
-          <option value="">All recruiters</option>
-          {recruiters.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.label}
-            </option>
-          ))}
-        </select>
+          onChange={(recruiter_id) => patchFilters({ recruiter_id })}
+          placeholder="All recruiters"
+          searchPlaceholder="Search recruiters…"
+          options={recruiters.map((user) => ({ value: user.id, label: user.label }))}
+        />
       )}
 
       {fieldSet.has('status') && (
@@ -262,14 +251,26 @@ export default function PipelineFilters({
         </div>
       )}
 
-      {fieldSet.has('stuck_only') && (
-        <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft">
+      {fieldSet.has('date_range') && (
+        <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-2.5 py-1 text-xs text-tertiary-600 shadow-soft">
+          Created
           <input
-            type="checkbox"
-            checked={filters.stuck_only}
-            onChange={(event) => patchFilters({ stuck_only: event.target.checked })}
+            type="date"
+            value={filters.date_from}
+            max={filters.date_to || undefined}
+            onChange={(event) => patchFilters({ date_from: event.target.value })}
+            className="rounded border border-tertiary-100 px-1.5 py-0.5 text-xs text-tertiary-800"
+            aria-label="Created from"
           />
-          Stuck only
+          <span>–</span>
+          <input
+            type="date"
+            value={filters.date_to}
+            min={filters.date_from || undefined}
+            onChange={(event) => patchFilters({ date_to: event.target.value })}
+            className="rounded border border-tertiary-100 px-1.5 py-0.5 text-xs text-tertiary-800"
+            aria-label="Created to"
+          />
         </label>
       )}
 

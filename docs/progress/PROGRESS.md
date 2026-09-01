@@ -2,7 +2,96 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
-## 2026-08-31 — LeadMinds accounts + JD seed + requirements list pagination
+## 2026-09-01 — Vendor name on pipeline cards + candidate-stage filter fix + coverage-gap reports
+
+Uncommitted work on `main` (local). No schema/migration changes. `cd server && npm test` → **26 suites / 163 tests green**; client `vite build` + `reportViews.test.mjs` + `usePipelineFilters.test.mjs` green.
+
+### 1. Vendor name on candidate cards
+
+- `GET /pipeline/board` and `GET /submissions` now select `profile.vendor_account { id, name }` (`pipeline.service.js` submission include; `submissions.service.js` `INCLUDE.profile.select` — flows through the existing pass-through serializers).
+- Requirement-map `CandidateCard` and candidate-pipeline `CandidateCard` show a `via <Vendor>` line when `profile.source === 'vendor'`.
+
+### 2. Pipeline filter fixes (`pipeline.service.js` + client filter helpers)
+
+- **Candidate-stage bug:** `submission_stage` was applied only to the submissions query, so requirements with zero matching candidates still rendered. Now, when a stage is selected, requirements are filtered to those with ≥1 candidate in that stage.
+- **"Stuck" de-duped:** removed `stuck_only` from the pipeline entirely (checkbox + `usePipelineFilters` key + `pipeline.validation` + service). The `stuck` tri-state (`all`/`stuck`/`not_stuck`) is the single control. Reports-explorer `stuck_only` is a separate feature, untouched.
+- **Search** on the board now also matches candidate/profile name (added an `OR` branch through `seats.some.submissions.some.profile.name`).
+- **Date-range filter wired up:** server already applied `date_from`/`date_to` to `requirement.created_at`; added a compact "Created" date-range control (`PipelineFilters`, gated by the new `date_range` field) and put it on the requirement matrix.
+- **Candidate board multi-stage:** `CandidatePipelineBoard` now forwards all selected stages as CSV; `GET /submissions` `list()` parses `stage` as a CSV → `{ stage: { in: [...] } }`.
+
+### 3. New coverage-gap report tabs (`/api/v1/reports/*`, separate tabs)
+
+- **`clients-without-requirements`** (`admin` / `sales` / `bda`, BDA self-scoped) — client accounts with `requirements: { none: {} }`; columns Client / Stage / BDA owner / Brought by / Sales owner (null by definition — kept to show the BDA→sales handoff gap) / Created / Days idle.
+- **`recruiter-vendor-gaps`** (`admin` / `recruiter`, recruiter self-scoped) — `(recruiter, vendor)` pairs from `Profile.added_by` + `Profile.vendor_account_id` where the recruiter sourced ≥1 profile from the vendor but none was ever submitted.
+- New shared `coverageSchema` (`department_id` + `bda_id` + `recruiter_id`, no date range). Both wired into `reports.routes.js` (`REPORTS` map + GET routes + `/export` branch), `reportViews.js` (`ALL_REPORTS`, columns, rows id, bar chart), and `ReportsPage.jsx` (`isCoverage` → no date presets; individual picker maps to `bda_id` / `recruiter_id` for admins).
+- Tests: `server/tests/reports-coverage-gaps.test.js` (shape, self-scoping, 403 gates, xlsx export); pipeline-board tests updated for the stage filter, candidate-name search, vendor-account exposure, and `stuck` rename.
+
+## 2026-09-01 — Admin-editable account type + dashboard KPI fixes/split + app-wide searchable dropdowns
+
+Uncommitted work on `main` (local). No schema/migration changes in this entry. Client `vite build` green.
+
+### 1. Account `type` is now editable (admin-only re-classification)
+
+Previously `type` was write-once via `POST /accounts/:id/classify` (one-way, `already_classified` guard) and hard-disabled on the edit form. Now an **admin** can switch an already-typed account between `client` / `vendor` from `AccountFormPage`:
+
+- `updateSchema` accepts `type: z.enum(['client','vendor']).optional()` (`accounts.validation.js`).
+- `accounts.service.update`: a real `type` change is **admin-only** (`forbidden_type_change` otherwise) and refreshes `classified_at` / `classified_by`; a no-op `type` is stripped from the patch.
+- `accounts.controller.js` maps `forbidden_type_change → 403`.
+- `AccountFormPage`: `canEditType = isEditing && role === 'admin'`; the type `<select>` is `disabled={isEditing && !canEditType}`, `buildAccountBody` sends `type` on create **or** admin edit, plus an "Admin only · re-classifies" hint. Switching back to undecided/lead is intentionally not supported (enum has no empty member); non-admins still can't touch it. The one-way `/classify` flow for undecided leads is unchanged.
+
+### 2. Home dashboard KPI corrections + client/vendor split + 4-col grid
+
+Backend `dashboard.service.js` (`summaryForAdmin` + `summaryForBda`):
+
+- **`leads_active` bug fixed** — was `count({ type: 'client', stage: 'lead' })`, which silently dropped every unclassified lead (type is `null` until classified, independent of stage) and every vendor-classified lead. Now `count({ stage: 'lead' })` across all types. The card count now also matches its `/accounts?stage=lead` drill-through.
+- **`leads_in_meeting`** now `stage IN ('meeting_scheduled','rescheduled')` (was `meeting_scheduled` only) — matches the card copy and how `stuckLeads` treats rescheduled.
+- `clients_active` / `vendors_active` unchanged (already correct: `type` + `stage: 'active'`).
+
+Frontend `dashboardWidgets.js` + `DashboardPage.jsx`:
+
+- KPI grid `xl:grid-cols-6` → **`xl:grid-cols-4`** (real grid + skeleton; skeleton bumped to 8 tiles).
+- **Admin KPI set is now 10 tiles** (4 + 4 + 2): Active leads · Open requirements · **In progress** *(new — splits `requirements_in_progress`, previously returned but never rendered for admins)* · Active submissions // Interviews this week · Closures this month · Active clients · **Active vendors** *(new — `vendors_active` was returned but never shown for admins)* // **Stuck leads** · **Stuck requirements** *(new dedicated cards, red theme, `AlertTriangle`; the redundant "N stuck 7d+" hint badge dropped from Active leads / Open requirements — bottom stuck panels stay)*.
+- New `KPI_LINKS`: `stuckLeads → /accounts?stage=lead` (accounts list has no stuck filter), `stuckRequirements → /requirements?stuck=stuck`.
+- Lead-tile descriptions reworded (no longer claim "client accounts").
+- BDA/Sales/Recruiter tile sets unchanged; they wrap fine in the 4-col grid.
+
+### 3. App-wide searchable dropdowns
+
+New **`client/src/components/ui/SearchableSelect.jsx`** — hand-rolled single-select combobox (no new dependency), styled to match `MultiSelectDropdown`: type-to-filter on `label` + `hint`, ↑/↓/Enter/Esc keyboard nav, click-outside close, `disabled` / `required` (native form validation kept via a 1px opacity-0 focusable mirror input) / `allowClear` / `ariaLabel` / `className` (width). API: `options={[{ value, label, hint?, disabled? }]}`, `onChange(value)` (raw value, not an event).
+
+Scope agreed with the user: **convert data-driven or 6-plus-option selects; leave small fixed enums native.** 25 selects across 12 files converted:
+
+| File | Converted |
+|---|---|
+| `RequirementFormPage` | client account, sales owner, budget currency |
+| `AccountFormPage` | owner, billing currency, vendor rate currency |
+| `ProfileFormPage` | vendor account |
+| `SubmissionCreatePage` | candidate, job requirement, seat |
+| `InterviewRoundsPanel` | round type |
+| `AssignRecruiterDrawer` | recruiter |
+| `UsersPage` | department |
+| `components/ui/FilterBar` | individual, department |
+| `pipeline/PipelineFilters` | client, BDA, sales, recruiter |
+| `AccountsListPage` | stage filter |
+| `SubmissionsListPage` | stage filter |
+| `RequirementsListPage` | status filter |
+| `reports/ReportsPage` | report type, explorer status |
+
+Filter dropdowns got `allowClear` to return to "All". **Left native** (fixed enums < ~6 options): gender, work mode, engagement type, req type, priority, company size, 4-option currency pickers, rate types, BGV status, interview result, meeting mode, stage/status **transition** pickers (`AccountStageMoveDrawer`, `JobPipelineBoard`, `CandidatePipelineBoard`), closure group-by, `stuck` tri-state, profile source. `SubmissionDetailPage` untouched (all seven selects are 3–4-option enums).
+
+## 2026-09-01 — Editable account owner + immutable "brought by" + relaxed API rate limit
+
+Uncommitted work on `main` (local). **Includes a Prisma migration — see deploy note below.**
+
+- **Account owner (POC from our end) is now editable** from the edit-account form (`AccountFormPage`) by **anyone who can edit the account** (admin, or the owning BDA) — not admin-only. New `owner_id` on `updateSchema`; `accounts.service.update` only checks the target is an **active user of any role** (`user_not_found`); no role/admin gate on the reassignment itself. The owner select is **required** (no "Unassigned") and lists every active user. `GET /users` list opened to `bda` too (unclamped) so the roster loads for them.
+- **New `Account.origin_owner_id`** — immutable "brought by" the BDA/admin who first added the client/vendor. Set once in `create()` (= first owner), never updated; `owner_id` can be reassigned freely without losing acquisition credit. Nullable column + FK + index; migration backfills `origin_owner_id = owner_id` for all existing rows.
+- **Surfaced** on account detail (header + "Brought by" field), list (Owner column shows "via <origin>" when reassigned; peek drawer "Brought by"), and edit form hint.
+- **`bda-performance` report**: "brought"/funnel metrics (`leads_created`, meeting, converted, dropped, vendors_created, unclassified, via_linkedin, avg_days_lead_to_meeting) now credit `origin_owner_id`; `*_current` snapshots still credit `owner_id` (present POC).
+- **Rate limit relaxed** (`server/src/app.js`): general `apiLimiter` now skips GET/HEAD/OPTIONS and allows 6000 writes/min/IP (was 1200 all-methods) so the request-dense dashboard behind a shared office IP stops hitting "Too many requests". `loginLimiter` raised 30 → 60/min.
+
+### Deploy note — migration `20260901120000_account_origin_owner`
+
+Additive and safe on populated data (nullable ADD COLUMN + backfill UPDATE + FK + index; no drops, no rewrite-locking default). On the VPS the `server` container runs `prisma migrate deploy` on startup, so `./start-delphic.sh --prod` applies it automatically. **Before deploying:** `pg_dump` backup. **After:** verify `SELECT count(*) FROM accounts WHERE origin_owner_id IS NULL;` returns `0`. Rollback (only if needed, and no new accounts created since): `ALTER TABLE accounts DROP COLUMN origin_owner_id;` then delete the migration row from `_prisma_migrations`.
 
 Uncommitted work on `main` (local).
 

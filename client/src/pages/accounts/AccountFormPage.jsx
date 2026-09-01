@@ -5,11 +5,13 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import { accountKey, apiErrorMessage, canCreateAccount, canMutateAccount } from './accountUtils.js';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 
 const EMPTY_CONTACT = { name: '', email: '', phone: '', designation: '', role_label: '' };
 const EMPTY_FORM = {
   type: '',
   name: '',
+  owner_id: '',
   industry: '',
   company_size: '',
   website: '',
@@ -57,6 +59,7 @@ function formFromAccount(account) {
     ...EMPTY_FORM,
     ...account,
     type: account.type || '',
+    owner_id: account.owner?.id || '',
     lead_generated_date: account.lead_generated_date ? account.lead_generated_date.slice(0, 10) : '',
     location: account.location || '',
     linkedin_url: account.linkedin_url || '',
@@ -75,7 +78,7 @@ function optionalEnum(value) {
   return value || undefined;
 }
 
-function buildAccountBody(form, isEditing) {
+function buildAccountBody(form, isEditing, canEditType) {
   const body = {
     name: form.name.trim(),
     industry: form.industry.trim(),
@@ -97,7 +100,8 @@ function buildAccountBody(form, isEditing) {
     source: form.source.trim(),
   };
 
-  if (!isEditing && form.type) body.type = form.type;
+  if (form.type && (!isEditing || canEditType)) body.type = form.type;
+  if (isEditing && form.owner_id) body.owner_id = form.owner_id;
 
   if (form.type === 'vendor') {
     body.vendor_specializations = form.vendor_specializations.split(',').map((value) => value.trim()).filter(Boolean);
@@ -132,6 +136,18 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [loadFailed, setLoadFailed] = useState(false);
+  const [ownerOptions, setOwnerOptions] = useState([]);
+  // Anyone who can edit the account can also reassign its owner/POC to any active user.
+  const canEditOwner = isEditing && canMutateAccount(account, user);
+  const canEditType = isEditing && user?.role === 'admin';
+
+  useEffect(() => {
+    if (!canEditOwner) return;
+    apiClient
+      .get('/users', { params: { active: 'true', limit: 100 } })
+      .then(({ data }) => setOwnerOptions([...(data.data || [])].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => setOwnerOptions([]));
+  }, [canEditOwner]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -199,7 +215,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
     setSaving(true);
     setFieldErrors({});
     try {
-      const body = buildAccountBody(form, isEditing);
+      const body = buildAccountBody(form, isEditing, canEditType);
       const { data } = isEditing ? await apiClient.patch(`/accounts/${id}`, body) : await apiClient.post('/accounts', body);
       if (asPanel && onDone) onDone(data.data.id);
       else navigate(`/accounts/${data.data.id}`, { replace: true });
@@ -256,14 +272,36 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
               <select
                 value={form.type}
                 onChange={(event) => updateField('type', event.target.value)}
-                disabled={isEditing}
+                disabled={isEditing && !canEditType}
                 className={INPUT_CLASS}
               >
                 <option value="">Undecided (lead)</option>
                 <option value="client">Client</option>
                 <option value="vendor">Vendor</option>
               </select>
+              {canEditType && (
+                <span className="mt-1 block text-xs text-tertiary-500">
+                  Admin only · changing the type re-classifies the account
+                </span>
+              )}
             </Field>
+            {canEditOwner && (
+              <Field label="Owner (POC from our end)" required>
+                <SearchableSelect
+                  required
+                  value={form.owner_id}
+                  onChange={(v) => updateField('owner_id', v)}
+                  placeholder="Select owner…"
+                  searchPlaceholder="Search users…"
+                  options={[
+                    ...ownerOptions.map((u) => ({ value: u.id, label: `${u.name} · ${u.role}` })),
+                    ...(account?.owner && !ownerOptions.some((u) => u.id === account.owner.id)
+                      ? [{ value: account.owner.id, label: `${account.owner.name} (current)` }]
+                      : []),
+                  ]}
+                />
+              </Field>
+            )}
             <Field label="Company name" required>
               <input required value={form.name} onChange={(event) => updateField('name', event.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -365,13 +403,11 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           {form.type === 'client' ? (
             <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
               <Field label="Billing currency">
-                <select
+                <SearchableSelect
                   value={form.client_billing_currency}
-                  onChange={(event) => updateField('client_billing_currency', event.target.value)}
-                  className={INPUT_CLASS}
-                >
-                  {['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => <option key={currency}>{currency}</option>)}
-                </select>
+                  onChange={(v) => updateField('client_billing_currency', v)}
+                  options={['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => ({ value: currency, label: currency }))}
+                />
               </Field>
               <Field label="Payment terms">
                 <input
@@ -422,13 +458,11 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                 />
               </Field>
               <Field label="Rate currency">
-                <select
+                <SearchableSelect
                   value={form.vendor_rate_currency}
-                  onChange={(event) => updateField('vendor_rate_currency', event.target.value)}
-                  className={INPUT_CLASS}
-                >
-                  {['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => <option key={currency}>{currency}</option>)}
-                </select>
+                  onChange={(v) => updateField('vendor_rate_currency', v)}
+                  options={['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => ({ value: currency, label: currency }))}
+                />
               </Field>
               <div className={asPanel ? '' : 'sm:col-span-2'}>
                 <Field label="Payment terms">

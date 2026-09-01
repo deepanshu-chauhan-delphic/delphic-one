@@ -6,7 +6,7 @@ const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./reports.service');
 const explorerService = require('./explorer.service');
-const { dateRangeSchema, agingSchema, closureSchema, explorerSchema } = require('./reports.validation');
+const { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema } = require('./reports.validation');
 
 const router = express.Router();
 router.use(authenticate);
@@ -20,6 +20,8 @@ const REPORTS = {
   aging: (q) => service.aging(q),
   closure: (q) => service.closure(q),
   'pipeline-explorer': (q, user) => explorerService.pipelineExplorer(user, q),
+  'clients-without-requirements': (q) => service.clientsWithoutRequirements(q),
+  'recruiter-vendor-gaps': (q) => service.recruiterVendorGaps(q),
 };
 
 router.get(
@@ -104,6 +106,28 @@ router.get(
 );
 
 router.get(
+  '/clients-without-requirements',
+  authorize('admin', 'sales', 'bda'),
+  asyncHandler(async (req, res) => {
+    const query = coverageSchema.parse(req.query);
+    if (req.user.role === 'bda') query.bda_id = req.user.id;
+    const data = await service.clientsWithoutRequirements(query);
+    return ok(res, data);
+  })
+);
+
+router.get(
+  '/recruiter-vendor-gaps',
+  authorize('admin', 'recruiter'),
+  asyncHandler(async (req, res) => {
+    const query = coverageSchema.parse(req.query);
+    if (req.user.role === 'recruiter') query.recruiter_id = req.user.id;
+    const data = await service.recruiterVendorGaps(query);
+    return ok(res, data);
+  })
+);
+
+router.get(
   '/export',
   authorize('admin', 'sales'),
   asyncHandler(async (req, res) => {
@@ -116,7 +140,9 @@ router.get(
     if (report === 'aging') query = agingSchema.parse(req.query);
     else if (report === 'closure') query = closureSchema.parse(req.query);
     else if (report === 'pipeline-explorer') query = explorerSchema.parse(req.query);
-    else query = dateRangeSchema.parse(req.query);
+    else if (report === 'clients-without-requirements' || report === 'recruiter-vendor-gaps') {
+      query = coverageSchema.parse(req.query);
+    } else query = dateRangeSchema.parse(req.query);
 
     const data = await fn(query, req.user);
     const sheets = buildExportSheets(report, data);

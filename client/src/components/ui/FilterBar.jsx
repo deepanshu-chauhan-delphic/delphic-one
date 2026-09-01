@@ -1,4 +1,5 @@
 import FilterChip from './FilterChip.jsx';
+import SearchableSelect from './SearchableSelect.jsx';
 
 const DATE_PRESETS = [
   { key: 'this_month', label: 'This month' },
@@ -67,34 +68,28 @@ export default function FilterBar({
       {(showIndividual || showDepartment || children) && (
         <div className="flex flex-wrap items-center gap-3">
           {showIndividual && (
-            <select
-              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by individual"
               value={individualId}
-              onChange={(e) => onIndividualChange?.(e.target.value)}
-              aria-label="Filter by individual"
-            >
-              <option value="">All people</option>
-              {individuals.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => onIndividualChange?.(v)}
+              placeholder="All people"
+              searchPlaceholder="Search people…"
+              options={individuals.map((person) => ({ value: person.id, label: person.name }))}
+            />
           )}
           {showDepartment && (
-            <select
-              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by department"
               value={departmentId}
-              onChange={(e) => onDepartmentChange?.(e.target.value)}
-              aria-label="Filter by department"
-            >
-              <option value="">All departments</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => onDepartmentChange?.(v)}
+              placeholder="All departments"
+              searchPlaceholder="Search departments…"
+              options={departments.map((dept) => ({ value: dept.id, label: dept.name }))}
+            />
           )}
           {children}
         </div>

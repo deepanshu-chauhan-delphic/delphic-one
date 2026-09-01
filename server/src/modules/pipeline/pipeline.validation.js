@@ -13,7 +13,6 @@ const boolFlag = z
 
 const boardQuerySchema = z.object({
   search: z.string().optional(),
-  stuck_only: boolFlag,
   stuck: z.enum(['all', 'stuck', 'not_stuck']).optional(),
   past_sla_only: boolFlag,
   account_id: optionalUuid,

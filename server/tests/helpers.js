@@ -35,7 +35,7 @@ async function loginAs(user) {
 
 async function createActiveClientAccount(ownerId) {
   return prisma.account.create({
-    data: { type: 'client', name: unique('Client '), stage: 'active', owner_id: ownerId },
+    data: { type: 'client', name: unique('Client '), stage: 'active', owner_id: ownerId, origin_owner_id: ownerId },
   });
 }
 

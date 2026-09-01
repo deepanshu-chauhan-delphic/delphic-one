@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { required, runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { emptyProfileForm, formToProfileBody, profileToForm } from './profileForm.js';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
 
@@ -322,12 +323,14 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             {form.source === 'vendor' && (
               <>
                 <Field label="Vendor account" required>
-                  <select required value={form.vendor_account_id} onChange={(e) => updateField('vendor_account_id', e.target.value)} className={INPUT_CLASS}>
-                    <option value="">Select vendor</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    required
+                    value={form.vendor_account_id}
+                    onChange={(v) => updateField('vendor_account_id', v)}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors…"
+                    options={vendors.map((vendor) => ({ value: vendor.id, label: vendor.name }))}
+                  />
                 </Field>
                 <Field label="Vendor's own profile ID">
                   <input value={form.vendor_profile_id} onChange={(e) => updateField('vendor_profile_id', e.target.value)} className={INPUT_CLASS} />

@@ -335,6 +335,9 @@ async function salesPerformance({ date_from, date_to, sales_id, department_id })
 
 /**
  * BDA lead/account funnel. Leads are owned by BDA (owner_id), not sales.
+ * "Brought"/funnel metrics credit origin_owner_id (immutable — who first added the
+ * client/vendor). The *_current snapshots credit owner_id (the present POC), so a
+ * reassigned account moves in the snapshot but the origin BDA keeps the acquisition credit.
  */
 async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
   const bdaUsers = await prisma.user.findMany({
@@ -352,7 +355,10 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
   return Promise.all(
     bdaUsers.map(async (b) => {
       const ownedInRange = await prisma.account.findMany({
-        where: { owner_id: b.id, created_at: { gte: from, lte: to } },
+        where: {
+          OR: [{ origin_owner_id: b.id }, { origin_owner_id: null, owner_id: b.id }],
+          created_at: { gte: from, lte: to },
+        },
       });
       const clientLeads = ownedInRange.filter((a) => a.type === 'client');
       const vendorLeads = ownedInRange.filter((a) => a.type === 'vendor');
@@ -730,4 +736,97 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   });
 }
 
-module.exports = { recruiterPerformance, salesPerformance, bdaPerformance, vendorPerformance, clientPerformance, aging, closure };
+/**
+ * Client accounts that have no requirements at all — the BDA brought them in but
+ * no sales requirement was ever opened. `sales_owner` is null by definition here
+ * (sales links to a client only through its requirements); kept as a column so the
+ * BDA -> sales handoff gap is explicit.
+ */
+async function clientsWithoutRequirements({ bda_id, department_id }) {
+  const rows = await prisma.account.findMany({
+    where: {
+      type: 'client',
+      requirements: { none: {} },
+      ...(bda_id ? { owner_id: bda_id } : {}),
+      ...(department_id ? { owner: { department_id } } : {}),
+    },
+    include: {
+      owner: { select: { id: true, name: true } },
+      origin_owner: { select: { id: true, name: true } },
+    },
+    orderBy: { created_at: 'asc' },
+  });
+
+  return rows.map((a) => ({
+    client: { id: a.id, name: a.name },
+    stage: a.stage,
+    bda_owner: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
+    brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
+    sales_owner: null,
+    created_at: a.created_at,
+    days_idle: Math.floor(daysBetween(a.created_at, new Date())),
+  }));
+}
+
+/**
+ * (recruiter, vendor) pairs where the recruiter sourced at least one profile from
+ * the vendor but none of those profiles has ever been submitted. Recruiter =
+ * profile.added_by; vendor = profile.vendor_account_id.
+ */
+async function recruiterVendorGaps({ recruiter_id, department_id }) {
+  const profiles = await prisma.profile.findMany({
+    where: {
+      vendor_account_id: { not: null },
+      ...(recruiter_id ? { added_by: recruiter_id } : {}),
+      ...(department_id ? { added_by_user: { department_id } } : {}),
+    },
+    select: {
+      id: true,
+      created_at: true,
+      added_by_user: { select: { id: true, name: true } },
+      vendor_account: { select: { id: true, name: true } },
+      _count: { select: { submissions: true } },
+    },
+  });
+
+  const groups = new Map();
+  for (const p of profiles) {
+    if (!p.added_by_user || !p.vendor_account) continue;
+    const key = `${p.added_by_user.id}::${p.vendor_account.id}`;
+    const g = groups.get(key) || {
+      recruiter: p.added_by_user,
+      vendor: p.vendor_account,
+      profiles_sourced: 0,
+      profiles_submitted: 0,
+      last_sourced_at: null,
+    };
+    g.profiles_sourced += 1;
+    if (p._count.submissions > 0) g.profiles_submitted += 1;
+    if (!g.last_sourced_at || p.created_at > g.last_sourced_at) g.last_sourced_at = p.created_at;
+    groups.set(key, g);
+  }
+
+  return [...groups.values()]
+    .filter((g) => g.profiles_submitted === 0)
+    .map((g) => ({
+      recruiter: { id: g.recruiter.id, name: g.recruiter.name },
+      vendor: { id: g.vendor.id, name: g.vendor.name },
+      profiles_sourced: g.profiles_sourced,
+      profiles_submitted: 0,
+      last_sourced_at: g.last_sourced_at,
+      days_since_sourced: Math.floor(daysBetween(g.last_sourced_at, new Date())),
+    }))
+    .sort((a, b) => b.days_since_sourced - a.days_since_sourced);
+}
+
+module.exports = {
+  recruiterPerformance,
+  salesPerformance,
+  bdaPerformance,
+  vendorPerformance,
+  clientPerformance,
+  aging,
+  closure,
+  clientsWithoutRequirements,
+  recruiterVendorGaps,
+};

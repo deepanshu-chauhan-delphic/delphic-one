@@ -12,6 +12,8 @@ const ERROR_STATUS = {
   meeting_fields_required: [400, 'meeting_mode and meeting_date are required'],
   meeting_location_required: [400, 'meeting_location is required for offline meetings'],
   already_classified: [400, 'Account type is already set'],
+  forbidden_type_change: [403, 'Only an admin can change the account type'],
+  user_not_found: [400, 'Selected owner was not found or is inactive'],
 };
 
 const list = asyncHandler(async (req, res) => {

@@ -47,6 +47,8 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
+  owner_id: z.string().uuid().optional(),
+  type: z.enum(['client', 'vendor']).optional(),
   ...baseFields,
 });
 

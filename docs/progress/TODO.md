@@ -48,6 +48,12 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] Internal round interviewer multiselect (`interview_round_interviewers`) + app-wide alert banners / form validation helpers.
 - [ ] Manual click-through (V2 + closure rings + requirement map + interviewer multiselect) in the browser — tests cover the new server surface; UI not yet hand-verified.
 - [x] Stuck requirements list normally + `stuck` tri-state filter (`GET /requirements` `is_stuck` + `?stuck=stuck|not_stuck`; requirements list page + requirement map board). Graceful token-expiry: shared refresh promise, redirect to `/login` on unrecoverable 401 (`apiClient.js`).
+- [x] **2026-09-01** — Admin-editable account `type` (one-way `/classify` unchanged; edit-form path is admin-only re-classification, `forbidden_type_change` guard).
+- [x] **2026-09-01** — Dashboard KPI fixes: `leads_active` counts all `stage: 'lead'` accounts (not just `type: 'client'`), `leads_in_meeting` includes `rescheduled`; admin dashboard now a 4-col / 10-tile grid with client vs vendor, requirements open vs in-progress, and stuck leads / stuck requirements split into their own cards.
+- [x] **2026-09-01** — `components/ui/SearchableSelect.jsx` + 25 data-driven / 6-plus-option `<select>`s converted app-wide (account/requirement/profile/submission forms, list + pipeline + reports filters). Small fixed enums left native. `vite build` green; not hand-clicked in browser yet.
+- [x] **2026-09-01** — Vendor account name shown on candidate cards (requirement matrix + candidate pipeline) when `source = vendor` (`/pipeline/board` + `/submissions` now select `profile.vendor_account`).
+- [x] **2026-09-01** — Pipeline `submission_stage` filter now hides requirements with no candidate in the selected stage (both boards); board search matches candidate name; `stuck_only` removed in favour of the `stuck` tri-state; wired the created-date range control onto the matrix. **26 suites / 163 tests** green.
+- [x] **2026-09-01** — New report tabs `clients-without-requirements` (admin/sales/bda) and `recruiter-vendor-gaps` (admin/recruiter) — accounts/POCs with no downstream activity. `server/tests/reports-coverage-gaps.test.js`.
 
 ## Infra / CI
 
@@ -79,4 +85,6 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [x] RD-114/128 test guide: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md).
 - [x] **V2** design doc: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md); [HLD.md](../architecture/HLD.md) and [API-Spec-and-Build-Plan.md](../architecture/API-Spec-and-Build-Plan.md) updated in place for the new schema/endpoints.
 - [x] 2026-08-29 — PROGRESS/TODO + API-Spec pipeline board / `progress` field + AGENTS/ARCHITECTURE notes for matrix + closure rings.
+- [x] 2026-09-01 — PROGRESS/TODO updated for admin-editable account type, dashboard KPI fixes + client/vendor + stuck split (4-col grid), and the `SearchableSelect` dropdown migration.
+- [x] 2026-09-01 — PROGRESS/TODO updated for vendor-name-on-cards, the candidate-stage filter fix + pipeline filter cleanup, and the two coverage-gap report tabs.
 - [ ] Keep this file and PROGRESS.md current each session.

@@ -11,7 +11,6 @@ const FILTER_KEYS = [
   'status',
   'priority',
   'submission_stage',
-  'stuck_only',
   'stuck',
   'past_sla_only',
   'date_from',
@@ -28,7 +27,6 @@ export function emptyPipelineFilters() {
     status: [],
     priority: [],
     submission_stage: [],
-    stuck_only: false,
     stuck: 'all',
     past_sla_only: false,
     date_from: '',
@@ -46,7 +44,6 @@ export function filtersFromSearchParams(searchParams) {
   next.status = csvToList(searchParams.get('status'));
   next.priority = csvToList(searchParams.get('priority'));
   next.submission_stage = csvToList(searchParams.get('submission_stage'));
-  next.stuck_only = searchParams.get('stuck_only') === 'true';
   next.stuck = searchParams.get('stuck') || 'all';
   next.past_sla_only = searchParams.get('past_sla_only') === 'true';
   next.date_from = searchParams.get('date_from') || '';
@@ -94,11 +91,10 @@ export function filtersToApiParams(filters, fields = null) {
   if (include('submission_stage') && filters.submission_stage?.length) {
     params.submission_stage = filters.submission_stage.join(',');
   }
-  if (include('stuck_only') && filters.stuck_only) params.stuck_only = 'true';
   if (include('stuck') && filters.stuck && filters.stuck !== 'all') params.stuck = filters.stuck;
   if (include('past_sla_only') && filters.past_sla_only) params.past_sla_only = 'true';
-  if (include('date_from') && filters.date_from) params.date_from = filters.date_from;
-  if (include('date_to') && filters.date_to) params.date_to = filters.date_to;
+  if (include('date_range') && filters.date_from) params.date_from = filters.date_from;
+  if (include('date_range') && filters.date_to) params.date_to = filters.date_to;
   return params;
 }
 

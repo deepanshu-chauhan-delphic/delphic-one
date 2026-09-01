@@ -7,6 +7,7 @@ import { canCreateRequirement } from '../../lib/requirementStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import { canAssignRecruiters } from '../profiles/profileUtils.js';
 import AssignRecruiterDrawer from './AssignRecruiterDrawer.jsx';
@@ -230,21 +231,24 @@ export default function RequirementsListPage() {
               </form>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
+                className="w-44"
+                allowClear
                 value={status}
-                onChange={(event) => {
+                onChange={(next) => {
                   setPage(1);
-                  setStatus(event.target.value);
+                  setStatus(next);
                 }}
-                className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
-              >
-                <option value="">Status: All</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In progress</option>
-                <option value="on_hold">Hold</option>
-                <option value="closed">Closed</option>
-                <option value="dropped">Dropped</option>
-              </select>
+                placeholder="Status: All"
+                searchPlaceholder="Search status…"
+                options={[
+                  { value: 'open', label: 'Open' },
+                  { value: 'in_progress', label: 'In progress' },
+                  { value: 'on_hold', label: 'Hold' },
+                  { value: 'closed', label: 'Closed' },
+                  { value: 'dropped', label: 'Dropped' },
+                ]}
+              />
               <select
                 value={priority}
                 onChange={(event) => {

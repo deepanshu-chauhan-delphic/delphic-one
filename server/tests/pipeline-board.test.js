@@ -115,7 +115,7 @@ describe('pipeline board stuck flag + filters', () => {
     expect(stuckRow.is_stuck).toBe(true);
   });
 
-  test('stuck_only filters out non-stuck requirements', async () => {
+  test('stuck=stuck filters out non-stuck requirements', async () => {
     const account3 = await createActiveClientAccount(sales.id);
     const freshRequirement = await createRequirement(salesToken, account3.id, { title: 'Fresh Role' });
     await prisma.requirement.update({
@@ -123,7 +123,7 @@ describe('pipeline board stuck flag + filters', () => {
       data: { created_at: new Date(Date.now() - 10 * 86400000) },
     });
 
-    const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken).query({ stuck_only: 'true' });
+    const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken).query({ stuck: 'stuck' });
     const ids = res.body.data.requirements.map((r) => r.id);
     expect(ids).toContain(ownRequirement.id);
     expect(ids).not.toContain(freshRequirement.id);
@@ -133,6 +133,46 @@ describe('pipeline board stuck flag + filters', () => {
     const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken).query({ search: 'Backend' });
     const ids = res.body.data.requirements.map((r) => r.id);
     expect(ids).toEqual([ownRequirement.id]);
+  });
+
+  test('search also matches candidate name', async () => {
+    const seats = await authed(request(app).get(`/api/v1/requirements/${ownRequirement.id}/seats`), salesToken);
+    const profile = await createProfile(recruiterToken, { name: 'Zaraluxe Candidate' });
+    await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seats.body.data[0].id,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'INR',
+    });
+
+    const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken).query({ search: 'Zaraluxe' });
+    const ids = res.body.data.requirements.map((r) => r.id);
+    expect(ids).toContain(ownRequirement.id);
+    expect(ids).not.toContain(otherSalesRequirement.id);
+  });
+
+  test('submission_stage filter hides requirements with no candidate in that stage', async () => {
+    const seats = await authed(request(app).get(`/api/v1/requirements/${ownRequirement.id}/seats`), salesToken);
+    const profile = await createProfile(recruiterToken, { name: 'Stagey Candidate' });
+    await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seats.body.data[0].id,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'INR',
+    });
+    // ownRequirement has a candidate at 'sourced'; otherSalesRequirement has none.
+
+    const res = await authed(request(app).get('/api/v1/pipeline/board'), adminToken).query({
+      submission_stage: 'sourced',
+    });
+    const ids = res.body.data.requirements.map((r) => r.id);
+    expect(ids).toContain(ownRequirement.id);
+    expect(ids).not.toContain(otherSalesRequirement.id);
+
+    const noneRes = await authed(request(app).get('/api/v1/pipeline/board'), adminToken).query({
+      submission_stage: 'offer_sent',
+    });
+    expect(noneRes.body.data.requirements).toHaveLength(0);
   });
 
   test('sales_id and status filters narrow the board', async () => {
@@ -187,6 +227,36 @@ describe('pipeline board submission cells', () => {
         profile: expect.objectContaining({ name: 'Priya Candidate', source: 'direct' }),
         submitted_by: expect.objectContaining({ id: recruiter.id }),
         progress: expect.objectContaining({ percent: expect.any(Number) }),
+      })
+    );
+  });
+
+  test('a vendor-sourced candidate carries the vendor account name', async () => {
+    const vendor = await prisma.account.create({
+      data: { type: 'vendor', name: 'Acme Staffing', stage: 'active', owner_id: sales.id, origin_owner_id: sales.id },
+    });
+    const seats = await authed(request(app).get(`/api/v1/requirements/${ownRequirement.id}/seats`), salesToken);
+    const profile = await createProfile(recruiterToken, {
+      name: 'Vendor Candidate',
+      source: 'vendor',
+      vendor_account_id: vendor.id,
+    });
+    const sub = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: seats.body.data[0].id,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'INR',
+      vendor_rate: 80,
+      vendor_rate_currency: 'INR',
+    });
+    expect(sub.status).toBe(201);
+
+    const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken);
+    const row = res.body.data.submissions.find((s) => s.id === sub.body.data.id);
+    expect(row.profile).toEqual(
+      expect.objectContaining({
+        source: 'vendor',
+        vendor_account: expect.objectContaining({ id: vendor.id, name: 'Acme Staffing' }),
       })
     );
   });

@@ -3,6 +3,7 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { apiErrorMessage, canAssignRecruiters } from '../profiles/profileUtils.js';
 
 export default function AssignRecruiterDrawer({ requirement, onClose }) {
@@ -109,19 +110,15 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
         <form onSubmit={assignRecruiter} className="mb-4 space-y-2 rounded-xl border border-primary-100 bg-primary-50 p-3">
           <label className="block text-xs font-medium text-primary-900">
             Recruiter
-            <select
+            <SearchableSelect
+              className="mt-1"
               required
               value={selectedRecruiterId}
-              onChange={(event) => setSelectedRecruiterId(event.target.value)}
-              className="mt-1 w-full rounded-xl border bg-white px-2 py-1.5 text-sm"
-            >
-              <option value="">Select recruiter</option>
-              {availableRecruiters.map((recruiter) => (
-                <option key={recruiter.id} value={recruiter.id}>
-                  {recruiter.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedRecruiterId}
+              placeholder="Select recruiter"
+              searchPlaceholder="Search recruiters…"
+              options={availableRecruiters.map((recruiter) => ({ value: recruiter.id, label: recruiter.name }))}
+            />
           </label>
           <button type="submit" disabled={saving || !selectedRecruiterId} className="btn-primary w-full">
             {saving ? 'Saving…' : 'Assign'}

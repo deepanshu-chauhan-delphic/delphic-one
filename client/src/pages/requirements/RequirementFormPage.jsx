@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
 const OWNER_ROLES = ['sales', 'bda', 'admin'];
@@ -245,20 +246,15 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             {!isEdit && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-medium text-tertiary-500">Client account *</label>
-                <select
+                <SearchableSelect
                   required
                   value={form.account_id}
                   disabled={accountLocked}
-                  onChange={(e) => updateField('account_id', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-tertiary-50"
-                >
-                  <option value="">Select active client…</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => updateField('account_id', v)}
+                  placeholder="Select active client…"
+                  searchPlaceholder="Search clients…"
+                  options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                />
                 {accountLocked && (
                   <p className="mt-1 text-xs text-tertiary-500">Locked to this pipeline account.</p>
                 )}
@@ -281,22 +277,18 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             {canEditOwner && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-medium text-tertiary-500">Sales owner</label>
-                <select
+                <SearchableSelect
                   value={form.sales_owner_id}
-                  onChange={(e) => updateField('sales_owner_id', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                >
-                  <option value="">Select owner…</option>
-                  {ownerOptions.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} · {u.role}
-                    </option>
-                  ))}
-                  {existing?.sales_owner
-                    && !ownerOptions.some((u) => u.id === existing.sales_owner.id) && (
-                      <option value={existing.sales_owner.id}>{existing.sales_owner.name} (current)</option>
-                  )}
-                </select>
+                  onChange={(v) => updateField('sales_owner_id', v)}
+                  placeholder="Select owner…"
+                  searchPlaceholder="Search users…"
+                  options={[
+                    ...ownerOptions.map((u) => ({ value: u.id, label: `${u.name} · ${u.role}` })),
+                    ...(existing?.sales_owner && !ownerOptions.some((u) => u.id === existing.sales_owner.id)
+                      ? [{ value: existing.sales_owner.id, label: `${existing.sales_owner.name} (current)` }]
+                      : []),
+                  ]}
+                />
                 <p className="mt-1 text-xs text-tertiary-500">
                   Admin only. Reassigns the &ldquo;Sales&rdquo; owner shown on pipeline cards and reports.
                 </p>
@@ -520,17 +512,11 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Currency</label>
-              <select
+              <SearchableSelect
                 value={form.budget_currency}
-                onChange={(e) => updateField('budget_currency', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              >
-                {['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateField('budget_currency', v)}
+                options={['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((c) => ({ value: c, label: c }))}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Budget type</label>

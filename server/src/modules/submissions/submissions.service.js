@@ -12,6 +12,7 @@ const INCLUDE = {
     select: {
       id: true, name: true, current_company: true, total_experience_years: true,
       primary_skills: true, expected_ctc: true, notice_period_days: true, source: true,
+      vendor_account: { select: { id: true, name: true } },
     },
   },
   submitted_by_user: { select: { id: true, name: true } },
@@ -58,11 +59,15 @@ async function list(filters) {
   if (requirement_id) seatFilter.requirement_id = requirement_id;
   if (account_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), account_id };
 
+  const stages = stage
+    ? String(stage).split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
   const where = {
     ...(Object.keys(seatFilter).length ? { seat: seatFilter } : {}),
     ...(seat_id ? { requirement_seat_id: seat_id } : {}),
     ...(profile_id ? { profile_id } : {}),
-    ...(stage ? { stage } : {}),
+    ...(stages.length ? { stage: { in: stages } } : {}),
     ...(submitted_by ? { submitted_by } : {}),
     ...(search
       ? {
