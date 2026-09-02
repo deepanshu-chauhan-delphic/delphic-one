@@ -47,6 +47,7 @@ function ProfilePeek({ row, onClose, onChanged }) {
         </PeekField>
         <PeekField label="Email">{detail.email || '—'}</PeekField>
         <PeekField label="Phone">{detail.phone || '—'}</PeekField>
+        <PeekField label="Added by">{detail.added_by?.name || '—'}</PeekField>
         <div className="sm:col-span-2">
           <PeekField label="Primary skills">
             <div className="mt-1 flex flex-wrap gap-1">
@@ -170,6 +171,7 @@ export default function ProfilesListPage() {
         render: (row) => (row.expected_ctc != null ? `${row.expected_ctc_currency} ${row.expected_ctc}` : '—'),
       },
       { key: 'source', header: 'Source', render: (row) => <Badge value={row.source} /> },
+      { key: 'added_by', header: 'Added by', render: (row) => row.added_by?.name || '—' },
       {
         key: 'bench',
         header: 'Bench',

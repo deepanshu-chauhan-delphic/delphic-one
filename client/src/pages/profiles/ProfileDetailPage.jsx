@@ -169,6 +169,16 @@ export default function ProfileDetailPage() {
             <DetailField label="Recruiter notes" value={profile.recruiter_notes} />
           </DetailSection>
 
+          <DetailSection title="Record">
+            <DetailField label="Added by" value={profile.added_by?.name} />
+            <DetailField label="Added on">
+              {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}
+            </DetailField>
+            <DetailField label="Last updated">
+              {profile.updated_at ? new Date(profile.updated_at).toLocaleDateString() : '—'}
+            </DetailField>
+          </DetailSection>
+
           <FilesPanel
             entityType="profile"
             entityId={profile.id}
