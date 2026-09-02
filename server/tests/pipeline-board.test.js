@@ -107,7 +107,10 @@ describe('pipeline board stuck flag + filters', () => {
   test('a fresh open requirement is not stuck; an aged one is', async () => {
     await prisma.requirement.update({
       where: { id: ownRequirement.id },
-      data: { created_at: new Date(Date.now() - 10 * 86400000) },
+      data: {
+        created_at: new Date(Date.now() - 10 * 86400000),
+        updated_at: new Date(Date.now() - 10 * 86400000),
+      },
     });
 
     const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken);
@@ -120,7 +123,10 @@ describe('pipeline board stuck flag + filters', () => {
     const freshRequirement = await createRequirement(salesToken, account3.id, { title: 'Fresh Role' });
     await prisma.requirement.update({
       where: { id: ownRequirement.id },
-      data: { created_at: new Date(Date.now() - 10 * 86400000) },
+      data: {
+        created_at: new Date(Date.now() - 10 * 86400000),
+        updated_at: new Date(Date.now() - 10 * 86400000),
+      },
     });
 
     const res = await authed(request(app).get('/api/v1/pipeline/board'), salesToken).query({ stuck: 'stuck' });

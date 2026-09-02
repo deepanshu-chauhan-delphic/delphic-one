@@ -68,8 +68,9 @@ export const ROLE_COPY = {
 export function statsForRole(role, summary) {
   if (!summary) return [];
 
-  const stuckLeads = summary.stuck_leads?.length ?? 0;
-  const stuckReqs = summary.stuck_requirements?.length ?? 0;
+  // Real totals — the *_count fields; the stuck_* arrays are only the top-5 preview lists.
+  const stuckLeads = summary.stuck_leads_count ?? summary.stuck_leads?.length ?? 0;
+  const stuckReqs = summary.stuck_requirements_count ?? summary.stuck_requirements?.length ?? 0;
 
   if (role === 'bda') {
     return withKpiMeta([
@@ -77,7 +78,8 @@ export function statsForRole(role, summary) {
         label: 'Active leads',
         value: summary.leads_active ?? 0,
         hint: stuckLeads ? `${stuckLeads} stuck 7d+` : 'In lead stage',
-        description: 'Your owned accounts currently in the "lead" stage (not yet in a scheduled meeting).',
+        description:
+          'Your owned accounts currently in the "lead" stage (not yet in a scheduled meeting). The badge, when shown, is the count of your lead / meeting-stage accounts with no update for 7+ days.',
         href: KPI_LINKS.leadsActive,
       },
       {
@@ -110,7 +112,8 @@ export function statsForRole(role, summary) {
         label: 'Open requirements',
         value: summary.requirements_open ?? 0,
         hint: stuckReqs ? `${stuckReqs} stuck 7d+` : 'Currently open',
-        description: 'Requirements you own with status = open right now.',
+        description:
+          'Requirements you own with status = open right now. The badge, when shown, is the count of your open or in-progress requirements with no update for 7+ days (so it can exceed the open-only number above).',
         href: KPI_LINKS.requirementsOpen,
       },
       {
@@ -157,7 +160,8 @@ export function statsForRole(role, summary) {
         label: 'Assigned open',
         value: summary.requirements_open ?? 0,
         hint: stuckReqs ? `${stuckReqs} stuck 7d+` : 'Assigned to you',
-        description: 'Requirements assigned to you with status = open right now.',
+        description:
+          'Requirements assigned to you with status = open right now. The badge, when shown, is the count of your assigned open or in-progress requirements with no update for 7+ days (so it can exceed the open-only number above).',
         href: KPI_LINKS.requirementsOpen,
       },
       {
@@ -267,8 +271,9 @@ export function statsForRole(role, summary) {
     {
       label: 'Stuck leads',
       value: stuckLeads,
-      hint: '7+ days in stage',
-      description: 'Accounts in a lead / meeting stage with no movement for 7+ days (top 5 shown below).',
+      hint: 'No update 7d+',
+      description:
+        'Full count of accounts in a lead / meeting-scheduled / rescheduled stage with no update for 7+ days. The panel below lists the 5 oldest.',
       icon: AlertTriangle,
       theme: 'red',
       href: KPI_LINKS.stuckLeads,
@@ -276,8 +281,9 @@ export function statsForRole(role, summary) {
     {
       label: 'Stuck requirements',
       value: stuckReqs,
-      hint: '7+ days open',
-      description: 'Open / in-progress requirements with no movement for 7+ days (top 5 shown below).',
+      hint: 'No update 7d+',
+      description:
+        'Full count of open / in-progress requirements with no update (no stage change or edit) for 7+ days. The panel below lists the 5 most idle.',
       icon: AlertTriangle,
       theme: 'red',
       href: KPI_LINKS.stuckRequirements,

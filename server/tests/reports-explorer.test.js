@@ -120,7 +120,10 @@ describe('pipeline explorer access and shape', () => {
   test('search and stuck_only filters apply', async () => {
     await prisma.requirement.update({
       where: { id: ownRequirement.id },
-      data: { created_at: new Date(Date.now() - 10 * 86400000) },
+      data: {
+        created_at: new Date(Date.now() - 10 * 86400000),
+        updated_at: new Date(Date.now() - 10 * 86400000),
+      },
     });
 
     const searchRes = await authed(request(app).get('/api/v1/reports/pipeline-explorer'), salesToken).query({

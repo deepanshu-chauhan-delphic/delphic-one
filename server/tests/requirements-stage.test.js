@@ -259,9 +259,11 @@ describe('requirement sales owner reassignment', () => {
 
 describe('requirement stuck flag and filter', () => {
   async function ageRequirement(id, days) {
+    // "Stuck" is keyed off updated_at (no movement); set both so the row looks untouched.
+    const when = new Date(Date.now() - days * 86400000);
     await prisma.requirement.update({
       where: { id },
-      data: { created_at: new Date(Date.now() - days * 86400000) },
+      data: { created_at: when, updated_at: when },
     });
   }
 

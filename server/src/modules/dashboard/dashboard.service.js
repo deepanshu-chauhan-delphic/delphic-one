@@ -21,6 +21,28 @@ function daysSince(date) {
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
 }
 
+function stuckCutoff() {
+  return new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
+}
+
+/** Lead / meeting-stage accounts with no update for STUCK_THRESHOLD_DAYS. */
+function stuckLeadsWhere(whereExtra = {}) {
+  return {
+    stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] },
+    updated_at: { lte: stuckCutoff() },
+    ...whereExtra,
+  };
+}
+
+/** Open / in-progress requirements with no update for STUCK_THRESHOLD_DAYS ("no movement"). */
+function stuckRequirementsWhere(whereExtra = {}) {
+  return {
+    status: { in: ['open', 'in_progress'] },
+    updated_at: { lte: stuckCutoff() },
+    ...whereExtra,
+  };
+}
+
 /**
  * Same anchor rule as reports.summarizeInterviewRounds: a completed round counts by
  * completed_at, an uncompleted one by scheduled_at — kept in sync so "interviews this
@@ -59,13 +81,8 @@ function accountFunnelFromRows(rows) {
 }
 
 async function stuckLeads(whereExtra = {}) {
-  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
   const rows = await prisma.account.findMany({
-    where: {
-      stage: { in: ['lead', 'meeting_scheduled', 'rescheduled'] },
-      updated_at: { lte: cutoff },
-      ...whereExtra,
-    },
+    where: stuckLeadsWhere(whereExtra),
     orderBy: { updated_at: 'asc' },
     take: STUCK_LIMIT,
   });
@@ -76,16 +93,19 @@ async function stuckLeads(whereExtra = {}) {
   }));
 }
 
+function countStuckLeads(whereExtra = {}) {
+  return prisma.account.count({ where: stuckLeadsWhere(whereExtra) });
+}
+
+function countStuckRequirements(whereExtra = {}) {
+  return prisma.requirement.count({ where: stuckRequirementsWhere(whereExtra) });
+}
+
 async function stuckRequirements(whereExtra = {}) {
-  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
   const rows = await prisma.requirement.findMany({
-    where: {
-      status: { in: ['open', 'in_progress'] },
-      created_at: { lte: cutoff },
-      ...whereExtra,
-    },
+    where: stuckRequirementsWhere(whereExtra),
     include: { seats: { select: { id: true } } },
-    orderBy: { created_at: 'asc' },
+    orderBy: { updated_at: 'asc' },
     take: STUCK_LIMIT,
   });
 
@@ -99,6 +119,7 @@ async function stuckRequirements(whereExtra = {}) {
         id: r.id,
         title: r.title,
         days_open: daysSince(r.created_at),
+        days_idle: daysSince(r.updated_at),
         submissions_count,
       };
     })
@@ -143,6 +164,8 @@ async function summaryForAdmin(department_id) {
     funnelRows,
     stuck_leads,
     stuck_requirements,
+    stuck_leads_count,
+    stuck_requirements_count,
     recent_activity,
   ] = await Promise.all([
     prisma.account.count({ where: { stage: 'lead', ...ownerDept } }),
@@ -171,6 +194,8 @@ async function summaryForAdmin(department_id) {
     }),
     stuckLeads(ownerDept),
     stuckRequirements(salesDept),
+    countStuckLeads(ownerDept),
+    countStuckRequirements(salesDept),
     recentActivity(
       department_id ? { changed_by_user: { department_id } } : {}
     ),
@@ -189,6 +214,8 @@ async function summaryForAdmin(department_id) {
     closures_this_month,
     stuck_leads,
     stuck_requirements,
+    stuck_leads_count,
+    stuck_requirements_count,
     recent_activity,
     pipeline_funnel: funnelFromRows(funnelRows),
   };
@@ -202,6 +229,7 @@ async function summaryForBda(userId) {
     clients_active,
     vendors_active,
     stuck_leads,
+    stuck_leads_count,
     recent_activity,
     funnelRows,
   ] = await Promise.all([
@@ -210,6 +238,7 @@ async function summaryForBda(userId) {
     prisma.account.count({ where: { ...accountWhere, type: 'client', stage: 'active' } }),
     prisma.account.count({ where: { ...accountWhere, type: 'vendor', stage: 'active' } }),
     stuckLeads(accountWhere),
+    countStuckLeads(accountWhere),
     recentActivity({ entity_type: 'account', changed_by: userId }),
     prisma.account.groupBy({ by: ['stage'], where: accountWhere, _count: { id: true } }),
   ]);
@@ -227,6 +256,8 @@ async function summaryForBda(userId) {
     closures_this_month: 0,
     stuck_leads,
     stuck_requirements: [],
+    stuck_leads_count,
+    stuck_requirements_count: 0,
     recent_activity,
     pipeline_funnel: accountFunnelFromRows(funnelRows),
   };
@@ -261,6 +292,7 @@ async function summaryForSales(userId) {
     closures_this_month,
     funnelRows,
     stuck_requirements,
+    stuck_requirements_count,
     recent_activity,
     clients_active,
   ] = await Promise.all([
@@ -286,6 +318,7 @@ async function summaryForSales(userId) {
         })
       : [],
     stuckRequirements(reqWhere),
+    countStuckRequirements(reqWhere),
     recentActivity({
       OR: [
         { entity_type: 'requirement', entity_id: { in: myReqIds.length ? myReqIds : ['00000000-0000-0000-0000-000000000000'] } },
@@ -310,6 +343,8 @@ async function summaryForSales(userId) {
     closures_this_month,
     stuck_leads: [],
     stuck_requirements,
+    stuck_leads_count: 0,
+    stuck_requirements_count,
     recent_activity,
     pipeline_funnel: funnelFromRows(funnelRows),
   };
@@ -334,6 +369,7 @@ async function summaryForRecruiter(userId) {
     closures_this_month,
     funnelRows,
     stuck_requirements,
+    stuck_requirements_count,
     recent_activity,
   ] = await Promise.all([
     assignedReqIds.length
@@ -357,6 +393,7 @@ async function summaryForRecruiter(userId) {
       _count: { id: true },
     }),
     assignedReqIds.length ? stuckRequirements({ id: { in: assignedReqIds } }) : [],
+    assignedReqIds.length ? countStuckRequirements({ id: { in: assignedReqIds } }) : 0,
     recentActivity({ changed_by: userId }),
   ]);
 
@@ -373,6 +410,8 @@ async function summaryForRecruiter(userId) {
     closures_this_month,
     stuck_leads: [],
     stuck_requirements,
+    stuck_leads_count: 0,
+    stuck_requirements_count,
     recent_activity,
     pipeline_funnel: funnelFromRows(funnelRows),
   };

@@ -41,7 +41,7 @@ describe('dashboard summary', () => {
     const req = await createRequirement((await loginAs(sales)).access_token, account.id);
     await prisma.requirement.update({
       where: { id: req.id },
-      data: { created_at: stale },
+      data: { created_at: stale, updated_at: stale },
     });
 
     const res = await authed(request(app).get('/api/v1/dashboard/summary'), adminToken);

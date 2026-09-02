@@ -76,7 +76,10 @@ describe('RD-114 reports JSON for tables/charts', () => {
     const requirement = await createRequirement(salesToken, account.id, { title: 'Aging Enriched Role' });
     await prisma.requirement.update({
       where: { id: requirement.id },
-      data: { created_at: new Date(Date.now() - 10 * 86400000) },
+      data: {
+        created_at: new Date(Date.now() - 10 * 86400000),
+        updated_at: new Date(Date.now() - 10 * 86400000),
+      },
     });
     await authed(request(app).post(`/api/v1/requirements/${requirement.id}/assign`), salesToken).send({
       user_id: (await createUser({ role: 'recruiter', email: 'rec-aging@test.local' })).id,

@@ -531,7 +531,7 @@ async function aging({ threshold_days = STUCK_THRESHOLD_DAYS, department_id }) {
   });
 
   const stuckReqsRaw = await prisma.requirement.findMany({
-    where: { status: { in: ['open', 'in_progress'] }, created_at: { lte: cutoff }, ...salesDept },
+    where: { status: { in: ['open', 'in_progress'] }, updated_at: { lte: cutoff }, ...salesDept },
     include: {
       sales_owner: { select: { id: true, name: true } },
       account: {

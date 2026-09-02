@@ -5,7 +5,11 @@ const {
   SEAT_STATUS_TRANSITIONS,
 } = require('./stageMachines');
 
-/** A requirement counts as "stuck" when it is still active and has not moved for STUCK_THRESHOLD_DAYS. */
+/**
+ * A requirement counts as "stuck" when it is still active (open / in-progress) and has had
+ * no update — no stage change or edit — for STUCK_THRESHOLD_DAYS. Mirrors the "no movement"
+ * rule used for stuck leads and stuck submissions.
+ */
 const STUCK_STATUSES = ['open', 'in_progress'];
 
 function stuckCutoff() {
@@ -15,8 +19,8 @@ function stuckCutoff() {
 function isStuck(row) {
   return (
     STUCK_STATUSES.includes(row.status)
-    && row.created_at != null
-    && new Date(row.created_at) <= stuckCutoff()
+    && row.updated_at != null
+    && new Date(row.updated_at) <= stuckCutoff()
   );
 }
 
@@ -53,7 +57,7 @@ const DECORATE_INCLUDE = {
 async function list(filters) {
   const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
 
-  const stuckClause = { status: { in: STUCK_STATUSES }, created_at: { lte: stuckCutoff() } };
+  const stuckClause = { status: { in: STUCK_STATUSES }, updated_at: { lte: stuckCutoff() } };
 
   const where = {
     ...(status ? { status } : {}),

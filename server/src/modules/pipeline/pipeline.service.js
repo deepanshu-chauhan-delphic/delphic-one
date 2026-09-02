@@ -48,8 +48,10 @@ function serializeRequirement(row, cutoff) {
     seats_total: row.seats_total,
     seats_closed: row.seats.filter((s) => s.seat_status === 'closed').length,
     created_at: row.created_at,
+    updated_at: row.updated_at,
     sla_days: row.sla_days,
-    is_stuck: ['open', 'in_progress'].includes(row.status) && new Date(row.created_at) <= cutoff,
+    // Stuck = still active with no update ("no movement") for STUCK_THRESHOLD_DAYS.
+    is_stuck: ['open', 'in_progress'].includes(row.status) && new Date(row.updated_at) <= cutoff,
     past_sla:
       row.sla_days != null
       && ['open', 'in_progress'].includes(row.status)

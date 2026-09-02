@@ -4,39 +4,18 @@ import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
-import { accountKey, apiErrorMessage, canCreateAccount, canEditBroughtBy, canMutateAccount } from './accountUtils.js';
+import {
+  EMPTY_CONTACT,
+  EMPTY_FORM,
+  accountKey,
+  apiErrorMessage,
+  buildAccountBody,
+  canCreateAccount,
+  canEditBroughtBy,
+  canMutateAccount,
+  formFromAccount,
+} from './accountUtils.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
-
-const EMPTY_CONTACT = { name: '', email: '', phone: '', designation: '', role_label: '' };
-const EMPTY_FORM = {
-  type: '',
-  name: '',
-  owner_id: '',
-  origin_owner_id: '',
-  industry: '',
-  company_size: '',
-  website: '',
-  location_city: '',
-  location_country: '',
-  gst_or_tax_id: '',
-  location: '',
-  linkedin_url: '',
-  poc_name: '',
-  poc_email: '',
-  poc_phone: '',
-  poc_designation: '',
-  additional_contacts: [{ ...EMPTY_CONTACT }],
-  source: '',
-  vendor_specializations: '',
-  vendor_rate_min: '',
-  vendor_rate_max: '',
-  vendor_rate_currency: 'INR',
-  vendor_payment_terms: '',
-  vendor_agreement_url: '',
-  client_billing_currency: 'INR',
-  client_payment_terms: '',
-  client_agreement_url: '',
-};
 
 const INPUT_CLASS = 'w-full rounded border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-900';
 
@@ -50,77 +29,6 @@ function Field({ label, children, required = false }) {
       {children}
     </label>
   );
-}
-
-function formFromAccount(account) {
-  const contacts = Array.isArray(account.additional_contacts) ? account.additional_contacts : [];
-  const rateRange = account.vendor_rate_range || {};
-  return {
-    ...EMPTY_FORM,
-    ...account,
-    type: account.type || '',
-    owner_id: account.owner?.id || '',
-    origin_owner_id: account.origin_owner?.id || '',
-    location: account.location || '',
-    linkedin_url: account.linkedin_url || '',
-    additional_contacts: contacts.length ? contacts.map((contact) => ({ ...EMPTY_CONTACT, ...contact })) : [{ ...EMPTY_CONTACT }],
-    vendor_specializations: (account.vendor_specializations || []).join(', '),
-    vendor_rate_min: rateRange.min ?? '',
-    vendor_rate_max: rateRange.max ?? '',
-    vendor_rate_currency: rateRange.currency || 'INR',
-    vendor_agreement_url: account.vendor_agreement_url || '',
-    client_billing_currency: account.client_billing_currency || 'INR',
-    client_agreement_url: account.client_agreement_url || '',
-  };
-}
-
-function optionalEnum(value) {
-  return value || undefined;
-}
-
-function buildAccountBody(form, isEditing, canEditType, canEditOriginOwner) {
-  const body = {
-    name: form.name.trim(),
-    industry: form.industry.trim(),
-    company_size: optionalEnum(form.company_size),
-    website: form.website.trim(),
-    location_city: form.location_city.trim(),
-    location_country: form.location_country.trim(),
-    gst_or_tax_id: form.gst_or_tax_id.trim(),
-    location: form.location.trim(),
-    linkedin_url: form.linkedin_url.trim(),
-    poc_name: form.poc_name.trim(),
-    poc_email: form.poc_email.trim(),
-    poc_phone: form.poc_phone.trim(),
-    poc_designation: form.poc_designation.trim(),
-    additional_contacts: form.additional_contacts
-      .map((contact) => Object.fromEntries(Object.entries(contact).map(([key, value]) => [key, value.trim()])))
-      .filter((contact) => contact.name),
-    source: form.source.trim(),
-  };
-
-  if (form.type && (!isEditing || canEditType)) body.type = form.type;
-  if (isEditing && form.owner_id) body.owner_id = form.owner_id;
-  if (isEditing && canEditOriginOwner && form.origin_owner_id) body.origin_owner_id = form.origin_owner_id;
-
-  if (form.type === 'vendor') {
-    body.vendor_specializations = form.vendor_specializations.split(',').map((value) => value.trim()).filter(Boolean);
-    body.vendor_payment_terms = form.vendor_payment_terms.trim();
-    body.vendor_agreement_url = form.vendor_agreement_url.trim();
-    if (form.vendor_rate_min !== '' && form.vendor_rate_max !== '') {
-      body.vendor_rate_range = {
-        min: Number(form.vendor_rate_min),
-        max: Number(form.vendor_rate_max),
-        currency: form.vendor_rate_currency,
-      };
-    }
-  } else {
-    body.client_billing_currency = form.client_billing_currency;
-    body.client_payment_terms = form.client_payment_terms.trim();
-    body.client_agreement_url = form.client_agreement_url.trim();
-  }
-
-  return body;
 }
 
 export default function AccountFormPage({ asPanel = false, onDone, onCancel, accountId: accountIdProp }) {

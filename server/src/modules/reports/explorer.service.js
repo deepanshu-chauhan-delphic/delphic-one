@@ -52,8 +52,11 @@ function computeAging(requirement, submissions, thresholdDays) {
     return new Date(stamp) > new Date(latest) ? stamp : latest;
   }, requirement.updated_at || requirement.created_at);
   const days_since_last_activity = daysSince(lastActivity);
+  // Stuck = still active with no update ("no movement") for thresholdDays — same rule as the
+  // dashboard / requirements list, keyed off requirement.updated_at so counts agree everywhere.
   const is_stuck =
-    ['open', 'in_progress'].includes(requirement.status) && (days_open ?? 0) >= thresholdDays;
+    ['open', 'in_progress'].includes(requirement.status)
+    && (daysSince(requirement.updated_at) ?? 0) >= thresholdDays;
   const sla_overdue_by_days =
     requirement.sla_days != null && ['open', 'in_progress'].includes(requirement.status)
       ? Math.max(0, (days_open ?? 0) - requirement.sla_days)
@@ -187,7 +190,7 @@ function serializeSubmissionRow(submission, requirementRow) {
       days_in_stage: daysSince(submission.updated_at || submission.created_at),
       is_stuck:
         !['closed', 'rejected', 'backout'].includes(submission.stage)
-        && (daysSince(submission.updated_at || submission.created_at) ?? 0) >= (requirementRow.aging?.days_open != null ? STUCK_THRESHOLD_DAYS : STUCK_THRESHOLD_DAYS),
+        && (daysSince(submission.updated_at || submission.created_at) ?? 0) >= STUCK_THRESHOLD_DAYS,
     },
   };
 }

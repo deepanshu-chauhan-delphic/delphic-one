@@ -86,11 +86,13 @@ function StuckRequirementsPanel({ rows }) {
             >
               <div className="min-w-0">
                 <div className="font-medium text-primary-600">{row.title}</div>
-                <div className="mt-0.5 text-xs text-tertiary-500">{row.submissions_count} submissions</div>
+                <div className="mt-0.5 text-xs text-tertiary-500">
+                  {row.submissions_count} submissions · {row.days_open}d open
+                </div>
               </div>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="rounded-full bg-warning-50 px-2.5 py-0.5 text-xs font-medium text-warning-700">
-                  {row.days_open}d open
+                  {row.days_idle ?? row.days_open}d idle
                 </span>
                 <ChevronRight className="h-4 w-4 text-tertiary-400" />
               </span>

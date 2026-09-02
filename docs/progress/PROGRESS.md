@@ -2,6 +2,69 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-02 — Fix: account edit form crashed on null columns ("Failed to update account")
+
+`main`. Client-only. `vite build` + `accountUtils.test.mjs` green.
+
+- **Symptom:** editing almost any client (or vendor) account — as admin or BDA — failed
+  with a bare "Failed to update account" toast and no network request.
+- **Cause:** `formFromAccount()` did `{ ...EMPTY_FORM, ...account }`; the API returns unset
+  optional columns (`industry`, `poc_phone`, `source`, `client_payment_terms`, …) as
+  `null`, which overwrote the `''` defaults. `buildAccountBody()` then called
+  `form.<field>.trim()` → `TypeError` thrown **inside** `saveAccount`'s try/catch, so the
+  user only ever saw the generic fallback string. Not a server bug — the request never
+  left the browser.
+- **Fix:** moved `EMPTY_FORM` / `EMPTY_CONTACT` / `formFromAccount` / `buildAccountBody`
+  into `accountUtils.js` (testable, matches `canMutateAccount` etc. already there).
+  `formFromAccount` now coerces every `EMPTY_FORM` string key back to `''` when the row
+  has `null`, and sanitizes `additional_contacts`. `buildAccountBody` uses a null-safe
+  `str()` helper on every field. Added regression assertions in `accountUtils.test.mjs`
+  (null-heavy client row → clean form + body; fresh form still omits `type`/`owner_id`).
+- **Swept the other edit forms for the same pattern — none affected.** `profileForm.js`
+  `profileToForm`, `RequirementFormPage` `hydrateForm`, `InterviewRoundsPanel` `hydrate`,
+  `SubmissionDetailPage` form init and `UsersPage` all re-default every field explicitly
+  (`|| ''` / `?? ''` / `|| []`) instead of spreading the raw API row, so their `.trim()` /
+  `.split()` calls never see `null`. Reason/notes/label `.trim()`s elsewhere read from
+  local `useState('')`, never a hydrated value.
+
+## 2026-09-02 — Dashboard "Stuck" KPI: real count (uncapped) + one "no movement" rule everywhere
+
+`main`. No schema/migration change. Full server suite green
+(29 suites / 188 tests, `jest --runInBand`); client eslint clean on touched files.
+
+### 1. Stuck KPI cards were capped at 5
+
+- `dashboard.service.js` `stuckLeads()` / `stuckRequirements()` fetch `take: 5` preview
+  rows; `dashboardWidgets.js` used `summary.stuck_*.length` as the **KPI value**, so the
+  admin "Stuck leads" / "Stuck requirements" tiles and the "N stuck 7d+" hint badges
+  (bda / sales / recruiter) maxed out at 5 regardless of the true total.
+- Added `countStuck{Leads,Requirements}()` (`prisma.*.count`, same where clause, no `take`)
+  and return `stuck_leads_count` / `stuck_requirements_count` from every role summary
+  (`0` where a role has no such list). Front-end now reads the `*_count` fields; the
+  `stuck_*` arrays remain only the top-5 preview lists shown in the panels below.
+
+### 2. "Stuck" now means the same thing for requirements as for leads/submissions
+
+- Leads & submissions already used `updated_at <= now-7d` ("no movement"). Requirements
+  used `created_at <= now-7d` ("opened 7+ days ago"), so a busy requirement opened 8 days
+  ago still counted. Switched the requirement stuck check to `updated_at` in all five
+  places: `dashboard.service` (`stuckRequirementsWhere`), `requirements.service`
+  (`isStuck` + list `?stuck=` clause), `pipeline.service` (`serializeRequirement`),
+  `reports.service` `aging()`, and `explorer.service` `computeAging` (also removed a
+  dead `x ? A : A` ternary in the submission-grain `is_stuck`). `reports.service`
+  bda/client-performance `stuck_*_count` already used `updated_at` — now consistent.
+- Dashboard `stuck_requirements` rows gain `days_idle` (from `updated_at`); the panel
+  badge shows "Nd idle" and moves "Nd open" into the sub-line.
+- KPI hover copy reworded from "no movement" / "7+ days open" to "no update (no stage
+  change or edit) for 7+ days", and the "Open requirements" / "Assigned open" / "Active
+  leads" tiles now explain that their badge counts a wider set than the tile number.
+
+### 3. Tests
+
+- Test helpers that aged a requirement via `created_at` only now also set `updated_at`
+  (`requirements-stage`, `pipeline-board`, `backend-gaps`, `reports-ui`,
+  `reports-explorer`). No assertion changes needed.
+
 ## 2026-09-02 — Reports dropdown trimmed + coverage/RVG rework + screening chips + account owner filters
 
 Uncommitted work on `main` (local). No schema/migration change. `client vite build` +
