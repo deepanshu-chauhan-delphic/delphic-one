@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { optionalDate } = require('../../lib/zodDate');
 
 const rateType = z.enum(['monthly', 'hourly', 'annual']);
 const currency = z.enum(['INR', 'USD', 'AED', 'SAR']);
@@ -28,14 +29,14 @@ const updateSchema = z.object({
   submission_notes: z.string().optional(),
   client_feedback: z.string().optional(),
   relevancy_score: z.number().int().min(1).max(10).optional(),
-  offer_date: z.string().optional(),
+  offer_date: optionalDate,
   offer_ctc: z.number().optional(),
   offer_ctc_currency: currency.optional(),
-  expected_joining_date: z.string().optional(),
-  actual_joining_date: z.string().optional(),
-  bgv_initiated_date: z.string().optional(),
+  expected_joining_date: optionalDate,
+  actual_joining_date: optionalDate,
+  bgv_initiated_date: optionalDate,
   bgv_status: z.enum(['pending', 'in_progress', 'cleared', 'failed']).optional(),
-  bgv_completed_date: z.string().optional(),
+  bgv_completed_date: optionalDate,
   bgv_notes: z.string().optional(),
 });
 

@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { optionalDate } = require('../../lib/zodDate');
 
 const baseFields = {
   description: z.string().optional(),
@@ -18,7 +19,7 @@ const baseFields = {
   time_zone_preference: z.string().optional(),
   engagement_type: z.enum(['full_time', 'part_time', 'contract']).optional(),
   contract_duration_months: z.number().int().optional(),
-  start_date_target: z.string().optional(),
+  start_date_target: optionalDate,
   notice_period_max_days: z.number().int().optional(),
 
   budget_min: z.number().optional(),
