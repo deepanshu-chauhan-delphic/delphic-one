@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import Badge from '../../components/ui/Badge.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
+import ScreeningRoundChips from './ScreeningRoundChips.jsx';
 import { groupBoard, stageColumnStats, BOARD_COLUMNS } from '../../lib/accountBoard.js';
 import { shortKey } from './pipelineBoardUtils.js';
 import PipelineFilters from './PipelineFilters.jsx';
@@ -56,6 +57,7 @@ function CandidateCard({ submission, onOpen }) {
       <p className="mt-1 truncate text-[11px] text-tertiary-500">
         Recruiter: {submission.submitted_by?.name || '—'}
       </p>
+      <ScreeningRoundChips rounds={submission.internal_rounds} className="mt-1" />
     </button>
   );
 }

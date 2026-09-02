@@ -4,21 +4,24 @@ import { rangeForPreset } from '../../lib/datePresets.js';
  * Report view helpers for RD-114 — columns, charts, and role visibility.
  */
 
+// `hidden: true` keeps the report fully functional (routes, columns, charts, export)
+// but drops it from the Reports page dropdown. Only the two coverage-gap reports are
+// surfaced in the picker right now — the rest stay reachable in code / by direct call.
 export const ALL_REPORTS = [
-  { key: 'pipeline-explorer', label: 'Pipeline explorer', roles: ['admin', 'sales', 'recruiter', 'bda'] },
-  { key: 'bda-performance', label: 'BDA performance', roles: ['admin'] },
-  { key: 'sales-performance', label: 'Sales performance', roles: ['admin'] },
-  { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'] },
-  { key: 'vendor-performance', label: 'Vendor performance', roles: ['admin', 'sales'] },
-  { key: 'client-performance', label: 'Client performance', roles: ['admin', 'sales'] },
-  { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'] },
-  { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'] },
+  { key: 'pipeline-explorer', label: 'Pipeline explorer', roles: ['admin', 'sales', 'recruiter', 'bda'], hidden: true },
+  { key: 'bda-performance', label: 'BDA performance', roles: ['admin'], hidden: true },
+  { key: 'sales-performance', label: 'Sales performance', roles: ['admin'], hidden: true },
+  { key: 'recruiter-performance', label: 'Recruiter performance', roles: ['admin', 'sales', 'recruiter'], hidden: true },
+  { key: 'vendor-performance', label: 'Vendor performance', roles: ['admin', 'sales'], hidden: true },
+  { key: 'client-performance', label: 'Client performance', roles: ['admin', 'sales'], hidden: true },
+  { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'], hidden: true },
+  { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'], hidden: true },
   { key: 'clients-without-requirements', label: 'Clients w/o requirements', roles: ['admin', 'sales', 'bda'] },
   { key: 'recruiter-vendor-gaps', label: 'Recruiter–vendor gaps', roles: ['admin', 'recruiter'] },
 ];
 
 export function reportsForRole(role) {
-  return ALL_REPORTS.filter((r) => r.roles.includes(role));
+  return ALL_REPORTS.filter((r) => !r.hidden && r.roles.includes(role));
 }
 
 export function defaultDateRange() {
@@ -154,8 +157,14 @@ export function columnsForReport(reportKey) {
   }
   if (reportKey === 'recruiter-vendor-gaps') {
     return [
-      { key: 'recruiter', header: 'Recruiter', render: (r) => personName(r, 'recruiter') },
       { key: 'vendor', header: 'Vendor', render: (r) => personName(r, 'vendor') },
+      { key: 'our_poc', header: 'Our POC', render: (r) => personName(r, 'our_poc') },
+      { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
+      {
+        key: 'recruiters',
+        header: 'Recruiters (our end)',
+        render: (r) => (r.recruiters || []).map((person) => person.name).join(', ') || '—',
+      },
       { key: 'profiles_sourced', header: 'Sourced' },
       { key: 'profiles_submitted', header: 'Submitted' },
       {
@@ -182,7 +191,7 @@ export function tableRowsForReport(reportKey, data) {
   if (!Array.isArray(data)) return [];
   if (reportKey === 'recruiter-vendor-gaps') {
     return data.map((row, index) => ({
-      id: `${row.recruiter?.id || 'r'}-${row.vendor?.id || index}`,
+      id: row.vendor?.id || `vendor-${index}`,
       ...row,
     }));
   }
@@ -340,7 +349,7 @@ export function chartDataForReport(reportKey, data) {
     return countBy(data, (r) => r.sales_poc?.name || 'Unassigned').map(([label, count]) => ({ label, clients: count }));
   }
   if (reportKey === 'recruiter-vendor-gaps') {
-    return countBy(data, (r) => r.recruiter?.name || 'Recruiter').map(([label, count]) => ({ label, vendors: count }));
+    return countBy(data, (r) => r.our_poc?.name || 'Unassigned').map(([label, count]) => ({ label, vendors: count }));
   }
   return [];
 }

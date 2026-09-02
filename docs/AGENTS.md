@@ -123,6 +123,27 @@ docker compose exec server node prisma/seed-vendors.js
 
 Client: http://localhost:8081 · API: http://localhost:4000 · Postgres: `localhost:5434`.
 
+**One command — Postgres in Docker, server + client with hot reload** (`start-platform.sh` / `start-platform.ps1` at repo root):
+
+```bash
+./start-platform.sh              # db (compose) + migrate deploy, then API :4000 + client :5173
+./start-platform.sh --restore    # restore newest backup-*.dump (real-like data) → migrate → run
+./start-platform.sh --restore=backup-2026-09-01-113412.dump   # a specific pg_dump -Fc file
+./start-platform.sh --seed       # instead: run the synthetic CSV seed chain
+./start-platform.sh --fresh      # wipe the db volume, migrate, CSV-seed, run
+./start-platform.sh --db-only    # set the DB up (with --restore/--seed) then exit
+./start-platform.sh --down       # stop the db container
+```
+
+`--restore` drops & recreates `requirement_dashboard`, `pg_restore`s the dump inside the `db`
+container, writes a `pre-restore-safety-<ts>.dump` first, then `prisma migrate deploy` brings
+the schema up to head (the committed dumps predate the last few migrations). `--restore` and
+`--seed`/`--fresh` are mutually exclusive. Dumps live in the repo root and are git-ignored (`*.dump`).
+
+PowerShell: `.\start-platform.ps1` — same flags (`-Restore` / `-RestoreFile` / `-Seed` / `-Fresh` /
+`-DbOnly` / `-Down`); opens the API and client each in their own window. Client on **:5173** here
+(Vite dev) proxies `/api` → `:4000`; the `:8081` client is the Docker-only build.
+
 **Without Docker (hot reload):**
 
 ```bash

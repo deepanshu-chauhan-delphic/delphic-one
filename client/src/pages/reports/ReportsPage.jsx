@@ -112,12 +112,17 @@ function DetailField({ label, value }) {
   );
 }
 
+/** account id for a coverage row (clients-without-requirements = client, recruiter-vendor-gaps = vendor). */
+function coverageRowAccountId(row) {
+  return row?.client?.id || row?.vendor?.id || null;
+}
+
 /**
- * Inline person picker for a clients-without-requirements cell. Superadmin-only —
- * changes the account's owner (Sales POC) or origin_owner (Brought by) in place.
+ * Inline person picker for a coverage-report cell. Superadmin-only — changes the
+ * account's owner (Sales POC / Our POC) or origin_owner (Brought by) in place.
  */
 function CoveragePersonCell({ row, field, people, saving, onSave }) {
-  const current = field === 'origin_owner_id' ? row.brought_by : row.sales_poc;
+  const current = field === 'origin_owner_id' ? row.brought_by : row.sales_poc || row.our_poc;
   const options = current?.id && !people.some((p) => p.id === current.id)
     ? [{ id: current.id, name: `${current.name} (current)` }, ...people]
     : people;
@@ -128,7 +133,7 @@ function CoveragePersonCell({ row, field, people, saving, onSave }) {
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => {
         e.stopPropagation();
-        onSave(row.client.id, field, e.target.value);
+        onSave(coverageRowAccountId(row), field, e.target.value);
       }}
       className="max-w-[11rem] rounded-md border border-tertiary-200 bg-white px-2 py-1 text-sm text-tertiary-800 disabled:opacity-50"
     >
@@ -160,8 +165,13 @@ export default function ReportsPage() {
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
+  const [coverageStage, setCoverageStage] = useState('active'); // clients-without-requirements default filter
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
+  // recruiter-vendor-gaps: filter by vendor account and by the vendor's POC from our end.
+  const [rvgVendorId, setRvgVendorId] = useState('');
+  const [rvgPocId, setRvgPocId] = useState('');
+  const [rvgVendors, setRvgVendors] = useState([]);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -176,6 +186,7 @@ export default function ReportsPage() {
   const isExplorer = active === 'pipeline-explorer';
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
+  const isRvg = active === 'recruiter-vendor-gaps';
   const showDept = can('filterByDepartment');
   const INDIVIDUAL_ROLE_BY_REPORT = {
     'recruiter-performance': 'recruiter',
@@ -185,7 +196,7 @@ export default function ReportsPage() {
   };
   const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
-  const canEditCoverage = isClientsWithoutReqs && Boolean(user?.is_superadmin);
+  const canEditCoverage = (isClientsWithoutReqs || isRvg) && Boolean(user?.is_superadmin);
 
   useEffect(() => {
     if (!available.some((r) => r.key === active) && available[0]) {
@@ -225,7 +236,7 @@ export default function ReportsPage() {
   }, [showIndividual, active]);
 
   useEffect(() => {
-    if (!showCoveragePeople && !canEditCoverage) {
+    if (!showCoveragePeople && !canEditCoverage && !isRvg) {
       setCoveragePeople([]);
       return undefined;
     }
@@ -240,7 +251,25 @@ export default function ReportsPage() {
       )
       .catch(() => setCoveragePeople([]));
     return undefined;
-  }, [showCoveragePeople, canEditCoverage]);
+  }, [showCoveragePeople, canEditCoverage, isRvg]);
+
+  useEffect(() => {
+    if (!isRvg) {
+      setRvgVendors([]);
+      return undefined;
+    }
+    apiClient
+      .get('/accounts', { params: { type: 'vendor', limit: 100 } })
+      .then(({ data }) =>
+        setRvgVendors(
+          [...(data.data || [])]
+            .map((a) => ({ id: a.id, name: a.name }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        )
+      )
+      .catch(() => setRvgVendors([]));
+    return undefined;
+  }, [isRvg]);
 
   async function saveCoverageField(clientId, field, value) {
     if (!value) return;
@@ -282,6 +311,9 @@ export default function ReportsPage() {
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
     if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
     if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
+    if (isClientsWithoutReqs && coverageStage) params.stage = coverageStage;
+    if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
+    if (isRvg && rvgPocId) params.owner_id = rvgPocId;
     return params;
   }
 
@@ -312,6 +344,9 @@ export default function ReportsPage() {
     groupBy,
     coveragePocId,
     coverageBroughtById,
+    coverageStage,
+    rvgVendorId,
+    rvgPocId,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -353,7 +388,7 @@ export default function ReportsPage() {
   const baseColumns = columnsForReport(active);
   const columns = canEditCoverage
     ? baseColumns.map((col) => {
-        if (col.key === 'sales_poc') {
+        if (col.key === 'sales_poc' || col.key === 'our_poc') {
           return {
             ...col,
             render: (row) => (
@@ -361,7 +396,7 @@ export default function ReportsPage() {
                 row={row}
                 field="owner_id"
                 people={coveragePeople}
-                saving={savingCoverageId === row.client?.id}
+                saving={savingCoverageId === coverageRowAccountId(row)}
                 onSave={saveCoverageField}
               />
             ),
@@ -375,7 +410,7 @@ export default function ReportsPage() {
                 row={row}
                 field="origin_owner_id"
                 people={coveragePeople}
-                saving={savingCoverageId === row.client?.id}
+                saving={savingCoverageId === coverageRowAccountId(row)}
                 onSave={saveCoverageField}
               />
             ),
@@ -410,6 +445,9 @@ export default function ReportsPage() {
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
+              setCoverageStage('active');
+              setRvgVendorId('');
+              setRvgPocId('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -483,6 +521,48 @@ export default function ReportsPage() {
               value={coveragePocId}
               onChange={setCoveragePocId}
               placeholder="All (Sales POC)"
+              searchPlaceholder="Search people…"
+              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+            />
+          </>
+        )}
+        {isClientsWithoutReqs && (
+          <SearchableSelect
+            className="w-44"
+            allowClear
+            ariaLabel="Filter by stage"
+            value={coverageStage}
+            onChange={setCoverageStage}
+            placeholder="All stages"
+            searchPlaceholder="Search stage…"
+            options={[
+              { value: 'lead', label: 'Lead' },
+              { value: 'meeting_scheduled', label: 'Meeting scheduled' },
+              { value: 'active', label: 'Active' },
+              { value: 'rescheduled', label: 'Rescheduled' },
+              { value: 'dropped', label: 'Dropped' },
+            ]}
+          />
+        )}
+        {isRvg && (
+          <>
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by vendor"
+              value={rvgVendorId}
+              onChange={setRvgVendorId}
+              placeholder="All vendors"
+              searchPlaceholder="Search vendors…"
+              options={rvgVendors.map((v) => ({ value: v.id, label: v.name }))}
+            />
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by our POC"
+              value={rvgPocId}
+              onChange={setRvgPocId}
+              placeholder="All (our POC)"
               searchPlaceholder="Search people…"
               options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
             />

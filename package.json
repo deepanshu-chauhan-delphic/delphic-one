@@ -9,6 +9,11 @@
   "scripts": {
     "dev:server": "npm run dev --workspace server",
     "dev:client": "npm run dev --workspace client",
+    "platform": "bash start-platform.sh",
+    "platform:restore": "bash start-platform.sh --restore",
+    "platform:seed": "bash start-platform.sh --seed",
+    "platform:fresh": "bash start-platform.sh --fresh",
+    "platform:down": "bash start-platform.sh --down",
     "migrate": "npm run migrate --workspace server",
     "seed": "npm run seed --workspace server",
     "seed:accounts": "npm run seed:accounts --workspace server",

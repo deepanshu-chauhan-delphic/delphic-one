@@ -22,6 +22,9 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [ ] Superadmin: manual browser click-through (edit a user's role/email/password; override a dropped account back to `lead`; change "Brought by"). Confirm an ordinary admin sees none of it.
 - [x] **2026-09-01** — `clients-without-requirements` report: "Sales POC" = account owner (renamed), "Brought by" kept, Department filter dropped, Brought-by + Sales-POC person filters added, superadmin can edit both people inline on the Reports page. `interview_scheduled → interview_result` is manual only (no round-result auto-advance). No schema change. See PROGRESS.md.
 - [ ] Manual click-through: superadmin edits Brought by / Sales POC inline on the Reports page; the two person filters narrow the list; ordinary admin sees plain read-only cells.
+- [x] **2026-09-02** — Reports dropdown shows only `clients-without-requirements` + `recruiter-vendor-gaps` (others `hidden: true`, still defined). `clients-without-requirements` gains a Stage filter defaulting to Active. `recruiter-vendor-gaps` reworked to one row per vendor account (our POC + recruiters + zero-submitted), filterable by vendor + our POC. Internal screening round chips (`ScreeningRoundChips`) on Candidate pipeline + Requirement map cards. Accounts list filterable by Owner + Brought by. See PROGRESS.md 2026-09-02.
+- [ ] **Run `cd server && npm test`** once the Docker test DB (`localhost:5434`) is back up — `reports-coverage-gaps.test.js` was rewritten but not executed this session (Docker Desktop was down).
+- [ ] Manual click-through: RVG vendor/POC filters + CWR stage filter; screening chips show `IS1/IS2` results on both boards; Accounts Owner/Brought-by filters narrow the list and round-trip through the URL.
 
 ## Frontend (open — see sprint tickets)
 

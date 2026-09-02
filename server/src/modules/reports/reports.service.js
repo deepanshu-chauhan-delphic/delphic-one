@@ -742,13 +742,14 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
  * (`owner_id`, the POC from our end); "Brought by" is the originator
  * (`origin_owner_id`). Filterable by either.
  */
-async function clientsWithoutRequirements({ bda_id, origin_owner_id }) {
+async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
   const rows = await prisma.account.findMany({
     where: {
       type: 'client',
       requirements: { none: {} },
       ...(bda_id ? { owner_id: bda_id } : {}),
       ...(origin_owner_id ? { origin_owner_id } : {}),
+      ...(stage ? { stage } : {}),
     },
     include: {
       owner: { select: { id: true, name: true } },
@@ -768,53 +769,81 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id }) {
 }
 
 /**
- * (recruiter, vendor) pairs where the recruiter sourced at least one profile from
- * the vendor but none of those profiles has ever been submitted. Recruiter =
- * profile.added_by; vendor = profile.vendor_account_id.
+ * One row per vendor account whose profiles have never been submitted to any
+ * requirement — i.e. the vendor relationship has produced no pipeline. Each row
+ * carries the vendor's POC from our end (`account.owner`), "brought by"
+ * (`account.origin_owner`), and every recruiter who has sourced a profile from
+ * that vendor. Vendors we've sourced nothing from at all are still listed
+ * (vacuously "nothing submitted").
+ *
+ * Filters:
+ *   - `vendor_id`  — a single vendor account.
+ *   - `owner_id`   — the vendor's POC from our end (`account.owner_id`).
+ *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from.
+ *     (The route also sets this to the caller's id for the recruiter role.)
+ *
+ * `any_submitted` is always computed from ALL of the vendor's profiles, never a
+ * single recruiter's slice, so "never submitted anywhere" stays literally true
+ * even when `recruiter_id` is applied.
  */
-async function recruiterVendorGaps({ recruiter_id }) {
-  const profiles = await prisma.profile.findMany({
+async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
+  const vendors = await prisma.account.findMany({
     where: {
-      vendor_account_id: { not: null },
-      ...(recruiter_id ? { added_by: recruiter_id } : {}),
+      type: 'vendor',
+      ...(vendor_id ? { id: vendor_id } : {}),
+      ...(owner_id ? { owner_id } : {}),
     },
-    select: {
-      id: true,
-      created_at: true,
-      added_by_user: { select: { id: true, name: true } },
-      vendor_account: { select: { id: true, name: true } },
-      _count: { select: { submissions: true } },
+    include: {
+      owner: { select: { id: true, name: true } },
+      origin_owner: { select: { id: true, name: true } },
     },
+    orderBy: { name: 'asc' },
   });
 
-  const groups = new Map();
-  for (const p of profiles) {
-    if (!p.added_by_user || !p.vendor_account) continue;
-    const key = `${p.added_by_user.id}::${p.vendor_account.id}`;
-    const g = groups.get(key) || {
-      recruiter: p.added_by_user,
-      vendor: p.vendor_account,
-      profiles_sourced: 0,
-      profiles_submitted: 0,
-      last_sourced_at: null,
-    };
-    g.profiles_sourced += 1;
-    if (p._count.submissions > 0) g.profiles_submitted += 1;
-    if (!g.last_sourced_at || p.created_at > g.last_sourced_at) g.last_sourced_at = p.created_at;
-    groups.set(key, g);
-  }
+  const rows = await Promise.all(
+    vendors.map(async (v) => {
+      const profiles = await prisma.profile.findMany({
+        where: { vendor_account_id: v.id },
+        select: {
+          id: true,
+          created_at: true,
+          added_by_user: { select: { id: true, name: true } },
+          _count: { select: { submissions: true } },
+        },
+      });
 
-  return [...groups.values()]
-    .filter((g) => g.profiles_submitted === 0)
-    .map((g) => ({
-      recruiter: { id: g.recruiter.id, name: g.recruiter.name },
-      vendor: { id: g.vendor.id, name: g.vendor.name },
-      profiles_sourced: g.profiles_sourced,
-      profiles_submitted: 0,
-      last_sourced_at: g.last_sourced_at,
-      days_since_sourced: Math.floor(daysBetween(g.last_sourced_at, new Date())),
-    }))
-    .sort((a, b) => b.days_since_sourced - a.days_since_sourced);
+      const any_submitted = profiles.some((p) => p._count.submissions > 0);
+      const recruiters = [
+        ...new Map(
+          profiles.filter((p) => p.added_by_user).map((p) => [p.added_by_user.id, p.added_by_user])
+        ).values(),
+      ];
+      const last_sourced_at = profiles.reduce(
+        (latest, p) => (!latest || p.created_at > latest ? p.created_at : latest),
+        null
+      );
+
+      return {
+        vendor: { id: v.id, name: v.name },
+        our_poc: v.owner ? { id: v.owner.id, name: v.owner.name } : null,
+        brought_by: v.origin_owner ? { id: v.origin_owner.id, name: v.origin_owner.name } : null,
+        recruiters: recruiters.map((r) => ({ id: r.id, name: r.name })),
+        profiles_sourced: profiles.length,
+        profiles_submitted: 0,
+        any_submitted,
+        last_sourced_at,
+        days_since_sourced: last_sourced_at
+          ? Math.floor(daysBetween(last_sourced_at, new Date()))
+          : null,
+      };
+    })
+  );
+
+  return rows
+    .filter((r) => !r.any_submitted)
+    .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
+    .map(({ any_submitted: _any_submitted, ...rest }) => rest)
+    .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }
 
 module.exports = {

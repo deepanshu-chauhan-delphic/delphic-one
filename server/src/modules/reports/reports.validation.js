@@ -24,11 +24,16 @@ const agingSchema = z.object({
 
 // Coverage-gap reports (clients without requirements, recruiter-vendor gaps) —
 // present-state, no date range, no department filter. clients-without-requirements
-// filters by Sales POC (account owner, `bda_id`) and by "Brought by" (`origin_owner_id`).
+// filters by Sales POC (account owner, `bda_id`), by "Brought by" (`origin_owner_id`)
+// and by account `stage`. recruiter-vendor-gaps filters by `recruiter_id`, by the
+// vendor account (`vendor_id`) and by the vendor's POC from our end (`owner_id`).
 const coverageSchema = z.object({
   bda_id: optionalUuid,
   origin_owner_id: optionalUuid,
   recruiter_id: optionalUuid,
+  vendor_id: optionalUuid,
+  owner_id: optionalUuid,
+  stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
 });
 
 const closureSchema = dateRangeSchema.extend({

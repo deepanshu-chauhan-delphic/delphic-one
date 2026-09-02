@@ -149,7 +149,7 @@ async function getBoard(user, filters = {}) {
           },
           submitted_by_user: { select: { id: true, name: true } },
           seat: { select: { requirement_id: true } },
-          interview_rounds: { select: { result: true } },
+          interview_rounds: { select: { result: true, round_type: true, round_number: true } },
         },
         orderBy: { created_at: 'asc' },
       })
@@ -168,6 +168,10 @@ async function getBoard(user, filters = {}) {
     requirement: { id: row.seat.requirement_id },
     profile: row.profile,
     submitted_by: row.submitted_by_user,
+    // Internal screening round results (internal_r1 / internal_r2) for the card badges.
+    internal_rounds: (row.interview_rounds || [])
+      .filter((r) => r.round_type === 'internal_r1' || r.round_type === 'internal_r2')
+      .map((r) => ({ round_type: r.round_type, round_number: r.round_number, result: r.result })),
     progress: computeClosureDetail(row.stage, row.interview_rounds),
   }));
 

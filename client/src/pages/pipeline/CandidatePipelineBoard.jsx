@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
+import ScreeningRoundChips from './ScreeningRoundChips.jsx';
 import {
   SUBMISSION_PIPELINE,
   canCreateSubmission,
@@ -151,6 +152,7 @@ function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenD
         <Badge value={submission.stage} />
         <ProgressRing percent={submission.progress?.percent ?? null} size="sm" />
       </div>
+      <ScreeningRoundChips rounds={submission.interview_rounds} className="mt-2" />
     </div>
   );
 }

@@ -2,6 +2,86 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-02 — Reports dropdown trimmed + coverage/RVG rework + screening chips + account owner filters
+
+Uncommitted work on `main` (local). No schema/migration change. `client vite build` +
+`reportViews.test.mjs` green; **server suite not run** (Docker Desktop down → test DB on
+`localhost:5434` unreachable). `node -c` syntax-clean on all touched server files.
+
+### 1. Reports page — only the two coverage-gap reports in the dropdown
+
+- `reportViews.js` `ALL_REPORTS` — every report except `clients-without-requirements`
+  and `recruiter-vendor-gaps` now carries `hidden: true`; `reportsForRole` filters
+  `!r.hidden`. Reports stay fully defined (routes, columns, charts, export all still
+  resolve by key) — they're just gone from the picker. `reportViews.test.mjs` updated
+  to assert the dropdown is exactly those two per role.
+
+### 2. `clients-without-requirements` — stage filter, default Active
+
+- New `stage` on `coverageSchema` (5 account stages) → `clientsWithoutRequirements`
+  adds `...(stage ? { stage } : {})`. `ReportsPage` renders a clearable Stage
+  `SearchableSelect` that **defaults to `active`** on load / report switch; wired into
+  `buildParams` + run-report deps + `/reports/export`.
+
+### 3. `recruiter-vendor-gaps` — one row per vendor account, filterable
+
+- Reworked `recruiterVendorGaps` from `(recruiter × vendor)` profile-driven pairs to
+  **one row per vendor account** (`type = 'vendor'`) whose profiles were never
+  submitted anywhere. Row carries `vendor`, `our_poc` (`account.owner`), `brought_by`
+  (`account.origin_owner`), `recruiters[]` (everyone who sourced a profile from it —
+  derived, there is no stored vendor↔recruiter link), `profiles_sourced`,
+  `last_sourced_at`, `days_since_sourced`. Vendors with **zero** sourced profiles are
+  included (admin view); a recruiter is self-scoped to vendors they've sourced from.
+- **Filter correctness fix:** `any_submitted` is now computed from ALL of a vendor's
+  profiles, never a single recruiter's slice — so `recruiter_id` no longer surfaces a
+  vendor as a "gap" when another recruiter's profile from it was submitted. `recruiter_id`
+  now post-filters on the displayed `recruiters[]` set (was an indirect `profiles_sourced > 0`
+  after query-scoping).
+- Filters `vendor_id` + `owner_id` on `coverageSchema`; `ReportsPage` adds a Vendor
+  `SearchableSelect` (from `/accounts?type=vendor`) and an "our POC" people select. The
+  shared "individual" recruiter picker is kept (admin) — note only users who have sourced
+  a vendor profile can ever match, so most picks return an empty report by design.
+- **Superadmin inline edit** on this report too: "Our POC" (`owner_id`) and "Brought by"
+  (`origin_owner_id`) are editable in place, same `CoveragePersonCell` mechanism as
+  `clients-without-requirements` (`PATCH /accounts/:vendorId`). "Recruiters" stays
+  read-only (derived from candidate sourcing; an "assigned recruiters" vendor field was
+  scoped out).
+- `reportViews.js` columns/rows-id/chart bucket updated; `reports-coverage-gaps.test.js`
+  rewritten for the vendor-centric shape + filter tests (incl. the cross-recruiter
+  `any_submitted` case) + a `clients-without-requirements` stage-filter test.
+  `cd server && npm test` → **29 suites / 188 tests green**.
+
+### 4. Internal screening round results on pipeline cards
+
+- New `client/src/pages/pipeline/ScreeningRoundChips.jsx` — renders every
+  `internal_r1`/`internal_r2` round as an `IS1: pass` / `IS2: fail` chip (colour by
+  result). Added to the **Candidate pipeline** card (uses `submission.interview_rounds`
+  from `/submissions`) and the **Requirement map** card (new `submission.internal_rounds`
+  from `/pipeline/board` — that endpoint's `interview_rounds` select now also pulls
+  `round_type` + `round_number`).
+
+### 6. Local dev launcher
+
+- New `start-platform.sh` / `start-platform.ps1` at repo root + `npm run platform[:restore|:seed|:fresh|:down]`.
+  Brings up only the compose `db` service (Postgres :5434), runs `prisma generate` +
+  `migrate deploy`, optional data load, then runs the API (nodemon :4000) and client
+  (Vite :5173) with hot reload — `.sh` foreground+prefixed, `.ps1` in separate windows.
+- `--restore` / `-Restore` loads real-like data: safety-dumps the current DB, drops &
+  recreates `requirement_dashboard`, `pg_restore`s the newest `backup-*.dump` (or
+  `--restore=FILE`) inside the `db` container, then `migrate deploy` applies the
+  migrations the dump predates. Validated: `backup-2026-09-01-113412.dump` →
+  13 users / 123 accounts / 43 requirements / 27 profiles / 24 submissions / 213 comments,
+  3 migrations auto-applied (`account_origin_owner`, `drop_lead_generated_date`,
+  `add_is_superadmin`), `admin@delphic.in` back to `is_superadmin`. Mutually exclusive
+  with `--seed`/`--fresh`. Docs: AGENTS.md "Local setup".
+
+### 5. Accounts list — filter by Owner and Brought by
+
+- `listQuerySchema` gains `origin_owner_id`; `accounts.service.list` adds an
+  `origin_owner_id` AND-clause (`owner_id` was already supported). `AccountsListPage`
+  adds two clearable people `SearchableSelect`s (active-user roster), URL-synced via
+  `?owner_id=` / `?origin_owner_id=`. (BDA role is still server-scoped to own accounts.)
+
 ## 2026-09-01 — Coverage-report rework + manual interview_result
 
 Uncommitted work on `main` (local). No schema/migration change (an interim

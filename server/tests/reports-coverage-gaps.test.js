@@ -66,6 +66,37 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(row).not.toHaveProperty('sales_owner');
   });
 
+  test('filters by stage', async () => {
+    const activeClient = await createActiveClientAccount(bda.id);
+    const leadClient = await prisma.account.create({
+      data: {
+        type: 'client',
+        name: `Lead ${Math.random().toString(36).slice(2, 8)}`,
+        stage: 'lead',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+      },
+    });
+
+    const activeRes = await authed(
+      request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'active' }),
+      adminToken
+    );
+    expect(activeRes.status).toBe(200);
+    const activeIds = activeRes.body.data.map((r) => r.client.id);
+    expect(activeIds).toContain(activeClient.id);
+    expect(activeIds).not.toContain(leadClient.id);
+
+    const leadRes = await authed(
+      request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'lead' }),
+      adminToken
+    );
+    expect(leadRes.status).toBe(200);
+    const leadIds = leadRes.body.data.map((r) => r.client.id);
+    expect(leadIds).toContain(leadClient.id);
+    expect(leadIds).not.toContain(activeClient.id);
+  });
+
   test('filters by Brought by (origin_owner_id)', async () => {
     const mine = await createActiveClientAccount(bda.id);
     const other = await createActiveClientAccount(bda2.id);
@@ -135,25 +166,105 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     return { vendor, profile };
   }
 
-  test('lists (recruiter, vendor) pairs sourced but never submitted', async () => {
+  async function createBareVendor(ownerId = bda.id) {
+    return prisma.account.create({
+      data: {
+        type: 'vendor',
+        name: `Vendor ${Math.random().toString(36).slice(2, 8)}`,
+        stage: 'active',
+        owner_id: ownerId,
+        origin_owner_id: ownerId,
+      },
+    });
+  }
+
+  test('lists vendor accounts whose sourced profiles were never submitted', async () => {
     const gap = await seedVendorProfile(recruiterToken);
     const used = await seedVendorProfile(recruiterToken, { submitted: true });
 
     const res = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
     expect(res.status).toBe(200);
-    const pairs = res.body.data.map((r) => `${r.recruiter.id}:${r.vendor.id}`);
-    expect(pairs).toContain(`${recruiter.id}:${gap.vendor.id}`);
-    expect(pairs).not.toContain(`${recruiter.id}:${used.vendor.id}`);
+    const vendorIds = res.body.data.map((r) => r.vendor.id);
+    expect(vendorIds).toContain(gap.vendor.id);
+    expect(vendorIds).not.toContain(used.vendor.id);
 
     const row = res.body.data.find((r) => r.vendor.id === gap.vendor.id);
     expect(row).toEqual(
       expect.objectContaining({
-        recruiter: expect.objectContaining({ id: recruiter.id }),
+        our_poc: expect.objectContaining({ id: bda.id }),
+        brought_by: expect.objectContaining({ id: bda.id }),
+        recruiters: expect.arrayContaining([expect.objectContaining({ id: recruiter.id })]),
         profiles_sourced: 1,
         profiles_submitted: 0,
         days_since_sourced: expect.any(Number),
       })
     );
+  });
+
+  test('recruiter_id filter still excludes a vendor that ANY recruiter got submitted', async () => {
+    // recruiter1 sources an un-submitted profile from the vendor…
+    const vendor = await createBareVendor();
+    await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: vendor.id });
+    // …recruiter2 sources another profile from the SAME vendor and it IS submitted.
+    const { access_token: r2Token } = await loginAs(recruiter2);
+    const p2 = await createProfile(r2Token, { source: 'vendor', vendor_account_id: vendor.id });
+    const account = await createActiveClientAccount(bda.id);
+    const req = await createRequirement(salesToken, account.id);
+    const seats = await authed(request(app).get(`/api/v1/requirements/${req.id}/seats`), salesToken);
+    await authed(request(app).post('/api/v1/submissions'), r2Token).send({
+      requirement_seat_id: seats.body.data[0].id,
+      profile_id: p2.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'INR',
+      vendor_rate: 80,
+      vendor_rate_currency: 'INR',
+    });
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ recruiter_id: recruiter.id }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((r) => r.vendor.id)).not.toContain(vendor.id);
+  });
+
+  test('includes a vendor with no sourced profiles at all (admin view)', async () => {
+    const bare = await createBareVendor();
+
+    const res = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
+    expect(res.status).toBe(200);
+    const row = res.body.data.find((r) => r.vendor.id === bare.id);
+    expect(row).toEqual(
+      expect.objectContaining({
+        profiles_sourced: 0,
+        recruiters: [],
+        last_sourced_at: null,
+        days_since_sourced: null,
+      })
+    );
+  });
+
+  test('filters by vendor_id and by owner_id (our POC)', async () => {
+    const a = await seedVendorProfile(recruiterToken);
+    const b = await seedVendorProfile(recruiterToken);
+    const otherPoc = await createBareVendor(bda2.id);
+
+    const byVendor = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_id: a.vendor.id }),
+      adminToken
+    );
+    expect(byVendor.status).toBe(200);
+    expect(byVendor.body.data.map((r) => r.vendor.id)).toEqual([a.vendor.id]);
+
+    const byOwner = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ owner_id: bda2.id }),
+      adminToken
+    );
+    expect(byOwner.status).toBe(200);
+    const ownerVendorIds = byOwner.body.data.map((r) => r.vendor.id);
+    expect(ownerVendorIds).toContain(otherPoc.id);
+    expect(ownerVendorIds).not.toContain(a.vendor.id);
+    expect(ownerVendorIds).not.toContain(b.vendor.id);
   });
 
   test('a recruiter sees only their own gaps', async () => {

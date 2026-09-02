@@ -95,6 +95,9 @@ export default function AccountsListPage() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [type, setType] = useState(() => searchParams.get('type') || '');
   const [stage, setStage] = useState(() => searchParams.get('stage') || '');
+  const [ownerId, setOwnerId] = useState(() => searchParams.get('owner_id') || '');
+  const [broughtById, setBroughtById] = useState(() => searchParams.get('origin_owner_id') || '');
+  const [people, setPeople] = useState([]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
@@ -107,6 +110,8 @@ export default function AccountsListPage() {
     const params = { page, limit: 20 };
     if (type) params.type = type;
     if (stage) params.stage = stage;
+    if (ownerId) params.owner_id = ownerId;
+    if (broughtById) params.origin_owner_id = broughtById;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
       .get('/accounts', { params })
@@ -121,12 +126,27 @@ export default function AccountsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stage, type]);
+  }, [appliedSearch, page, stage, type, ownerId, broughtById]);
+
+  useEffect(() => {
+    apiClient
+      .get('/users', { params: { active: 'true', limit: 100 } })
+      .then(({ data }) =>
+        setPeople(
+          [...(data.data || [])]
+            .map((u) => ({ value: u.id, label: u.name, hint: u.role }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+        )
+      )
+      .catch(() => setPeople([]));
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStage(searchParams.get('stage') || '');
     setType(searchParams.get('type') || '');
+    setOwnerId(searchParams.get('owner_id') || '');
+    setBroughtById(searchParams.get('origin_owner_id') || '');
   }, [searchParams]);
 
   function closeCreate() {
@@ -284,6 +304,32 @@ export default function AccountsListPage() {
                   { value: 'rescheduled', label: 'Rescheduled' },
                   { value: 'dropped', label: 'Dropped' },
                 ]}
+              />
+              <SearchableSelect
+                className="w-44"
+                allowClear
+                ariaLabel="Filter by owner"
+                value={ownerId}
+                onChange={(next) => {
+                  setPage(1);
+                  setOwnerId(next);
+                }}
+                placeholder="Owner: All"
+                searchPlaceholder="Search people…"
+                options={people}
+              />
+              <SearchableSelect
+                className="w-44"
+                allowClear
+                ariaLabel="Filter by brought by"
+                value={broughtById}
+                onChange={(next) => {
+                  setPage(1);
+                  setBroughtById(next);
+                }}
+                placeholder="Brought by: All"
+                searchPlaceholder="Search people…"
+                options={people}
               />
             </div>
           </div>

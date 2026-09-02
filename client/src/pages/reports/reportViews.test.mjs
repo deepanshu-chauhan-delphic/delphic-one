@@ -7,9 +7,19 @@ import {
 } from './reportViews.js';
 
 assert.ok(ALL_REPORTS.some((r) => r.key === 'pipeline-explorer'));
-assert.ok(reportsForRole('bda').some((r) => r.key === 'pipeline-explorer'));
-assert.ok(reportsForRole('admin').some((r) => r.key === 'pipeline-explorer'));
-assert.ok(reportsForRole('recruiter').some((r) => r.key === 'pipeline-explorer'));
+// Hidden reports stay defined but are dropped from the role dropdown.
+assert.ok(!reportsForRole('bda').some((r) => r.key === 'pipeline-explorer'));
+assert.ok(!reportsForRole('admin').some((r) => r.key === 'pipeline-explorer'));
+assert.ok(!reportsForRole('recruiter').some((r) => r.key === 'pipeline-explorer'));
+
+// Only the two coverage-gap reports remain visible in the dropdown.
+assert.deepEqual(
+  reportsForRole('admin').map((r) => r.key).sort(),
+  ['clients-without-requirements', 'recruiter-vendor-gaps']
+);
+assert.deepEqual(reportsForRole('bda').map((r) => r.key), ['clients-without-requirements']);
+assert.deepEqual(reportsForRole('recruiter').map((r) => r.key), ['recruiter-vendor-gaps']);
+assert.deepEqual(reportsForRole('sales').map((r) => r.key), ['clients-without-requirements']);
 
 const columns = columnsForReport('pipeline-explorer');
 assert.ok(columns.some((c) => c.key === 'client'));
