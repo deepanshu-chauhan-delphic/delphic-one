@@ -104,6 +104,11 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [x] **V2** test coverage: new `interview-rounds-scope.test.js`, `profiles-bench.test.js`, extended `accounts-stage.test.js`/`reports-ui.test.js`.
 - [x] Closure progress unit tests + `GET /pipeline/board` role-scope tests (`closure-progress.test.js`, `pipeline-board.test.js`). **23 suites / 135 tests** green (2026-08-29).
 - [x] Interviewer multiselect tests (`interview-round-interviewers.test.js`).
+- [x] **2026-09-03** — Prod data-loss safeguards: `start-delphic.sh --prod` takes a verified pre-deploy `pg_dump -Fc` into `./backups/` and aborts on failure (no `--restore` flag; restores are manual). `prisma/_guard.js` blocks the CSV seeds against non-local / `NODE_ENV=production` DBs (`ALLOW_DESTRUCTIVE_SEED=1` override). `start-platform.sh --restore`/`--fresh` guarded likewise. `scripts/db-backup.sh` for scheduled backups. Runbook rewritten. See PROGRESS.md 2026-09-03.
+- [ ] **VPS: schedule `scripts/db-backup.sh`** (cron `*/15` or systemd timer) and set `BACKUP_OFFSITE_CMD` to copy dumps off the box. Runbook §0.
+- [ ] **Enable Postgres PITR** (WAL archiving) or move to managed Postgres — recovery to the second, not the last dump. This is the real fix for "hours of data lost".
+- [ ] Confirm on the VPS: `./start-delphic.sh --prod` writes `./backups/predeploy-*.dump` and the systemd `ExecStart=... --prod --service` path still boots (backup_db brings `db` up first).
+- [ ] Wipe the stale `pre-restore-safety-*.dump` / `backup-*.dump` from the repo root (git-ignored but clutter); keep real backups under `./backups/` only.
 
 ## Docs
 

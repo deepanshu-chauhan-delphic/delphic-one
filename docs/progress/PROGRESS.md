@@ -2,6 +2,50 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — Prod data-loss safeguards (deploy backup + destructive-script guards)
+
+`main`, uncommitted. Ops/tooling only — no app code, no schema change. Shell scripts
+pass `bash -n`; `_guard.js` unit-checked (local host → allowed; remote host or
+`NODE_ENV=production` → refuse with exit 1; `ALLOW_DESTRUCTIVE_SEED=1` → override).
+
+**Trigger:** a prior prod deploy lost ~2–3 h of real data. Root cause was a destructive
+DB operation running as (or alongside) a deploy — `--restore` (drop + recreate + restore
+an older dump) and/or a CSV seed (`seed.js` wipes every table).
+
+### 1. Every prod deploy takes a verified backup first — `start-delphic.sh`
+
+- New `backup_db()` runs **before** `docker compose up -d --build` / migrations: brings
+  `db` up if needed, waits for `pg_isready`, `pg_dump -Fc` → `./backups/predeploy-<ts>.dump`,
+  then verifies the dump is readable (`pg_restore --list` inside the container).
+- **Aborts the deploy** if `pg_dump` errors or the dump can't be read back — nothing is
+  built or migrated. A tiny dump (genuinely empty DB) warns and continues.
+- Keeps the newest `BACKUP_KEEP` (48) predeploy dumps. `--skip-backup` escape hatch for
+  the first-ever deploy only.
+- `start-delphic.sh` still has **no `--restore` flag** — restores are manual `pg_restore`
+  only, never part of a deploy (runbook §4 rewritten to match; the old runbook told people
+  to pass a `--restore=` flag that doesn't exist).
+
+### 2. Destructive CSV seeds refuse against non-local DBs — `server/prisma/_guard.js`
+
+- New guard: `assertNonProdDestructive()` exits 1 when `NODE_ENV=production` or the
+  `DATABASE_URL` host isn't in {localhost, 127.0.0.1, ::1, db, postgres,
+  host.docker.internal}, unless `ALLOW_DESTRUCTIVE_SEED=1`.
+- Wired into `seed.js`, `seed-accounts.js`, `seed-jira.js`, `seed-vendors.js` (just before
+  `main()`). `seed-admin.js` is untouched (already non-destructive).
+
+### 3. `start-platform.sh` (local dev tool) guards `--restore` / `--fresh`
+
+- `guard_local_db()` refuses those two when `NODE_ENV=production` or `.env`'s `DATABASE_URL`
+  host is remote. `--seed` is covered by the seed-script guard.
+
+### 4. Scheduled backups — `scripts/db-backup.sh` + runbook
+
+- Standalone verified `pg_dump -Fc` → `./backups/auto-<ts>.dump`, rotates to
+  `BACKUP_KEEP` (192 ≈ 2 days at 15 min), optional `BACKUP_OFFSITE_CMD` hook.
+- [DEPLOY-RUNBOOK.md](../guides/DEPLOY-RUNBOOK.md) gains: cron / systemd-timer setup,
+  pre-flight destructive-migration grep, expand-contract migration rule, row-count
+  spot-check, manual PITR-first rollback. `backups/` added to `.gitignore`.
+
 ## 2026-09-03 — Pipeline map filters, Tagged Profiles column, sales "submit to client", report/filter fixes
 
 `main`, uncommitted. No schema/migration change. eslint clean on touched files;

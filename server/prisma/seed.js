@@ -86,6 +86,8 @@ async function main() {
   console.log('  Recruiter: Garv@delphic.in, prashant.hada@delphic.in, sarthak.solanki@delphic.in, …');
 }
 
+require('./_guard').assertNonProdDestructive('prisma/seed.js');
+
 main()
   .then(() => prisma.$disconnect())
   .catch(async (err) => {

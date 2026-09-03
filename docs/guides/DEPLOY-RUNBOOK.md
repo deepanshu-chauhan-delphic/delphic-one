@@ -4,8 +4,13 @@ Manual `git pull` deploy for the Delphic stack.
 
 - **Host path:** `/opt/delphic`
 - **Runner:** `./start-delphic.sh --prod` (Docker Compose, both files, service name `server`)
-- **Migrations:** `prisma migrate deploy` runs automatically on every `server` container start.
-- **Seeding:** never automatic — see [PRODUCTION-SEED.md](PRODUCTION-SEED.md).
+- **Migrations:** `prisma migrate deploy` runs automatically on every `server` container start. It only applies *unapplied* migrations, forward-only — it never resets or drops.
+- **Seeding:** never automatic, and the CSV seeds refuse to run against a non-local database (see [PRODUCTION-SEED.md](PRODUCTION-SEED.md)). Prod is bootstrapped with `seed-admin.js` only.
+
+> **Production data is never dropped by a deploy.**
+> - `./start-delphic.sh --prod` takes a **verified `pg_dump -Fc` into `./backups/` before it builds or migrates**, and aborts the deploy if that backup cannot be written or read back.
+> - There is **no restore flag** on `start-delphic.sh`. A restore is always a deliberate, manual `pg_restore` (§4).
+> - The destructive CSV seeds (`seed.js`, `seed-accounts.js`, `seed-jira.js`, `seed-vendors.js`) hard-refuse when `NODE_ENV=production` or `DATABASE_URL` is remote, unless `ALLOW_DESTRUCTIVE_SEED=1` is set.
 
 ```bash
 cd /opt/delphic
@@ -14,18 +19,60 @@ alias dc='docker compose -f docker-compose.yml -f docker-compose.prod.yml'
 
 ---
 
-## 1. Backup the database (always, before pulling)
+## 0. Scheduled backups (set up once)
+
+Independent of deploys — so the worst case from any incident is one interval, not hours.
+
+```bash
+# every 15 min, as the deploy user
+crontab -e
+*/15 * * * * cd /opt/delphic && ./scripts/db-backup.sh >> /var/log/delphic-backup.log 2>&1
+```
+
+Or a systemd timer:
+
+```ini
+# /etc/systemd/system/delphic-backup.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/delphic
+ExecStart=/opt/delphic/scripts/db-backup.sh
+
+# /etc/systemd/system/delphic-backup.timer
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+```bash
+sudo systemctl enable --now delphic-backup.timer
+```
+
+- Dumps land in `./backups/` (`auto-*.dump` from the timer, `predeploy-*.dump` from deploys). `./backups/` is git-ignored.
+- **Copy them off the box.** Set `BACKUP_OFFSITE_CMD` (e.g. `BACKUP_OFFSITE_CMD='aws s3 cp "$1" s3://delphic-backups/'`) in the service environment.
+- Strongly recommended: enable Postgres WAL archiving / use a managed Postgres with **point-in-time recovery** so recovery is to the second, not the last dump.
+
+---
+
+## 1. Pre-flight
 
 ```bash
 cd /opt/delphic
+git fetch origin && git log --oneline HEAD..origin/main       # what's landing
 
-# Custom-format dump — restorable via start-delphic --restore=<file> / pg_restore
-dc exec -T db pg_dump -U postgres -Fc requirement_dashboard > ~/backup-$(date +%F-%H%M).dump
+# Does this release contain a destructive migration? If yes → maintenance window.
+git diff --stat HEAD origin/main -- server/prisma/migrations/
+grep -rIl -E 'DROP (TABLE|COLUMN)|ALTER COLUMN .* TYPE|RENAME ' \
+  $(git diff --name-only HEAD origin/main -- server/prisma/migrations/) 2>/dev/null
+```
 
-# (Alternative) plain gzipped SQL
-dc exec -T db pg_dump -U postgres requirement_dashboard | gzip > ~/delphic-$(date +%F-%H%M).sql.gz
+Migrations should be **additive / expand-contract**: add in release N, remove the old thing in a later release once N is stable. Never ship a `DROP` alongside the code that stops using it.
 
-ls -lh ~/backup-*.dump ~/delphic-*.sql.gz 2>/dev/null | tail -3
+Optional belt-and-braces manual backup (the deploy also does this):
+
+```bash
+dc exec -T db pg_dump -U postgres -Fc requirement_dashboard > ~/manual-$(date +%F-%H%M).dump
 ```
 
 ---
@@ -35,8 +82,13 @@ ls -lh ~/backup-*.dump ~/delphic-*.sql.gz 2>/dev/null | tail -3
 ```bash
 cd /opt/delphic
 git pull origin main
-./start-delphic.sh --prod          # == dc up -d --build
+./start-delphic.sh --prod
+#   → verified pre-deploy backup → ./backups/predeploy-<ts>.dump
+#   → docker compose up -d --build   (server container runs `prisma migrate deploy`)
+#   → waits for /api/v1/health
 ```
+
+`--skip-backup` exists only for the very first deploy against an empty DB. Never use it otherwise.
 
 ---
 
@@ -44,47 +96,61 @@ git pull origin main
 
 ```bash
 cd /opt/delphic
-
-# container health
 dc ps
-
-# API health from inside the server container
 dc exec server node -e "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" && echo "API OK"
-
-# tail logs if something looks off
 dc logs --tail=100 server
 dc logs --tail=100 client
 ```
+
+Spot-check real data (row counts unchanged, a known record still present):
+
+```bash
+dc exec -T db psql -U postgres requirement_dashboard -c \
+  "select 'accounts' t, count(*) from accounts union all select 'requirements', count(*) from requirements union all select 'submissions', count(*) from submissions;"
+```
+
+Keep the `predeploy-*.dump` until the release is confirmed good.
 
 ---
 
 ## 4. Rollback
 
-### Code only (no DB change in the bad release)
+### Code only (no DB change, or only additive migrations in the bad release)
 
 ```bash
 cd /opt/delphic
 git log --oneline -5
 git checkout <previous-good-sha>
-./start-delphic.sh --prod
+./start-delphic.sh --prod        # takes a fresh backup, rebuilds; DB untouched
 ```
 
-### Database restore (bad migration / data loss)
+Additive migrations are backward-compatible, so old code runs fine against the new schema — no DB action needed.
+
+### Data loss / bad destructive migration
+
+Prefer **point-in-time recovery** to just before the deploy if it's enabled (loses ~0 data).
+
+Otherwise restore the pre-deploy dump manually:
 
 ```bash
 cd /opt/delphic
-./start-delphic.sh --prod --restore=$HOME/backup-<YYYY-MM-DD-HHMM>.dump
+ls -lt backups/ | head
 
-# manual equivalent
-gunzip -c ~/delphic-<YYYY-MM-DD-HHMM>.sql.gz | dc exec -T db psql -U postgres requirement_dashboard
+dc stop server                                   # stop writes first
+dc exec -T db sh -c 'dropdb --if-exists --force requirement_dashboard && createdb requirement_dashboard'
+dc exec -T db pg_restore -U postgres -d requirement_dashboard --no-owner --no-privileges \
+  < backups/predeploy-<YYYY-MM-DD-HHMMSS>.dump
+git checkout <previous-good-sha>                  # match the code to the restored schema
+./start-delphic.sh --prod
 ```
+
+This is the only path that drops the database, and it is a deliberate, manual recovery step — never part of a deploy.
 
 ---
 
 ## Notes
 
-- Frontend-only commits (e.g. React pages under `client/src/`) still need `--build`
-  because the built assets are baked into the `client` image; no seed or migration step.
-- Required prod env vars (no defaults): `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`,
-  `JWT_REFRESH_SECRET`, `CORS_ORIGIN`. Generate secrets: `openssl rand -hex 32`.
+- Frontend-only commits still need `--build` (assets are baked into the `client` image); no migration step.
+- Required prod env vars (no defaults): `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN`. Generate secrets: `openssl rand -hex 32`.
 - Loopback binds in prod: API `127.0.0.1:4000`, client `127.0.0.1:8081` (nginx fronts them).
+- Rehearse risky migrations first: restore the latest `auto-*.dump` into a scratch DB, run `prisma migrate deploy`, smoke-test.

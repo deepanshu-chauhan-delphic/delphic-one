@@ -170,6 +170,8 @@ Seeded users (password `Password123!`): `admin@delphic.in`, `diksha.yadav@delphi
 
 `npm run seed` wipes everything and loads **team only**. Domain data comes from `seed:accounts` (LeadMinds clients), `seed:jira` (requirements + JDs + assignments), and optional `seed:vendors`. VPS steps: [guides/PRODUCTION-SEED.md](guides/PRODUCTION-SEED.md). Walkthrough: [testing/TESTING-DEMO-SEED.md](testing/TESTING-DEMO-SEED.md).
 
+**Prod data is never dropped by tooling.** `seed.js` / `seed-accounts.js` / `seed-jira.js` / `seed-vendors.js` call `prisma/_guard.js` and exit 1 if `NODE_ENV=production` or `DATABASE_URL` is a non-local host (override: `ALLOW_DESTRUCTIVE_SEED=1`, only with a fresh verified backup). `start-platform.sh --restore` / `--fresh` refuse the same way. `start-delphic.sh --prod` takes a **verified `pg_dump -Fc` into `./backups/` before it builds or migrates** and aborts if that fails; it has no `--restore` flag — restores are a deliberate manual `pg_restore` (DEPLOY-RUNBOOK §4). `prisma migrate deploy` (auto on `server` start) only applies pending migrations, never resets. New migrations must be additive / expand-contract — never a `DROP` in the same release as the code that stops using the column. Schedule `scripts/db-backup.sh` (cron / systemd timer) so incident loss is one interval, not hours.
+
 ## Backend logging
 
 Zero-dependency structured logger. Full guide: [guides/BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md).
