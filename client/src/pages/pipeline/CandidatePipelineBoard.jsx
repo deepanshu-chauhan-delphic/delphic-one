@@ -13,11 +13,13 @@ import {
   SUBMISSION_PIPELINE,
   canCreateSubmission,
   canMutateSubmission,
+  canOverrideSubmissionStage,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
 } from '../../lib/submissionStages.js';
 import SubmissionCreatePage from '../submissions/SubmissionCreatePage.jsx';
+import SubmissionStageOverrideDrawer from '../submissions/SubmissionStageOverrideDrawer.jsx';
 import { formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
@@ -186,12 +188,14 @@ export default function CandidatePipelineBoard() {
   });
   const [stageTarget, setStageTarget] = useState(null);
   const [preferredToStage, setPreferredToStage] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const canCreate = canCreateSubmission(user);
   const canMove = canMutateSubmission(user);
+  const canOverride = canOverrideSubmissionStage(user);
 
   async function postDirectMove(submission, toStage) {
     setMoving(true);
@@ -205,9 +209,27 @@ export default function CandidatePipelineBoard() {
     }
   }
 
+  async function applyOverride(body) {
+    if (!overrideTarget) return;
+    setMoving(true);
+    try {
+      await apiClient.post(`/submissions/${overrideTarget.submission.id}/stage/override`, body);
+      setOverrideTarget(null);
+      reload();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Stage override failed'), 'Something went wrong');
+    } finally {
+      setMoving(false);
+    }
+  }
+
   function requestMove(submission, toStage) {
     const allowed = nextSubmissionStages(submission.stage);
     if (!allowed.includes(toStage)) {
+      if (canOverride) {
+        setOverrideTarget({ submission, toStage });
+        return;
+      }
       pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
       return;
     }
@@ -341,6 +363,17 @@ export default function CandidatePipelineBoard() {
         }}
         onMove={moveStage}
       />
+
+      {canOverride && (
+        <SubmissionStageOverrideDrawer
+          submission={overrideTarget?.submission}
+          preferredToStage={overrideTarget?.toStage || ''}
+          open={Boolean(overrideTarget)}
+          saving={moving}
+          onClose={() => setOverrideTarget(null)}
+          onMove={applyOverride}
+        />
+      )}
 
       <Drawer open={createOpen} title="Put a candidate forward" onClose={() => setCreateOpen(false)} size="lg" tone="create">
         {createOpen && (

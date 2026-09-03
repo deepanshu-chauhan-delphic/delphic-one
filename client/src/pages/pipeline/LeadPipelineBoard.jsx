@@ -8,8 +8,9 @@ import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import AccountFormPage from '../accounts/AccountFormPage.jsx';
 import AccountStageMoveDrawer from '../accounts/AccountStageMoveDrawer.jsx';
+import AccountStageOverrideDrawer from '../accounts/AccountStageOverrideDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
-import { apiErrorMessage, canCreateAccount, canMutateAccount, ACCOUNT_TRANSITIONS } from '../accounts/accountUtils.js';
+import { apiErrorMessage, canCreateAccount, canMutateAccount, canOverrideStage, ACCOUNT_TRANSITIONS } from '../accounts/accountUtils.js';
 import { LEAD_COLUMNS, formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
@@ -102,11 +103,13 @@ export default function LeadPipelineBoard() {
   });
   const [stageTarget, setStageTarget] = useState(null);
   const [preferredToStage, setPreferredToStage] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const canCreate = canCreateAccount(user);
+  const canOverride = canOverrideStage(user);
 
   async function postDirectMove(account, toStage) {
     setMoving(true);
@@ -120,9 +123,28 @@ export default function LeadPipelineBoard() {
     }
   }
 
+  async function applyOverride(body) {
+    if (!overrideTarget) return;
+    setMoving(true);
+    try {
+      await apiClient.post(`/accounts/${overrideTarget.id}/stage/override`, body);
+      setOverrideTarget(null);
+      reload();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Stage override failed'), 'Something went wrong');
+    } finally {
+      setMoving(false);
+    }
+  }
+
   function requestMove(account, toStage) {
     const allowed = ACCOUNT_TRANSITIONS[account.stage] || [];
     if (!allowed.includes(toStage)) {
+      if (canOverride) {
+        setPreferredToStage(toStage);
+        setOverrideTarget(account);
+        return;
+      }
       pushError(`Cannot move from ${formatStageLabel(account.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
       return;
     }
@@ -257,6 +279,20 @@ export default function LeadPipelineBoard() {
         }}
         onMove={moveStage}
       />
+
+      {canOverride && (
+        <AccountStageOverrideDrawer
+          account={overrideTarget}
+          preferredToStage={preferredToStage}
+          open={Boolean(overrideTarget)}
+          saving={moving}
+          onClose={() => {
+            setOverrideTarget(null);
+            setPreferredToStage('');
+          }}
+          onMove={applyOverride}
+        />
+      )}
 
       <Drawer open={createOpen} title="New account" onClose={() => setCreateOpen(false)} size="lg" tone="create">
         {createOpen && (

@@ -206,6 +206,35 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
   });
 }
 
+// Superadmin-only: force a submission to any stage, ignoring the transition map, the
+// lock, and every gate (rounds resolved / BGV cleared). Still audited in stage_history
+// with an [override] reason prefix. Deliberately minimal — it does not touch seat
+// status, so a superadmin correcting a mistaken `closed` should also fix the seat.
+async function changeStageOverride(id, { to_stage, reason, is_locked }, user) {
+  return prisma.$transaction(async (tx) => {
+    const submission = await tx.submission.findUnique({ where: { id } });
+    if (!submission) return { error: 'not_found' };
+
+    const patch = { stage: to_stage };
+    if (is_locked !== undefined) patch.is_locked = is_locked;
+
+    const updated = await tx.submission.update({ where: { id }, data: patch, include: INCLUDE });
+
+    const history = await tx.stageHistory.create({
+      data: {
+        entity_type: 'submission',
+        entity_id: id,
+        from_stage: submission.stage,
+        to_stage,
+        changed_by: user.id,
+        reason: `[override] ${reason}`,
+      },
+    });
+
+    return { submission: serialize(updated), history };
+  });
+}
+
 async function getHistory(id) {
   return prisma.stageHistory.findMany({ where: { entity_type: 'submission', entity_id: id }, orderBy: { changed_at: 'asc' } });
 }
@@ -355,6 +384,7 @@ module.exports = {
   create,
   update,
   changeStage,
+  changeStageOverride,
   getHistory,
   addInterviewRound,
   updateInterviewRound,

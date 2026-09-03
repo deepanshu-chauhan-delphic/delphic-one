@@ -16,9 +16,11 @@ import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
 import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
+import SubmissionStageOverrideDrawer from './SubmissionStageOverrideDrawer.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMutateSubmission,
+  canOverrideSubmissionStage,
   computeMarginPreview,
   nextSubmissionStages,
   pipelineIndex,
@@ -102,6 +104,8 @@ export default function SubmissionDetailPage() {
   const [form, setForm] = useState(null);
   const [stageModal, setStageModal] = useState(null);
   const [stageReason, setStageReason] = useState('');
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const canOverrideStage = canOverrideSubmissionStage(user);
 
   const canEdit = canMutateSubmission(user) && submission && !submission.is_locked;
 
@@ -231,6 +235,19 @@ export default function SubmissionDetailPage() {
     }
   }
 
+  async function applyStageOverride(body) {
+    setBusy(true);
+    try {
+      await apiClient.post(`/submissions/${id}/stage/override`, body);
+      setOverrideOpen(false);
+      await load();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Stage override failed'), 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <DetailSkeleton />;
   if (!submission || !form) {
     return (
@@ -351,6 +368,14 @@ export default function SubmissionDetailPage() {
         )}
         {submission.stage === 'bgv' && (
           <p className="mt-2 text-xs text-tertiary-400">Closing requires BGV status cleared.</p>
+        )}
+        {canOverrideStage && (
+          <div className="mt-3 border-t border-tertiary-100 pt-3">
+            <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setOverrideOpen(true)}>
+              Override stage…
+            </button>
+            <span className="ml-2 text-xs text-tertiary-400">Superadmin — bypasses the transition rules.</span>
+          </div>
         )}
       </section>
 
@@ -760,6 +785,16 @@ export default function SubmissionDetailPage() {
           </p>
         )}
       </Modal>
+
+      {canOverrideStage && (
+        <SubmissionStageOverrideDrawer
+          submission={submission}
+          open={overrideOpen}
+          saving={busy}
+          onClose={() => !busy && setOverrideOpen(false)}
+          onMove={applyStageOverride}
+        />
+      )}
     </div>
   );
 }

@@ -17,8 +17,8 @@ const INPUT_CLASS =
  *   onClose: Close handler.
  *   onMove: Called with the override body ({ to_stage, reason, is_locked, meeting_*? }).
  */
-export default function AccountStageOverrideDrawer({ account, open, saving, onClose, onMove }) {
-  const [toStage, setToStage] = useState(account?.stage || 'lead');
+export default function AccountStageOverrideDrawer({ account, preferredToStage = '', open, saving, onClose, onMove }) {
+  const [toStage, setToStage] = useState(preferredToStage || account?.stage || 'lead');
   const [reason, setReason] = useState('');
   const [isLocked, setIsLocked] = useState(Boolean(account?.is_locked));
   const [meetingMode, setMeetingMode] = useState('online');
@@ -30,7 +30,7 @@ export default function AccountStageOverrideDrawer({ account, open, saving, onCl
 
   useEffect(() => {
     if (!open) return;
-    setToStage(account?.stage || 'lead');
+    setToStage(preferredToStage || account?.stage || 'lead');
     setReason('');
     setIsLocked(Boolean(account?.is_locked));
     setMeetingMode(account?.meeting_mode || 'online');

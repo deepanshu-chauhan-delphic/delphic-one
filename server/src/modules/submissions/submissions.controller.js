@@ -5,6 +5,7 @@ const {
   createSchema,
   updateSchema,
   stageSchema,
+  stageOverrideSchema,
   listQuerySchema,
   interviewRoundCreateSchema,
   interviewRoundUpdateSchema,
@@ -70,6 +71,13 @@ const changeStage = asyncHandler(async (req, res) => {
   return ok(res, result.submission);
 });
 
+const changeStageOverride = asyncHandler(async (req, res) => {
+  const body = stageOverrideSchema.parse(req.body);
+  const result = await service.changeStageOverride(req.params.id, body, req.user);
+  if (result.error) return mapError(res, result.error);
+  return ok(res, result.submission);
+});
+
 const history = asyncHandler(async (req, res) => {
   const submission = await service.getById(req.params.id);
   if (!submission) return fail(res, 404, 'Not found');
@@ -94,4 +102,4 @@ const updateRound = asyncHandler(async (req, res) => {
   return ok(res, result.round);
 });
 
-module.exports = { list, getOne, create, update, changeStage, history, addRound, updateRound };
+module.exports = { list, getOne, create, update, changeStage, changeStageOverride, history, addRound, updateRound };

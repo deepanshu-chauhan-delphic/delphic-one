@@ -12,10 +12,12 @@ import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMutateSubmission,
+  canOverrideSubmissionStage,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
 } from '../../lib/submissionStages.js';
+import SubmissionStageOverrideDrawer from '../submissions/SubmissionStageOverrideDrawer.jsx';
 import { formatStageLabel } from '../pipeline/pipelineBoardUtils.js';
 import {
   DndContext,
@@ -134,10 +136,12 @@ export default function RequirementKanbanPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [reasonModal, setReasonModal] = useState(null);
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
 
   const canMove = canMutateSubmission(user);
+  const canOverride = canOverrideSubmissionStage(user);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -186,13 +190,32 @@ export default function RequirementKanbanPage() {
     }
   }
 
+  async function applyOverride(body) {
+    if (!overrideTarget) return;
+    setBusyId(overrideTarget.submission.id);
+    try {
+      await apiClient.post(`/submissions/${overrideTarget.submission.id}/stage/override`, body);
+      setOverrideTarget(null);
+      await load();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Stage override failed'), 'Something went wrong');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function requestMove(submission, to_stage) {
-    if (!canMove || submission.is_locked) return;
+    if ((!canMove || submission.is_locked) && !canOverride) return;
     const allowed = nextSubmissionStages(submission.stage);
     if (!allowed.includes(to_stage)) {
+      if (canOverride) {
+        setOverrideTarget({ submission, to_stage });
+        return;
+      }
       pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(to_stage)}`, 'Validation');
       return;
     }
+    if (submission.is_locked) return;
     if (needsReason(to_stage)) {
       setReasonModal({ submission, to_stage });
       return;
@@ -317,6 +340,17 @@ export default function RequirementKanbanPage() {
         onClose={() => setReasonModal(null)}
         onConfirm={(reason) => postMove(reasonModal.submission, reasonModal.to_stage, reason)}
       />
+
+      {canOverride && (
+        <SubmissionStageOverrideDrawer
+          submission={overrideTarget?.submission}
+          preferredToStage={overrideTarget?.to_stage || ''}
+          open={Boolean(overrideTarget)}
+          saving={busyId === overrideTarget?.submission?.id}
+          onClose={() => setOverrideTarget(null)}
+          onMove={applyOverride}
+        />
+      )}
     </div>
   );
 }

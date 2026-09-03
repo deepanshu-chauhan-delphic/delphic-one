@@ -50,6 +50,18 @@ const stageSchema = z.object({
   rejection_reason: z.string().optional(),
 });
 
+// Superadmin-only: force a submission to ANY stage (backward, straight to sourced,
+// out of a terminal state), bypassing the transition map, lock, and gates. Reason
+// required; audited in stage_history with an [override] prefix.
+const stageOverrideSchema = z.object({
+  to_stage: z.enum([
+    'sourced', 'internal_screening', 'submitted_to_client', 'interview_scheduled',
+    'interview_result', 'offer_sent', 'bgv', 'closed', 'backout', 'rejected',
+  ]),
+  reason: z.string().min(1),
+  is_locked: z.boolean().optional(),
+});
+
 const listQuerySchema = z.object({
   account_id: z.string().uuid().optional(),
   requirement_id: z.string().uuid().optional(),
@@ -97,6 +109,7 @@ module.exports = {
   createSchema,
   updateSchema,
   stageSchema,
+  stageOverrideSchema,
   listQuerySchema,
   interviewRoundCreateSchema,
   interviewRoundUpdateSchema,

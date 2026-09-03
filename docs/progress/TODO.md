@@ -30,6 +30,9 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 - [ ] Manual click-through (2026-09-03): matrix "Assigned recruiters" + "Submitted by" + "All admins" filters narrow the board and round-trip through the URL; sales user sees only "Move to submitted to client" on an owned submission at `internal_screening` (and 403 on anything else); Requirements list shows Tagged Profiles counts; Accounts "Brought by" filter + column; CWR report shows lead/meeting/dropped accounts per the Stage filter after an API restart.
 - [ ] Dashboard date-range filter bar is **inert for every metric** (never sent to `/dashboard/summary`, which has no date params). Decide: wire it through, or remove it. Stuck cards are now explicitly "as of today".
 - [ ] Decide CWR semantics: keep `requirements: { none: {} }` ("never had a requirement") or switch to "no open/in-progress requirement" so dropped-then-closed clients surface.
+- [x] **2026-09-03** — Superadmin stage override for submissions (`POST /submissions/:id/stage/override`, `authorizeSuperadmin`, reason required, audited); a disallowed drag on the submission/account boards opens the override drawer for a superadmin instead of the "Cannot move" toast (`SubmissionDetailPage`, `RequirementKanbanPage`, `CandidatePipelineBoard`, `AccountPipelineBoardPage`, `LeadPipelineBoard`, `AccountsListPage`). See PROGRESS.md 2026-09-03 §8.
+- [ ] Manual click-through (superadmin): drag a candidate backward (submitted_to_client → internal_screening) and an account backward (active → rescheduled) on every board listed above; confirm the override drawer opens preset to the drop target, the move lands, and `stage_history` shows `[override] …`. Confirm an ordinary admin still gets the validation toast.
+- [ ] `submission/:id/stage/override` has no test yet — add to `submissions-stage.test.js` (superadmin can, admin/recruiter/sales get 403) when `localhost:5434` is up.
 
 ## Frontend (open — see sprint tickets)
 

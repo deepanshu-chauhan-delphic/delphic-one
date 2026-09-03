@@ -77,6 +77,25 @@ Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md
   admin. Superadmin inline-edit `CoveragePersonCell` still gets the full user list.
   Tradeoff: a BDA-owned client is no longer selectable in "Sales POC" (use "Brought by").
 
+### 8. Superadmin stage override — submissions + wired onto the boards
+
+- **New:** `POST /submissions/:id/stage/override` (`authorizeSuperadmin`) — force a
+  submission to ANY stage (backward, straight to `sourced`, out of a terminal state),
+  bypassing `SUBMISSION_STAGE_TRANSITIONS`, the lock, and the round/BGV gates. Reason
+  required; audited in `stage_history` as `[override] <reason>`. Deliberately minimal —
+  it does not touch seat status. `stageOverrideSchema` + `service.changeStageOverride` +
+  `controller` + route. Mirrors the existing account `POST /accounts/:id/stage/override`.
+- **New component** `SubmissionStageOverrideDrawer` (stage select + required reason).
+  `submissionStages.js` gains `SUBMISSION_ALL_STAGES` + `canOverrideSubmissionStage`.
+- Wired so a superadmin dragging a card to a disallowed column opens the override drawer
+  (preset to the drop target) instead of the "Cannot move from X to Y" toast:
+  - submissions — `SubmissionDetailPage` ("Override stage…" button), `RequirementKanbanPage`,
+    `CandidatePipelineBoard`, `AccountPipelineBoardPage`.
+  - accounts — `LeadPipelineBoard` + `AccountsListPage` peek now route a disallowed
+    move to the existing `AccountStageOverrideDrawer` (which gained a `preferredToStage`
+    prop). `AccountDetailPage` already had it.
+- Ordinary roles are unaffected — the disallowed-move toast still fires for them.
+
 ## 2026-09-02 — Fix: account edit form crashed on null columns ("Failed to update account")
 
 `main`. Client-only. `vite build` + `accountUtils.test.mjs` green.

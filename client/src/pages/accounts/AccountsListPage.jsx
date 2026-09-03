@@ -12,15 +12,17 @@ import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import AccountFormPage from './AccountFormPage.jsx';
 import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
+import AccountStageOverrideDrawer from './AccountStageOverrideDrawer.jsx';
 import {
   ACCOUNT_TRANSITIONS,
   accountKey,
   apiErrorMessage,
   canCreateAccount,
   canMutateAccount,
+  canOverrideStage,
 } from './accountUtils.js';
 
-function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
+function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestStageOverride }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [detail, setDetail] = useState(row);
@@ -37,6 +39,7 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
 
   const canEdit = canMutateAccount(detail, user) && !detail.is_locked;
   const nextStages = ACCOUNT_TRANSITIONS[detail.stage] || [];
+  const canOverride = canOverrideStage(user);
 
   return (
     <div className="space-y-4">
@@ -68,6 +71,11 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove }) {
         {canEdit && nextStages.length > 0 && (
           <button type="button" className="btn-primary" onClick={() => onRequestStageMove(detail)}>
             Move stage
+          </button>
+        )}
+        {canOverride && (
+          <button type="button" className="btn-ghost" onClick={() => onRequestStageOverride(detail)}>
+            Override stage
           </button>
         )}
         <button
@@ -103,6 +111,7 @@ export default function AccountsListPage() {
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [peek, setPeek] = useState(null);
   const [stageTarget, setStageTarget] = useState(null);
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [movingStage, setMovingStage] = useState(false);
 
   function reload() {
@@ -167,6 +176,21 @@ export default function AccountsListPage() {
       reload();
     } catch (requestError) {
       pushError(apiErrorMessage(requestError, 'Failed to move account stage'), 'Something went wrong');
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
+  async function moveStageOverride(body) {
+    if (!overrideTarget) return;
+    setMovingStage(true);
+    try {
+      const { data } = await apiClient.post(`/accounts/${overrideTarget.id}/stage/override`, body);
+      setOverrideTarget(null);
+      setPeek(data.data || overrideTarget);
+      reload();
+    } catch (requestError) {
+      pushError(apiErrorMessage(requestError, 'Failed to override account stage'), 'Something went wrong');
     } finally {
       setMovingStage(false);
     }
@@ -381,6 +405,9 @@ export default function AccountsListPage() {
             onRequestStageMove={(account) => {
               setStageTarget(account);
             }}
+            onRequestStageOverride={(account) => {
+              setOverrideTarget(account);
+            }}
           />
         )}
       </Drawer>
@@ -391,6 +418,14 @@ export default function AccountsListPage() {
         saving={movingStage}
         onClose={() => setStageTarget(null)}
         onMove={moveStage}
+      />
+
+      <AccountStageOverrideDrawer
+        account={overrideTarget}
+        open={Boolean(overrideTarget)}
+        saving={movingStage}
+        onClose={() => setOverrideTarget(null)}
+        onMove={moveStageOverride}
       />
 
       <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="lg" tone="create">

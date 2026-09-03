@@ -24,6 +24,14 @@ export const SUBMISSION_PIPELINE = [
   'closed',
 ];
 
+// Every stage, for the superadmin override drawer (backward moves, out of a
+// terminal state, straight to sourced) — bypasses SUBMISSION_STAGE_TRANSITIONS.
+export const SUBMISSION_ALL_STAGES = [...SUBMISSION_PIPELINE, 'backout', 'rejected'];
+
+export function canOverrideSubmissionStage(user) {
+  return Boolean(user?.is_superadmin);
+}
+
 // Named candidate interview rounds. Composition is intentionally flexible (rounds can be
 // added/shortened) without touching SUBMISSION_STAGE_TRANSITIONS - only these lists change.
 export const ROUND_TYPES = ['internal_r1', 'internal_r2', 'client_r1', 'client_r2', 'client_r3', 'hr_cto_ceo'];

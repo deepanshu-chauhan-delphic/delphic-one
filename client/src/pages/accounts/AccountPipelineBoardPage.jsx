@@ -17,11 +17,13 @@ import { BOARD_COLUMNS, groupBoard, stageColumnStats } from '../../lib/accountBo
 import {
   canCreateSubmission,
   canMutateSubmission,
+  canOverrideSubmissionStage,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
   SUBMISSION_STAGE_TRANSITIONS,
 } from '../../lib/submissionStages.js';
+import SubmissionStageOverrideDrawer from '../submissions/SubmissionStageOverrideDrawer.jsx';
 import { canCreateRequirement } from '../../lib/requirementStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
@@ -156,6 +158,7 @@ export default function AccountPipelineBoardPage() {
   const [busyId, setBusyId] = useState(null);
   const [stageModal, setStageModal] = useState(null);
   const [stageReason, setStageReason] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState(null);
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const [isAccountStageOpen, setIsAccountStageOpen] = useState(false);
@@ -166,6 +169,7 @@ export default function AccountPipelineBoardPage() {
   const [submitForReqId, setSubmitForReqId] = useState(null);
 
   const canMoveSubs = canMutateSubmission(user);
+  const canOverrideSubs = canOverrideSubmissionStage(user);
   const canSubmit = canCreateSubmission(user);
   const canAddRequirement = canCreateRequirement(user);
   const canAddProfile = canCreateProfile(user);
@@ -228,13 +232,32 @@ export default function AccountPipelineBoardPage() {
     }
   }
 
+  async function applyStageOverride(body) {
+    if (!overrideTarget) return;
+    setBusyId(overrideTarget.submission.id);
+    try {
+      await apiClient.post(`/submissions/${overrideTarget.submission.id}/stage/override`, body);
+      setOverrideTarget(null);
+      await load();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Stage override failed'), 'Something went wrong');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function requestStageMove(submission, to_stage) {
-    if (!canMoveSubs || submission.is_locked) return;
+    if ((!canMoveSubs || submission.is_locked) && !canOverrideSubs) return;
     const allowed = SUBMISSION_STAGE_TRANSITIONS[submission.stage] || [];
     if (!allowed.includes(to_stage)) {
+      if (canOverrideSubs) {
+        setOverrideTarget({ submission, to_stage });
+        return;
+      }
       pushError(`Cannot move from ${submission.stage.replace(/_/g, ' ')} to ${to_stage.replace(/_/g, ' ')}`, 'Validation');
       return;
     }
+    if (submission.is_locked) return;
     if (requiresBackoutReason(to_stage) || requiresRejectionReason(to_stage)) {
       setStageReason('');
       setStageModal({ submission, to_stage });
@@ -571,6 +594,17 @@ export default function AccountPipelineBoardPage() {
           saving={movingAccountStage}
           onClose={() => setIsAccountStageOpen(false)}
           onMove={moveAccountStage}
+        />
+      )}
+
+      {canOverrideSubs && (
+        <SubmissionStageOverrideDrawer
+          submission={overrideTarget?.submission}
+          preferredToStage={overrideTarget?.to_stage || ''}
+          open={Boolean(overrideTarget)}
+          saving={busyId === overrideTarget?.submission?.id}
+          onClose={() => setOverrideTarget(null)}
+          onMove={applyStageOverride}
         />
       )}
 
