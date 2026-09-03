@@ -2,6 +2,69 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — Latency optimization, phases 0–1 (instrumentation + quick wins)
+
+`main`, uncommitted. One additive migration (`20260903105051_perf_indexes`, create-index
+only — safe on populated data). Full server suite green (29 suites / 194 tests). Lint clean
+(0 errors). Plan: `~/.claude/plans/ui-and-api-calling-giggly-phoenix.md` (phases 2–3 pending).
+
+**Trigger:** UI + API felt slow; no measurement existed to say which layer. Exploration found
+latency compounding at transport (no compression / asset caching / HTTP2), bundle (no
+code-split), client data layer (no cache — every nav/filter refetches), DB (hot columns
+unindexed, Postgres fully default), and hot endpoints (`/pipeline/board`, `/reports/*`,
+`/dashboard` fetch unbounded / fan out per-actor).
+
+### Phase 0 — instrumentation (kept permanently)
+
+- `server/src/config/requestContext.js` (new) — `AsyncLocalStorage` per-request store.
+- `config/db.js` — Prisma `$extends({ query: { $allOperations } })` times every op and adds
+  it to the request store (a client extension keeps the async context; `$on('query')`
+  would not). `log` unchanged (`warn`+`error` dev, `error` prod).
+- `middleware/requestLogger.js` — wraps `next()` in the store; every `http_request` line now
+  carries `db_ms`, `db_queries`, `handler_ms`. NB `db_ms` is summed Prisma-op time, so it
+  exceeds wall time when a handler runs queries in `Promise.all` (e.g. dashboard shows
+  `db_queries:21`). Still the signal for query-heavy endpoints.
+- `docker-compose.yml` `db` — `command:` adds `pg_stat_statements` (needs one-time
+  `CREATE EXTENSION`), `log_min_duration_statement=200`, and SSD/RAM tuning
+  (`shared_buffers`/`effective_cache_size`/`work_mem`/`maintenance_work_mem` via
+  `PG_*` env, `random_page_cost=1.1`, `effective_io_concurrency=200`).
+
+### Phase 1 — quick wins (no app-logic change)
+
+- **`compression`** added to `server` deps + `app.js` (after `helmet`, before routes).
+- **DB indexes** (`schema.prisma` + migration): `Requirement` `updated_at`/`created_at`/
+  `closed_at`/`(status,updated_at)`/`(sales_owner_id,status)`; `Submission` `submitted_by`/
+  `updated_at`/`created_at`/`actual_joining_date`/`(requirement_seat_id,stage)`/
+  `(submitted_by,created_at)`; `Account` `updated_at`/`created_at`; `StageHistory`
+  `changed_at`/`changed_by`/`(entity_type,entity_id,changed_at)`; `Profile`
+  `vendor_account_id`/`created_at`; `InterviewRound` `scheduled_at`/`completed_at`.
+- **Prisma pool**: `DATABASE_URL` gains `?connection_limit=${DB_CONNECTION_LIMIT:-15}&pool_timeout=20`
+  in both compose files; documented in `server/.env.example`.
+- **`client/nginx.conf`**: `gzip on` for JS/CSS/JSON/SVG; `expires 1y; immutable` for
+  `/assets/` + hashed files; `Cache-Control: no-cache` for `index.html`. Keeps SPA fallback.
+- **`nginx.conf.example`** (host): gzip block, `upstream … keepalive 32` + `Connection ""`,
+  and post-certbot `http2 on;` instructions.
+- **`express.static` `/uploads`**: `{ maxAge: '7d' }`.
+- **prod healthcheck**: `wget` instead of a fresh `node -e "fetch()"` every 10s; interval 30s.
+
+### Not done (pending phases)
+
+- Phase 2 — `/pipeline/board` + `/reports/explorer` pagination/`select`, `reports.service.js`
+  per-actor loops → `groupBy`, dashboard short-TTL cache, `submissions` `INCLUDE` `select`.
+- Phase 3 — route code-splitting + Vite `manualChunks`, adopt TanStack Query, board drag
+  memoization, `authContext`/`alertContext`/`permissions` referential stability.
+
+### Deploy notes
+
+- Migration is create-index only; `prisma migrate deploy` applies it on `server` start. Take
+  the usual `pg_dump` first. On large tables consider hand-editing to
+  `CREATE INDEX CONCURRENTLY` (current volume small — not needed).
+- After first prod boot with the new `db` `command:`, run once:
+  `docker compose exec db psql -U postgres -d requirement_dashboard -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'`
+- Tune `PG_SHARED_BUFFERS` / `PG_EFFECTIVE_CACHE_SIZE` / `DB_CONNECTION_LIMIT` to the VPS.
+- Host nginx (`/etc/nginx/sites-enabled/delphic`) is outside the repo — apply the
+  `nginx.conf.example` gzip/keepalive/http2 changes there and `nginx -t && systemctl reload`.
+
 ## 2026-09-03 — Ticket undo/reactivate, actor names, Brought-by admin, report tweaks
 
 `main`, uncommitted. No schema/migration change.

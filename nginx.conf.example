@@ -10,6 +10,24 @@
 # Then obtain TLS. Certbot rewrites this file to add the 443 server block and
 # the HTTP-to-HTTPS redirect, so this file stays HTTP-only on purpose:
 #   sudo certbot --nginx -d app.yourdomain.com
+#
+# AFTER certbot runs, edit the generated `listen 443 ssl;` line to enable HTTP/2
+# (older certbot does not add it):
+#   listen 443 ssl;
+#   http2 on;              # nginx >= 1.25.1 — one directive, applies to all 443 listens
+# HTTP/2 multiplexes the many parallel asset + API requests over one connection.
+
+# Keepalive pool to the client container — avoids a fresh TCP handshake per
+# proxied request. The container in turn proxies /api to the server container.
+upstream delphic_client {
+    server 127.0.0.1:8081;
+    keepalive 32;
+}
+
+# gzip lives in the http{} context. If your main /etc/nginx/nginx.conf already
+# sets `gzip on` you only need the gzip_types / gzip_proxied lines here — a
+# duplicate `gzip on` in a server{} block is also fine.
+# For brotli, install libnginx-mod-http-brotli and add `brotli on; brotli_types ...`.
 
 server {
     listen 80;
@@ -18,9 +36,25 @@ server {
     # Must exceed MAX_UPLOAD_MB (default 10) with headroom.
     client_max_body_size 12m;
 
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 6;
+    gzip_min_length 256;
+    gzip_proxied any;
+    gzip_types
+        application/javascript
+        application/json
+        application/xml
+        font/woff2
+        image/svg+xml
+        text/css
+        text/plain
+        text/xml;
+
     location / {
-        proxy_pass http://127.0.0.1:8081;
+        proxy_pass http://delphic_client;
         proxy_http_version 1.1;
+        proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -6,6 +6,31 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-requirement_dashboard}
+    # Perf + observability. Memory values assume a ~2GB DB host — tune to the
+    # actual box (roughly shared_buffers = 25% RAM, effective_cache_size = 60-70%).
+    # random_page_cost=1.1 + effective_io_concurrency=200 tell the planner the
+    # volume is SSD-backed. log_min_duration_statement logs any statement >200ms.
+    # pg_stat_statements needs a one-time `CREATE EXTENSION pg_stat_statements;`.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - log_min_duration_statement=200
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-768MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-64MB}
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
     ports:
       - '${POSTGRES_PORT:-5434}:5432'
     volumes:
@@ -30,7 +55,7 @@ services:
       HOST_API_PORT: ${API_PORT:-4000}
       HOST_CLIENT_PORT: ${CLIENT_PORT:-8081}
       HOST_DB_PORT: ${POSTGRES_PORT:-5434}
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-requirement_dashboard}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-requirement_dashboard}?connection_limit=${DB_CONNECTION_LIMIT:-15}&pool_timeout=20
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local_dev_access_secret_do_not_use_in_prod_01}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local_dev_refresh_secret_do_not_use_in_prod_01}
       JWT_ACCESS_EXPIRES: 1h

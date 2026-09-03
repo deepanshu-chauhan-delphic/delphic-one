@@ -18,24 +18,20 @@ services:
   server:
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-requirement_dashboard}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-requirement_dashboard}?connection_limit=${DB_CONNECTION_LIMIT:-15}&pool_timeout=20
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN}
     # !override replaces the base publish instead of adding a second one.
     ports: !override
       - '127.0.0.1:${API_PORT:-4000}:4000'
+    # wget avoids spawning a fresh ~1s Node cold-start every interval, which
+    # otherwise steals CPU from the single API worker.
     healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:4000/api/v1/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://127.0.0.1:4000/api/v1/health']
+      interval: 30s
       timeout: 5s
-      retries: 12
+      retries: 6
       start_period: 40s
     logging:
       driver: json-file

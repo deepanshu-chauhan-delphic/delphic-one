@@ -22,6 +22,33 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [ ] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`.
 - [ ] **Docs finalize** — as-built notes in the feature spec; dated `PROGRESS.md` entry; note the bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; flip the three v2 rows in `architecture/API-Spec-and-Build-Plan.md`.
 
+## Performance / latency (plan: `~/.claude/plans/ui-and-api-calling-giggly-phoenix.md`)
+
+- [x] **2026-09-03 Phase 0** — per-request DB timing (`config/requestContext.js` +
+  Prisma `$extends`); `http_request` logs now carry `db_ms` / `db_queries` / `handler_ms`.
+  Postgres `pg_stat_statements` + `log_min_duration_statement=200` + SSD/RAM tuning in
+  `docker-compose.yml`.
+- [x] **2026-09-03 Phase 1** — `compression` middleware; perf-index migration
+  (`20260903105051_perf_indexes`); Prisma `connection_limit`; `client/nginx.conf` gzip +
+  immutable asset caching; `nginx.conf.example` gzip/keepalive/http2; `/uploads` `maxAge`;
+  prod healthcheck uses `wget`.
+- [ ] **Prod apply (Phase 1)**: `pg_dump`; deploy applies the index migration; then
+  `CREATE EXTENSION IF NOT EXISTS pg_stat_statements;` once; tune `PG_*` / `DB_CONNECTION_LIMIT`
+  to the VPS; apply gzip/keepalive/`http2 on` to host `/etc/nginx/sites-enabled/delphic`.
+- [ ] **Phase 2 (backend refactors)** — `/pipeline/board` + `/reports/explorer` DB pagination
+  + `select` + push `stuck`/stage filters into `where`; `reports.service.js` per-actor loops
+  → `groupBy`/`aggregate`, parallelize `aging`'s 6 queries; dashboard `getSummary` short-TTL
+  cache + collapse redundant `account.count` into the `groupBy`s; `select` on
+  `submissions.service.js` `INCLUDE`.
+- [ ] **Phase 3 (frontend refactors)** — `React.lazy` per route + Vite `manualChunks`
+  (`recharts`/`@dnd-kit`/reports); adopt `@tanstack/react-query` (`lib/queries/`, migrate
+  list/detail/peek/dashboard/pipeline fetches, `keepPreviousData`, debounce search, add
+  pagination to `SubmissionsListPage`); `React.memo` pipeline cards + `onDragOver` bail;
+  `useMemo`/`useCallback` `authContext` value + `usePermissions`; split `alertContext` into
+  stable-dispatch + volatile-list; `React.memo` `DataTable`.
+- [ ] Capture before/after `duration_ms` / `db_ms` / `db_queries` per phase on a restored
+  real-data DB (`./start-platform.sh --restore`).
+
 ## Backend
 
 - [x] Install, migrate, seed, Docker end-to-end verified.

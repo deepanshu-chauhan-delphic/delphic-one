@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const env = require('./config/env');
@@ -28,10 +29,15 @@ const app = express();
 
 app.set('trust proxy', 1);
 app.use(helmet());
+app.use(compression());
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(requestLogger);
-app.use('/uploads', authenticate, express.static(path.resolve(env.uploadDir)));
+app.use(
+  '/uploads',
+  authenticate,
+  express.static(path.resolve(env.uploadDir), { maxAge: '7d' })
+);
 
 // Login is stricter than the general API (brute-force); both are per-IP windows.
 // The general limit is generous: the dashboard is request-dense (many widgets per
