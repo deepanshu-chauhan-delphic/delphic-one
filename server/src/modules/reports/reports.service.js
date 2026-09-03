@@ -752,13 +752,13 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
  * Active client coverage report (UI: "Clients without requirements").
  *
  * Always filtered to `stage: 'active'` when a bucket is supplied.
- * `bucket`:
- *   - `with_requirements` — active clients with ≥1 open/in_progress requirement.
- *   - `without_active_requirements` — active clients that have **never had any
- *     requirement** (requirement count zero). A client whose only requirements are
- *     on_hold / closed / dropped is in neither bucket by design.
- * Legacy callers with neither bucket nor stage keep the old behaviour:
- * accounts with literally zero requirements (any stage).
+ * `bucket` (a partition of the stage-filtered client set):
+ *   - `all` — every client, no requirement filter.
+ *   - `with_requirements` — has ≥1 requirement of ANY status
+ *     (open / in_progress / on_hold / closed / dropped).
+ *   - `without_active_requirements` — has never had a requirement (count zero).
+ * `with_requirements` + `without_active_requirements` sum to `all`.
+ * Legacy callers with no bucket keep the old behaviour: zero requirements.
  */
 async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket, date_from, date_to }) {
   const effectiveStage = bucket ? (stage || 'active') : stage;
@@ -776,15 +776,14 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
   };
 
   let requirementFilter;
-  if (bucket === 'with_requirements') {
-    // "Covered" = has live work.
-    requirementFilter = { requirements: { some: { status: { in: ['open', 'in_progress'] } } } };
+  if (bucket === 'all') {
+    requirementFilter = {};
+  } else if (bucket === 'with_requirements') {
+    requirementFilter = { requirements: { some: {} } };
   } else if (bucket === 'without_active_requirements') {
-    // The gap list is strictly "no requirement ever" — a client with only
-    // on_hold / closed / dropped requirements does not belong here.
     requirementFilter = { requirements: { none: {} } };
   } else {
-    // Legacy default: no requirements at all.
+    // Legacy default (no bucket): no requirements at all.
     requirementFilter = { requirements: { none: {} } };
   }
 

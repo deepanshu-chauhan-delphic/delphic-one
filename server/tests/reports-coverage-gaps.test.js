@@ -134,7 +134,7 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(res.body.data.map((r) => r.client.id)).toContain(unclassifiedLead.id);
   });
 
-  test('bucket=with_requirements vs without_active_requirements', async () => {
+  test('bucket all / with_requirements / without_active_requirements partition the set', async () => {
     const idle = await createActiveClientAccount(bda.id);
     const withOpenReq = await createActiveClientAccount(bda.id);
     await createRequirement(salesToken, withOpenReq.id, { title: 'Open req' });
@@ -143,34 +143,29 @@ describe('GET /reports/clients-without-requirements', () => {
     const holdReq = await createRequirement(salesToken, onlyHold.id, { title: 'Hold req' });
     await prisma.requirement.update({ where: { id: holdReq.id }, data: { status: 'on_hold' } });
 
-    const withBucket = await authed(
-      request(app)
-        .get('/api/v1/reports/clients-without-requirements')
-        .query({ stage: 'active', bucket: 'with_requirements' }),
-      adminToken
-    );
-    expect(withBucket.status).toBe(200);
-    const withIds = withBucket.body.data.map((r) => r.client.id);
-    expect(withIds).toContain(withOpenReq.id);
-    // A client whose only requirement is on_hold has no LIVE work — not here.
-    expect(withIds).not.toContain(onlyHold.id);
+    const get = (bucket) =>
+      authed(
+        request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'active', bucket }),
+        adminToken
+      );
+
+    const allIds = (await get('all')).body.data.map((r) => r.client.id);
+    const withIds = (await get('with_requirements')).body.data.map((r) => r.client.id);
+    const withoutIds = (await get('without_active_requirements')).body.data.map((r) => r.client.id);
+
+    // "Has requirements" = any status, incl. on_hold.
+    expect(withIds).toEqual(expect.arrayContaining([withOpenReq.id, onlyHold.id]));
     expect(withIds).not.toContain(idle.id);
 
-    const withoutActive = await authed(
-      request(app)
-        .get('/api/v1/reports/clients-without-requirements')
-        .query({ stage: 'active', bucket: 'without_active_requirements' }),
-      adminToken
-    );
-    expect(withoutActive.status).toBe(200);
-    const withoutIds = withoutActive.body.data.map((r) => r.client.id);
-    // Strictly "never had a requirement" — only the idle client.
+    // "No requirements" = never had one.
     expect(withoutIds).toContain(idle.id);
     expect(withoutIds).not.toContain(onlyHold.id);
     expect(withoutIds).not.toContain(withOpenReq.id);
 
-    // No client id appears in both buckets.
+    // all == with ∪ without, and with ∩ without == ∅.
+    expect(allIds).toEqual(expect.arrayContaining([idle.id, withOpenReq.id, onlyHold.id]));
     expect(withIds.filter((id) => withoutIds.includes(id))).toEqual([]);
+    expect([...withIds, ...withoutIds].sort()).toEqual([...allIds].sort());
   });
 
   test('filters by Brought by (origin_owner_id)', async () => {

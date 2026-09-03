@@ -2,6 +2,21 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — CWR: 3-way toggle (All / Has requirements / No requirements), default All
+
+The two-tab view left a gap: clients whose only requirements are on_hold /
+closed / dropped were in neither tab, so the tabs didn't sum to the stage total
+(e.g. 8 + 22 ≠ 36).
+
+- `bucket` enum gains `all`. **`with_requirements` now = `requirements: { some: {} }`**
+  (any status, not just open/in_progress). `without_active_requirements` unchanged
+  (`none: {}`). The three now partition the stage-filtered client set:
+  `all == with ∪ without`, `with ∩ without == ∅` (verified on the restored DB:
+  79 = 10 + 69).
+- Reports page: 3-button toggle, **default "All active clients"**; labels
+  All active clients / Has requirements / No requirements.
+- Test rewritten to assert the partition across all three buckets.
+
 ## 2026-09-03 — Coverage reports: Brought-by + date filters, and complete people dropdowns
 
 - **RVG filters**: added **Brought by** (`origin_owner_id`) and a **date range**

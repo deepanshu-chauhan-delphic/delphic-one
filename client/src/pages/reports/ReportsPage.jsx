@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Building2, CircleAlert } from 'lucide-react';
+import { Building2, CircleAlert, LayoutGrid } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -178,7 +178,7 @@ export default function ReportsPage() {
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
   // CWR toggle: active clients with reqs vs active clients without open/in_progress reqs.
-  const [coverageBucket, setCoverageBucket] = useState('without_active_requirements');
+  const [coverageBucket, setCoverageBucket] = useState('all');
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
   // recruiter-vendor-gaps: filter by vendor account, the vendor's POC from our end,
@@ -364,7 +364,7 @@ export default function ReportsPage() {
     // Both toggle buckets are active-client views — always send stage=active.
     if (isClientsWithoutReqs) {
       params.stage = 'active';
-      params.bucket = coverageBucket || 'without_active_requirements';
+      params.bucket = coverageBucket || 'all';
     }
     if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
     if (isRvg && rvgPocId) params.owner_id = rvgPocId;
@@ -505,7 +505,7 @@ export default function ReportsPage() {
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
-              setCoverageBucket('without_active_requirements');
+              setCoverageBucket('all');
               setRvgVendorId('');
               setRvgPocId('');
               setRvgBroughtById('');
@@ -731,7 +731,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Active-stage clients only · switch between covered and gap lists
+                Active-stage clients · All = has a requirement + never had one
               </p>
             </div>
             {!loading && (
@@ -741,21 +741,27 @@ export default function ReportsPage() {
             )}
           </div>
           <div
-            className="grid gap-2 sm:grid-cols-2"
+            className="grid gap-2 sm:grid-cols-3"
             role="tablist"
             aria-label="Active client coverage"
           >
             {[
               {
+                key: 'all',
+                label: 'All active clients',
+                hint: 'Every client in the active stage',
+                Icon: LayoutGrid,
+              },
+              {
                 key: 'with_requirements',
-                label: 'Active clients',
-                hint: 'Have an open / in-progress requirement',
+                label: 'Has requirements',
+                hint: 'At least one requirement (open, in-progress, hold, closed or dropped)',
                 Icon: Building2,
               },
               {
                 key: 'without_active_requirements',
                 label: 'No requirements',
-                hint: 'Active clients that have never had a requirement',
+                hint: 'Never had a requirement',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {

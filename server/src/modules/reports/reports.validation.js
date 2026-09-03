@@ -41,7 +41,7 @@ const coverageSchema = z.object({
   vendor_id: optionalUuid,
   owner_id: optionalUuid,
   stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
-  bucket: z.enum(['with_requirements', 'without_active_requirements']).optional(),
+  bucket: z.enum(['all', 'with_requirements', 'without_active_requirements']).optional(),
   vendor_activity: z.enum(['active', 'inactive']).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
