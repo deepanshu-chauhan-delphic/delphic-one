@@ -740,10 +740,11 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
  * Active client coverage report (UI: "Clients without requirements").
  *
  * Always filtered to `stage: 'active'` when a bucket is supplied.
- * `bucket` (the two are complementary — every active client is in exactly one):
+ * `bucket`:
  *   - `with_requirements` — active clients with ≥1 open/in_progress requirement.
- *   - `without_active_requirements` — active clients with no open/in_progress
- *     requirement (zero requirements, or only on_hold / closed / dropped).
+ *   - `without_active_requirements` — active clients that have **never had any
+ *     requirement** (requirement count zero). A client whose only requirements are
+ *     on_hold / closed / dropped is in neither bucket by design.
  * Legacy callers with neither bucket nor stage keep the old behaviour:
  * accounts with literally zero requirements (any stage).
  */
@@ -762,16 +763,12 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
 
   let requirementFilter;
   if (bucket === 'with_requirements') {
-    // "Covered" = has live work. Must be the exact complement of
-    // without_active_requirements, otherwise a client whose only requirements are
-    // closed/on_hold/dropped shows up under both toggles.
+    // "Covered" = has live work.
     requirementFilter = { requirements: { some: { status: { in: ['open', 'in_progress'] } } } };
   } else if (bucket === 'without_active_requirements') {
-    requirementFilter = {
-      NOT: {
-        requirements: { some: { status: { in: ['open', 'in_progress'] } } },
-      },
-    };
+    // The gap list is strictly "no requirement ever" — a client with only
+    // on_hold / closed / dropped requirements does not belong here.
+    requirementFilter = { requirements: { none: {} } };
   } else {
     // Legacy default: no requirements at all.
     requirementFilter = { requirements: { none: {} } };

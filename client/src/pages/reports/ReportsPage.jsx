@@ -680,13 +680,13 @@ export default function ReportsPage() {
               {
                 key: 'with_requirements',
                 label: 'Active clients',
-                hint: 'Have at least one requirement',
+                hint: 'Have an open / in-progress requirement',
                 Icon: Building2,
               },
               {
                 key: 'without_active_requirements',
-                label: 'No active requirements',
-                hint: 'Active clients with no open / in-progress req',
+                label: 'No requirements',
+                hint: 'Active clients that have never had a requirement',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {

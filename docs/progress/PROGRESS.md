@@ -2,6 +2,16 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — CWR "no requirements" bucket = zero requirements ever
+
+Follow-up to the entry below. The `without_active_requirements` bucket of
+clients-without-requirements now returns **only clients that have never had any
+requirement** (`requirements: { none: {} }`) instead of "no open/in-progress
+requirement". A client whose only requirements are on_hold / closed / dropped is
+now in neither toggle. Toggle relabelled **"No requirements"** ("…never had a
+requirement"); `with_requirements` hint tightened to "open / in-progress".
+`reports-coverage-gaps.test.js` updated. Server suite green.
+
 ## 2026-09-03 — List-page filters, "Tagged Profiles" fix, RVG activity toggle, CWR bucket overlap fix
 
 Branch `feature/list-filters` (off `main`). One server file + validation + client

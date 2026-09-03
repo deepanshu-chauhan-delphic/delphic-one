@@ -135,8 +135,7 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(withBucket.status).toBe(200);
     const withIds = withBucket.body.data.map((r) => r.client.id);
     expect(withIds).toContain(withOpenReq.id);
-    // A client whose only requirement is on_hold has no LIVE work — it must not
-    // appear here (it belongs solely to the "no active requirements" bucket).
+    // A client whose only requirement is on_hold has no LIVE work — not here.
     expect(withIds).not.toContain(onlyHold.id);
     expect(withIds).not.toContain(idle.id);
 
@@ -148,11 +147,12 @@ describe('GET /reports/clients-without-requirements', () => {
     );
     expect(withoutActive.status).toBe(200);
     const withoutIds = withoutActive.body.data.map((r) => r.client.id);
+    // Strictly "never had a requirement" — only the idle client.
     expect(withoutIds).toContain(idle.id);
-    expect(withoutIds).toContain(onlyHold.id);
+    expect(withoutIds).not.toContain(onlyHold.id);
     expect(withoutIds).not.toContain(withOpenReq.id);
 
-    // The two buckets are a partition: no client id in both.
+    // No client id appears in both buckets.
     expect(withIds.filter((id) => withoutIds.includes(id))).toEqual([]);
   });
 
