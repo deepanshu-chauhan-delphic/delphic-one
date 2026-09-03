@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { notify, accountParticipants, admins } = require('../../lib/notifications');
 
 const TRANSITIONS = {
   lead: ['meeting_scheduled'],
@@ -221,6 +222,18 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, m
         reason: reason || null,
       },
     });
+
+    if (to_stage === 'active') {
+      await notify(tx, {
+        type: 'account_activated',
+        actorId: user.id,
+        recipientIds: [
+          ...(await accountParticipants(tx, id)),
+          ...(await admins(tx)),
+        ],
+        context: { actorName: user.name, accountName: updated.name, accountId: id },
+      });
+    }
 
     return { account: serialize(withAttendees), history: historyRow };
   });

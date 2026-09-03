@@ -1,6 +1,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const logger = require('./config/logger');
+const { startJobs } = require('./jobs');
 
 const server = app.listen(env.port, () => {
   const hostApiPort = process.env.HOST_API_PORT || String(env.port);
@@ -20,6 +21,12 @@ const server = app.listen(env.port, () => {
     client: `http://localhost:${hostClientPort}`,
     listen_port: env.port,
   });
+
+  if (env.jobs.enabled) {
+    startJobs();
+  } else {
+    logger.info('jobs_disabled', { reason: env.nodeEnv === 'test' ? 'test env' : 'ENABLE_JOBS=false' });
+  }
 });
 
 function shutdown(signal) {

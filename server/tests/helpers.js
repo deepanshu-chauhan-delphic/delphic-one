@@ -7,7 +7,7 @@ const PASSWORD = 'Password123!';
 
 async function cleanDatabase() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE stage_history, documents, comments, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, account_meeting_attendees, accounts, users RESTART IDENTITY CASCADE'
+    'TRUNCATE TABLE notifications, notification_preferences, stage_history, documents, comments, interview_round_interviewers, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, account_meeting_attendees, accounts, users RESTART IDENTITY CASCADE'
   );
 }
 
@@ -71,6 +71,30 @@ function authed(req, token) {
   return req.set('Authorization', `Bearer ${token}`);
 }
 
+async function createInterviewRound(submissionId, overrides = {}) {
+  const { interviewer_ids, ...fields } = overrides;
+  const last = await prisma.interviewRound.findFirst({
+    where: { submission_id: submissionId },
+    orderBy: { round_number: 'desc' },
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      submission_id: submissionId,
+      round_number: last ? last.round_number + 1 : 1,
+      round_type: 'internal_r1',
+      scheduled_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      duration_minutes: 45,
+      ...fields,
+    },
+  });
+  if (Array.isArray(interviewer_ids) && interviewer_ids.length) {
+    await prisma.interviewRoundInterviewer.createMany({
+      data: interviewer_ids.map((user_id) => ({ interview_round_id: round.id, user_id })),
+    });
+  }
+  return round;
+}
+
 module.exports = {
   app,
   prisma,
@@ -81,6 +105,7 @@ module.exports = {
   createActiveClientAccount,
   createRequirement,
   createProfile,
+  createInterviewRound,
   authed,
   PASSWORD,
   unique,

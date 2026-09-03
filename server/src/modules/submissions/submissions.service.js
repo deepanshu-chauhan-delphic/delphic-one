@@ -1,6 +1,39 @@
 const prisma = require('../../config/db');
-const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds, isBackwardTransition } = require('./stageMachines');
+const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds, isBackwardTransition, roundTypeLabel } = require('./stageMachines');
 const { computeClosureDetail } = require('../../utils/closureProgress');
+const { notify, interviewRoundParticipants, submissionParticipants, admins } = require('../../lib/notifications');
+
+/**
+ * Assemble the free-form context every submission / interview notification wants:
+ * candidate name, requirement title, account name. Best-effort — returns {} on miss.
+ */
+async function loadNotifyContext(tx, submissionId) {
+  const row = await tx.submission.findUnique({
+    where: { id: submissionId },
+    select: {
+      profile: { select: { name: true } },
+      seat: { select: { requirement: { select: { id: true, title: true, account: { select: { name: true } } } } } },
+    },
+  });
+  if (!row) return {};
+  return {
+    candidateName: row.profile?.name,
+    requirementId: row.seat?.requirement?.id,
+    requirementTitle: row.seat?.requirement?.title,
+    accountName: row.seat?.requirement?.account?.name,
+  };
+}
+
+function fmtWhen(date) {
+  if (!date) return '';
+  try {
+    return new Date(date).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch (_err) {
+    return '';
+  }
+}
 
 const INTERVIEWER_INCLUDE = {
   interviewers: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -215,6 +248,30 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
       });
     }
 
+    const NOTIFY_STAGES = {
+      submitted_to_client: 'candidate_submitted_to_client',
+      rejected: 'candidate_rejected',
+      backout: 'candidate_backout',
+      offer_sent: 'candidate_offer',
+    };
+    if (NOTIFY_STAGES[to_stage]) {
+      const ctx = await loadNotifyContext(tx, id);
+      const recipientIds = ['rejected', 'backout'].includes(to_stage)
+        ? [...(await submissionParticipants(tx, id)), ...(await admins(tx))]
+        : await submissionParticipants(tx, id);
+      await notify(tx, {
+        type: NOTIFY_STAGES[to_stage],
+        actorId: userId,
+        recipientIds,
+        context: {
+          ...ctx,
+          actorName: user.name,
+          submissionId: id,
+          reason: patch.rejection_reason || patch.backout_reason || reason || null,
+        },
+      });
+    }
+
     return { submission: serialize(updated) };
   });
 }
@@ -360,6 +417,21 @@ async function addInterviewRound(submissionId, data, user) {
     // (POST /submissions/:id/stage). Recording round results never auto-advances the
     // submission stage.
 
+    const ctx = await loadNotifyContext(tx, submissionId);
+    await notify(tx, {
+      type: 'interview_scheduled',
+      actorId: userId,
+      recipientIds: await interviewRoundParticipants(tx, created.id),
+      context: {
+        ...ctx,
+        actorName: user.name,
+        submissionId,
+        interviewRoundId: created.id,
+        roundTypeLabel: roundTypeLabel(created.round_type),
+        scheduledAtLabel: fmtWhen(created.scheduled_at),
+      },
+    });
+
     return { round };
   });
 }
@@ -398,6 +470,37 @@ async function updateInterviewRound(id, patch, user) {
 
     // NOTE: interview_scheduled -> interview_result stays MANUAL. Editing a round's
     // result (pass/fail/no_show) never auto-advances the submission stage.
+
+    const rescheduled = finalPatch.scheduled_at
+      && (!existing.scheduled_at || new Date(finalPatch.scheduled_at).getTime() !== new Date(existing.scheduled_at).getTime());
+    const feedbackTouched = patch.result !== undefined || patch.feedback !== undefined || patch.rating !== undefined;
+
+    if (rescheduled || feedbackTouched) {
+      const ctx = await loadNotifyContext(tx, existing.submission_id);
+      const base = {
+        ...ctx,
+        actorName: user.name,
+        submissionId: existing.submission_id,
+        interviewRoundId: id,
+        roundTypeLabel: roundTypeLabel(existing.round_type),
+      };
+      if (rescheduled) {
+        await notify(tx, {
+          type: 'interview_rescheduled',
+          actorId: user.id,
+          recipientIds: await interviewRoundParticipants(tx, id),
+          context: { ...base, scheduledAtLabel: fmtWhen(finalPatch.scheduled_at) },
+        });
+      }
+      if (feedbackTouched) {
+        await notify(tx, {
+          type: 'interview_feedback_submitted',
+          actorId: user.id,
+          recipientIds: await submissionParticipants(tx, existing.submission_id),
+          context: { ...base, result: patch.result || round.result },
+        });
+      }
+    }
 
     return { round };
   });
