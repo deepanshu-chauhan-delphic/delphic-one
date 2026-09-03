@@ -52,6 +52,7 @@ function RequirementPeek({ row, onClose, onAssign }) {
         <PeekField label="Priority"><Badge value={detail.priority} /></PeekField>
         <PeekField label="Type">{detail.req_type ? <Badge value={detail.req_type} /> : '—'}</PeekField>
         <PeekField label="Seats">{`${detail.seats_closed ?? 0}/${detail.seats_total ?? 0}`}</PeekField>
+        <PeekField label="Tagged profiles">{detail.tagged_profiles_count ?? 0}</PeekField>
         <PeekField label="Sales owner">{detail.sales_owner?.name || '—'}</PeekField>
         <div className="sm:col-span-2">
           <PeekField label="Tech stack">
@@ -172,7 +173,7 @@ export default function RequirementsListPage() {
         ),
       },
       { key: 'priority', header: 'Priority', render: (row) => <Badge value={row.priority} /> },
-      { key: 'seats', header: 'Seats', render: (row) => `${row.seats_closed}/${row.seats_total}` },
+      { key: 'tagged_profiles', header: 'Tagged Profiles', render: (row) => row.tagged_profiles_count ?? 0 },
       {
         key: 'tech',
         header: 'Tech',

@@ -27,7 +27,7 @@ const ACCOUNT_INCLUDE = {
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
 
-async function list({ type, include_unclassified, stage, owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
+async function list({ type, include_unclassified, stage, owner_id, origin_owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
   // Accumulate into an AND array so multiple OR-bearing clauses (type scope +
   // search) can coexist without one clobbering the other in the object literal.
   const and = [];
@@ -36,6 +36,7 @@ async function list({ type, include_unclassified, stage, owner_id, industry, sea
   else if (type) and.push({ type });
   if (stage) and.push({ stage });
   if (owner_id) and.push({ owner_id });
+  if (origin_owner_id) and.push({ origin_owner_id });
   if (industry) and.push({ industry: { contains: industry, mode: 'insensitive' } });
   if (search) {
     and.push({

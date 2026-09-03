@@ -47,6 +47,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 - [BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md)
 - [PRODUCTION-SEED.md](guides/PRODUCTION-SEED.md) — VPS / post-pull seed commands (`seed` → `seed:accounts` → `seed:jira` → `seed:vendors`; `seed-admin` = safe prod bootstrap)
+- [DEPLOY-RUNBOOK.md](guides/DEPLOY-RUNBOOK.md) — VPS manual deploy: backup → `git pull` → `./start-delphic.sh --prod` → verify → rollback
 
 ## Stack
 
@@ -190,6 +191,8 @@ Zero-dependency structured logger. Full guide: [guides/BACKEND-LOGGING.md](guide
 - Product forms (create candidate, put forward, create account/requirement/user, assign recruiters, interview rounds) open in an RHS `Drawer` only — never a page-wide centered modal. List row click opens a peek drawer with actions, not a full-page navigate.
 - Dropdowns: use `components/ui/SearchableSelect.jsx` (single-select, `options`/`onChange(value)`) for any data-driven or ~6-plus-option picker, and `MultiSelectDropdown.jsx` for multi-select. Plain `<select>` is only for small fixed enums (gender, currency, work mode, stage-transition pickers, etc.).
 - Leads are owned by **BDA** (`account.owner_id`); requirements by **Sales** (`sales_owner_id`). Admin reports: `bda-performance` vs `sales-performance` must stay separate.
+- Submission stage moves (`POST /submissions/:id/stage`): recruiter/admin do any valid transition; **sales** is allowed exactly one — `internal_screening → submitted_to_client`, and only on a requirement they own (`sales_owner_id`). Everything else for sales → `forbidden_stage_change` (403). Enforced in `submissions.service.changeStage` (which takes the full `user`, not just an id), not just the route `authorize`.
+- The `clients-without-requirements` report counts `OR: [{ type: 'client' }, { type: null }]` (like the Lead board's `include_unclassified`) — real leads/meeting-stage accounts are `type: null`. It still means *never had a requirement row* (`requirements: { none: {} }`), so a dropped client whose requirements are all closed does **not** appear.
 - Interview round create requires `scheduled_at` (interview date & time).
 - Keep CSS lean: layout and component structure as Tailwind classNames inline; `global.css` holds only tokens for spacing, typography, font, colors, and hover/button color utilities.
 - Deploy workflow (`.github/workflows/deploy.yml`) is a no-op until `DEPLOY_ENABLED` repo variable + VPS secrets are set — don't assume deploys are live.

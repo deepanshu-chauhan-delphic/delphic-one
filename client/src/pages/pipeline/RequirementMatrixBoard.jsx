@@ -26,12 +26,13 @@ const MATRIX_FIELDS = [
   'account_id',
   'bda_id',
   'sales_id',
-  'recruiter_id',
+  'admin_id',
+  'recruiter_ids',
+  'submitted_by_ids',
   'status',
   'priority',
   'submission_stage',
   'stuck',
-  'past_sla_only',
   'date_range',
 ];
 
@@ -104,7 +105,7 @@ export default function RequirementMatrixBoard() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="relative z-40 flex flex-wrap items-center justify-between gap-2">
         <PipelineFilters fields={MATRIX_FIELDS} onChange={handleFiltersChange} />
         <p className="text-xs text-tertiary-500">
           {requirements.length} requirement(s) · {submissions.length} candidate(s)

@@ -13,7 +13,7 @@ router.get('/:id/history', controller.history);
 
 router.post('/', authorize('recruiter', 'admin'), controller.create);
 router.patch('/:id', authorize('recruiter', 'admin'), lockCheck('submissions'), controller.update);
-router.post('/:id/stage', authorize('recruiter', 'admin'), lockCheck('submissions'), controller.changeStage);
+router.post('/:id/stage', authorize('recruiter', 'sales', 'admin'), lockCheck('submissions'), controller.changeStage);
 router.post('/:id/interview-rounds', authorize('recruiter', 'sales', 'admin'), controller.addRound);
 
 module.exports = router;

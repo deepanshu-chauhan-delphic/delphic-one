@@ -271,9 +271,9 @@ export function statsForRole(role, summary) {
     {
       label: 'Stuck leads',
       value: stuckLeads,
-      hint: 'No update 7d+',
+      hint: 'As of today · 7d+ idle',
       description:
-        'Full count of accounts in a lead / meeting-scheduled / rescheduled stage with no update for 7+ days. The panel below lists the 5 oldest.',
+        'Full count of accounts in a lead / meeting-scheduled / rescheduled stage with no update for 7+ days, as of today. This figure is not affected by the dashboard date filter. The panel below lists the 5 oldest.',
       icon: AlertTriangle,
       theme: 'red',
       href: KPI_LINKS.stuckLeads,
@@ -281,9 +281,9 @@ export function statsForRole(role, summary) {
     {
       label: 'Stuck requirements',
       value: stuckReqs,
-      hint: 'No update 7d+',
+      hint: 'As of today · 7d+ idle',
       description:
-        'Full count of open / in-progress requirements with no update (no stage change or edit) for 7+ days. The panel below lists the 5 most idle.',
+        'Full count of open / in-progress requirements with no update (no stage change or edit) for 7+ days, as of today. This figure is not affected by the dashboard date filter. The panel below lists the 5 most idle.',
       icon: AlertTriangle,
       theme: 'red',
       href: KPI_LINKS.stuckRequirements,

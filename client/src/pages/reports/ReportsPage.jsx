@@ -198,6 +198,22 @@ export default function ReportsPage() {
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && Boolean(user?.is_superadmin);
 
+  // The coverage filter pickers each mean a specific role: "Brought by" is the
+  // originating BDA, "Sales POC" the sales owner, "Our POC" a vendor's owner. Scope
+  // the option lists so the dropdowns aren't three identical all-user lists.
+  const broughtByPeople = useMemo(
+    () => coveragePeople.filter((p) => p.role === 'bda' || p.role === 'admin'),
+    [coveragePeople]
+  );
+  const salesPocPeople = useMemo(
+    () => coveragePeople.filter((p) => p.role === 'sales' || p.role === 'admin'),
+    [coveragePeople]
+  );
+  const ourPocPeople = useMemo(
+    () => coveragePeople.filter((p) => ['bda', 'sales', 'admin'].includes(p.role)),
+    [coveragePeople]
+  );
+
   useEffect(() => {
     if (!available.some((r) => r.key === active) && available[0]) {
       setActive(available[0].key);
@@ -512,7 +528,7 @@ export default function ReportsPage() {
               onChange={setCoverageBroughtById}
               placeholder="All (brought by)"
               searchPlaceholder="Search people…"
-              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+              options={broughtByPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
             <SearchableSelect
               className="w-52"
@@ -522,20 +538,20 @@ export default function ReportsPage() {
               onChange={setCoveragePocId}
               placeholder="All (Sales POC)"
               searchPlaceholder="Search people…"
-              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+              options={salesPocPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
           </>
         )}
         {isClientsWithoutReqs && (
           <SearchableSelect
             className="w-44"
-            allowClear
             ariaLabel="Filter by stage"
             value={coverageStage}
             onChange={setCoverageStage}
             placeholder="All stages"
             searchPlaceholder="Search stage…"
             options={[
+              { value: '', label: 'All stages' },
               { value: 'lead', label: 'Lead' },
               { value: 'meeting_scheduled', label: 'Meeting scheduled' },
               { value: 'active', label: 'Active' },
@@ -564,7 +580,7 @@ export default function ReportsPage() {
               onChange={setRvgPocId}
               placeholder="All (our POC)"
               searchPlaceholder="Search people…"
-              options={coveragePeople.map((person) => ({ value: person.id, label: person.name }))}
+              options={ourPocPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
           </>
         )}

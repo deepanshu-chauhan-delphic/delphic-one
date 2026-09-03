@@ -87,6 +87,7 @@ const listQuerySchema = z.object({
   include_unclassified: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
   owner_id: z.string().uuid().optional(),
+  origin_owner_id: z.string().uuid().optional(),
   industry: z.string().optional(),
   search: z.string().optional(),
   created_from: z.string().optional(),

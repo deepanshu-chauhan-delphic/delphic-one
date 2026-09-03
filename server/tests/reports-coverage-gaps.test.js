@@ -97,6 +97,26 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(leadIds).not.toContain(activeClient.id);
   });
 
+  test('includes not-yet-classified (type IS NULL) lead accounts', async () => {
+    // A real lead is created with no type; it only becomes type=client on classification.
+    const unclassifiedLead = await prisma.account.create({
+      data: {
+        type: null,
+        name: `Unclassified ${Math.random().toString(36).slice(2, 8)}`,
+        stage: 'lead',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+      },
+    });
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'lead' }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((r) => r.client.id)).toContain(unclassifiedLead.id);
+  });
+
   test('filters by Brought by (origin_owner_id)', async () => {
     const mine = await createActiveClientAccount(bda.id);
     const other = await createActiveClientAccount(bda2.id);

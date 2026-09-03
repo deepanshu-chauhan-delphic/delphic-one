@@ -30,6 +30,10 @@ function serialize(row) {
 
   const seats_total = row.seats_total;
   const seats_closed = seats ? seats.filter((s) => s.seat_status === 'closed').length : undefined;
+  // Every candidate profile tagged to this requirement (submissions across all its seats).
+  const tagged_profiles_count = seats
+    ? seats.reduce((sum, s) => sum + (s._count?.submissions || 0), 0)
+    : undefined;
 
   return {
     ...rest,
@@ -41,6 +45,7 @@ function serialize(row) {
       : undefined,
     seats_total,
     seats_closed,
+    tagged_profiles_count,
   };
 }
 
@@ -51,7 +56,7 @@ const DECORATE_INCLUDE = {
     where: { role_on_req: 'recruiter', unassigned_at: null },
     include: { user: { select: { id: true, name: true } } },
   },
-  seats: true,
+  seats: { select: { seat_status: true, _count: { select: { submissions: true } } } },
 };
 
 async function list(filters) {

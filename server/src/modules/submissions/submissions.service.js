@@ -136,12 +136,23 @@ async function update(id, patch) {
   return serialize(row);
 }
 
-async function changeStage(id, { to_stage, reason, backout_reason, rejection_reason }, userId) {
+async function changeStage(id, { to_stage, reason, backout_reason, rejection_reason }, user) {
+  const userId = user.id;
   return prisma.$transaction(async (tx) => {
     const submission = await tx.submission.findUnique({ where: { id } });
     if (!submission) return { error: 'not_found' };
     if (submission.is_locked) return { error: 'locked' };
     if (!(SUBMISSION_STAGE_TRANSITIONS[submission.stage] || []).includes(to_stage)) return { error: 'invalid_transition' };
+
+    // Sales users may only mark a candidate "submitted to client" on their own
+    // requirement; every other stage move stays recruiter/admin-only.
+    if (user.role === 'sales') {
+      if (submission.stage !== 'internal_screening' || to_stage !== 'submitted_to_client') {
+        return { error: 'forbidden_stage_change' };
+      }
+      const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
+      if (salesOwnerId !== user.id) return { error: 'forbidden_stage_change' };
+    }
 
     if (to_stage === 'backout' && !(backout_reason || reason)) return { error: 'backout_reason_required' };
     if (to_stage === 'rejected' && !(rejection_reason || reason)) return { error: 'rejection_reason_required' };

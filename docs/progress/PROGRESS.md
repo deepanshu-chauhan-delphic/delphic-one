@@ -2,6 +2,81 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — Pipeline map filters, Tagged Profiles column, sales "submit to client", report/filter fixes
+
+`main`, uncommitted. No schema/migration change. eslint clean on touched files;
+`usePipelineFilters.test.mjs` / `reportViews.test.mjs` / `pipelineBoardUtils.test.mjs` /
+`submission-stage-machines.test.js` green. **DB-backed suites not run** — Postgres
+`localhost:5434` was down (see TODO).
+
+### 1. Pipeline → Requirement map filters
+
+- "All recruiters" single-select → **"Assigned recruiters"** `MultiSelectDropdown`
+  (`recruiter_ids`, CSV). "Past SLA" checkbox → **"Submitted by"** `MultiSelectDropdown`
+  (`submitted_by_ids`) — filters submissions by `submitted_by` **and** narrows the shown
+  requirements to those with a matching submission (same pattern as the candidate-stage
+  filter). New **"All admins"** single-select (`admin_id`) — filters on `account.owner_id`
+  alongside `bda_id` (both set → `owner_id IN (...)`).
+- Server: `pipeline.validation` + `pipeline.service` accept `recruiter_ids` /
+  `submitted_by_ids` / `admin_id`; legacy single `recruiter_id` still honoured.
+  `usePipelineFilters.js` gained the URL keys + `filtersToApiParams` mapping.
+- Matrix filter row got `relative z-40` so open filter dropdowns render above the
+  sticky `z-30` requirement/stage header cells (were hidden behind them).
+
+### 2. Requirements list: "Seats" column → "Tagged Profiles"
+
+- `requirements.service` `DECORATE_INCLUDE.seats` now selects `_count.submissions`;
+  `serialize()` returns `tagged_profiles_count` (sum of submissions across all the
+  requirement's seats, all stages — same semantic as the dashboard `submissions_count`).
+  `seats_total` / `seats_closed` still returned.
+- `RequirementsListPage` table column swapped; peek panel gains a "Tagged profiles" field
+  (Seats kept there).
+
+### 3. Sales can mark a candidate "Submitted to client"
+
+- `POST /submissions/:id/stage` → `authorize('recruiter', 'sales', 'admin')`.
+  `submissions.service.changeStage(id, body, user)` (was `userId`): role `sales` is
+  allowed **only** `internal_screening → submitted_to_client` and only when
+  `user.id === requirement.sales_owner_id`; anything else → `forbidden_stage_change`
+  (403). Recruiter/admin behaviour unchanged.
+- `SubmissionDetailPage` shows a single "Move to submitted to client" button for a
+  qualifying sales owner (`canSalesSubmitToClient`); no field edits, no other transitions.
+  Drag-and-drop pipeline boards still gate on `canMutateSubmission` (recruiter/admin).
+
+### 4. Dashboard "Stuck" cards are point-in-time
+
+- "Stuck leads" / "Stuck requirements" KPI cards + panels now show **"as of today"** and
+  their hover copy states the dashboard date filter does not scope them ("stuck" = stale
+  now). No count-logic change. (The dashboard date-range bar is still inert for **every**
+  metric — separate open item, see TODO.)
+
+### 5. Accounts list: "Brought by" filter now works + column
+
+- `origin_owner_id` was missing from `accounts.validation` `listQuerySchema` (Zod stripped
+  it) and from `accounts.service` `list()` — the filter did nothing. Added to both
+  (`and.push({ origin_owner_id })`).
+- New dedicated **"Brought by"** table column; removed the "via …" sub-line under Owner.
+
+### 6. Reports — "Clients w/o requirements"
+
+- Filtered `type: 'client'` only, so **unclassified accounts (`type: null`) — every real
+  lead / meeting-scheduled account — never appeared**, and the Stage = Lead/Meeting/etc.
+  filter returned nothing. Now `OR: [{ type: 'client' }, { type: null }]`, mirroring the
+  Lead board's `include_unclassified`.
+- Removed a hardcoded `sales_poc: … : { id: null, name: 'Paras Gulati' }` fallback → `null`.
+- Added an explicit **"All stages"** option (previously only reachable via a hover-only ✕).
+- Unchanged by design: `requirements: { none: {} }` means *never had a requirement* — a
+  client that was active, got requirements, then dropped stays excluded. Switch to
+  "no *open* requirement" is a separate decision (see TODO).
+- Regression test added (`type: null` lead account appears under `stage=lead`).
+
+### 7. Reports — coverage filter dropdowns role-scoped
+
+- "Brought by" / "Sales POC" (CWR) and "Our POC" (RVG) were three identical all-user
+  lists. Now: Brought by = BDA + admin, Sales POC = sales + admin, Our POC = BDA + sales +
+  admin. Superadmin inline-edit `CoveragePersonCell` still gets the full user list.
+  Tradeoff: a BDA-owned client is no longer selectable in "Sales POC" (use "Brought by").
+
 ## 2026-09-02 — Fix: account edit form crashed on null columns ("Failed to update account")
 
 `main`. Client-only. `vite build` + `accountUtils.test.mjs` green.

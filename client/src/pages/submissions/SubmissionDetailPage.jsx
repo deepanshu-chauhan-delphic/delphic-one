@@ -105,6 +105,15 @@ export default function SubmissionDetailPage() {
 
   const canEdit = canMutateSubmission(user) && submission && !submission.is_locked;
 
+  // Sales owners can only mark their own candidate "submitted to client" — no other
+  // stage move and no field edits. Mirrors the server rule in submissions.service.js.
+  const canSalesSubmitToClient =
+    user?.role === 'sales'
+    && submission
+    && !submission.is_locked
+    && submission.stage === 'internal_screening'
+    && submission.requirement?.sales_owner_id === user.id;
+
   const liveMargin = useMemo(() => {
     if (!form) return { margin: null, margin_percentage: null };
     return computeMarginPreview(
@@ -294,7 +303,15 @@ export default function SubmissionDetailPage() {
         <div className="mt-3">
           <StageStepper stage={submission.stage} />
         </div>
-        {!canEdit ? (
+        {!canEdit && canSalesSubmitToClient ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Tooltip label="Mark this candidate as submitted to the client">
+              <button type="button" className="btn-secondary" onClick={() => openStage('submitted_to_client')}>
+                Move to submitted to client
+              </button>
+            </Tooltip>
+          </div>
+        ) : !canEdit ? (
           <p className="mt-3 text-sm text-tertiary-500">
             {submission.is_locked
               ? 'Submission is locked.'

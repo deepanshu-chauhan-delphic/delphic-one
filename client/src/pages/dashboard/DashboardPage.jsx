@@ -45,6 +45,7 @@ function StuckLeadsPanel({ rows }) {
     <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
       <h2 className="border-b border-tertiary-100 px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">
         Stuck leads
+        <span className="ml-2 font-normal text-tertiary-400">as of today</span>
       </h2>
       <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (
@@ -76,6 +77,7 @@ function StuckRequirementsPanel({ rows }) {
     <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
       <h2 className="border-b border-tertiary-100 px-4 py-3 font-heading text-sm font-semibold text-tertiary-900">
         Stuck requirements
+        <span className="ml-2 font-normal text-tertiary-400">as of today</span>
       </h2>
       <ul className="divide-y divide-tertiary-100">
         {(rows || []).map((row) => (

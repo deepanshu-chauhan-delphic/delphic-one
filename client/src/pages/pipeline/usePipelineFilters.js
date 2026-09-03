@@ -7,7 +7,10 @@ const FILTER_KEYS = [
   'account_id',
   'bda_id',
   'sales_id',
+  'admin_id',
   'recruiter_id',
+  'recruiter_ids',
+  'submitted_by_ids',
   'status',
   'priority',
   'submission_stage',
@@ -23,7 +26,10 @@ export function emptyPipelineFilters() {
     account_id: '',
     bda_id: '',
     sales_id: '',
+    admin_id: '',
     recruiter_id: '',
+    recruiter_ids: [],
+    submitted_by_ids: [],
     status: [],
     priority: [],
     submission_stage: [],
@@ -40,7 +46,10 @@ export function filtersFromSearchParams(searchParams) {
   next.account_id = searchParams.get('account_id') || '';
   next.bda_id = searchParams.get('bda_id') || '';
   next.sales_id = searchParams.get('sales_id') || '';
+  next.admin_id = searchParams.get('admin_id') || '';
   next.recruiter_id = searchParams.get('recruiter_id') || '';
+  next.recruiter_ids = csvToList(searchParams.get('recruiter_ids'));
+  next.submitted_by_ids = csvToList(searchParams.get('submitted_by_ids'));
   next.status = csvToList(searchParams.get('status'));
   next.priority = csvToList(searchParams.get('priority'));
   next.submission_stage = csvToList(searchParams.get('submission_stage'));
@@ -85,7 +94,14 @@ export function filtersToApiParams(filters, fields = null) {
   if (include('account_id') && filters.account_id) params.account_id = filters.account_id;
   if (include('bda_id') && filters.bda_id) params.bda_id = filters.bda_id;
   if (include('sales_id') && filters.sales_id) params.sales_id = filters.sales_id;
+  if (include('admin_id') && filters.admin_id) params.admin_id = filters.admin_id;
   if (include('recruiter_id') && filters.recruiter_id) params.recruiter_id = filters.recruiter_id;
+  if (include('recruiter_ids') && filters.recruiter_ids?.length) {
+    params.recruiter_ids = filters.recruiter_ids.join(',');
+  }
+  if (include('submitted_by_ids') && filters.submitted_by_ids?.length) {
+    params.submitted_by_ids = filters.submitted_by_ids.join(',');
+  }
   if (include('status') && filters.status?.length) params.status = filters.status.join(',');
   if (include('priority') && filters.priority?.length) params.priority = filters.priority.join(',');
   if (include('submission_stage') && filters.submission_stage?.length) {

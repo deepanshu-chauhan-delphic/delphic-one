@@ -24,6 +24,7 @@ const ERROR_STATUS = {
   rounds_not_resolved: [400, 'All interview rounds must have a result before advancing to offer'],
   bgv_not_cleared: [400, 'bgv_status must be cleared before closing'],
   forbidden: [403, 'You are not allowed to manage this interview round'],
+  forbidden_stage_change: [403, 'You are not allowed to make this stage change'],
   invalid_interviewers: [400, 'One or more interviewers are invalid or inactive'],
 };
 
@@ -64,7 +65,7 @@ const update = asyncHandler(async (req, res) => {
 
 const changeStage = asyncHandler(async (req, res) => {
   const body = stageSchema.parse(req.body);
-  const result = await service.changeStage(req.params.id, body, req.user.id);
+  const result = await service.changeStage(req.params.id, body, req.user);
   if (result.error) return mapError(res, result.error);
   return ok(res, result.submission);
 });

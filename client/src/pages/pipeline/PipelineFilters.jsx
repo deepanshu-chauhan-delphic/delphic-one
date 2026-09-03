@@ -47,7 +47,7 @@ const STAGE_OPTIONS = [
  *   onChange: optional callback receiving API params when filters change.
  */
 export default function PipelineFilters({
-  fields = ['search', 'stuck', 'past_sla_only', 'status', 'sales_id', 'bda_id', 'recruiter_id', 'account_id'],
+  fields = ['search', 'stuck', 'past_sla_only', 'status', 'sales_id', 'bda_id', 'admin_id', 'recruiter_id', 'account_id'],
   onChange,
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -56,6 +56,7 @@ export default function PipelineFilters({
   const [accounts, setAccounts] = useState([]);
   const [bdas, setBdas] = useState([]);
   const [salesUsers, setSalesUsers] = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const lastApiParamsKey = useRef('');
 
@@ -108,7 +109,17 @@ export default function PipelineFilters({
           if (!cancelled) setSalesUsers([]);
         });
     }
-    if (fieldSet.has('recruiter_id')) {
+    if (fieldSet.has('admin_id')) {
+      apiClient
+        .get('/users', { params: { role: 'admin', active: true, limit: 100 } })
+        .then(({ data }) => {
+          if (!cancelled) setAdmins((data.data || []).map((row) => ({ id: row.id, label: row.name })));
+        })
+        .catch(() => {
+          if (!cancelled) setAdmins([]);
+        });
+    }
+    if (fieldSet.has('recruiter_id') || fieldSet.has('recruiter_ids') || fieldSet.has('submitted_by_ids')) {
       apiClient
         .get('/users', { params: { role: 'recruiter', active: true, limit: 100 } })
         .then(({ data }) => {
@@ -202,6 +213,19 @@ export default function PipelineFilters({
         />
       )}
 
+      {fieldSet.has('admin_id') && (
+        <SearchableSelect
+          className="w-44"
+          allowClear
+          ariaLabel="Admin"
+          value={filters.admin_id}
+          onChange={(admin_id) => patchFilters({ admin_id })}
+          placeholder="All admins"
+          searchPlaceholder="Search admins…"
+          options={admins.map((user) => ({ value: user.id, label: user.label }))}
+        />
+      )}
+
       {fieldSet.has('recruiter_id') && (
         <SearchableSelect
           className="w-44"
@@ -213,6 +237,30 @@ export default function PipelineFilters({
           searchPlaceholder="Search recruiters…"
           options={recruiters.map((user) => ({ value: user.id, label: user.label }))}
         />
+      )}
+
+      {fieldSet.has('recruiter_ids') && (
+        <div className="min-w-[200px]">
+          <MultiSelectDropdown
+            value={filters.recruiter_ids}
+            onChange={(recruiter_ids) => patchFilters({ recruiter_ids })}
+            options={recruiters.map((user) => ({ id: user.id, label: user.label }))}
+            placeholder="Assigned recruiters…"
+            searchPlaceholder="Search recruiters…"
+          />
+        </div>
+      )}
+
+      {fieldSet.has('submitted_by_ids') && (
+        <div className="min-w-[200px]">
+          <MultiSelectDropdown
+            value={filters.submitted_by_ids}
+            onChange={(submitted_by_ids) => patchFilters({ submitted_by_ids })}
+            options={recruiters.map((user) => ({ id: user.id, label: user.label }))}
+            placeholder="Submitted by…"
+            searchPlaceholder="Search recruiters…"
+          />
+        </div>
       )}
 
       {fieldSet.has('status') && (

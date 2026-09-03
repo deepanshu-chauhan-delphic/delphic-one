@@ -745,7 +745,11 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
 async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
   const rows = await prisma.account.findMany({
     where: {
-      type: 'client',
+      // Include not-yet-classified accounts (type IS NULL) — every account still in
+      // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
+      // filter made the Stage = Lead option return nothing. Mirrors the Accounts
+      // list "include unclassified" behaviour.
+      OR: [{ type: 'client' }, { type: null }],
       requirements: { none: {} },
       ...(bda_id ? { owner_id: bda_id } : {}),
       ...(origin_owner_id ? { origin_owner_id } : {}),
@@ -762,7 +766,7 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
     client: { id: a.id, name: a.name },
     stage: a.stage,
     brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
-    sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : { id: null, name: 'Paras Gulati' },
+    sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
     created_at: a.created_at,
     days_idle: Math.floor(daysBetween(a.created_at, new Date())),
   }));

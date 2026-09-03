@@ -67,7 +67,10 @@ async function getBoard(user, filters = {}) {
     account_id,
     bda_id,
     sales_id,
+    admin_id,
     recruiter_id,
+    recruiter_ids,
+    submitted_by_ids,
     status,
     priority,
     submission_stage,
@@ -80,11 +83,20 @@ async function getBoard(user, filters = {}) {
   const statuses = parseCsvList(status);
   const priorities = parseCsvList(priority);
   const stages = parseCsvList(submission_stage);
+  const recruiterIds = parseCsvList(recruiter_ids);
+  if (recruiter_id) recruiterIds.push(recruiter_id);
+  const submittedByIds = parseCsvList(submitted_by_ids);
 
   const where = { ...scopeWhere };
   if (account_id) where.account_id = account_id;
   if (sales_id) where.sales_owner_id = sales_id;
-  if (bda_id) where.account = { ...(where.account || {}), owner_id: bda_id };
+  const ownerIds = [bda_id, admin_id].filter(Boolean);
+  if (ownerIds.length) {
+    where.account = {
+      ...(where.account || {}),
+      owner_id: ownerIds.length === 1 ? ownerIds[0] : { in: ownerIds },
+    };
+  }
   if (statuses.length) where.status = { in: statuses };
   if (priorities.length) where.priority = { in: priorities };
   if (date_from || date_to) {
@@ -96,9 +108,9 @@ async function getBoard(user, filters = {}) {
       where.created_at.lte = end;
     }
   }
-  if (recruiter_id) {
+  if (recruiterIds.length) {
     where.assignments = {
-      some: { user_id: recruiter_id, role_on_req: 'recruiter', unassigned_at: null },
+      some: { user_id: { in: recruiterIds }, role_on_req: 'recruiter', unassigned_at: null },
     };
   }
   if (search) {
@@ -139,6 +151,7 @@ async function getBoard(user, filters = {}) {
         where: {
           requirement_seat_id: { in: seatIds },
           ...(stages.length ? { stage: { in: stages } } : {}),
+          ...(submittedByIds.length ? { submitted_by: { in: submittedByIds } } : {}),
         },
         include: {
           profile: {
@@ -159,7 +172,7 @@ async function getBoard(user, filters = {}) {
 
   // Candidate-stage filter: only keep requirements that actually have a candidate
   // in one of the selected stages (submissionRows is already stage-filtered above).
-  if (stages.length) {
+  if (stages.length || submittedByIds.length) {
     const reqIdsWithMatch = new Set(submissionRows.map((row) => row.seat.requirement_id));
     requirements = requirements.filter((r) => reqIdsWithMatch.has(r.id));
   }

@@ -198,14 +198,12 @@ export default function AccountsListPage() {
       {
         key: 'owner',
         header: 'Owner',
-        render: (row) => (
-          <div>
-            <div>{row.owner?.name || '—'}</div>
-            {row.origin_owner && row.origin_owner.id !== row.owner?.id && (
-              <div className="text-xs text-tertiary-500">via {row.origin_owner.name}</div>
-            )}
-          </div>
-        ),
+        render: (row) => row.owner?.name || '—',
+      },
+      {
+        key: 'origin_owner',
+        header: 'Brought by',
+        render: (row) => row.origin_owner?.name || '—',
       },
       {
         key: 'created',
