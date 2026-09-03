@@ -135,7 +135,9 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(withBucket.status).toBe(200);
     const withIds = withBucket.body.data.map((r) => r.client.id);
     expect(withIds).toContain(withOpenReq.id);
-    expect(withIds).toContain(onlyHold.id);
+    // A client whose only requirement is on_hold has no LIVE work — it must not
+    // appear here (it belongs solely to the "no active requirements" bucket).
+    expect(withIds).not.toContain(onlyHold.id);
     expect(withIds).not.toContain(idle.id);
 
     const withoutActive = await authed(
@@ -149,6 +151,9 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(withoutIds).toContain(idle.id);
     expect(withoutIds).toContain(onlyHold.id);
     expect(withoutIds).not.toContain(withOpenReq.id);
+
+    // The two buckets are a partition: no client id in both.
+    expect(withIds.filter((id) => withoutIds.includes(id))).toEqual([]);
   });
 
   test('filters by Brought by (origin_owner_id)', async () => {
@@ -296,6 +301,31 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
         days_since_sourced: null,
       })
     );
+  });
+
+  test('vendor_activity splits sourced (active) vs never-sourced (inactive)', async () => {
+    const sourced = await seedVendorProfile(recruiterToken); // 1 profile, not submitted
+    const bare = await createBareVendor();                    // nothing sourced
+
+    const activeRes = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'active' }),
+      adminToken
+    );
+    expect(activeRes.status).toBe(200);
+    const activeIds = activeRes.body.data.map((r) => r.vendor.id);
+    expect(activeIds).toContain(sourced.vendor.id);
+    expect(activeIds).not.toContain(bare.id);
+    expect(activeRes.body.data.every((r) => r.profiles_sourced > 0)).toBe(true);
+
+    const inactiveRes = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'inactive' }),
+      adminToken
+    );
+    expect(inactiveRes.status).toBe(200);
+    const inactiveIds = inactiveRes.body.data.map((r) => r.vendor.id);
+    expect(inactiveIds).toContain(bare.id);
+    expect(inactiveIds).not.toContain(sourced.vendor.id);
+    expect(inactiveRes.body.data.every((r) => r.profiles_sourced === 0)).toBe(true);
   });
 
   test('filters by vendor_id and by owner_id (our POC)', async () => {

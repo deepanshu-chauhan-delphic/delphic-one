@@ -174,6 +174,8 @@ export default function ReportsPage() {
   const [rvgVendorId, setRvgVendorId] = useState('');
   const [rvgPocId, setRvgPocId] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
+  // RVG toggle: vendors we've sourced ≥1 profile from (active) vs sourced nothing (inactive).
+  const [rvgActivity, setRvgActivity] = useState('active');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -336,6 +338,7 @@ export default function ReportsPage() {
     }
     if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
     if (isRvg && rvgPocId) params.owner_id = rvgPocId;
+    if (isRvg) params.vendor_activity = rvgActivity;
     return params;
   }
 
@@ -369,6 +372,7 @@ export default function ReportsPage() {
     coverageBucket,
     rvgVendorId,
     rvgPocId,
+    rvgActivity,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -470,6 +474,7 @@ export default function ReportsPage() {
               setCoverageBucket('without_active_requirements');
               setRvgVendorId('');
               setRvgPocId('');
+              setRvgActivity('active');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -693,6 +698,76 @@ export default function ReportsPage() {
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setCoverageBucket(key)}
+                  className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-white text-tertiary-500'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${
+                        selected ? 'text-primary-800' : 'text-tertiary-800'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    <span className={`mt-0.5 block text-xs ${selected ? 'text-primary-700/80' : 'text-tertiary-500'}`}>
+                      {hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isRvg && (
+        <div className="rounded-2xl border border-tertiary-100 bg-white p-3 shadow-soft sm:p-4">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
+              <p className="mt-0.5 text-sm text-tertiary-600">
+                Vendors with no submitted profile · split by whether we&apos;ve sourced from them
+              </p>
+            </div>
+            {!loading && (
+              <span className="rounded-full bg-canvas-muted px-2.5 py-1 text-xs font-medium text-tertiary-600">
+                {tableRows.length} shown
+              </span>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+            {[
+              {
+                key: 'active',
+                label: 'Active vendors',
+                hint: 'We have sourced ≥1 profile, but none was submitted',
+                Icon: Building2,
+              },
+              {
+                key: 'inactive',
+                label: 'Inactive vendors',
+                hint: 'We have sourced nothing from this vendor',
+                Icon: CircleAlert,
+              },
+            ].map(({ key, label, hint, Icon }) => {
+              const selected = rvgActivity === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setRvgActivity(key)}
                   className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
                     selected
                       ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'

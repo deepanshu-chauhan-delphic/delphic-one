@@ -740,8 +740,8 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
  * Active client coverage report (UI: "Clients without requirements").
  *
  * Always filtered to `stage: 'active'` when a bucket is supplied.
- * `bucket`:
- *   - `with_requirements` — active clients that have at least one requirement.
+ * `bucket` (the two are complementary — every active client is in exactly one):
+ *   - `with_requirements` — active clients with ≥1 open/in_progress requirement.
  *   - `without_active_requirements` — active clients with no open/in_progress
  *     requirement (zero requirements, or only on_hold / closed / dropped).
  * Legacy callers with neither bucket nor stage keep the old behaviour:
@@ -762,7 +762,10 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
 
   let requirementFilter;
   if (bucket === 'with_requirements') {
-    requirementFilter = { requirements: { some: {} } };
+    // "Covered" = has live work. Must be the exact complement of
+    // without_active_requirements, otherwise a client whose only requirements are
+    // closed/on_hold/dropped shows up under both toggles.
+    requirementFilter = { requirements: { some: { status: { in: ['open', 'in_progress'] } } } };
   } else if (bucket === 'without_active_requirements') {
     requirementFilter = {
       NOT: {
@@ -812,8 +815,13 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
  * `any_submitted` is always computed from ALL of the vendor's profiles, never a
  * single recruiter's slice, so "never submitted anywhere" stays literally true
  * even when `recruiter_id` is applied.
+ *
+ * `vendor_activity` splits the gap list:
+ *   - `active`   — we have sourced ≥1 profile from this vendor (but none reached
+ *                  a submission) — the real "wasted relationship" list.
+ *   - `inactive` — we have sourced nothing from this vendor at all.
  */
-async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
+async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_activity }) {
   const vendors = await prisma.account.findMany({
     where: {
       type: 'vendor',
@@ -869,6 +877,11 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
   return rows
     .filter((r) => !r.any_submitted)
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
+    .filter((r) => {
+      if (vendor_activity === 'active') return r.profiles_sourced > 0;
+      if (vendor_activity === 'inactive') return r.profiles_sourced === 0;
+      return true;
+    })
     .map(({ any_submitted: _any_submitted, ...rest }) => rest)
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }

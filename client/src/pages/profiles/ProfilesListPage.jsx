@@ -1,18 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical } from 'lucide-react';
+import { Filter, MoreVertical, SlidersHorizontal } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
+import { useUserOptions, useVendorAccountOptions } from '../../lib/lookups.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
+import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { PeekActions, PeekField } from '../../components/ui/PeekFields.jsx';
 import ProfileFormPage from './ProfileFormPage.jsx';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
 
-function ProfilePeek({ row, onClose, onChanged }) {
+const SORT_OPTIONS = [
+  { value: 'created_at', label: 'Newest' },
+  { value: 'total_experience_years', label: 'Experience' },
+  { value: 'expected_ctc', label: 'Expected CTC' },
+];
+
+const MORE_KEYS = [
+  'vendor_id',
+  'added_by',
+  'experience_min',
+  'experience_max',
+  'expected_ctc_min',
+  'expected_ctc_max',
+  'notice_period_max',
+  'preferred_work_mode',
+  'willing_to_relocate',
+  'is_active',
+  'primary_skills',
+  'sort_by',
+  'sort_order',
+];
+
+function ProfilePeek({ row, onClose }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [detail, setDetail] = useState(row);
@@ -93,19 +117,76 @@ export default function ProfilesListPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
-  const [source, setSource] = useState('');
-  const [onBench, setOnBench] = useState(false);
+  const [source, setSource] = useState(() => searchParams.get('source') || '');
+  const [onBench, setOnBench] = useState(() => searchParams.get('on_bench') === 'true');
+  const [vendorId, setVendorId] = useState(() => searchParams.get('vendor_id') || '');
+  const [addedBy, setAddedBy] = useState(() => searchParams.get('added_by') || '');
+  const [expMin, setExpMin] = useState(() => searchParams.get('experience_min') || '');
+  const [expMax, setExpMax] = useState(() => searchParams.get('experience_max') || '');
+  const [ctcMin, setCtcMin] = useState(() => searchParams.get('expected_ctc_min') || '');
+  const [ctcMax, setCtcMax] = useState(() => searchParams.get('expected_ctc_max') || '');
+  const [noticeMax, setNoticeMax] = useState(() => searchParams.get('notice_period_max') || '');
+  const [workMode, setWorkMode] = useState(() => searchParams.get('preferred_work_mode') || '');
+  const [relocate, setRelocate] = useState(() => searchParams.get('willing_to_relocate') || '');
+  const [activeState, setActiveState] = useState(() => searchParams.get('is_active') || '');
+  const [skills, setSkills] = useState(() => searchParams.get('primary_skills') || '');
+  const [appliedSkills, setAppliedSkills] = useState(() => searchParams.get('primary_skills') || '');
+  const [sortBy, setSortBy] = useState(() => searchParams.get('sort_by') || 'created_at');
+  const [sortOrder, setSortOrder] = useState(() => searchParams.get('sort_order') || 'desc');
+  const [showMore, setShowMore] = useState(() => MORE_KEYS.some((k) => searchParams.get(k)));
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [peek, setPeek] = useState(null);
 
+  const vendorOptions = useVendorAccountOptions();
+  const recruiterOptions = useUserOptions('recruiter');
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const sync = (key, value, dflt = '') => {
+      if (value && value !== dflt) next.set(key, value);
+      else next.delete(key);
+    };
+    sync('source', source);
+    sync('on_bench', onBench ? 'true' : '');
+    sync('vendor_id', vendorId);
+    sync('added_by', addedBy);
+    sync('experience_min', expMin);
+    sync('experience_max', expMax);
+    sync('expected_ctc_min', ctcMin);
+    sync('expected_ctc_max', ctcMax);
+    sync('notice_period_max', noticeMax);
+    sync('preferred_work_mode', workMode);
+    sync('willing_to_relocate', relocate);
+    sync('is_active', activeState);
+    sync('primary_skills', appliedSkills);
+    sync('sort_by', sortBy, 'created_at');
+    sync('sort_order', sortOrder, 'desc');
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    source, onBench, vendorId, addedBy, expMin, expMax, ctcMin, ctcMax, noticeMax,
+    workMode, relocate, activeState, appliedSkills, sortBy, sortOrder,
+  ]);
+
   function reload() {
     setLoading(true);
-    const params = { page, limit: 20 };
+    const params = { page, limit: 20, sort_by: sortBy, sort_order: sortOrder };
     if (appliedSearch) params.search = appliedSearch;
     if (source) params.source = source;
     if (onBench) params.on_bench = 'true';
+    if (vendorId) params.vendor_id = vendorId;
+    if (addedBy) params.added_by = addedBy;
+    if (expMin) params.experience_min = expMin;
+    if (expMax) params.experience_max = expMax;
+    if (ctcMin) params.expected_ctc_min = ctcMin;
+    if (ctcMax) params.expected_ctc_max = ctcMax;
+    if (noticeMax) params.notice_period_max = noticeMax;
+    if (workMode) params.preferred_work_mode = workMode;
+    if (relocate) params.willing_to_relocate = relocate;
+    if (activeState) params.is_active = activeState;
+    if (appliedSkills) params.primary_skills = appliedSkills;
     apiClient
       .get('/profiles', { params })
       .then(({ data }) => {
@@ -119,11 +200,39 @@ export default function ProfilesListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, source, onBench]);
+  }, [
+    appliedSearch, page, source, onBench, vendorId, addedBy, expMin, expMax, ctcMin, ctcMax,
+    noticeMax, workMode, relocate, activeState, appliedSkills, sortBy, sortOrder,
+  ]);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
   }, [searchParams]);
+
+  function resetToFirstPage(setter) {
+    return (value) => {
+      setPage(1);
+      setter(value);
+    };
+  }
+
+  function clearMore() {
+    setPage(1);
+    setVendorId('');
+    setAddedBy('');
+    setExpMin('');
+    setExpMax('');
+    setCtcMin('');
+    setCtcMax('');
+    setNoticeMax('');
+    setWorkMode('');
+    setRelocate('');
+    setActiveState('');
+    setSkills('');
+    setAppliedSkills('');
+    setSortBy('created_at');
+    setSortOrder('desc');
+  }
 
   function closeCreate() {
     setCreateOpen(false);
@@ -132,6 +241,11 @@ export default function ProfilesListPage() {
       setSearchParams(searchParams, { replace: true });
     }
   }
+
+  const numberInput =
+    'w-20 rounded-lg border border-tertiary-100 bg-white px-2 py-1.5 text-sm text-tertiary-700 shadow-soft';
+  const selectInput =
+    'rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft';
 
   const columns = useMemo(
     () => [
@@ -214,42 +328,38 @@ export default function ProfilesListPage() {
       )}
 
       <section className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
-        <div className="border-b border-tertiary-100 px-4 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-xs font-medium text-tertiary-700">
-                <Filter className="h-3.5 w-3.5" />
-                Filters
-              </span>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setPage(1);
-                  setAppliedSearch(search.trim());
-                }}
-                className="flex"
+        <div className="space-y-2 border-b border-tertiary-100 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-xs font-medium text-tertiary-700">
+              <Filter className="h-3.5 w-3.5" />
+              Filters
+            </span>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                setPage(1);
+                setAppliedSearch(search.trim());
+              }}
+              className="flex"
+            >
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, company, skills…"
+                className="w-64 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              <button
+                type="submit"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
               >
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search name, company, skills…"
-                  className="w-64 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
-                />
-                <button
-                  type="submit"
-                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
-                >
-                  Search
-                </button>
-              </form>
-            </div>
+                Search
+              </button>
+            </form>
             <select
               value={source}
-              onChange={(event) => {
-                setPage(1);
-                setSource(event.target.value);
-              }}
-              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              onChange={(event) => resetToFirstPage(setSource)(event.target.value)}
+              className={selectInput}
+              aria-label="Source"
             >
               <option value="">Source: All</option>
               <option value="direct">Direct</option>
@@ -260,14 +370,178 @@ export default function ProfilesListPage() {
               <input
                 type="checkbox"
                 checked={onBench}
-                onChange={(event) => {
-                  setPage(1);
-                  setOnBench(event.target.checked);
-                }}
+                onChange={(event) => resetToFirstPage(setOnBench)(event.target.checked)}
               />
               On bench only
             </label>
+            <button
+              type="button"
+              onClick={() => setShowMore((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              aria-expanded={showMore}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              {showMore ? 'Fewer filters' : 'More filters'}
+            </button>
           </div>
+
+          {showMore && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-canvas-muted/60 p-2">
+              <SearchableSelect
+                className="w-44"
+                allowClear
+                ariaLabel="Vendor"
+                value={vendorId}
+                onChange={resetToFirstPage(setVendorId)}
+                placeholder="Any vendor"
+                searchPlaceholder="Search vendors…"
+                options={vendorOptions}
+              />
+              <SearchableSelect
+                className="w-44"
+                allowClear
+                ariaLabel="Added by"
+                value={addedBy}
+                onChange={resetToFirstPage(setAddedBy)}
+                placeholder="Added by anyone"
+                searchPlaceholder="Search recruiters…"
+                options={recruiterOptions}
+              />
+              <label className="flex items-center gap-1 text-xs text-tertiary-600">
+                Exp
+                <input
+                  type="number"
+                  min="0"
+                  value={expMin}
+                  onChange={(event) => resetToFirstPage(setExpMin)(event.target.value)}
+                  placeholder="min"
+                  className={numberInput}
+                  aria-label="Experience min"
+                />
+                <span>–</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={expMax}
+                  onChange={(event) => resetToFirstPage(setExpMax)(event.target.value)}
+                  placeholder="max"
+                  className={numberInput}
+                  aria-label="Experience max"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-xs text-tertiary-600">
+                CTC
+                <input
+                  type="number"
+                  min="0"
+                  value={ctcMin}
+                  onChange={(event) => resetToFirstPage(setCtcMin)(event.target.value)}
+                  placeholder="min"
+                  className={numberInput}
+                  aria-label="Expected CTC min"
+                />
+                <span>–</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={ctcMax}
+                  onChange={(event) => resetToFirstPage(setCtcMax)(event.target.value)}
+                  placeholder="max"
+                  className={numberInput}
+                  aria-label="Expected CTC max"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-xs text-tertiary-600">
+                Notice ≤
+                <input
+                  type="number"
+                  min="0"
+                  value={noticeMax}
+                  onChange={(event) => resetToFirstPage(setNoticeMax)(event.target.value)}
+                  placeholder="days"
+                  className={numberInput}
+                  aria-label="Notice period max days"
+                />
+              </label>
+              <select
+                value={workMode}
+                onChange={(event) => resetToFirstPage(setWorkMode)(event.target.value)}
+                className={selectInput}
+                aria-label="Preferred work mode"
+              >
+                <option value="">Work mode: Any</option>
+                <option value="remote">Remote</option>
+                <option value="onsite">Onsite</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+              <select
+                value={relocate}
+                onChange={(event) => resetToFirstPage(setRelocate)(event.target.value)}
+                className={selectInput}
+                aria-label="Willing to relocate"
+              >
+                <option value="">Relocate: Any</option>
+                <option value="true">Will relocate</option>
+                <option value="false">Will not relocate</option>
+              </select>
+              <select
+                value={activeState}
+                onChange={(event) => resetToFirstPage(setActiveState)(event.target.value)}
+                className={selectInput}
+                aria-label="Active"
+              >
+                <option value="">Active: Any</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPage(1);
+                  setAppliedSkills(skills.trim());
+                }}
+                className="flex"
+              >
+                <input
+                  value={skills}
+                  onChange={(event) => setSkills(event.target.value)}
+                  placeholder="Skills (comma-sep)"
+                  className="w-48 rounded-l-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400"
+                />
+                <button
+                  type="submit"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] hover:bg-[#DBE6FE]"
+                >
+                  Apply
+                </button>
+              </form>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-tertiary-500">Sort</span>
+                <select
+                  value={sortBy}
+                  onChange={(event) => resetToFirstPage(setSortBy)(event.target.value)}
+                  className={selectInput}
+                  aria-label="Sort by"
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={sortOrder}
+                  onChange={(event) => resetToFirstPage(setSortOrder)(event.target.value)}
+                  className={selectInput}
+                  aria-label="Sort order"
+                >
+                  <option value="desc">Desc</option>
+                  <option value="asc">Asc</option>
+                </select>
+              </div>
+              <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={clearMore}>
+                Clear
+              </button>
+            </div>
+          )}
         </div>
 
         <DataTable
@@ -310,7 +584,7 @@ export default function ProfilesListPage() {
       </div>
 
       <Drawer open={Boolean(peek)} title={peek?.name || 'Candidate'} onClose={() => setPeek(null)} size="md" tone="info">
-        {peek && <ProfilePeek row={peek} onClose={() => setPeek(null)} onChanged={reload} />}
+        {peek && <ProfilePeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
       <Drawer open={createOpen} title="Add candidate" onClose={closeCreate} size="md" tone="create">
