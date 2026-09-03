@@ -6,6 +6,22 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Notifications + Interview Calendar (planned)
+
+Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md). Sequenced:
+
+- [ ] **Schema** — `Notification` + `NotificationPreference` models + enums; `InterviewRound` gains `status` (`scheduled`/`completed`/`cancelled`), `cancelled_at`/`cancellation_reason`, `reminder_sent_at`/`reminder_1h_sent_at`, reserved `online_meeting_provider`/`external_event_id`. `npm run migrate`; add tables to `helpers.js` truncate list.
+- [ ] **Dispatch layer** — `server/src/lib/notifications/` (`eventCatalog.js` `ROLE_EVENT_MATRIX` + `renderNotification`, `recipients.js`, `dispatch.js` `notify()` — role + preference filtered, never throws).
+- [ ] **Notifications API** — `server/src/modules/notifications/` (`GET /`, `/unread-count`, `POST /read`, `/read-all`, `GET`/`PUT /preferences`); mount in `app.js`.
+- [ ] **Wire call sites** — accounts `changeStage` (→active), requirements `create`/`assign`/`unassign`/`changeStatus`, submissions `addInterviewRound`/`updateInterviewRound`/`changeStage` (submitted/rejected/backout/offer).
+- [ ] **Interviews API** — `server/src/modules/interviews/` (`GET /` calendar feed, role-scoped like `entityAccess`; `POST /:id/feedback` for assigned interviewers + managers; `POST /:id/cancel`); mount in `app.js`.
+- [ ] **Reminder cron** — add `node-cron`; `server/src/jobs/interviewReminders.js` (T-24h + T-1h, deduped); `startJobs()` from `index.js` guarded by `ENABLE_JOBS` (`false` in test env).
+- [ ] **Frontend shared bits** — extract `client/src/lib/interviewRounds.js` (round-type colors/labels); `components/ui/Toggle.jsx`; extend `Badge.jsx` `COLOR_MAP` with `scheduled`/`completed`/`cancelled`; `id="interview-rounds"` on the panel section.
+- [ ] **Frontend — notifications** — `NotificationsProvider` (60s poll) in `main.jsx`; `NotificationBell` in `AppLayout` header; `/notifications` page; `/notifications/preferences` page.
+- [ ] **Frontend — calendar** — `/calendar` page + nav item (all roles); `monthGrid.js` helpers; `CalendarMonthView` + `CalendarAgendaView`; `EventDetailDrawer` + `FeedbackDrawer`; cancelled shown struck-through / "Cancelled" strip; optional dashboard "My upcoming interviews" widget.
+- [ ] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`.
+- [ ] **Docs finalize** — as-built notes in the feature spec; dated `PROGRESS.md` entry; note the bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; flip the three v2 rows in `architecture/API-Spec-and-Build-Plan.md`.
+
 ## Backend
 
 - [x] Install, migrate, seed, Docker end-to-end verified.

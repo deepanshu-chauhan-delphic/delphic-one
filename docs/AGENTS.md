@@ -11,6 +11,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 | Folder | Contents |
 |---|---|
 | [`architecture/`](architecture/) | Diagrams, HLD, field model, API contracts |
+| [`features/`](features/) | Feature-level design + build specs (one doc per feature) |
 | [`ui/`](ui/) | Jira UX rule, RD-115 walkthrough, reference screenshots |
 | [`testing/`](testing/) | Demo seed + ticket test guides |
 | [`progress/`](progress/) | PROGRESS, TODO, SPRINT-PLAN |
@@ -24,6 +25,11 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 - [Requirement-Dashboard-System-Design-v2.md](architecture/Requirement-Dashboard-System-Design-v2.md) — historical, an earlier already-shipped milestone despite the name
 - [V2-LEAD-PIPELINE-REQUIREMENTS.md](architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md) — lead classification, meeting attendees, candidate round taxonomy, requirement types, candidate bench flag, client-performance report
 - [API-Spec-and-Build-Plan.md](architecture/API-Spec-and-Build-Plan.md)
+
+### Features
+
+- [features/README.md](features/README.md) — index of feature specs
+- [RD-NOTIFICATIONS-AND-CALENDAR.md](features/RD-NOTIFICATIONS-AND-CALENDAR.md) — role-aware in-app notifications, interview calendar (month + agenda), interviewer feedback, reminder cron; email + MS Teams extension points (Planned)
 
 ### UI
 

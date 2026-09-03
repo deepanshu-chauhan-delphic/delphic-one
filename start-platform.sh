@@ -5,9 +5,9 @@
 #   • API server via nodemon  (localhost:4000, hot reload)
 #   • Client via Vite         (localhost:5173, hot reload, proxies /api → :4000)
 #
-# The server + client run in the FOREGROUND with prefixed output so you see live
-# progress from both. Ctrl+C stops both dev servers and the script; the Postgres
-# container is left running (stop it with `docker compose stop db`, or pass --down).
+# The server + client run together with live output from both. Ctrl+C stops both
+# dev servers and the script; the Postgres container is left running (stop it with
+# `docker compose stop db`, or pass --down).
 #
 # Usage:
 #   ./start-platform.sh                 # db + migrate, then server + client
@@ -22,6 +22,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
+
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;;
+  *) IS_WINDOWS=0 ;;
+esac
+
+DEV_PORTS="4000 5173"
 
 SEED=0
 FRESH=0
@@ -50,11 +57,46 @@ PG_USER="${POSTGRES_USER:-postgres}"
 
 log() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 
+kill_tree() {
+  local pid="$1"
+  [ -n "$pid" ] || return 0
+  if [ "$IS_WINDOWS" = 1 ]; then
+    taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
+  else
+    pkill -TERM -P "$pid" 2>/dev/null || true
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
+}
+
+# Kill anything still listening on the dev ports (orphaned nodemon / vite from a
+# previous run — these also hold Prisma's query engine DLL open on Windows and
+# break `prisma generate`).
+free_dev_ports() {
+  local port pid killed=0
+  for port in $DEV_PORTS; do
+    if [ "$IS_WINDOWS" = 1 ]; then
+      for pid in $(netstat -ano 2>/dev/null | grep -E ":${port}[[:space:]]+.*LISTENING" | awk '{print $NF}' | sort -u); do
+        [ -n "$pid" ] && [ "$pid" != 0 ] || continue
+        taskkill //F //T //PID "$pid" >/dev/null 2>&1 && { echo "  freed :$port (was PID $pid)"; killed=1; }
+      done
+    else
+      for pid in $(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true); do
+        kill -TERM "$pid" 2>/dev/null && { echo "  freed :$port (was PID $pid)"; killed=1; }
+      done
+    fi
+  done
+  [ "$killed" = 1 ] && sleep 1 || true
+}
+
 if [ "$DOWN" = 1 ]; then
-  log "Stopping the db container"
+  log "Stopping the db container and any orphaned dev servers"
+  free_dev_ports
   docker compose stop db
   exit 0
 fi
+
+log "Clearing orphaned dev servers on ports: $DEV_PORTS"
+free_dev_ports
 
 # 1. Postgres ---------------------------------------------------------------
 if [ "$FRESH" = 1 ]; then
@@ -126,15 +168,29 @@ if [ "$DB_ONLY" = 1 ]; then
   exit 0
 fi
 
-# 6. Dev servers (foreground, both, prefixed) --------------------------------
+# 6. Dev servers (both, Ctrl+C stops both) ---------------------------------
 log "Starting API (:4000) and client (:5173) — Ctrl+C to stop both"
 echo "  Client : http://localhost:5173"
 echo "  API    : http://localhost:4000/api/v1/health"
 echo "  DB     : localhost:5434  (Prisma Studio: npm run studio --workspace server)"
 echo
 
-trap 'echo; echo "Stopping dev servers…"; kill 0 2>/dev/null; exit 0' INT TERM
+SERVER_PID=""
+CLIENT_PID=""
+cleanup() {
+  trap - INT TERM
+  echo; echo "Stopping dev servers…"
+  kill_tree "$SERVER_PID"
+  kill_tree "$CLIENT_PID"
+  exit 0
+}
+trap cleanup INT TERM
 
-npm run dev:server 2>&1 | sed -u 's/^/\x1b[32m[server]\x1b[0m /' &
-npm run dev:client 2>&1 | sed -u 's/^/\x1b[35m[client]\x1b[0m /' &
-wait
+npm run dev:server &
+SERVER_PID=$!
+npm run dev:client &
+CLIENT_PID=$!
+
+# Exit (cleaning up the other) as soon as either dev server stops.
+wait -n 2>/dev/null || wait
+cleanup
