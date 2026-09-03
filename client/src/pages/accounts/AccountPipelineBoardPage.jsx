@@ -16,8 +16,10 @@ import { accountAccent } from '../../lib/accountAccent.js';
 import { BOARD_COLUMNS, groupBoard, stageColumnStats } from '../../lib/accountBoard.js';
 import {
   canCreateSubmission,
+  canMoveSubmissionBackward,
   canMutateSubmission,
   canOverrideSubmissionStage,
+  isBackwardTransition,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
@@ -58,14 +60,20 @@ const STAGE_HEADER_COLORS = {
   rejected: 'bg-red-50 text-red-700',
 };
 
-function SubmissionCard({ submission, canMove, busy, onMoveStage, isDragging, onOpen }) {
-  const next = nextSubmissionStages(submission.stage);
+function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStage, isDragging, onOpen }) {
+  const next = nextSubmissionStages(submission.stage).filter(
+    (to) => canMoveBackward || !isBackwardTransition(submission.stage, to)
+  );
   const actions = [
     { key: 'open', label: 'Open submission', onClick: () => onOpen(submission.id) },
     ...(canMove && !submission.is_locked
       ? next.map((to) => ({
           key: `move-${to}`,
-          label: `Move to ${to.replace(/_/g, ' ')}`,
+          label: isBackwardTransition(submission.stage, to)
+            ? (submission.stage === 'rejected' || submission.stage === 'backout'
+              ? 'Reactivate candidate'
+              : `Move back to ${to.replace(/_/g, ' ')}`)
+            : `Move to ${to.replace(/_/g, ' ')}`,
           danger: to === 'backout' || to === 'rejected',
           disabled: busy,
           onClick: () => onMoveStage(submission, to),
@@ -101,7 +109,7 @@ function SubmissionCard({ submission, canMove, busy, onMoveStage, isDragging, on
   );
 }
 
-function DraggableCard({ submission, canMove, busy, onMoveStage, onOpen }) {
+function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage, onOpen }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: submission.id,
     disabled: !canMove || submission.is_locked,
@@ -117,6 +125,7 @@ function DraggableCard({ submission, canMove, busy, onMoveStage, onOpen }) {
       <SubmissionCard
         submission={submission}
         canMove={canMove}
+        canMoveBackward={canMoveBackward}
         busy={busy}
         onMoveStage={onMoveStage}
         isDragging={isDragging}
@@ -169,6 +178,7 @@ export default function AccountPipelineBoardPage() {
   const [submitForReqId, setSubmitForReqId] = useState(null);
 
   const canMoveSubs = canMutateSubmission(user);
+  const canMoveSubsBackward = canMoveSubmissionBackward(user);
   const canOverrideSubs = canOverrideSubmissionStage(user);
   const canSubmit = canCreateSubmission(user);
   const canAddRequirement = canCreateRequirement(user);
@@ -221,6 +231,7 @@ export default function AccountPipelineBoardPage() {
       const body = { to_stage };
       if (requiresBackoutReason(to_stage)) body.backout_reason = reasonText?.trim();
       if (requiresRejectionReason(to_stage)) body.rejection_reason = reasonText?.trim();
+      if (isBackwardTransition(submission.stage, to_stage)) body.reason = reasonText?.trim();
       await apiClient.post(`/submissions/${submission.id}/stage`, body);
       setStageModal(null);
       setStageReason('');
@@ -258,7 +269,12 @@ export default function AccountPipelineBoardPage() {
       return;
     }
     if (submission.is_locked) return;
-    if (requiresBackoutReason(to_stage) || requiresRejectionReason(to_stage)) {
+    const backward = isBackwardTransition(submission.stage, to_stage);
+    if (backward && !canMoveSubsBackward) {
+      pushError(`Cannot move from ${submission.stage.replace(/_/g, ' ')} to ${to_stage.replace(/_/g, ' ')}`, 'Validation');
+      return;
+    }
+    if (requiresBackoutReason(to_stage) || requiresRejectionReason(to_stage) || backward) {
       setStageReason('');
       setStageModal({ submission, to_stage });
       return;
@@ -269,7 +285,11 @@ export default function AccountPipelineBoardPage() {
   async function confirmStageModal() {
     if (!stageModal) return;
     const { submission, to_stage } = stageModal;
-    if ((requiresBackoutReason(to_stage) || requiresRejectionReason(to_stage)) && !stageReason.trim()) return;
+    const needsReason =
+      requiresBackoutReason(to_stage) ||
+      requiresRejectionReason(to_stage) ||
+      isBackwardTransition(submission.stage, to_stage);
+    if (needsReason && !stageReason.trim()) return;
     await postStageMove(submission, to_stage, stageReason);
   }
 
@@ -506,6 +526,7 @@ export default function AccountPipelineBoardPage() {
                               key={sub.id}
                               submission={sub}
                               canMove={canMoveSubs}
+                              canMoveBackward={canMoveSubsBackward}
                               busy={busyId === sub.id}
                               onMoveStage={requestStageMove}
                               onOpen={(subId) => navigate(`/submissions/${subId}`)}
@@ -542,7 +563,13 @@ export default function AccountPipelineBoardPage() {
 
       <Modal
         open={Boolean(stageModal)}
-        title={`Move to ${stageModal?.to_stage?.replace(/_/g, ' ') || ''}`}
+        title={
+          stageModal && isBackwardTransition(stageModal.submission.stage, stageModal.to_stage)
+            ? (stageModal.submission.stage === 'rejected' || stageModal.submission.stage === 'backout'
+              ? 'Reactivate candidate'
+              : `Move back to ${stageModal.to_stage.replace(/_/g, ' ')}`)
+            : `Move to ${stageModal?.to_stage?.replace(/_/g, ' ') || ''}`
+        }
         onClose={() => !busyId && setStageModal(null)}
         footer={
           <>
@@ -558,7 +585,9 @@ export default function AccountPipelineBoardPage() {
               }
               disabled={
                 Boolean(busyId)
-                || ((requiresBackoutReason(stageModal?.to_stage) || requiresRejectionReason(stageModal?.to_stage))
+                || ((requiresBackoutReason(stageModal?.to_stage)
+                  || requiresRejectionReason(stageModal?.to_stage)
+                  || (stageModal && isBackwardTransition(stageModal.submission.stage, stageModal.to_stage)))
                   && !stageReason.trim())
               }
               onClick={confirmStageModal}
@@ -568,10 +597,16 @@ export default function AccountPipelineBoardPage() {
           </>
         }
       >
-        {(requiresBackoutReason(stageModal?.to_stage) || requiresRejectionReason(stageModal?.to_stage)) ? (
+        {(requiresBackoutReason(stageModal?.to_stage)
+          || requiresRejectionReason(stageModal?.to_stage)
+          || (stageModal && isBackwardTransition(stageModal.submission.stage, stageModal.to_stage))) ? (
           <div>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">
-              {requiresBackoutReason(stageModal?.to_stage) ? 'Backout reason *' : 'Rejection reason *'}
+              {requiresBackoutReason(stageModal?.to_stage)
+                ? 'Backout reason *'
+                : requiresRejectionReason(stageModal?.to_stage)
+                  ? 'Rejection reason *'
+                  : 'Reason *'}
             </label>
             <textarea
               rows={3}

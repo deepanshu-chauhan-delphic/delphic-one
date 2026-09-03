@@ -11,8 +11,10 @@ import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   SUBMISSION_PIPELINE,
+  canMoveSubmissionBackward,
   canMutateSubmission,
   canOverrideSubmissionStage,
+  isBackwardTransition,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
@@ -32,12 +34,19 @@ const BOARD_COLUMNS = [...SUBMISSION_PIPELINE, 'backout', 'rejected'];
 const INPUT_CLASS =
   'mt-1 w-full rounded-md border border-tertiary-200 px-2.5 py-1.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
-function needsReason(toStage) {
-  return requiresBackoutReason(toStage) || requiresRejectionReason(toStage);
+function needsReason(toStage, fromStage) {
+  return (
+    requiresBackoutReason(toStage) ||
+    requiresRejectionReason(toStage) ||
+    (fromStage ? isBackwardTransition(fromStage, toStage) : false)
+  );
 }
 
 function StageReasonDrawer({ submission, toStage, open, saving, onClose, onConfirm }) {
   const [reason, setReason] = useState('');
+  const backward = submission && toStage ? isBackwardTransition(submission.stage, toStage) : false;
+  const reactivate =
+    backward && submission && (submission.stage === 'rejected' || submission.stage === 'backout');
 
   useEffect(() => {
     if (open) setReason('');
@@ -48,7 +57,13 @@ function StageReasonDrawer({ submission, toStage, open, saving, onClose, onConfi
   return (
     <Drawer
       open={open}
-      title={`Move to ${formatStageLabel(toStage)}`}
+      title={
+        reactivate
+          ? 'Reactivate candidate'
+          : backward
+            ? `Move back to ${formatStageLabel(toStage)}`
+            : `Move to ${formatStageLabel(toStage)}`
+      }
       onClose={() => !saving && onClose()}
       size="sm"
       tone="edit"
@@ -84,14 +99,20 @@ function StageReasonDrawer({ submission, toStage, open, saving, onClose, onConfi
   );
 }
 
-function KanbanCard({ submission, canMove, busy, isDragging, onMoveStage, onOpen }) {
-  const next = nextSubmissionStages(submission.stage);
+function KanbanCard({ submission, canMove, canMoveBackward, busy, isDragging, onMoveStage, onOpen }) {
+  const next = nextSubmissionStages(submission.stage).filter(
+    (to) => canMoveBackward || !isBackwardTransition(submission.stage, to)
+  );
   const actions = [
     { key: 'open', label: 'Open submission', onClick: () => onOpen(submission.id) },
     ...(canMove && !submission.is_locked
       ? next.map((to) => ({
           key: `move-${to}`,
-          label: `Move to ${formatStageLabel(to)}`,
+          label: isBackwardTransition(submission.stage, to)
+            ? (submission.stage === 'rejected' || submission.stage === 'backout'
+              ? 'Reactivate candidate'
+              : `Move back to ${formatStageLabel(to)}`)
+            : `Move to ${formatStageLabel(to)}`,
           danger: to === 'backout' || to === 'rejected',
           disabled: busy,
           onClick: () => onMoveStage(submission, to),
@@ -141,6 +162,7 @@ export default function RequirementKanbanPage() {
   const [overId, setOverId] = useState(null);
 
   const canMove = canMutateSubmission(user);
+  const canMoveBackward = canMoveSubmissionBackward(user);
   const canOverride = canOverrideSubmissionStage(user);
 
   const load = useCallback(async () => {
@@ -180,6 +202,7 @@ export default function RequirementKanbanPage() {
       const body = { to_stage };
       if (requiresBackoutReason(to_stage)) body.backout_reason = reasonText?.trim();
       if (requiresRejectionReason(to_stage)) body.rejection_reason = reasonText?.trim();
+      if (isBackwardTransition(submission.stage, to_stage)) body.reason = reasonText?.trim();
       await apiClient.post(`/submissions/${submission.id}/stage`, body);
       setReasonModal(null);
       await load();
@@ -216,7 +239,12 @@ export default function RequirementKanbanPage() {
       return;
     }
     if (submission.is_locked) return;
-    if (needsReason(to_stage)) {
+    const backward = isBackwardTransition(submission.stage, to_stage);
+    if (backward && !canMoveBackward) {
+      pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(to_stage)}`, 'Validation');
+      return;
+    }
+    if (needsReason(to_stage, submission.stage)) {
       setReasonModal({ submission, to_stage });
       return;
     }
@@ -306,6 +334,7 @@ export default function RequirementKanbanPage() {
                       <KanbanCard
                         submission={sub}
                         canMove={canMove}
+                        canMoveBackward={canMoveBackward}
                         busy={busyId === sub.id}
                         isDragging={isDragging}
                         onMoveStage={requestMove}

@@ -20,6 +20,7 @@ const ERROR_STATUS = {
   meeting_location_required: [400, 'meeting_location is required for offline meetings'],
   already_classified: [400, 'Account type is already set'],
   forbidden_type_change: [403, 'Only an admin can change the account type'],
+  forbidden_brought_by: [403, 'Only an admin can change "Brought by"'],
   user_not_found: [400, 'Selected owner was not found or is inactive'],
 };
 

@@ -737,27 +737,49 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
 }
 
 /**
- * Client accounts that have no requirements at all — the BDA brought them in but
- * no sales requirement was ever opened. "Sales POC" is the account owner
- * (`owner_id`, the POC from our end); "Brought by" is the originator
- * (`origin_owner_id`). Filterable by either.
+ * Active client coverage report (UI: "Clients without requirements").
+ *
+ * Always filtered to `stage: 'active'` when a bucket is supplied.
+ * `bucket`:
+ *   - `with_requirements` — active clients that have at least one requirement.
+ *   - `without_active_requirements` — active clients with no open/in_progress
+ *     requirement (zero requirements, or only on_hold / closed / dropped).
+ * Legacy callers with neither bucket nor stage keep the old behaviour:
+ * accounts with literally zero requirements (any stage).
  */
-async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
+async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket }) {
+  const effectiveStage = bucket ? (stage || 'active') : stage;
+  const baseWhere = {
+    // Include not-yet-classified accounts (type IS NULL) — every account still in
+    // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
+    // filter made the Stage = Lead option return nothing. Mirrors the Accounts
+    // list "include unclassified" behaviour.
+    OR: [{ type: 'client' }, { type: null }],
+    ...(bda_id ? { owner_id: bda_id } : {}),
+    ...(origin_owner_id ? { origin_owner_id } : {}),
+    ...(effectiveStage ? { stage: effectiveStage } : {}),
+  };
+
+  let requirementFilter;
+  if (bucket === 'with_requirements') {
+    requirementFilter = { requirements: { some: {} } };
+  } else if (bucket === 'without_active_requirements') {
+    requirementFilter = {
+      NOT: {
+        requirements: { some: { status: { in: ['open', 'in_progress'] } } },
+      },
+    };
+  } else {
+    // Legacy default: no requirements at all.
+    requirementFilter = { requirements: { none: {} } };
+  }
+
   const rows = await prisma.account.findMany({
-    where: {
-      // Include not-yet-classified accounts (type IS NULL) — every account still in
-      // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
-      // filter made the Stage = Lead option return nothing. Mirrors the Accounts
-      // list "include unclassified" behaviour.
-      OR: [{ type: 'client' }, { type: null }],
-      requirements: { none: {} },
-      ...(bda_id ? { owner_id: bda_id } : {}),
-      ...(origin_owner_id ? { origin_owner_id } : {}),
-      ...(stage ? { stage } : {}),
-    },
+    where: { ...baseWhere, ...requirementFilter },
     include: {
       owner: { select: { id: true, name: true } },
       origin_owner: { select: { id: true, name: true } },
+      _count: { select: { requirements: true } },
     },
     orderBy: { created_at: 'asc' },
   });
@@ -767,6 +789,7 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
     stage: a.stage,
     brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
     sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
+    requirements_count: a._count.requirements,
     created_at: a.created_at,
     days_idle: Math.floor(daysBetween(a.created_at, new Date())),
   }));

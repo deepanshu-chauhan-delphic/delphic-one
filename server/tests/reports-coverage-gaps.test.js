@@ -117,6 +117,40 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(res.body.data.map((r) => r.client.id)).toContain(unclassifiedLead.id);
   });
 
+  test('bucket=with_requirements vs without_active_requirements', async () => {
+    const idle = await createActiveClientAccount(bda.id);
+    const withOpenReq = await createActiveClientAccount(bda.id);
+    await createRequirement(salesToken, withOpenReq.id, { title: 'Open req' });
+
+    const onlyHold = await createActiveClientAccount(bda.id);
+    const holdReq = await createRequirement(salesToken, onlyHold.id, { title: 'Hold req' });
+    await prisma.requirement.update({ where: { id: holdReq.id }, data: { status: 'on_hold' } });
+
+    const withBucket = await authed(
+      request(app)
+        .get('/api/v1/reports/clients-without-requirements')
+        .query({ stage: 'active', bucket: 'with_requirements' }),
+      adminToken
+    );
+    expect(withBucket.status).toBe(200);
+    const withIds = withBucket.body.data.map((r) => r.client.id);
+    expect(withIds).toContain(withOpenReq.id);
+    expect(withIds).toContain(onlyHold.id);
+    expect(withIds).not.toContain(idle.id);
+
+    const withoutActive = await authed(
+      request(app)
+        .get('/api/v1/reports/clients-without-requirements')
+        .query({ stage: 'active', bucket: 'without_active_requirements' }),
+      adminToken
+    );
+    expect(withoutActive.status).toBe(200);
+    const withoutIds = withoutActive.body.data.map((r) => r.client.id);
+    expect(withoutIds).toContain(idle.id);
+    expect(withoutIds).toContain(onlyHold.id);
+    expect(withoutIds).not.toContain(withOpenReq.id);
+  });
+
   test('filters by Brought by (origin_owner_id)', async () => {
     const mine = await createActiveClientAccount(bda.id);
     const other = await createActiveClientAccount(bda2.id);

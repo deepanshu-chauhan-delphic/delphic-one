@@ -45,11 +45,21 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 ```
+
 ```bash
 sudo systemctl enable --now delphic-backup.timer
 ```
 
-- Dumps land in `./backups/` (`auto-*.dump` from the timer, `predeploy-*.dump` from deploys). `./backups/` is git-ignored.
+Retention (count-based, not age-based — disk will not grow without bound):
+
+| Source | Files | Kept |
+|---|---|---|
+| Each `./start-delphic.sh --prod` (every push/deploy) | `backups/predeploy-*.dump` | newest **7** (`BACKUP_KEEP`) |
+| Cron / systemd timer | `backups/auto-*.dump` | newest **7** (`BACKUP_KEEP`) |
+
+Each run writes one new dump, then deletes anything past the 7 newest of that family. Override with `BACKUP_KEEP=N` if you need more. Both scripts also abort when the backups volume has less than `BACKUP_MIN_FREE_GB` (default **2**) free.
+
+- `./backups/` is git-ignored.
 - **Copy them off the box.** Set `BACKUP_OFFSITE_CMD` (e.g. `BACKUP_OFFSITE_CMD='aws s3 cp "$1" s3://delphic-backups/'`) in the service environment.
 - Strongly recommended: enable Postgres WAL archiving / use a managed Postgres with **point-in-time recovery** so recovery is to the second, not the last dump.
 

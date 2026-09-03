@@ -12,8 +12,10 @@ import ScreeningRoundChips from './ScreeningRoundChips.jsx';
 import {
   SUBMISSION_PIPELINE,
   canCreateSubmission,
+  canMoveSubmissionBackward,
   canMutateSubmission,
   canOverrideSubmissionStage,
+  isBackwardTransition,
   nextSubmissionStages,
   requiresBackoutReason,
   requiresRejectionReason,
@@ -35,10 +37,14 @@ function needsSubmissionReason(toStage) {
   return requiresBackoutReason(toStage) || requiresRejectionReason(toStage);
 }
 
-function SubmissionStageDrawer({ submission, open, saving, preferredToStage, onClose, onMove }) {
-  const stages = nextSubmissionStages(submission?.stage);
+function SubmissionStageDrawer({ submission, open, saving, preferredToStage, canMoveBackward, onClose, onMove }) {
+  const stages = nextSubmissionStages(submission?.stage).filter(
+    (s) => canMoveBackward || !isBackwardTransition(submission?.stage, s)
+  );
   const [toStage, setToStage] = useState('');
   const [reason, setReason] = useState('');
+  const backward = submission ? isBackwardTransition(submission.stage, toStage) : false;
+  const showReason = needsSubmissionReason(toStage) || backward;
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +58,7 @@ function SubmissionStageDrawer({ submission, open, saving, preferredToStage, onC
     const body = { to_stage: toStage };
     if (requiresBackoutReason(toStage)) body.backout_reason = reason.trim();
     if (requiresRejectionReason(toStage)) body.rejection_reason = reason.trim();
+    if (backward) body.reason = reason.trim();
     onMove(body);
   }
 
@@ -92,7 +99,7 @@ function SubmissionStageDrawer({ submission, open, saving, preferredToStage, onC
             ))}
           </select>
         </label>
-        {needsSubmissionReason(toStage) && (
+        {showReason && (
           <label className="block text-xs font-medium text-tertiary-600">
             Reason
             <textarea
@@ -109,8 +116,10 @@ function SubmissionStageDrawer({ submission, open, saving, preferredToStage, onC
   );
 }
 
-function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenDetail, onOpenBoard }) {
-  const next = nextSubmissionStages(submission.stage);
+function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onRequestMove, onOpenDetail, onOpenBoard }) {
+  const next = nextSubmissionStages(submission.stage).filter(
+    (stage) => canMoveBackward || !isBackwardTransition(submission.stage, stage)
+  );
   const actions = [
     { key: 'detail', label: 'Open submission', onClick: () => onOpenDetail(submission.id) },
     submission.requirement?.id
@@ -119,7 +128,11 @@ function CandidateCard({ submission, canMove, isDragging, onRequestMove, onOpenD
     ...(canMove && !submission.is_locked
       ? next.map((stage) => ({
           key: `move-${stage}`,
-          label: `Move to ${formatStageLabel(stage)}`,
+          label: isBackwardTransition(submission.stage, stage)
+            ? (submission.stage === 'rejected' || submission.stage === 'backout'
+              ? 'Reactivate candidate'
+              : `Move back to ${formatStageLabel(stage)}`)
+            : `Move to ${formatStageLabel(stage)}`,
           danger: stage === 'backout' || stage === 'rejected',
           onClick: () => onRequestMove(submission, stage),
         }))
@@ -195,6 +208,7 @@ export default function CandidatePipelineBoard() {
   const [overId, setOverId] = useState(null);
   const canCreate = canCreateSubmission(user);
   const canMove = canMutateSubmission(user);
+  const canMoveBackward = canMoveSubmissionBackward(user);
   const canOverride = canOverrideSubmissionStage(user);
 
   async function postDirectMove(submission, toStage) {
@@ -233,7 +247,12 @@ export default function CandidatePipelineBoard() {
       pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
       return;
     }
-    if (needsSubmissionReason(toStage)) {
+    const backward = isBackwardTransition(submission.stage, toStage);
+    if (backward && !canMoveBackward) {
+      pushError(`Cannot move from ${formatStageLabel(submission.stage)} to ${formatStageLabel(toStage)}`, 'Validation');
+      return;
+    }
+    if (needsSubmissionReason(toStage) || backward) {
       setPreferredToStage(toStage);
       setStageTarget(submission);
       return;
@@ -325,6 +344,7 @@ export default function CandidatePipelineBoard() {
                         <CandidateCard
                           submission={submission}
                           canMove={canMove}
+                          canMoveBackward={canMoveBackward}
                           isDragging={isDragging}
                           onRequestMove={requestMove}
                           onOpenDetail={(id) => navigate(`/submissions/${id}`)}
@@ -356,6 +376,7 @@ export default function CandidatePipelineBoard() {
         submission={stageTarget}
         open={Boolean(stageTarget)}
         preferredToStage={preferredToStage}
+        canMoveBackward={canMoveBackward}
         saving={moving}
         onClose={() => {
           setStageTarget(null);

@@ -11,10 +11,18 @@ describe('submission stageMachines (RD-107 / RD-108 helpers)', () => {
     expect(nextSubmissionStages('sourced')).toEqual(['internal_screening', 'rejected', 'backout']);
   });
 
-  test('terminal stages have no next steps', () => {
+  test('closed is terminal; rejected and backout can reactivate to sourced', () => {
     expect(nextSubmissionStages('closed')).toEqual([]);
-    expect(nextSubmissionStages('rejected')).toEqual([]);
-    expect(nextSubmissionStages('backout')).toEqual([]);
+    expect(nextSubmissionStages('rejected')).toEqual(['sourced']);
+    expect(nextSubmissionStages('backout')).toEqual(['sourced']);
+  });
+
+  test('isBackwardTransition detects step-backs and reactivate', () => {
+    const { isBackwardTransition } = require('../src/modules/submissions/stageMachines');
+    expect(isBackwardTransition('interview_scheduled', 'submitted_to_client')).toBe(true);
+    expect(isBackwardTransition('interview_scheduled', 'interview_result')).toBe(false);
+    expect(isBackwardTransition('rejected', 'sourced')).toBe(true);
+    expect(isBackwardTransition('sourced', 'internal_screening')).toBe(false);
   });
 
   test('backout and rejected require dedicated reasons', () => {

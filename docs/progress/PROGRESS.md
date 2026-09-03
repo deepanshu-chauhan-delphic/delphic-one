@@ -2,6 +2,39 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — Ticket undo/reactivate, actor names, Brought-by admin, report tweaks
+
+`main`, uncommitted. No schema/migration change.
+
+### Pipeline / submissions
+
+- Admin (+ superadmin) may step a submission back one stage or reactivate
+  `rejected` / `backout` → `sourced` via `POST /submissions/:id/stage` (reason
+  required; stamps cleared on reactivate). Recruiters still forward-only.
+- Detail page + Candidate / Requirement / Account boards surface "Move back…" /
+  "Reactivate candidate" for admins; reason drawer required for those moves.
+- Submission detail no longer blanks when `/history` fails; history endpoint
+  matches `getOne` visibility (no extra recruiter-owner 403). `profile_id`
+  restored in serialize. Stage history rows now include `changed_by.name`
+  (requirement + submission), rendered on both detail pages.
+
+### Accounts
+
+- "Brought by" (`origin_owner_id`) editable by **admin + superadmin** (was
+  superadmin-only). Non-admins get a loud 403 instead of a silent drop. Reports
+  inline coverage edit uses the same `editBroughtBy` capability.
+
+### Reports
+
+- Recruiter–vendor gaps: hide "Recruiters (our end)" column (table + export).
+- Clients without requirements: toggle **With requirements** /
+  **No active requirements** (`bucket` query); adds `requirements_count` column.
+
+### Tests
+
+- Updated `submission-stage-machines`, `submissions-stage`, `superadmin-accounts`,
+  `reports-coverage-gaps`, `reportViews.test.mjs`.
+
 ## 2026-09-03 — Prod data-loss safeguards (deploy backup + destructive-script guards)
 
 `main`, uncommitted. Ops/tooling only — no app code, no schema change. Shell scripts
@@ -19,8 +52,9 @@ an older dump) and/or a CSV seed (`seed.js` wipes every table).
   then verifies the dump is readable (`pg_restore --list` inside the container).
 - **Aborts the deploy** if `pg_dump` errors or the dump can't be read back — nothing is
   built or migrated. A tiny dump (genuinely empty DB) warns and continues.
-- Keeps the newest `BACKUP_KEEP` (48) predeploy dumps. `--skip-backup` escape hatch for
-  the first-ever deploy only.
+- Keeps the newest `BACKUP_KEEP` (7) predeploy dumps — one per push, oldest deleted.
+  Aborts when the backups volume has less than `BACKUP_MIN_FREE_GB` (2) free.
+  `--skip-backup` escape hatch for the first-ever deploy only.
 - `start-delphic.sh` still has **no `--restore` flag** — restores are manual `pg_restore`
   only, never part of a deploy (runbook §4 rewritten to match; the old runbook told people
   to pass a `--restore=` flag that doesn't exist).
@@ -40,8 +74,9 @@ an older dump) and/or a CSV seed (`seed.js` wipes every table).
 
 ### 4. Scheduled backups — `scripts/db-backup.sh` + runbook
 
-- Standalone verified `pg_dump -Fc` → `./backups/auto-<ts>.dump`, rotates to
-  `BACKUP_KEEP` (192 ≈ 2 days at 15 min), optional `BACKUP_OFFSITE_CMD` hook.
+- Standalone verified `pg_dump -Fc` → `./backups/auto-<ts>.dump`, keeps newest
+  `BACKUP_KEEP` (7), aborts under `BACKUP_MIN_FREE_GB` (2) free, optional
+  `BACKUP_OFFSITE_CMD` hook.
 - [DEPLOY-RUNBOOK.md](../guides/DEPLOY-RUNBOOK.md) gains: cron / systemd-timer setup,
   pre-flight destructive-migration grep, expand-contract migration rule, row-count
   spot-check, manual PITR-first rollback. `backups/` added to `.gitignore`.

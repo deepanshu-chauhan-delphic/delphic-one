@@ -1,3 +1,5 @@
+import { userCan } from '../../lib/permissions.js';
+
 export const ACCOUNT_TRANSITIONS = {
   lead: ['meeting_scheduled'],
   meeting_scheduled: ['active', 'rescheduled', 'dropped'],
@@ -14,7 +16,7 @@ export function canOverrideStage(user) {
 }
 
 export function canEditBroughtBy(user) {
-  return Boolean(user?.is_superadmin);
+  return userCan(user, 'editBroughtBy');
 }
 
 export function formatAccountValue(value) {

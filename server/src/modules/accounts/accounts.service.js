@@ -104,10 +104,11 @@ async function update(id, patch, user) {
   }
 
   if ('origin_owner_id' in patch) {
-    // "Brought by" is immutable for everyone except a superadmin correcting it.
-    if (!user.is_superadmin) {
-      delete patch.origin_owner_id;
-    } else if (patch.origin_owner_id !== existing.origin_owner_id) {
+    // "Brought by" is normally set once at creation; an admin or superadmin may correct it.
+    if (!user.is_superadmin && user.role !== 'admin') {
+      return { error: 'forbidden_brought_by' };
+    }
+    if (patch.origin_owner_id !== existing.origin_owner_id) {
       const t = await prisma.user.findUnique({ where: { id: patch.origin_owner_id } });
       if (!t || !t.active) return { error: 'user_not_found' };
     }

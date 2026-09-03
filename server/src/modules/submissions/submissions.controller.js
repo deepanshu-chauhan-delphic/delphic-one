@@ -20,6 +20,8 @@ const ERROR_STATUS = {
   vendor_rate_required: [400, 'vendor_rate is required for vendor-sourced profiles'],
   duplicate_submission: [400, 'An active submission already exists for this profile and seat'],
   invalid_transition: [400, 'Invalid stage transition'],
+  forbidden_backward: [403, 'Only an admin can move a submission backward'],
+  reason_required: [400, 'A reason is required for this move'],
   backout_reason_required: [400, 'backout_reason is required'],
   rejection_reason_required: [400, 'rejection_reason is required'],
   rounds_not_resolved: [400, 'All interview rounds must have a result before advancing to offer'],
@@ -81,9 +83,8 @@ const changeStageOverride = asyncHandler(async (req, res) => {
 const history = asyncHandler(async (req, res) => {
   const submission = await service.getById(req.params.id);
   if (!submission) return fail(res, 404, 'Not found');
-  if (req.user.role === 'recruiter' && submission.submitted_by?.id !== req.user.id) {
-    return fail(res, 403, 'You do not own this record');
-  }
+  // Match getOne visibility — do not apply a stricter recruiter-owner gate here.
+  // A 403 on history used to blank the whole ticket page when Promise.all'd with getOne.
   const rows = await service.getHistory(req.params.id);
   return ok(res, rows);
 });

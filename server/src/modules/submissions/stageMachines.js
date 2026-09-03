@@ -1,14 +1,18 @@
+// Forward edges drive the normal pipeline. The single "step back one stage" edge on each
+// in-pipeline stage, and the `sourced` edge out of `backout` / `rejected` (reactivate a
+// candidate on the same ticket), are BACKWARD moves — the service restricts those to
+// admin / superadmin and requires a reason. See isBackwardTransition().
 const SUBMISSION_STAGE_TRANSITIONS = {
   sourced: ['internal_screening', 'rejected', 'backout'],
-  internal_screening: ['submitted_to_client', 'rejected', 'backout'],
-  submitted_to_client: ['interview_scheduled', 'rejected', 'backout'],
-  interview_scheduled: ['interview_result', 'rejected', 'backout'],
-  interview_result: ['offer_sent', 'rejected', 'backout'],
-  offer_sent: ['bgv', 'backout', 'rejected'],
-  bgv: ['closed', 'backout', 'rejected'],
+  internal_screening: ['submitted_to_client', 'sourced', 'rejected', 'backout'],
+  submitted_to_client: ['interview_scheduled', 'internal_screening', 'rejected', 'backout'],
+  interview_scheduled: ['interview_result', 'submitted_to_client', 'rejected', 'backout'],
+  interview_result: ['offer_sent', 'interview_scheduled', 'rejected', 'backout'],
+  offer_sent: ['bgv', 'interview_result', 'backout', 'rejected'],
+  bgv: ['closed', 'offer_sent', 'backout', 'rejected'],
   closed: [],
-  backout: [],
-  rejected: [],
+  backout: ['sourced'],
+  rejected: ['sourced'],
 };
 
 const SUBMISSION_PIPELINE = [
@@ -58,6 +62,17 @@ function nextSubmissionStages(stage) {
   return SUBMISSION_STAGE_TRANSITIONS[stage] || [];
 }
 
+// A move is "backward" when it re-enters the pipeline from a terminal state
+// (rejected / backout → sourced) or steps to an earlier pipeline stage.
+// rejected / backout themselves are never "backward" (they are exits, reason-gated already).
+function isBackwardTransition(fromStage, toStage) {
+  if (fromStage === 'rejected' || fromStage === 'backout') return toStage === 'sourced';
+  const fromIdx = SUBMISSION_PIPELINE.indexOf(fromStage);
+  const toIdx = SUBMISSION_PIPELINE.indexOf(toStage);
+  if (fromIdx === -1 || toIdx === -1) return false;
+  return toIdx < fromIdx;
+}
+
 function requiresBackoutReason(toStage) {
   return toStage === 'backout';
 }
@@ -88,6 +103,7 @@ module.exports = {
   roundTypeLabel,
   computeMissingMandatoryRounds,
   nextSubmissionStages,
+  isBackwardTransition,
   requiresBackoutReason,
   requiresRejectionReason,
   computeMargin,

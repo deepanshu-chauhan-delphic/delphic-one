@@ -13,6 +13,7 @@ const ROLE_CAPS = {
     'manageUsers',
     'manageDepartments',
     'editAccount',
+    'editBroughtBy',
     'editRequirement',
     'editProfile',
     'editSubmission',
@@ -71,7 +72,7 @@ export function can(role, capability) {
 }
 
 // Capabilities no ordinary role has — only a superadmin (is_superadmin flag).
-const SUPERADMIN_ONLY = new Set(['editBroughtBy', 'overrideStage', 'editAnyUser']);
+const SUPERADMIN_ONLY = new Set(['overrideStage', 'editAnyUser']);
 
 /**
  * Capability check against the full auth user (not just the role string).

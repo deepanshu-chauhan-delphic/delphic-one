@@ -2,15 +2,15 @@
 
 export const SUBMISSION_STAGE_TRANSITIONS = {
   sourced: ['internal_screening', 'rejected', 'backout'],
-  internal_screening: ['submitted_to_client', 'rejected', 'backout'],
-  submitted_to_client: ['interview_scheduled', 'rejected', 'backout'],
-  interview_scheduled: ['interview_result', 'rejected', 'backout'],
-  interview_result: ['offer_sent', 'rejected', 'backout'],
-  offer_sent: ['bgv', 'backout', 'rejected'],
-  bgv: ['closed', 'backout', 'rejected'],
+  internal_screening: ['submitted_to_client', 'sourced', 'rejected', 'backout'],
+  submitted_to_client: ['interview_scheduled', 'internal_screening', 'rejected', 'backout'],
+  interview_scheduled: ['interview_result', 'submitted_to_client', 'rejected', 'backout'],
+  interview_result: ['offer_sent', 'interview_scheduled', 'rejected', 'backout'],
+  offer_sent: ['bgv', 'interview_result', 'backout', 'rejected'],
+  bgv: ['closed', 'offer_sent', 'backout', 'rejected'],
   closed: [],
-  backout: [],
-  rejected: [],
+  backout: ['sourced'],
+  rejected: ['sourced'],
 };
 
 export const SUBMISSION_PIPELINE = [
@@ -30,6 +30,21 @@ export const SUBMISSION_ALL_STAGES = [...SUBMISSION_PIPELINE, 'backout', 'reject
 
 export function canOverrideSubmissionStage(user) {
   return Boolean(user?.is_superadmin);
+}
+
+// Admins (and superadmins) may step a submission back one stage or reactivate a
+// rejected / backed-out candidate on the same ticket. Everyone else is forward-only.
+export function canMoveSubmissionBackward(user) {
+  return user?.role === 'admin' || Boolean(user?.is_superadmin);
+}
+
+// Mirror of server isBackwardTransition() in stageMachines.js.
+export function isBackwardTransition(fromStage, toStage) {
+  if (fromStage === 'rejected' || fromStage === 'backout') return toStage === 'sourced';
+  const fromIdx = SUBMISSION_PIPELINE.indexOf(fromStage);
+  const toIdx = SUBMISSION_PIPELINE.indexOf(toStage);
+  if (fromIdx === -1 || toIdx === -1) return false;
+  return toIdx < fromIdx;
 }
 
 // Named candidate interview rounds. Composition is intentionally flexible (rounds can be

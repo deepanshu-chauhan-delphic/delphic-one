@@ -8,8 +8,11 @@ UNIT_NAME="delphic.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 ENV_FILE="${SCRIPT_DIR}/.env"
 BACKUP_DIR="${SCRIPT_DIR}/backups"
-# Keep this many pre-deploy dumps before rotating the oldest out.
-BACKUP_KEEP="${BACKUP_KEEP:-48}"
+# Keep this many pre-deploy dumps (one per push). Oldest is deleted so the
+# count never exceeds BACKUP_KEEP — default 7, not unbounded growth.
+BACKUP_KEEP="${BACKUP_KEEP:-7}"
+# Abort the backup/deploy when the backups filesystem has less than this free.
+BACKUP_MIN_FREE_GB="${BACKUP_MIN_FREE_GB:-2}"
 
 if [[ -t 1 ]]; then
   RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BLUE=$'\033[34m'; NC=$'\033[0m'
@@ -37,8 +40,9 @@ Options:
 
 Every --prod run takes a verified `pg_dump -Fc` of the live database into
 ./backups/ BEFORE building/migrating, and aborts the deploy if that backup
-cannot be written or read back. This is the rollback point if a new migration
-loses data. Restores are always manual and never part of a deploy.
+cannot be written or read back, or if the backups volume has less than
+BACKUP_MIN_FREE_GB (default 2) free. Keeps the newest BACKUP_KEEP (default 7)
+predeploy-*.dump files and deletes older ones. Restores are always manual.
 
 Examples:
   ./start-delphic.sh --prod
@@ -154,6 +158,8 @@ backup_db() {
   fi
 
   mkdir -p "${BACKUP_DIR}"
+  assert_backup_disk_space
+
   ts="$(date +%Y-%m-%d-%H%M%S)"
   out="${BACKUP_DIR}/predeploy-${ts}.dump"
 
@@ -178,12 +184,27 @@ backup_db() {
     success "Verified pre-deploy backup: ${out} (${size} bytes)"
   fi
 
-  # Rotate: keep the newest ${BACKUP_KEEP} predeploy dumps.
+  # Keep exactly the newest ${BACKUP_KEEP} predeploy dumps (one per push).
   local old
   # shellcheck disable=SC2012
   ls -1t "${BACKUP_DIR}"/predeploy-*.dump 2>/dev/null | tail -n +"$((BACKUP_KEEP + 1))" | while read -r old; do
     rm -f "${old}" && info "Rotated out old backup: $(basename "${old}")"
   done
+}
+
+# Refuse to write a new dump when the backups filesystem is nearly full.
+assert_backup_disk_space() {
+  local min_kb avail_kb
+  min_kb=$((BACKUP_MIN_FREE_GB * 1024 * 1024))
+  avail_kb="$(df -Pk "${BACKUP_DIR}" 2>/dev/null | awk 'NR==2 {print $4}')"
+  if [[ -z "${avail_kb}" ]]; then
+    warning "Could not read free space for ${BACKUP_DIR} — continuing without a disk guard."
+    return 0
+  fi
+  if [[ "${avail_kb}" -lt "${min_kb}" ]]; then
+    error "Less than ${BACKUP_MIN_FREE_GB} GiB free on ${BACKUP_DIR} (${avail_kb} KiB available). Aborting before writing a backup."
+    exit 1
+  fi
 }
 
 wait_for_health() {

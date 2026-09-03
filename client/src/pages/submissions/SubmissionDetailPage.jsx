@@ -19,9 +19,11 @@ import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
 import SubmissionStageOverrideDrawer from './SubmissionStageOverrideDrawer.jsx';
 import {
   SUBMISSION_PIPELINE,
+  canMoveSubmissionBackward,
   canMutateSubmission,
   canOverrideSubmissionStage,
   computeMarginPreview,
+  isBackwardTransition,
   nextSubmissionStages,
   pipelineIndex,
   requiresBackoutReason,
@@ -98,6 +100,7 @@ export default function SubmissionDetailPage() {
   const { pushError } = useAlerts();
   const [submission, setSubmission] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyError, setHistoryError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -130,14 +133,22 @@ export default function SubmissionDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // The stage-history request is secondary — a failure there must never blank the
+    // whole ticket (candidate, commercials, rounds). Fetch it separately.
+    apiClient
+      .get(`/submissions/${id}/history`)
+      .then((histRes) => {
+        setHistory(histRes.data.data || []);
+        setHistoryError('');
+      })
+      .catch((err) => {
+        setHistory([]);
+        setHistoryError(apiErrorMessage(err, 'Could not load stage history'));
+      });
     try {
-      const [subRes, histRes] = await Promise.all([
-        apiClient.get(`/submissions/${id}`),
-        apiClient.get(`/submissions/${id}/history`),
-      ]);
+      const subRes = await apiClient.get(`/submissions/${id}`);
       const sub = subRes.data.data;
       setSubmission(sub);
-      setHistory(histRes.data.data || []);
       setForm({
         proposed_rate: sub.proposed_rate ?? '',
         proposed_rate_type: sub.proposed_rate_type || 'monthly',
@@ -224,6 +235,7 @@ export default function SubmissionDetailPage() {
       const body = { to_stage: stageModal };
       if (requiresBackoutReason(stageModal)) body.backout_reason = stageReason.trim();
       if (requiresRejectionReason(stageModal)) body.rejection_reason = stageReason.trim();
+      if (isBackwardTransition(submission.stage, stageModal)) body.reason = stageReason.trim();
       await apiClient.post(`/submissions/${id}/stage`, body);
       setStageModal(null);
       setStageReason('');
@@ -259,6 +271,16 @@ export default function SubmissionDetailPage() {
       </div>
     );
   }
+
+  const canMoveBackward = canMoveSubmissionBackward(user);
+  const isBackwardTarget = (to) => isBackwardTransition(submission.stage, to);
+  const isReactivateTarget = (to) =>
+    isBackwardTarget(to) && (submission.stage === 'rejected' || submission.stage === 'backout');
+  const stageTargets = nextSubmissionStages(submission.stage).filter(
+    (to) => canMoveBackward || !isBackwardTarget(to)
+  );
+  const stageNeedsReason = (to) =>
+    requiresBackoutReason(to) || requiresRejectionReason(to) || isBackwardTarget(to);
 
   return (
     <div className="space-y-6">
@@ -336,27 +358,39 @@ export default function SubmissionDetailPage() {
           </p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
-            {nextSubmissionStages(submission.stage).map((to) => (
-              <Tooltip
-                key={to}
-                label={
-                  requiresBackoutReason(to)
-                    ? 'Requires a backout reason'
-                    : requiresRejectionReason(to)
-                      ? 'Requires a rejection reason'
-                      : `Move this submission to ${to.replace(/_/g, ' ')}`
-                }
-              >
-                <button
-                  type="button"
-                  className={to === 'backout' || to === 'rejected' ? 'btn-danger' : 'btn-secondary'}
-                  onClick={() => openStage(to)}
+            {stageTargets.map((to) => {
+              const exit = to === 'backout' || to === 'rejected';
+              const backward = isBackwardTarget(to);
+              const reactivate = isReactivateTarget(to);
+              const label = reactivate
+                ? 'Reactivate candidate'
+                : backward
+                  ? `Move back to ${to.replace(/_/g, ' ')}`
+                  : `Move to ${to.replace(/_/g, ' ')}`;
+              return (
+                <Tooltip
+                  key={to}
+                  label={
+                    requiresBackoutReason(to)
+                      ? 'Requires a backout reason'
+                      : requiresRejectionReason(to)
+                        ? 'Requires a rejection reason'
+                        : backward
+                          ? 'Admin only · requires a reason'
+                          : `Move this submission to ${to.replace(/_/g, ' ')}`
+                  }
                 >
-                  Move to {to.replace(/_/g, ' ')}
-                </button>
-              </Tooltip>
-            ))}
-            {nextSubmissionStages(submission.stage).length === 0 && (
+                  <button
+                    type="button"
+                    className={exit ? 'btn-danger' : backward ? 'btn-ghost border border-tertiary-300' : 'btn-secondary'}
+                    onClick={() => openStage(to)}
+                  >
+                    {label}
+                  </button>
+                </Tooltip>
+              );
+            })}
+            {stageTargets.length === 0 && (
               <p className="text-sm text-tertiary-500">No further transitions.</p>
             )}
           </div>
@@ -730,14 +764,18 @@ export default function SubmissionDetailPage() {
 
       <section className="rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold text-tertiary-800">Stage history</h2>
+        {historyError && <p className="mt-2 text-xs text-amber-700">{historyError}</p>}
         <ul className="mt-2 space-y-1 text-sm text-tertiary-700">
-          {history.length === 0 && <li className="text-tertiary-400">No stage changes yet</li>}
+          {history.length === 0 && !historyError && (
+            <li className="text-tertiary-400">No stage changes yet</li>
+          )}
           {history.map((h) => (
             <li key={h.id}>
               <span className="capitalize">{h.from_stage?.replace(/_/g, ' ') || '—'}</span>
               {' → '}
               <span className="font-medium capitalize">{h.to_stage?.replace(/_/g, ' ')}</span>
               <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
+              <span className="text-tertiary-500"> · {h.changed_by?.name || 'Unknown'}</span>
               {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
             </li>
           ))}
@@ -746,7 +784,13 @@ export default function SubmissionDetailPage() {
 
       <Modal
         open={Boolean(stageModal)}
-        title={`Move to ${stageModal?.replace(/_/g, ' ') || ''}`}
+        title={
+          stageModal && isReactivateTarget(stageModal)
+            ? 'Reactivate candidate'
+            : stageModal && isBackwardTarget(stageModal)
+              ? `Move back to ${stageModal.replace(/_/g, ' ')}`
+              : `Move to ${stageModal?.replace(/_/g, ' ') || ''}`
+        }
         onClose={() => !busy && setStageModal(null)}
         footer={
           <>
@@ -755,11 +799,10 @@ export default function SubmissionDetailPage() {
             </button>
             <button
               type="button"
-              className={requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal) ? 'btn-danger' : 'btn-primary'}
-              disabled={
-                busy ||
-                ((requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal)) && !stageReason.trim())
+              className={
+                requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal) ? 'btn-danger' : 'btn-primary'
               }
+              disabled={busy || (stageModal && stageNeedsReason(stageModal) && !stageReason.trim())}
               onClick={confirmStage}
             >
               Confirm
@@ -767,10 +810,14 @@ export default function SubmissionDetailPage() {
           </>
         }
       >
-        {(requiresBackoutReason(stageModal) || requiresRejectionReason(stageModal)) ? (
+        {stageModal && stageNeedsReason(stageModal) ? (
           <div>
             <label className="mb-1 block text-xs font-medium text-tertiary-500">
-              {requiresBackoutReason(stageModal) ? 'Backout reason *' : 'Rejection reason *'}
+              {requiresBackoutReason(stageModal)
+                ? 'Backout reason *'
+                : requiresRejectionReason(stageModal)
+                  ? 'Rejection reason *'
+                  : 'Reason *'}
             </label>
             <textarea
               rows={3}

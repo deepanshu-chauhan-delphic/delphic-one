@@ -15,11 +15,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Building2, CircleAlert } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
-import { usePermissions, Can } from '../../lib/permissions.js';
+import { usePermissions, userCan, Can } from '../../lib/permissions.js';
 import { CHART_COLORS, CHART_PALETTE, chartTooltipStyle } from '../../lib/chartTheme.js';
 import ChartCard from '../../components/ui/ChartCard.jsx';
 import { rangeForPreset } from '../../lib/datePresets.js';
@@ -165,7 +166,8 @@ export default function ReportsPage() {
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
-  const [coverageStage, setCoverageStage] = useState('active'); // clients-without-requirements default filter
+  // CWR toggle: active clients with reqs vs active clients without open/in_progress reqs.
+  const [coverageBucket, setCoverageBucket] = useState('without_active_requirements');
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
   // recruiter-vendor-gaps: filter by vendor account and by the vendor's POC from our end.
@@ -196,7 +198,7 @@ export default function ReportsPage() {
   };
   const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
-  const canEditCoverage = (isClientsWithoutReqs || isRvg) && Boolean(user?.is_superadmin);
+  const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
   // The coverage filter pickers each mean a specific role: "Brought by" is the
   // originating BDA, "Sales POC" the sales owner, "Our POC" a vendor's owner. Scope
@@ -327,7 +329,11 @@ export default function ReportsPage() {
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
     if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
     if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
-    if (isClientsWithoutReqs && coverageStage) params.stage = coverageStage;
+    // Both toggle buckets are active-client views — always send stage=active.
+    if (isClientsWithoutReqs) {
+      params.stage = 'active';
+      params.bucket = coverageBucket || 'without_active_requirements';
+    }
     if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
     if (isRvg && rvgPocId) params.owner_id = rvgPocId;
     return params;
@@ -360,7 +366,7 @@ export default function ReportsPage() {
     groupBy,
     coveragePocId,
     coverageBroughtById,
-    coverageStage,
+    coverageBucket,
     rvgVendorId,
     rvgPocId,
     explorerStuckOnly,
@@ -461,7 +467,7 @@ export default function ReportsPage() {
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
-              setCoverageStage('active');
+              setCoverageBucket('without_active_requirements');
               setRvgVendorId('');
               setRvgPocId('');
               setDrawerRow(null);
@@ -541,24 +547,6 @@ export default function ReportsPage() {
               options={salesPocPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
           </>
-        )}
-        {isClientsWithoutReqs && (
-          <SearchableSelect
-            className="w-44"
-            ariaLabel="Filter by stage"
-            value={coverageStage}
-            onChange={setCoverageStage}
-            placeholder="All stages"
-            searchPlaceholder="Search stage…"
-            options={[
-              { value: '', label: 'All stages' },
-              { value: 'lead', label: 'Lead' },
-              { value: 'meeting_scheduled', label: 'Meeting scheduled' },
-              { value: 'active', label: 'Active' },
-              { value: 'rescheduled', label: 'Rescheduled' },
-              { value: 'dropped', label: 'Dropped' },
-            ]}
-          />
         )}
         {isRvg && (
           <>
@@ -662,6 +650,80 @@ export default function ReportsPage() {
           </select>
         )}
       </FilterBar>
+
+      {isClientsWithoutReqs && (
+        <div className="rounded-2xl border border-tertiary-100 bg-white p-3 shadow-soft sm:p-4">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
+              <p className="mt-0.5 text-sm text-tertiary-600">
+                Active-stage clients only · switch between covered and gap lists
+              </p>
+            </div>
+            {!loading && (
+              <span className="rounded-full bg-canvas-muted px-2.5 py-1 text-xs font-medium text-tertiary-600">
+                {tableRows.length} shown
+              </span>
+            )}
+          </div>
+          <div
+            className="grid gap-2 sm:grid-cols-2"
+            role="tablist"
+            aria-label="Active client coverage"
+          >
+            {[
+              {
+                key: 'with_requirements',
+                label: 'Active clients',
+                hint: 'Have at least one requirement',
+                Icon: Building2,
+              },
+              {
+                key: 'without_active_requirements',
+                label: 'No active requirements',
+                hint: 'Active clients with no open / in-progress req',
+                Icon: CircleAlert,
+              },
+            ].map(({ key, label, hint, Icon }) => {
+              const selected = coverageBucket === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setCoverageBucket(key)}
+                  className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-white text-tertiary-500'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${
+                        selected ? 'text-primary-800' : 'text-tertiary-800'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    <span className={`mt-0.5 block text-xs ${selected ? 'text-primary-700/80' : 'text-tertiary-500'}`}>
+                      {hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {chartRows.length > 0 && <ReportChart reportKey={active} chartRows={chartRows} chartBars={chartBars} />}
 

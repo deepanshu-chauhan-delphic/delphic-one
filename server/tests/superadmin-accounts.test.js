@@ -41,15 +41,28 @@ describe('superadmin account powers', () => {
     expect(res.body.data.origin_owner.id).toBe(otherUser.id);
   });
 
-  test('a BDA sending origin_owner_id is silently ignored', async () => {
+  test('a BDA sending origin_owner_id is rejected', async () => {
     const account = await makeAccount();
     const res = await authed(request(app).patch(`/api/v1/accounts/${account.id}`), bdaToken).send({
       origin_owner_id: otherUser.id,
       name: 'Renamed Co',
     });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/Brought by/i);
+    const refreshed = await prisma.account.findUnique({ where: { id: account.id } });
+    expect(refreshed.origin_owner_id).toBe(bda.id);
+    expect(refreshed.name).toBe(account.name);
+  });
+
+  test('an admin (non-superadmin) can change origin_owner_id', async () => {
+    const admin = await createUser({ role: 'admin', is_superadmin: false });
+    const { access_token: adminToken } = await loginAs(admin);
+    const account = await makeAccount();
+    const res = await authed(request(app).patch(`/api/v1/accounts/${account.id}`), adminToken).send({
+      origin_owner_id: otherUser.id,
+    });
     expect(res.status).toBe(200);
-    expect(res.body.data.name).toBe('Renamed Co');
-    expect(res.body.data.origin_owner.id).toBe(bda.id);
+    expect(res.body.data.origin_owner.id).toBe(otherUser.id);
   });
 
   test('superadmin can edit a locked account; others cannot', async () => {

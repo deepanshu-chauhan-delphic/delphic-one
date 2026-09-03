@@ -151,6 +151,7 @@ export function columnsForReport(reportKey) {
       { key: 'stage', header: 'Stage', render: (r) => cell(r.stage) },
       { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
       { key: 'sales_poc', header: 'Sales POC', render: (r) => personName(r, 'sales_poc') },
+      { key: 'requirements_count', header: 'Reqs', render: (r) => cell(r.requirements_count) },
       { key: 'created_at', header: 'Created', render: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString() : '—') },
       { key: 'days_idle', header: 'Days idle', render: (r) => cell(r.days_idle) },
     ];
@@ -160,11 +161,6 @@ export function columnsForReport(reportKey) {
       { key: 'vendor', header: 'Vendor', render: (r) => personName(r, 'vendor') },
       { key: 'our_poc', header: 'Our POC', render: (r) => personName(r, 'our_poc') },
       { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
-      {
-        key: 'recruiters',
-        header: 'Recruiters (our end)',
-        render: (r) => (r.recruiters || []).map((person) => person.name).join(', ') || '—',
-      },
       { key: 'profiles_sourced', header: 'Sourced' },
       { key: 'profiles_submitted', header: 'Submitted' },
       {

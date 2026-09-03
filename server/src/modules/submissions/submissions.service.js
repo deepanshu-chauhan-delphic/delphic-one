@@ -1,5 +1,5 @@
 const prisma = require('../../config/db');
-const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds } = require('./stageMachines');
+const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds, isBackwardTransition } = require('./stageMachines');
 const { computeClosureDetail } = require('../../utils/closureProgress');
 
 const INTERVIEWER_INCLUDE = {
@@ -38,6 +38,7 @@ function serialize(row) {
 
   return {
     ...rest,
+    profile_id,
     seat: seat ? { id: seat.id, seat_label: seat.seat_label, requirement_id: seat.requirement_id } : null,
     requirement: seat
       ? { id: seat.requirement.id, title: seat.requirement.title, account_name: seat.requirement.account.name, sales_owner_id: seat.requirement.sales_owner_id }
@@ -144,6 +145,14 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
     if (submission.is_locked) return { error: 'locked' };
     if (!(SUBMISSION_STAGE_TRANSITIONS[submission.stage] || []).includes(to_stage)) return { error: 'invalid_transition' };
 
+    // Stepping a submission back a stage, or reactivating a rejected / backed-out
+    // candidate, is admin/superadmin-only and needs a reason (logged to stage_history).
+    const backward = isBackwardTransition(submission.stage, to_stage);
+    if (backward) {
+      if (!(user.role === 'admin' || user.is_superadmin)) return { error: 'forbidden_backward' };
+      if (!reason || !reason.trim()) return { error: 'reason_required' };
+    }
+
     // Sales users may only mark a candidate "submitted to client" on their own
     // requirement; every other stage move stays recruiter/admin-only.
     if (user.role === 'sales') {
@@ -176,6 +185,10 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
       patch.rejection_reason = rejection_reason || reason;
     }
     if (to_stage === 'closed') patch.is_locked = true;
+
+    // Reactivating a terminal submission clears the exit stamps so the ticket reads clean.
+    if (submission.stage === 'rejected') { patch.rejection_stage = null; patch.rejection_reason = null; }
+    if (submission.stage === 'backout') { patch.backout_stage = null; patch.backout_reason = null; }
 
     const updated = await tx.submission.update({ where: { id }, data: patch, include: INCLUDE });
 
@@ -236,7 +249,19 @@ async function changeStageOverride(id, { to_stage, reason, is_locked }, user) {
 }
 
 async function getHistory(id) {
-  return prisma.stageHistory.findMany({ where: { entity_type: 'submission', entity_id: id }, orderBy: { changed_at: 'asc' } });
+  const rows = await prisma.stageHistory.findMany({
+    where: { entity_type: 'submission', entity_id: id },
+    orderBy: { changed_at: 'asc' },
+    include: { changed_by_user: { select: { id: true, name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    from_stage: r.from_stage,
+    to_stage: r.to_stage,
+    changed_by: r.changed_by_user,
+    reason: r.reason,
+    changed_at: r.changed_at,
+  }));
 }
 
 function canManageInterviewRound(submission, requirementSalesOwnerId, roundType, user) {

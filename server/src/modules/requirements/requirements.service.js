@@ -262,7 +262,19 @@ async function getAssignments(requirementId) {
 }
 
 async function getHistory(id) {
-  return prisma.stageHistory.findMany({ where: { entity_type: 'requirement', entity_id: id }, orderBy: { changed_at: 'asc' } });
+  const rows = await prisma.stageHistory.findMany({
+    where: { entity_type: 'requirement', entity_id: id },
+    orderBy: { changed_at: 'asc' },
+    include: { changed_by_user: { select: { id: true, name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    from_stage: r.from_stage,
+    to_stage: r.to_stage,
+    changed_by: r.changed_by_user,
+    reason: r.reason,
+    changed_at: r.changed_at,
+  }));
 }
 
 async function getSeats(requirementId) {
