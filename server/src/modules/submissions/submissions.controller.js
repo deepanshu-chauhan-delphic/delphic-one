@@ -83,8 +83,12 @@ const changeStageOverride = asyncHandler(async (req, res) => {
 const history = asyncHandler(async (req, res) => {
   const submission = await service.getById(req.params.id);
   if (!submission) return fail(res, 404, 'Not found');
-  // Match getOne visibility — do not apply a stricter recruiter-owner gate here.
-  // A 403 on history used to blank the whole ticket page when Promise.all'd with getOne.
+  // Same visibility as getOne — a recruiter only sees their own submissions. The
+  // client fetches history separately from the ticket now, so a 403 here shows an
+  // inline "could not load stage history" notice instead of blanking the page.
+  if (req.user.role === 'recruiter' && submission.submitted_by?.id !== req.user.id) {
+    return fail(res, 403, 'You do not own this record');
+  }
   const rows = await service.getHistory(req.params.id);
   return ok(res, rows);
 });
