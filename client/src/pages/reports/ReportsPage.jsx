@@ -118,6 +118,17 @@ function coverageRowAccountId(row) {
   return row?.client?.id || row?.vendor?.id || null;
 }
 
+/** Union {id,name} people from any number of lists, de-duped by id, sorted by name. */
+function mergePeople(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const p of list || []) {
+      if (p && p.id && !map.has(p.id)) map.set(p.id, { id: p.id, name: p.name });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Inline person picker for a coverage-report cell. Superadmin-only — changes the
  * account's owner (Sales POC / Our POC) or origin_owner (Brought by) in place.
@@ -170,12 +181,17 @@ export default function ReportsPage() {
   const [coverageBucket, setCoverageBucket] = useState('without_active_requirements');
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
-  // recruiter-vendor-gaps: filter by vendor account and by the vendor's POC from our end.
+  // recruiter-vendor-gaps: filter by vendor account, the vendor's POC from our end,
+  // and who brought the vendor in.
   const [rvgVendorId, setRvgVendorId] = useState('');
   const [rvgPocId, setRvgPocId] = useState('');
+  const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
   // RVG toggle: vendors we've sourced ≥1 profile from (active) vs sourced nothing (inactive).
   const [rvgActivity, setRvgActivity] = useState('active');
+  // Shared date range for both coverage reports (CWR = account created, RVG = profile sourced).
+  const [coverageDateFrom, setCoverageDateFrom] = useState('');
+  const [coverageDateTo, setCoverageDateTo] = useState('');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -202,20 +218,31 @@ export default function ReportsPage() {
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
-  // The coverage filter pickers each mean a specific role: "Brought by" is the
-  // originating BDA, "Sales POC" the sales owner, "Our POC" a vendor's owner. Scope
-  // the option lists so the dropdowns aren't three identical all-user lists.
+  // The filter dropdowns must contain EVERY name that can appear in the matching
+  // column — including inactive users and roles outside the "expected" set (an
+  // account owner / origin owner can be anyone). So each list is the full user
+  // roster unioned with the people actually present in the current report rows.
+  const rowPeople = useMemo(() => {
+    const rows = Array.isArray(payload) ? payload : [];
+    const pick = (field) =>
+      rows.flatMap((r) => {
+        const v = r[field];
+        return Array.isArray(v) ? v : v ? [v] : [];
+      });
+    return { brought_by: pick('brought_by'), sales_poc: pick('sales_poc'), our_poc: pick('our_poc') };
+  }, [payload]);
+
   const broughtByPeople = useMemo(
-    () => coveragePeople.filter((p) => p.role === 'bda' || p.role === 'admin'),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.brought_by),
+    [coveragePeople, rowPeople]
   );
   const salesPocPeople = useMemo(
-    () => coveragePeople.filter((p) => p.role === 'sales' || p.role === 'admin'),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.sales_poc),
+    [coveragePeople, rowPeople]
   );
   const ourPocPeople = useMemo(
-    () => coveragePeople.filter((p) => ['bda', 'sales', 'admin'].includes(p.role)),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.our_poc),
+    [coveragePeople, rowPeople]
   );
 
   useEffect(() => {
@@ -261,7 +288,8 @@ export default function ReportsPage() {
       return undefined;
     }
     apiClient
-      .get('/users', { params: { active: 'true', limit: 100 } })
+      // No `active` filter — a "Brought by" / "POC" value can be an inactive user.
+      .get('/users', { params: { limit: 100 } })
       .then(({ data }) =>
         setCoveragePeople(
           [...(data.data || [])]
@@ -309,7 +337,9 @@ export default function ReportsPage() {
     if (active === 'aging') {
       params.threshold_days = thresholdDays || 7;
     } else if (isCoverage) {
-      // present-state coverage reports take no date range
+      // CWR: account created between; RVG: profile sourced between.
+      if (coverageDateFrom) params.date_from = coverageDateFrom;
+      if (coverageDateTo) params.date_to = coverageDateTo;
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -338,6 +368,7 @@ export default function ReportsPage() {
     }
     if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
     if (isRvg && rvgPocId) params.owner_id = rvgPocId;
+    if (isRvg && rvgBroughtById) params.origin_owner_id = rvgBroughtById;
     if (isRvg) params.vendor_activity = rvgActivity;
     return params;
   }
@@ -372,7 +403,10 @@ export default function ReportsPage() {
     coverageBucket,
     rvgVendorId,
     rvgPocId,
+    rvgBroughtById,
     rvgActivity,
+    coverageDateFrom,
+    coverageDateTo,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -474,7 +508,10 @@ export default function ReportsPage() {
               setCoverageBucket('without_active_requirements');
               setRvgVendorId('');
               setRvgPocId('');
+              setRvgBroughtById('');
               setRvgActivity('active');
+              setCoverageDateFrom('');
+              setCoverageDateTo('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -575,7 +612,39 @@ export default function ReportsPage() {
               searchPlaceholder="Search people…"
               options={ourPocPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by Brought by"
+              value={rvgBroughtById}
+              onChange={setRvgBroughtById}
+              placeholder="All (brought by)"
+              searchPlaceholder="Search people…"
+              options={broughtByPeople.map((person) => ({ value: person.id, label: person.name }))}
+            />
           </>
+        )}
+        {isCoverage && (
+          <label className="flex items-center gap-1.5 text-xs text-tertiary-500">
+            {isRvg ? 'Sourced' : 'Created'}
+            <input
+              type="date"
+              value={coverageDateFrom}
+              max={coverageDateTo || undefined}
+              onChange={(e) => setCoverageDateFrom(e.target.value)}
+              className="rounded-xl border px-2 py-1.5 text-sm"
+              aria-label={isRvg ? 'Sourced from' : 'Created from'}
+            />
+            <span>–</span>
+            <input
+              type="date"
+              value={coverageDateTo}
+              min={coverageDateFrom || undefined}
+              onChange={(e) => setCoverageDateTo(e.target.value)}
+              className="rounded-xl border px-2 py-1.5 text-sm"
+              aria-label={isRvg ? 'Sourced to' : 'Created to'}
+            />
+          </label>
         )}
         {active === 'aging' && (
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
@@ -736,7 +805,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Vendors with no submitted profile · split by whether we&apos;ve sourced from them
+                Split by whether we&apos;ve sourced any profile from the vendor (submitted or not)
               </p>
             </div>
             {!loading && (
@@ -750,7 +819,7 @@ export default function ReportsPage() {
               {
                 key: 'active',
                 label: 'Active vendors',
-                hint: 'We have sourced ≥1 profile, but none was submitted',
+                hint: 'We have sourced ≥1 profile from this vendor (submitted or not)',
                 Icon: Building2,
               },
               {

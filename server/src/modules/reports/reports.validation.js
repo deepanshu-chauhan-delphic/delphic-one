@@ -27,10 +27,13 @@ const agingSchema = z.object({
 // filters by Sales POC (account owner, `bda_id`), by "Brought by" (`origin_owner_id`)
 // and by account `stage`. Optional `bucket` splits active clients into those with
 // requirements vs those without any open/in_progress requirement.
-// recruiter-vendor-gaps filters by `recruiter_id`, by the vendor account (`vendor_id`)
-// and by the vendor's POC from our end (`owner_id`). Optional `vendor_activity`
-// splits the gap list into vendors we have sourced ≥1 profile from (`active`) vs
-// vendors we have sourced nothing from (`inactive`).
+// recruiter-vendor-gaps filters by `recruiter_id`, by the vendor account (`vendor_id`),
+// by the vendor's POC from our end (`owner_id`) and by who brought the vendor in
+// (`origin_owner_id`). Optional `vendor_activity` splits the gap list into vendors
+// we have sourced ≥1 profile from (`active`) vs vendors we have sourced nothing
+// from (`inactive`).
+// `date_from` / `date_to` scope by account `created_at` (clients-without-requirements)
+// or by profile sourced date (recruiter-vendor-gaps); both optional.
 const coverageSchema = z.object({
   bda_id: optionalUuid,
   origin_owner_id: optionalUuid,
@@ -40,6 +43,8 @@ const coverageSchema = z.object({
   stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
   bucket: z.enum(['with_requirements', 'without_active_requirements']).optional(),
   vendor_activity: z.enum(['active', 'inactive']).optional(),
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
 });
 
 const closureSchema = dateRangeSchema.extend({

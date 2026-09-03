@@ -39,7 +39,10 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
 
   useEffect(() => {
     apiClient
-      .get('/accounts', { params: { type: 'vendor', stage: 'active', limit: 100 } })
+      // No stage filter — a vendor account that is not in the `active` stage must
+      // still be selectable, or the profile ends up with no vendor link and the
+      // recruiter-vendor-gaps report can't count it.
+      .get('/accounts', { params: { type: 'vendor', limit: 100 } })
       .then(({ data }) => setVendors(data.data || []))
       .catch(() => setVendors([]));
   }, []);

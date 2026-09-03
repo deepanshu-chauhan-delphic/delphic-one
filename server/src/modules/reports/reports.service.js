@@ -6,6 +6,18 @@ function daysBetween(from, to) {
   return (new Date(to) - new Date(from)) / 86400000;
 }
 
+/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; end day inclusive. */
+function optionalDateRange(date_from, date_to) {
+  const range = {};
+  if (date_from) range.gte = new Date(date_from);
+  if (date_to) {
+    const to = new Date(date_to);
+    if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+    range.lte = to;
+  }
+  return Object.keys(range).length ? range : undefined;
+}
+
 function averageDays(values) {
   if (!values.length) return null;
   return Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
@@ -748,8 +760,9 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
  * Legacy callers with neither bucket nor stage keep the old behaviour:
  * accounts with literally zero requirements (any stage).
  */
-async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket }) {
+async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket, date_from, date_to }) {
   const effectiveStage = bucket ? (stage || 'active') : stage;
+  const createdRange = optionalDateRange(date_from, date_to);
   const baseWhere = {
     // Include not-yet-classified accounts (type IS NULL) — every account still in
     // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
@@ -759,6 +772,7 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
     ...(bda_id ? { owner_id: bda_id } : {}),
     ...(origin_owner_id ? { origin_owner_id } : {}),
     ...(effectiveStage ? { stage: effectiveStage } : {}),
+    ...(createdRange ? { created_at: createdRange } : {}),
   };
 
   let requirementFilter;
@@ -796,34 +810,51 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
 }
 
 /**
- * One row per vendor account whose profiles have never been submitted to any
- * requirement — i.e. the vendor relationship has produced no pipeline. Each row
- * carries the vendor's POC from our end (`account.owner`), "brought by"
- * (`account.origin_owner`), and every recruiter who has sourced a profile from
- * that vendor. Vendors we've sourced nothing from at all are still listed
- * (vacuously "nothing submitted").
+ * One row per vendor account, carrying the vendor's POC from our end
+ * (`account.owner`), "brought by" (`account.origin_owner`), every recruiter who
+ * has sourced a profile from it, and `profiles_sourced` / `profiles_submitted`
+ * (a submitted profile still counts toward sourced).
+ *
+ * The vendor set is `type = 'vendor'` **OR** any account referenced as a
+ * profile's `vendor_account_id`. On prod, vendor accounts are user-created and
+ * some were never classified `type='vendor'` (or sit in a non-active stage) —
+ * a type-only query silently dropped every profile sourced from them, so their
+ * `profiles_sourced` count stayed 0.
  *
  * Filters:
  *   - `vendor_id`  — a single vendor account.
  *   - `owner_id`   — the vendor's POC from our end (`account.owner_id`).
+ *   - `origin_owner_id` — who brought the vendor in (`account.origin_owner_id`).
  *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from.
  *     (The route also sets this to the caller's id for the recruiter role.)
+ *   - `date_from` / `date_to` — scope the sourced-profile counts to profiles
+ *     created in that window.
+ *   - `vendor_activity` — `active` = we've sourced ≥1 profile from the vendor
+ *     (submitted or not); `inactive` = we've sourced nothing from it.
  *
- * `any_submitted` is always computed from ALL of the vendor's profiles, never a
- * single recruiter's slice, so "never submitted anywhere" stays literally true
- * even when `recruiter_id` is applied.
- *
- * `vendor_activity` splits the gap list:
- *   - `active`   — we have sourced ≥1 profile from this vendor (but none reached
- *                  a submission) — the real "wasted relationship" list.
- *   - `inactive` — we have sourced nothing from this vendor at all.
+ * With **no** `vendor_activity` the legacy "gap" meaning applies: only vendors
+ * whose profiles were never submitted anywhere.
  */
-async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_activity }) {
+async function recruiterVendorGaps({
+  recruiter_id, vendor_id, owner_id, origin_owner_id, vendor_activity, date_from, date_to,
+}) {
+  const sourcedRange = optionalDateRange(date_from, date_to);
+  // Every account a profile actually points at as its sourcing vendor, regardless
+  // of the account's `type` / `stage`.
+  const linked = await prisma.profile.groupBy({
+    by: ['vendor_account_id'],
+    where: { vendor_account_id: { not: null } },
+  });
+  const linkedVendorIds = linked.map((g) => g.vendor_account_id);
+
   const vendors = await prisma.account.findMany({
     where: {
-      type: 'vendor',
-      ...(vendor_id ? { id: vendor_id } : {}),
-      ...(owner_id ? { owner_id } : {}),
+      AND: [
+        { OR: [{ type: 'vendor' }, { id: { in: linkedVendorIds } }] },
+        ...(vendor_id ? [{ id: vendor_id }] : []),
+        ...(owner_id ? [{ owner_id }] : []),
+        ...(origin_owner_id ? [{ origin_owner_id }] : []),
+      ],
     },
     include: {
       owner: { select: { id: true, name: true } },
@@ -835,7 +866,10 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_a
   const rows = await Promise.all(
     vendors.map(async (v) => {
       const profiles = await prisma.profile.findMany({
-        where: { vendor_account_id: v.id },
+        where: {
+          vendor_account_id: v.id,
+          ...(sourcedRange ? { created_at: sourcedRange } : {}),
+        },
         select: {
           id: true,
           created_at: true,
@@ -844,7 +878,8 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_a
         },
       });
 
-      const any_submitted = profiles.some((p) => p._count.submissions > 0);
+      const submittedCount = profiles.filter((p) => p._count.submissions > 0).length;
+      const any_submitted = submittedCount > 0;
       const recruiters = [
         ...new Map(
           profiles.filter((p) => p.added_by_user).map((p) => [p.added_by_user.id, p.added_by_user])
@@ -861,7 +896,7 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_a
         brought_by: v.origin_owner ? { id: v.origin_owner.id, name: v.origin_owner.name } : null,
         recruiters: recruiters.map((r) => ({ id: r.id, name: r.name })),
         profiles_sourced: profiles.length,
-        profiles_submitted: 0,
+        profiles_submitted: submittedCount,
         any_submitted,
         last_sourced_at,
         days_since_sourced: last_sourced_at
@@ -872,7 +907,10 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id, vendor_a
   );
 
   return rows
-    .filter((r) => !r.any_submitted)
+    // Legacy (no toggle) keeps the original "gap" meaning — nothing submitted.
+    // With a toggle the report is "every sourcing relationship", submitted or not:
+    // `active` = we sourced ≥1 profile, `inactive` = we sourced none.
+    .filter((r) => vendor_activity || !r.any_submitted)
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
     .filter((r) => {
       if (vendor_activity === 'active') return r.profiles_sourced > 0;

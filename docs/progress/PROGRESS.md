@@ -2,6 +2,48 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — Coverage reports: Brought-by + date filters, and complete people dropdowns
+
+- **RVG filters**: added **Brought by** (`origin_owner_id`) and a **date range**
+  (`date_from`/`date_to`, scopes the sourced-profile counts). Vendor + Our-POC
+  filters unchanged. `coverageSchema` gains `date_from`/`date_to`.
+- **CWR filter**: added a **Created** date range (`account.created_at`). Stage /
+  Brought by / Sales POC unchanged.
+- **Filter dropdowns were missing names.** The Brought-by / Sales-POC / Our-POC
+  option lists were role-scoped (`bda|admin`, `sales|admin`, …) and `active`-only,
+  so a POC / origin owner who is a recruiter or an inactive user never appeared —
+  even though their name is in the column. Now each list is the **full user
+  roster (`/users?limit=100`, no `active` filter) unioned with the people present
+  in the current report rows** (`mergePeople`). Same lists feed the superadmin
+  inline-edit cell.
+- Tests: `reports-coverage-gaps.test.js` — CWR created-date range; RVG
+  `origin_owner_id`; RVG date range scoping the sourced count. 29 suites / 201.
+
+## 2026-09-03 — recruiter-vendor-gaps: count every sourced profile; "active" = sourced from at all
+
+Two prod issues with the report:
+
+1. **`profiles_sourced` stayed 0.** `recruiterVendorGaps` iterated only
+   `account.type = 'vendor'` rows; on prod (user-created, no seed) many vendor
+   accounts were never classified `type='vendor'` / weren't `active`, so profiles
+   pointing at them were invisible. Fix — vendor set is now `type='vendor'` **OR**
+   any account id referenced by a `Profile.vendor_account_id`
+   (`prisma.profile.groupBy(['vendor_account_id'])`).
+2. **"Active vendors" hid vendors once any profile was submitted.** The whole
+   report was filtered to `!any_submitted` ("gap"). Now: with `vendor_activity`
+   set, that filter is dropped — `active` = "we've sourced ≥1 profile from this
+   vendor, submitted or not", `inactive` = "sourced nothing". Legacy no-toggle
+   call keeps the old "never submitted" meaning.
+
+- `profiles_submitted` is now a real count (was hardcoded `0`) — the "Submitted"
+  column is meaningful.
+- `ProfileFormPage`: vendor picker no longer filters `stage: 'active'` so a
+  non-active vendor account is still selectable.
+- Tests: `reports-coverage-gaps.test.js` — profile on a `type: null` account is
+  counted; `vendor_activity=active` lists a vendor whose profile WAS submitted
+  (`profiles_sourced: 1`, `profiles_submitted: 1`).
+- Server suite green (29 suites / 198 tests). Not yet on `main`.
+
 ## 2026-09-03 — CWR "no requirements" bucket = zero requirements ever
 
 Follow-up to the entry below. The `without_active_requirements` bucket of

@@ -97,6 +97,23 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(leadIds).not.toContain(activeClient.id);
   });
 
+  test('filters by created-date range', async () => {
+    const recent = await createActiveClientAccount(bda.id);
+    const old = await createActiveClientAccount(bda.id);
+    await prisma.account.update({ where: { id: old.id }, data: { created_at: new Date('2020-01-01') } });
+
+    const res = await authed(
+      request(app)
+        .get('/api/v1/reports/clients-without-requirements')
+        .query({ stage: 'active', date_from: '2024-01-01' }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.client.id);
+    expect(ids).toContain(recent.id);
+    expect(ids).not.toContain(old.id);
+  });
+
   test('includes not-yet-classified (type IS NULL) lead accounts', async () => {
     // A real lead is created with no type; it only becomes type=client on classification.
     const unclassifiedLead = await prisma.account.create({
@@ -303,6 +320,24 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     );
   });
 
+  test('counts profiles linked to an account that is not classified type=vendor', async () => {
+    // Prod case: the "vendor" account was added but never classified, so type is
+    // null (or it is not in the active stage). A profile still points at it.
+    const unclassified = await prisma.account.create({
+      data: { type: null, name: `Unclassified ${Math.random().toString(36).slice(2, 8)}`, stage: 'lead', owner_id: bda.id, origin_owner_id: bda.id },
+    });
+    await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: unclassified.id });
+
+    const res = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
+    expect(res.status).toBe(200);
+    const row = res.body.data.find((r) => r.vendor.id === unclassified.id);
+    expect(row).toBeTruthy();
+    expect(row.profiles_sourced).toBe(1);
+    expect(row.recruiters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: recruiter.id })])
+    );
+  });
+
   test('vendor_activity splits sourced (active) vs never-sourced (inactive)', async () => {
     const sourced = await seedVendorProfile(recruiterToken); // 1 profile, not submitted
     const bare = await createBareVendor();                    // nothing sourced
@@ -326,6 +361,58 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     expect(inactiveIds).toContain(bare.id);
     expect(inactiveIds).not.toContain(sourced.vendor.id);
     expect(inactiveRes.body.data.every((r) => r.profiles_sourced === 0)).toBe(true);
+  });
+
+  test('vendor_activity=active still lists a vendor whose sourced profile WAS submitted', async () => {
+    const used = await seedVendorProfile(recruiterToken, { submitted: true });
+
+    // Legacy (no toggle) drops it — it is not a "gap".
+    const legacy = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
+    expect(legacy.body.data.map((r) => r.vendor.id)).not.toContain(used.vendor.id);
+
+    // With the toggle, "active" means "sourced from", submitted or not.
+    const active = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'active' }),
+      adminToken
+    );
+    const row = active.body.data.find((r) => r.vendor.id === used.vendor.id);
+    expect(row).toBeTruthy();
+    expect(row.profiles_sourced).toBe(1);
+    expect(row.profiles_submitted).toBe(1);
+  });
+
+  test('filters by origin_owner_id (brought by)', async () => {
+    const mine = await createBareVendor(bda.id);
+    const other = await createBareVendor(bda2.id);
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ origin_owner_id: bda2.id }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.vendor.id);
+    expect(ids).toContain(other.id);
+    expect(ids).not.toContain(mine.id);
+  });
+
+  test('date_from / date_to scopes the sourced-profile count', async () => {
+    const v = await seedVendorProfile(recruiterToken); // 1 profile, created now
+    await prisma.profile.update({ where: { id: v.profile.id }, data: { created_at: new Date('2020-01-01') } });
+
+    const inWindow = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'active' }),
+      adminToken
+    );
+    expect(inWindow.body.data.map((r) => r.vendor.id)).toContain(v.vendor.id);
+
+    const afterCutoff = await authed(
+      request(app)
+        .get('/api/v1/reports/recruiter-vendor-gaps')
+        .query({ vendor_activity: 'active', date_from: '2024-01-01' }),
+      adminToken
+    );
+    // The only sourced profile is outside the window → nothing sourced in range.
+    expect(afterCutoff.body.data.map((r) => r.vendor.id)).not.toContain(v.vendor.id);
   });
 
   test('filters by vendor_id and by owner_id (our POC)', async () => {
