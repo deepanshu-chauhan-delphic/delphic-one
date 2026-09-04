@@ -17,6 +17,9 @@ import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import SubmissionDetailPage from '../pages/submissions/SubmissionDetailPage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
 import UsersPage from '../pages/users/UsersPage.jsx';
+import CalendarPage from '../pages/calendar/CalendarPage.jsx';
+import NotificationsPage from '../pages/notifications/NotificationsPage.jsx';
+import NotificationPreferencesPage from '../pages/notifications/NotificationPreferencesPage.jsx';
 
 function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center text-tertiary-500">Loading…</div>;
@@ -115,6 +118,9 @@ export default function App() {
         <Route path="submissions" element={<SubmissionsListPage />} />
         <Route path="submissions/new" element={<Navigate to="/submissions?create=1" replace />} />
         <Route path="submissions/:id" element={<SubmissionDetailPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="notifications/preferences" element={<NotificationPreferencesPage />} />
         <Route
           path="reports"
           element={

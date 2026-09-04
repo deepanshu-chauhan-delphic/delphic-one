@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/authContext.jsx';
 import { usePermissions } from '../../lib/permissions.js';
 import ChangePasswordModal from '../ChangePasswordModal.jsx';
 import Avatar from '../ui/Avatar.jsx';
+import NotificationBell from '../notifications/NotificationBell.jsx';
 import { headerSubtitleForPath, headerTitleForPath } from './headerTitle.js';
 import { NAV_ITEMS } from './navItems.js';
 
@@ -216,22 +217,27 @@ export default function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="dashboard-canvas-glow flex-1 overflow-auto bg-canvas">
           <header className={`px-4 pt-4 md:px-6 md:pt-5 ${needsExtraSubtitleGap ? 'pb-3' : 'pb-0'}`}>
-            <div className="flex items-start gap-3">
-              <button
-                type="button"
-                className="mt-0.5 rounded-lg p-2 text-tertiary-600 hover:bg-tertiary-50 md:hidden"
-                aria-label="Open menu"
-                onClick={() => setMobileOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="truncate font-heading text-lg font-bold tracking-tight text-tertiary-900 md:text-xl">
-                  {headerTitle}
-                </h1>
-                {headerSubtitle && (
-                  <p className="mt-0.5 text-sm text-tertiary-500">{headerSubtitle}</p>
-                )}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <button
+                  type="button"
+                  className="mt-0.5 rounded-lg p-2 text-tertiary-600 hover:bg-tertiary-50 md:hidden"
+                  aria-label="Open menu"
+                  onClick={() => setMobileOpen(true)}
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div className="min-w-0">
+                  <h1 className="truncate font-heading text-lg font-bold tracking-tight text-tertiary-900 md:text-xl">
+                    {headerTitle}
+                  </h1>
+                  {headerSubtitle && (
+                    <p className="mt-0.5 text-sm text-tertiary-500">{headerSubtitle}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <NotificationBell />
               </div>
             </div>
           </header>

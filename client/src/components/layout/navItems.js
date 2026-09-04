@@ -6,6 +6,7 @@ import {
   Users,
   Send,
   BarChart3,
+  CalendarDays,
   UserCog,
 } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export const NAV_ITEMS = [
   { to: '/requirements', label: 'Requirements', icon: Briefcase },
   { to: '/profiles', label: 'Profiles', icon: Users, capability: 'viewProfiles' },
   { to: '/submissions', label: 'Submissions', icon: Send },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/reports', label: 'Reports', icon: BarChart3, capability: 'viewReports' },
   { to: '/users', label: 'Users', icon: UserCog, capability: 'manageUsers' },
 ];

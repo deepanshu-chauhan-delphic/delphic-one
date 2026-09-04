@@ -8,6 +8,9 @@ export function headerTitleForPath(pathname, user) {
   if (pathname.startsWith('/requirements')) return 'Requirements';
   if (pathname.startsWith('/profiles')) return 'Candidates';
   if (pathname.startsWith('/submissions')) return 'Submissions';
+  if (pathname.startsWith('/calendar')) return 'Calendar';
+  if (pathname.startsWith('/notifications/preferences')) return 'Notification settings';
+  if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/reports')) return 'Reports';
   if (pathname.startsWith('/users')) return 'Users';
   return 'Delphic';
@@ -26,6 +29,9 @@ export function headerSubtitleForPath(pathname, user) {
   if (pathname.startsWith('/requirements')) return 'Open jobs, seats, and recruiter assignments.';
   if (pathname.startsWith('/profiles')) return 'Profiles with skills, CTC, and resume attachments.';
   if (pathname.startsWith('/submissions')) return 'Candidates put forward for jobs, by pipeline stage.';
+  if (pathname.startsWith('/calendar')) return 'Your scheduled and upcoming interviews — month grid or agenda.';
+  if (pathname.startsWith('/notifications/preferences')) return 'Choose which lifecycle events reach your in-app inbox.';
+  if (pathname.startsWith('/notifications')) return 'Assignments, interviews, and stage changes across your work.';
   if (pathname.startsWith('/reports')) return 'Pick filters and export Excel or PDF.';
   if (pathname.startsWith('/users')) {
     return 'Only admins can create accounts. Assign a department so reports can filter by team.';
