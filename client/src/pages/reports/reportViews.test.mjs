@@ -41,7 +41,7 @@ assert.ok(reportsForRole('recruiter').some((r) => r.key === 'recruiter-vendor-ga
 assert.ok(!reportsForRole('recruiter').some((r) => r.key === 'clients-without-requirements'));
 assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'sales_poc'));
 assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'brought_by'));
-assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'requirements_count'));
+assert.ok(columnsForReport('clients-without-requirements').some((c) => c.key === 'active_requirements_count'));
 assert.ok(!columnsForReport('recruiter-vendor-gaps').some((c) => c.key === 'recruiters'));
 assert.equal(
   columnsForReport('recruiter-vendor-gaps').find((c) => c.key === 'vendor').render({ vendor: { name: 'Acme Staffing' } }),

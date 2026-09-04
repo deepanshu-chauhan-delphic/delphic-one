@@ -806,7 +806,8 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
     include: {
       owner: { select: { id: true, name: true } },
       origin_owner: { select: { id: true, name: true } },
-      _count: { select: { requirements: true } },
+      // Count only requirements that are currently active work.
+      _count: { select: { requirements: { where: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } } },
     },
     orderBy: { created_at: 'asc' },
   });
@@ -816,7 +817,7 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
     stage: a.stage,
     brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
     sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
-    requirements_count: a._count.requirements,
+    active_requirements_count: a._count.requirements,
     created_at: a.created_at,
     days_idle: Math.floor(daysBetween(a.created_at, new Date())),
   }));
