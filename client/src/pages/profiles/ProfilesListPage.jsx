@@ -350,7 +350,7 @@ export default function ProfilesListPage() {
               />
               <button
                 type="submit"
-                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
               >
                 Search
               </button>
@@ -510,7 +510,7 @@ export default function ProfilesListPage() {
                 />
                 <button
                   type="submit"
-                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] hover:bg-[#DBE6FE]"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] hover:bg-[#D8E8F6]"
                 >
                   Apply
                 </button>

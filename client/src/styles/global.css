@@ -26,8 +26,8 @@
   --color-text: 15 23 42;
   --color-text-muted: 100 116 139;
 
-  --color-primary: 0 82 255;
-  --color-primary-soft: 238 244 255;
+  --color-primary: 16 90 169;
+  --color-primary-soft: 238 245 252;
   --color-primary-contrast: 255 255 255;
 
   --color-success: 22 163 74;
@@ -119,4 +119,63 @@ h3,
 
 .alert-banner--exit {
   animation: alert-slide-out 0.26s ease-in forwards;
+}
+
+/* Subtle zoom-on-hover for interactive tiles / cards / items across the app.
+   Pair with `relative` so the lifted element sits above its neighbours. */
+.hover-zoom {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease;
+}
+
+.hover-zoom:hover {
+  transform: scale(1.02);
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-zoom {
+    transition: box-shadow 0.18s ease;
+  }
+
+  .hover-zoom:hover {
+    transform: none;
+  }
+}
+
+/* Home Lottie preloader — fixed white overlay, fades + scales + blurs out */
+.site-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+  transition: opacity 300ms ease, transform 300ms ease, filter 300ms ease;
+}
+
+.site-preloader--out {
+  opacity: 0;
+  transform: scale(1.04);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.site-preloader__lottie {
+  width: 180px;
+  height: 230px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-preloader {
+    transition: opacity 300ms ease;
+  }
+
+  .site-preloader--out {
+    transform: none;
+    filter: none;
+  }
 }

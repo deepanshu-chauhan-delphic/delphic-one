@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/authContext.jsx';
 import { can } from '../lib/permissions.js';
 import AppLayout from '../components/layout/AppLayout.jsx';
+import HomePreloaderGate from '../components/HomePreloaderGate.jsx';
 import LoginPage from '../pages/auth/LoginPage.jsx';
 import DashboardPage from '../pages/dashboard/DashboardPage.jsx';
 import AccountsListPage from '../pages/accounts/AccountsListPage.jsx';
@@ -19,7 +20,7 @@ import ReportsPage from '../pages/reports/ReportsPage.jsx';
 import UsersPage from '../pages/users/UsersPage.jsx';
 import CalendarPage from '../pages/calendar/CalendarPage.jsx';
 import NotificationsPage from '../pages/notifications/NotificationsPage.jsx';
-import NotificationPreferencesPage from '../pages/notifications/NotificationPreferencesPage.jsx';
+import SettingsPage from '../pages/settings/SettingsPage.jsx';
 
 function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center text-tertiary-500">Loading…</div>;
@@ -70,7 +71,14 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route
+          index
+          element={
+            <HomePreloaderGate>
+              <DashboardPage />
+            </HomePreloaderGate>
+          }
+        />
         <Route path="accounts" element={<AccountsListPage />} />
         <Route path="accounts/new" element={<Navigate to="/accounts?create=1" replace />} />
         <Route path="accounts/:id/board" element={<AccountBoardRedirect />} />
@@ -120,7 +128,11 @@ export default function App() {
         <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="notifications/preferences" element={<NotificationPreferencesPage />} />
+        <Route
+          path="notifications/preferences"
+          element={<Navigate to="/settings?tab=notifications" replace />}
+        />
+        <Route path="settings" element={<SettingsPage />} />
         <Route
           path="reports"
           element={

@@ -17,6 +17,11 @@ const me = asyncHandler(async (req, res) => {
   return ok(res, user);
 });
 
+const myActivity = asyncHandler(async (req, res) => {
+  const rows = await usersService.listActivity(req.user.id, { limit: req.query.limit });
+  return ok(res, rows);
+});
+
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
   // Sales may list users only to pick recruiters for assignment (RD-106). Keep scope narrow.
@@ -52,4 +57,4 @@ const update = asyncHandler(async (req, res) => {
   return ok(res, result.user);
 });
 
-module.exports = { me, list, getOne, create, update };
+module.exports = { me, myActivity, list, getOne, create, update };

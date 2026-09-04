@@ -135,9 +135,31 @@ export function NotificationsProvider({ children }) {
     };
   }, [user, refreshCount]);
 
+  // Unread interview-related notifications (scheduled / rescheduled / cancelled /
+  // reminder) — mirrored as a dot on the Calendar nav item. Derived from the
+  // latest page of items, which is enough for an at-a-glance indicator.
+  const interviewUnread = useMemo(
+    () =>
+      items.filter(
+        (n) => !n.read_at && typeof n.type === 'string' && n.type.startsWith('interview_')
+      ).length,
+    [items]
+  );
+
   const value = useMemo(
-    () => ({ items, unreadCount, loading, hasMore, reload, refreshCount, markRead, markAllRead, loadMore }),
-    [items, unreadCount, loading, hasMore, reload, refreshCount, markRead, markAllRead, loadMore]
+    () => ({
+      items,
+      unreadCount,
+      interviewUnread,
+      loading,
+      hasMore,
+      reload,
+      refreshCount,
+      markRead,
+      markAllRead,
+      loadMore,
+    }),
+    [items, unreadCount, interviewUnread, loading, hasMore, reload, refreshCount, markRead, markAllRead, loadMore]
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

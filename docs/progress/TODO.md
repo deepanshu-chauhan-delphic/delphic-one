@@ -6,6 +6,36 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Login polish + rename + hover-zoom + calendar dot (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] "Delphic one" rename on login + `index.html` title; login page redesigned (gradient brand panel + card).
+- [x] `.hover-zoom` utility applied to KPI / stat / dashboard-panel / calendar cards.
+- [x] `interviewUnread` in notifications context → red count pill on the Calendar nav item.
+- [ ] Browser check: Calendar nav badge appears when an interview_scheduled notification is unread and clears once the bell / notifications page marks it read; login panel looks right at `lg` / `xl` and on mobile; hover-zoom feels right (no clipping) on the dashboard.
+
+## Settings page (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] `/settings` tabbed page (Account / Security / Notifications / Activity), `?tab=` synced, nav item + header title/subtitle.
+- [x] Change-password extracted to `ChangePasswordForm`; modal removed; avatar menu → Settings link + Logout.
+- [x] `GET /users/me/activity` (own `stage_history`, labelled) powering the Activity tab.
+- [x] `/notifications/preferences` redirects to `/settings?tab=notifications`; bell "Settings" link updated.
+- [ ] `cd server && npm test` when `:5434` is up — add a small `users-activity` check (own rows only, respects `limit`). Not run this session.
+- [ ] Browser click-through: each tab loads; deep-link `?tab=activity` selects the right tab; password change still works from Settings; logout from the Account tab; old `/notifications/preferences` bookmark lands on the Notifications tab.
+
+## Brand pass — accent #105aa9 + login redesign + home preloader (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] `primary` Tailwind scale + `--color-primary*` tokens rebuilt around `#105aa9`; hardcoded `#0052FF`/`#EEF4FF`/`#DBE6FE` literals swapped app-wide.
+- [x] Login page split layout using `undraw_dashboard_p93p.svg` + `Delphic_D-logo_transparent.png` + `delphic-logo.png`.
+- [x] `HomePreloaderGate` (Lottie `d_preloader.json`, `lottie-web`, sessionStorage `site_preloader_played`, fail-open) wraps the index route.
+- [ ] Browser click-through: first load shows the Lottie overlay then reveals the dashboard once a loop completes; reload in the same tab skips the Lottie; new tab/session shows it again; login page split panel renders and is responsive; spot-check that no screen still shows the old blue.
+- [ ] `client/package-lock.json` / root lockfile now include `lottie-web` — commit with the rest.
+
 ## Notifications + Interview Calendar — BUILT (branch `feature/notifications-calendar`, 2026-09-04)
 
 Full design + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md) §10. PROGRESS.md 2026-09-04.

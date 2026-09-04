@@ -343,7 +343,7 @@ export default function UsersPage() {
             {isSuperadmin && (
               <button
                 type="button"
-                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                className="rounded-lg border border-[#105AA9] bg-white px-3 py-1 text-xs font-medium text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
                 onClick={() => setEditRow(row)}
               >
                 Edit
@@ -352,7 +352,7 @@ export default function UsersPage() {
             {row.id !== user.id ? (
               <button
                 type="button"
-                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                className="rounded-lg border border-[#105AA9] bg-white px-3 py-1 text-xs font-medium text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
                 onClick={() => toggleActive(row)}
               >
                 {row.active ? 'Deactivate' : 'Activate'}
@@ -400,7 +400,7 @@ export default function UsersPage() {
           <h2 className="font-heading text-sm font-semibold text-tertiary-900">Departments</h2>
           <button
             type="button"
-            className="rounded-lg border border-[#0052FF] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+            className="rounded-lg border border-[#105AA9] bg-white px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
             onClick={() => setDeptDrawer({})}
           >
             + Add department

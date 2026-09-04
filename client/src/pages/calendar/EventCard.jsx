@@ -20,7 +20,7 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
   const canCancel = event.can_submit_feedback && !cancelled && isFuture;
 
   return (
-    <div className={`rounded-2xl border border-tertiary-100 bg-white p-4 shadow-card ${cancelled ? 'opacity-70' : ''}`}>
+    <div className={`hover-zoom relative rounded-2xl border border-tertiary-100 bg-white p-4 shadow-card ${cancelled ? 'opacity-70' : ''}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-heading text-sm font-semibold text-tertiary-900">
           {formatTimeRange(event.scheduled_at, event.duration_minutes)}

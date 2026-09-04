@@ -7,7 +7,7 @@ export default function Avatar({ name = '?', size = 'md', className = '' }) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-primary-100 font-semibold text-primary-800 ${sizeClass} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-primary-600 font-semibold text-white ${sizeClass} ${className}`}
       title={name}
       aria-hidden={name === '?'}
     >

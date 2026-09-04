@@ -36,7 +36,7 @@ const KPI_THEMES = {
 export default function KpiCard({ label, value, hint, description, icon: Icon, theme = 'blue', to }) {
   const palette = KPI_THEMES[theme] || KPI_THEMES.blue;
 
-  const baseClass = `relative flex h-28 w-full flex-col overflow-hidden rounded-2xl border border-tertiary-100 border-t-[3px] bg-white p-4 shadow-card ${palette.border}`;
+  const baseClass = `hover-zoom relative flex h-28 w-full flex-col overflow-hidden rounded-2xl border border-tertiary-100 border-t-[3px] bg-white p-4 shadow-card ${palette.border}`;
 
   const CardTag = to ? Link : 'div';
   const cardProps = to

@@ -54,7 +54,7 @@ export default function FilterBar({
               type="button"
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 datePreset === preset.key
-                  ? 'border-[#0052FF] bg-[#0052FF] text-white shadow-sm'
+                  ? 'border-[#105AA9] bg-[#105AA9] text-white shadow-sm'
                   : 'border-tertiary-100 bg-canvas-muted text-tertiary-600 hover:border-tertiary-200 hover:bg-tertiary-50'
               }`}
               onClick={() => onDatePresetChange?.(preset.key)}

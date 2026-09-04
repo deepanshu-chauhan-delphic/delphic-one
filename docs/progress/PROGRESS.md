@@ -2,6 +2,88 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-04 — Login polish + "Delphic one" rename + hover-zoom + calendar interview dot (branch `feature/notifications-calendar`)
+
+- **Rename** — the product now reads **"Delphic one"**: login brand panel heading
+  + wordmark, sign-in card copy, `client/index.html` `<title>`. (The old
+  "Requirement Management Dashboard" string is gone from the login page.)
+- **Login UI** — reworked into a proper split: full-bleed `primary-700→800`
+  gradient brand panel (white text, glass card around `undraw_dashboard_p93p.svg`,
+  soft light blobs) on `lg+`; right side a centered card with a gradient top
+  accent bar, larger inputs (shadow-soft, 4px `primary/15` focus ring), and a
+  faint `primary-50` wash behind the form on mobile. `delphic-logo.png` shows
+  above the card on mobile, `Delphic_D-logo_transparent.png` in the panel.
+- **Accent audit** — confirmed no `#0052ff` / `rgb(0 82 255)` / `#3d7bff`
+  anywhere under `client/` (grep clean); buttons + avatars already ride the
+  `primary` scale / solid `primary-600` from the earlier brand pass.
+- **Hover-zoom** — new `.hover-zoom` utility in `global.css` (`scale(1.02)`,
+  soft easing, `prefers-reduced-motion` aware). Applied to `KpiCard`, `StatCard`,
+  the three dashboard panels (Stuck leads / Stuck requirements / Recent activity),
+  and calendar `EventCard`.
+- **Calendar interview indicator** — `notificationsContext` now derives
+  `interviewUnread` (unread notifications whose `type` starts with `interview_` —
+  scheduled / rescheduled / cancelled / reminder). `AppLayout` shows a red count
+  pill on the **Calendar** nav item (a dot on the icon when the sidebar is
+  collapsed), mirroring the bell badge.
+- `vite build` + `eslint` clean.
+
+## 2026-09-04 — Settings page (tabbed): account / security / notifications / activity (branch `feature/notifications-calendar`)
+
+- **New `/settings` route + nav item** (`Settings` icon, no capability — everyone).
+  `client/src/pages/settings/SettingsPage.jsx` — top tab bar (`?tab=` synced,
+  `account` is the default / bare URL): **Account** (profile summary + Log out),
+  **Security** (change-password form), **Notifications** (renders the existing
+  `NotificationPreferencesPage`), **Activity** (account history).
+- **Change-password** extracted from the modal into
+  `client/src/components/ChangePasswordForm.jsx` (fields + submit, optional
+  `onDone`/`onCancel`). `ChangePasswordModal.jsx` deleted — the header avatar
+  menu no longer opens a modal; its "Change password" item is replaced by a
+  **Settings** link, "Logout" kept. `AppLayout` lost the `passwordOpen` state +
+  modal mount.
+- **Account history** — new read-only `GET /users/me/activity` (`users.routes` →
+  `users.controller.myActivity` → `users.service.listActivity`): the caller's own
+  `stage_history` rows (account / requirement / seat / submission), newest first,
+  `limit` 1–200 (default 50), entity labels resolved (account name, requirement
+  title, `candidate → requirement` for submissions). No schema change. The
+  Activity tab renders it as a timeline with `from → to` stage, reason, and a
+  link to the entity where one exists.
+- **Redirect** `/notifications/preferences` → `/settings?tab=notifications`; the
+  notification-bell dropdown "Settings" link and `headerTitle` updated to match.
+- `vite build` + `eslint` (client + server) clean.
+
+## 2026-09-04 — Brand pass: accent → #105aa9, login redesign, home Lottie preloader (branch `feature/notifications-calendar`)
+
+- **Accent colour** — the `primary` Tailwind scale (`client/tailwind.config.js`) rebuilt
+  around `#105aa9` (600 = the accent); `--color-primary` / `--color-primary-soft`
+  tokens in `client/src/styles/global.css` updated to match. Hardcoded `#0052FF` /
+  `#EEF4FF` / `#DBE6FE` literals swapped for `#105AA9` / `#EEF5FC` / `#D8E8F6` across
+  `AppLayout`, `FilterBar`, `chartTheme.js`, and the Accounts / Dashboard / Pipeline /
+  Profiles / Requirements / Submissions / Users pages. Everything else already goes
+  through `primary-*` utilities so it recolours automatically. `Avatar` (initials
+  badge for candidates + people) switched to a solid `#105aa9` fill / white text
+  (was `primary-100` / `primary-800`); the redundant `bg-primary-600` override on
+  the sidebar user avatar dropped. Sidebar brand now `Delphic_D-logo_transparent.png`
+  + "Delphic one" text (was a letter-D tile + "Delphic").
+- **Login page** (`client/src/pages/auth/LoginPage.jsx`) — split layout: left brand
+  panel (`primary-50→100` gradient, soft blur blobs, `Delphic_D-logo_transparent.png`,
+  `undraw_dashboard_p93p.svg` illustration, feature bullets), right sign-in card
+  (`shadow-card`, rounded-2xl, `primary` focus ring). Panel is `lg`+ only; mobile
+  shows `delphic-logo.png` above the card. Assets are the new files dropped in
+  `client/public/`.
+- **Home Lottie preloader** — `client/public/assets/preloader/d_preloader.json`
+  (copied from `public/d_preloader.json`); `lottie-web@^5.13` added to the client
+  workspace. New self-contained `client/src/components/HomePreloaderGate.jsx` wraps
+  the index route (`DashboardPage`) in `App.jsx`. First visit per browser session:
+  fixed full-screen white overlay (`z-9999`, `role="status"`, `aria-busy`), Lottie
+  (`svg`, loop, `xMidYMid meet`, 180×230) plays while critical home images preload;
+  page reveals only when a full `loopComplete` **and** the assets are both done, then
+  the overlay fades + scales + blurs out (~320ms) and unmounts. `sessionStorage`
+  `site_preloader_played='1'` — revisits skip the Lottie and wait on assets only.
+  Fail-open: any Lottie fetch/parse error reveals as soon as assets are ready.
+  `lottie-web` is a dynamic `import()` so it stays out of the login-route bundle
+  (separate 308 kB / 79 kB gzip chunk). CSS lives under `.site-preloader*` in
+  `global.css` (respects `prefers-reduced-motion`). `vite build` + `eslint` clean.
+
 ## 2026-09-04 — In-app notifications + interview calendar (built, branch `feature/notifications-calendar`)
 
 Full spec + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md).

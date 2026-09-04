@@ -95,7 +95,7 @@ export default function NotificationBell() {
                 View all
               </Link>
               <Link
-                to="/notifications/preferences"
+                to="/settings?tab=notifications"
                 className="text-tertiary-500 hover:text-tertiary-800"
                 onClick={() => setOpen(false)}
               >
