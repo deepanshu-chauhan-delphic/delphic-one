@@ -1,6 +1,8 @@
 # Production deploy runbook (VPS)
 
-Manual `git pull` deploy for the Delphic stack.
+Deploy paths for the Delphic stack:
+- **Automated** — `.github/workflows/deploy.yml` runs on every push to `main` (also `workflow_dispatch`; set repo variable `DEPLOY_ENABLED=false` to pause). SSHes to the box and runs the same `./start-delphic.sh --prod` flow.
+- **Manual** — `git pull` + `./start-delphic.sh --prod` on the box (§1–§3).
 
 - **Host path:** `/opt/delphic`
 - **Runner:** `./start-delphic.sh --prod` (Docker Compose, both files, service name `server`)
@@ -16,6 +18,56 @@ Manual `git pull` deploy for the Delphic stack.
 cd /opt/delphic
 alias dc='docker compose -f docker-compose.yml -f docker-compose.prod.yml'
 ```
+
+---
+
+## What a deploy touches (and what it never touches)
+
+Every step of the automated deploy (`deploy.yml`) and the manual flow, line by line:
+
+| Step | Effect on the database |
+|---|---|
+| `git fetch --prune` + `git reset --hard origin/main` | **Files only.** The DB is a Docker named volume, not in git; `.env` and `./backups/` are git-ignored. This discards uncommitted *file* drift on the box — never data. |
+| `./start-delphic.sh --prod` → pre-deploy backup | `pg_dump -Fc` → `backups/predeploy-<ts>.dump`, verified with `pg_restore --list`. The deploy **aborts here** if the dump fails or the disk has < `BACKUP_MIN_FREE_GB` free. Guaranteed restore point before any change. |
+| `docker compose up -d --build` | Rebuilds the `client` / `server` **images**, recreates containers. The `db` container reattaches the **same volume** — recreating a Postgres container never deletes its volume. No `-v` anywhere in the script. |
+| server container start → `prisma migrate deploy` | Applies only *unapplied* migrations, forward-only. **Never resets or drops.** |
+| `docker compose build --no-cache client` + `up -d client` | Static nginx assets only. |
+| `curl …/health` | Read-only. |
+
+The deploy never runs `docker compose down -v`, `dropdb`, `--restore`, or any CSV seed
+(those are also hard-blocked by `server/prisma/_guard.js` on `NODE_ENV=production`).
+The `docker compose down -v` you see in `ci.yml` runs on GitHub's throwaway runner
+against a scratch DB — never the box.
+
+**The only way an automated deploy can lose data is a migration that contains a `DROP`.** See the hard rule below.
+
+---
+
+## HARD RULE — no `DROP` in a migration that ships with feature code
+
+`prisma migrate deploy` runs automatically on every deploy. A migration that reaches
+`main` **must not** contain any of: `DROP TABLE`, `DROP COLUMN`, a destructive
+`ALTER COLUMN … TYPE` / `USING`, a table or column `RENAME`, `TRUNCATE`. These are
+the *only* operations that turn an ordinary deploy into data loss.
+
+Removing a column or table is a **two-release expand → contract**:
+
+1. **Release N** — stop writing and reading the column in application code. Leave the
+   column in the database. Deploy. Confirm stable in prod.
+2. **Release N+1** — a migration that drops the now-unused column. Its **own PR**, in a
+   **scheduled maintenance window**, with a fresh **hand-taken verified backup** first,
+   and the `DROP` **called out explicitly in the PR description**. Never bundled with a
+   feature.
+
+Pre-flight check before any deploy (also in §1):
+
+```bash
+grep -rIl -E 'DROP (TABLE|COLUMN)|ALTER COLUMN .* (TYPE|USING)|RENAME (TABLE|COLUMN|TO)|TRUNCATE' \
+  $(git diff --name-only HEAD origin/main -- server/prisma/migrations/) 2>/dev/null
+```
+
+A hit is a **stop-and-review**, not a proceed: pause automated deploy
+(`DEPLOY_ENABLED=false`), follow the maintenance-window steps, then re-enable.
 
 ---
 
@@ -71,13 +123,12 @@ Each run writes one new dump, then deletes anything past the 7 newest of that fa
 cd /opt/delphic
 git fetch origin && git log --oneline HEAD..origin/main       # what's landing
 
-# Does this release contain a destructive migration? If yes → maintenance window.
+# Does this release contain a destructive migration? A hit is a stop-and-review
+# (see the HARD RULE section above), not a proceed.
 git diff --stat HEAD origin/main -- server/prisma/migrations/
-grep -rIl -E 'DROP (TABLE|COLUMN)|ALTER COLUMN .* TYPE|RENAME ' \
+grep -rIl -E 'DROP (TABLE|COLUMN)|ALTER COLUMN .* (TYPE|USING)|RENAME (TABLE|COLUMN|TO)|TRUNCATE' \
   $(git diff --name-only HEAD origin/main -- server/prisma/migrations/) 2>/dev/null
 ```
-
-Migrations should be **additive / expand-contract**: add in release N, remove the old thing in a later release once N is stable. Never ship a `DROP` alongside the code that stops using it.
 
 Optional belt-and-braces manual backup (the deploy also does this):
 
