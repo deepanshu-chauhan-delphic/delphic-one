@@ -754,24 +754,26 @@ const ACTIVE_REQUIREMENT_STATUSES = ['open', 'in_progress', 'on_hold'];
 /**
  * Active client coverage report (UI: "Clients without requirements").
  *
- * Always filtered to `stage: 'active'` when a bucket is supplied.
- * `bucket`:
- *   - `all` — every client, no requirement filter.
- *   - `with_requirements` — has ≥1 requirement that is open / in_progress / on_hold.
- *   - `without_active_requirements` — has never had a requirement at all (count zero).
- * These are NOT a strict partition of `all`: a client whose only requirements are
- * closed / dropped is in neither bucket (it has been worked, but has nothing open).
- * Legacy callers with no bucket keep the old behaviour: zero requirements.
+ * With a `bucket` (the report UI) this is "active-stage clients":
+ * `type = 'client'`, `stage = 'active'`, split by their current requirement mix:
+ *   - `all` — every active-stage client, no requirement filter.
+ *   - `with_requirements` ("Has requirements") — ≥1 requirement open / in_progress
+ *     / on_hold (closed / dropped do not count).
+ *   - `no_active` ("No requirements") — no requirement open / in_progress /
+ *     on_hold: closed / dropped only, or never had one.
+ *   - `without_active_requirements` / `closed_only` — kept for the export route
+ *     and back-compat; not surfaced in the UI.
+ * Legacy callers with no bucket keep the old behaviour: no requirement rows, and
+ * unclassified (`type IS NULL`) accounts are included so `stage = 'lead'` works.
  */
 async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket, date_from, date_to }) {
   const effectiveStage = bucket ? (stage || 'active') : stage;
   const createdRange = optionalDateRange(date_from, date_to);
   const baseWhere = {
-    // Include not-yet-classified accounts (type IS NULL) — every account still in
-    // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
-    // filter made the Stage = Lead option return nothing. Mirrors the Accounts
-    // list "include unclassified" behaviour.
-    OR: [{ type: 'client' }, { type: null }],
+    // Report UI ("active-stage clients") is strictly `type = 'client'`. The
+    // legacy no-bucket path keeps unclassified accounts so `stage = 'lead'`
+    // still returns not-yet-classified leads.
+    ...(bucket ? { type: 'client' } : { OR: [{ type: 'client' }, { type: null }] }),
     ...(bda_id ? { owner_id: bda_id } : {}),
     ...(origin_owner_id ? { origin_owner_id } : {}),
     ...(effectiveStage ? { stage: effectiveStage } : {}),
@@ -783,6 +785,15 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
     requirementFilter = {};
   } else if (bucket === 'with_requirements') {
     requirementFilter = { requirements: { some: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } };
+  } else if (bucket === 'no_active') {
+    requirementFilter = { requirements: { none: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } };
+  } else if (bucket === 'closed_only') {
+    requirementFilter = {
+      AND: [
+        { requirements: { some: {} } },
+        { requirements: { none: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } },
+      ],
+    };
   } else if (bucket === 'without_active_requirements') {
     requirementFilter = { requirements: { none: {} } };
   } else {
@@ -811,48 +822,47 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
   }));
 }
 
+// A candidate is "in a live submission" while its submission stage is anything
+// other than a terminal one — i.e. still in flight against some requirement.
+const LIVE_SUBMISSION_STAGES = [
+  'sourced',
+  'internal_screening',
+  'submitted_to_client',
+  'interview_scheduled',
+  'interview_result',
+  'offer_sent',
+  'bgv',
+];
+
 /**
- * One row per vendor account, carrying the vendor's POC from our end
- * (`account.owner`), "brought by" (`account.origin_owner`), every recruiter who
- * has sourced a profile from it, and `profiles_sourced` / `profiles_submitted`
- * (a submitted profile still counts toward sourced).
- *
- * The vendor set is `type = 'vendor'` **OR** any account referenced as a
- * profile's `vendor_account_id`. On prod, vendor accounts are user-created and
- * some were never classified `type='vendor'` (or sit in a non-active stage) —
- * a type-only query silently dropped every profile sourced from them, so their
- * `profiles_sourced` count stayed 0.
+ * One row per vendor account (`type = 'vendor'`, `stage = 'active'`), carrying
+ * the vendor's POC from our end (`account.owner`), "brought by"
+ * (`account.origin_owner`), every recruiter who has sourced a profile from it,
+ * `profiles_sourced` / `profiles_submitted`, and `has_live_submission` — whether
+ * any sourced candidate currently sits in a non-terminal submission stage.
  *
  * Filters:
- *   - `vendor_id`  — a single vendor account.
- *   - `owner_id`   — the vendor's POC from our end (`account.owner_id`).
- *   - `origin_owner_id` — who brought the vendor in (`account.origin_owner_id`).
- *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from.
- *     (The route also sets this to the caller's id for the recruiter role.)
- *   - `date_from` / `date_to` — scope the sourced-profile counts to profiles
- *     created in that window.
- *   - `vendor_activity` — `active` = we've sourced ≥1 profile from the vendor
- *     (submitted or not); `inactive` = we've sourced nothing from it.
- *
- * With **no** `vendor_activity` the legacy "gap" meaning applies: only vendors
- * whose profiles were never submitted anywhere.
+ *   - `vendor_id` — a single vendor account.
+ *   - `owner_id` — the vendor's POC from our end (`account.owner_id`).
+ *   - `origin_owner_id` — who brought the vendor in.
+ *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from
+ *     (the route also forces this to the caller for the recruiter role).
+ *   - `date_from` / `date_to` — scope the sourced-profile counts by profile
+ *     created date.
+ *   - `vendor_activity`:
+ *       `active` (default) — every active-stage vendor.
+ *       `inactive` — no sourced candidate is currently in a live submission.
  */
 async function recruiterVendorGaps({
   recruiter_id, vendor_id, owner_id, origin_owner_id, vendor_activity, date_from, date_to,
 }) {
   const sourcedRange = optionalDateRange(date_from, date_to);
-  // Every account a profile actually points at as its sourcing vendor, regardless
-  // of the account's `type` / `stage`.
-  const linked = await prisma.profile.groupBy({
-    by: ['vendor_account_id'],
-    where: { vendor_account_id: { not: null } },
-  });
-  const linkedVendorIds = linked.map((g) => g.vendor_account_id);
 
   const vendors = await prisma.account.findMany({
     where: {
       AND: [
-        { OR: [{ type: 'vendor' }, { id: { in: linkedVendorIds } }] },
+        { type: 'vendor' },
+        { stage: 'active' },
         ...(vendor_id ? [{ id: vendor_id }] : []),
         ...(owner_id ? [{ owner_id }] : []),
         ...(origin_owner_id ? [{ origin_owner_id }] : []),
@@ -876,12 +886,14 @@ async function recruiterVendorGaps({
           id: true,
           created_at: true,
           added_by_user: { select: { id: true, name: true } },
-          _count: { select: { submissions: true } },
+          submissions: { select: { stage: true } },
         },
       });
 
-      const submittedCount = profiles.filter((p) => p._count.submissions > 0).length;
-      const any_submitted = submittedCount > 0;
+      const submittedCount = profiles.filter((p) => p.submissions.length > 0).length;
+      const has_live_submission = profiles.some((p) =>
+        p.submissions.some((s) => LIVE_SUBMISSION_STAGES.includes(s.stage))
+      );
       const recruiters = [
         ...new Map(
           profiles.filter((p) => p.added_by_user).map((p) => [p.added_by_user.id, p.added_by_user])
@@ -899,7 +911,7 @@ async function recruiterVendorGaps({
         recruiters: recruiters.map((r) => ({ id: r.id, name: r.name })),
         profiles_sourced: profiles.length,
         profiles_submitted: submittedCount,
-        any_submitted,
+        has_live_submission,
         last_sourced_at,
         days_since_sourced: last_sourced_at
           ? Math.floor(daysBetween(last_sourced_at, new Date()))
@@ -909,17 +921,9 @@ async function recruiterVendorGaps({
   );
 
   return rows
-    // Legacy (no toggle) keeps the original "gap" meaning — nothing submitted.
-    // With a toggle the report is "every sourcing relationship", submitted or not:
-    // `active` = we sourced ≥1 profile, `inactive` = we sourced none.
-    .filter((r) => vendor_activity || !r.any_submitted)
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
-    .filter((r) => {
-      if (vendor_activity === 'active') return r.profiles_sourced > 0;
-      if (vendor_activity === 'inactive') return r.profiles_sourced === 0;
-      return true;
-    })
-    .map(({ any_submitted: _any_submitted, ...rest }) => rest)
+    // `active` (default) = every active-stage vendor; `inactive` = no live candidate.
+    .filter((r) => vendor_activity !== 'inactive' || !r.has_live_submission)
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }
 

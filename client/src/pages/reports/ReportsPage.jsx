@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Building2, CircleAlert, LayoutGrid } from 'lucide-react';
+import { Briefcase, Building2, CircleAlert, LayoutGrid } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -177,7 +177,8 @@ export default function ReportsPage() {
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
-  // CWR toggle: active clients with reqs vs active clients without open/in_progress reqs.
+  // CWR tab: current requirement situation of each active client
+  // (all | with_requirements | no_active | without_active_requirements | closed_only).
   const [coverageBucket, setCoverageBucket] = useState('all');
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
@@ -187,11 +188,8 @@ export default function ReportsPage() {
   const [rvgPocId, setRvgPocId] = useState('');
   const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
-  // RVG toggle: vendors we've sourced ≥1 profile from (active) vs sourced nothing (inactive).
+  // RVG tab: active (every active-stage vendor) | inactive (no live candidate submission).
   const [rvgActivity, setRvgActivity] = useState('active');
-  // Shared date range for both coverage reports (CWR = account created, RVG = profile sourced).
-  const [coverageDateFrom, setCoverageDateFrom] = useState('');
-  const [coverageDateTo, setCoverageDateTo] = useState('');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -337,9 +335,7 @@ export default function ReportsPage() {
     if (active === 'aging') {
       params.threshold_days = thresholdDays || 7;
     } else if (isCoverage) {
-      // CWR: account created between; RVG: profile sourced between.
-      if (coverageDateFrom) params.date_from = coverageDateFrom;
-      if (coverageDateTo) params.date_to = coverageDateTo;
+      // CWR / RVG are present-state only — no date range.
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -405,8 +401,6 @@ export default function ReportsPage() {
     rvgPocId,
     rvgBroughtById,
     rvgActivity,
-    coverageDateFrom,
-    coverageDateTo,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -510,8 +504,6 @@ export default function ReportsPage() {
               setRvgPocId('');
               setRvgBroughtById('');
               setRvgActivity('active');
-              setCoverageDateFrom('');
-              setCoverageDateTo('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -624,28 +616,6 @@ export default function ReportsPage() {
             />
           </>
         )}
-        {isCoverage && (
-          <label className="flex items-center gap-1.5 text-xs text-tertiary-500">
-            {isRvg ? 'Sourced' : 'Created'}
-            <input
-              type="date"
-              value={coverageDateFrom}
-              max={coverageDateTo || undefined}
-              onChange={(e) => setCoverageDateFrom(e.target.value)}
-              className="rounded-xl border px-2 py-1.5 text-sm"
-              aria-label={isRvg ? 'Sourced from' : 'Created from'}
-            />
-            <span>–</span>
-            <input
-              type="date"
-              value={coverageDateTo}
-              min={coverageDateFrom || undefined}
-              onChange={(e) => setCoverageDateTo(e.target.value)}
-              className="rounded-xl border px-2 py-1.5 text-sm"
-              aria-label={isRvg ? 'Sourced to' : 'Created to'}
-            />
-          </label>
-        )}
         {active === 'aging' && (
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
             Threshold days
@@ -731,7 +701,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Active-stage clients · All = has a requirement + never had one
+                Clients in the active stage, by whether they have an open requirement
               </p>
             </div>
             {!loading && (
@@ -741,7 +711,7 @@ export default function ReportsPage() {
             )}
           </div>
           <div
-            className="grid gap-2 sm:grid-cols-3"
+            className="grid gap-2 grid-cols-1 sm:grid-cols-3"
             role="tablist"
             aria-label="Active client coverage"
           >
@@ -755,13 +725,13 @@ export default function ReportsPage() {
               {
                 key: 'with_requirements',
                 label: 'Has requirements',
-                hint: 'At least one requirement (open, in-progress or hold)',
-                Icon: Building2,
+                hint: '≥1 requirement open, in progress or on hold',
+                Icon: Briefcase,
               },
               {
-                key: 'without_active_requirements',
+                key: 'no_active',
                 label: 'No requirements',
-                hint: 'Never had a requirement',
+                hint: 'No active requirement — closed / dropped only, or never had one',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {
@@ -811,7 +781,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Split by whether we&apos;ve sourced any profile from the vendor (submitted or not)
+                Active-stage vendors; &quot;inactive&quot; = no candidate currently in a live submission
               </p>
             </div>
             {!loading && (
@@ -820,18 +790,18 @@ export default function ReportsPage() {
               </span>
             )}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
             {[
               {
                 key: 'active',
                 label: 'Active vendors',
-                hint: 'We have sourced ≥1 profile from this vendor (submitted or not)',
+                hint: 'Every vendor account in the active stage',
                 Icon: Building2,
               },
               {
                 key: 'inactive',
                 label: 'Inactive vendors',
-                hint: 'We have sourced nothing from this vendor',
+                hint: 'No candidate currently in an open submission (sourced → BGV)',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {
