@@ -748,16 +748,19 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   });
 }
 
+// Requirement statuses that count as "active work" for the coverage buckets.
+const ACTIVE_REQUIREMENT_STATUSES = ['open', 'in_progress', 'on_hold'];
+
 /**
  * Active client coverage report (UI: "Clients without requirements").
  *
  * Always filtered to `stage: 'active'` when a bucket is supplied.
- * `bucket` (a partition of the stage-filtered client set):
+ * `bucket`:
  *   - `all` — every client, no requirement filter.
- *   - `with_requirements` — has ≥1 requirement of ANY status
- *     (open / in_progress / on_hold / closed / dropped).
- *   - `without_active_requirements` — has never had a requirement (count zero).
- * `with_requirements` + `without_active_requirements` sum to `all`.
+ *   - `with_requirements` — has ≥1 requirement that is open / in_progress / on_hold.
+ *   - `without_active_requirements` — has never had a requirement at all (count zero).
+ * These are NOT a strict partition of `all`: a client whose only requirements are
+ * closed / dropped is in neither bucket (it has been worked, but has nothing open).
  * Legacy callers with no bucket keep the old behaviour: zero requirements.
  */
 async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket, date_from, date_to }) {
@@ -779,7 +782,7 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, buck
   if (bucket === 'all') {
     requirementFilter = {};
   } else if (bucket === 'with_requirements') {
-    requirementFilter = { requirements: { some: {} } };
+    requirementFilter = { requirements: { some: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } };
   } else if (bucket === 'without_active_requirements') {
     requirementFilter = { requirements: { none: {} } };
   } else {

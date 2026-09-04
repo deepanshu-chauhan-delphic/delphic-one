@@ -755,7 +755,7 @@ export default function ReportsPage() {
               {
                 key: 'with_requirements',
                 label: 'Has requirements',
-                hint: 'At least one requirement (open, in-progress, hold, closed or dropped)',
+                hint: 'At least one requirement (open, in-progress or hold)',
                 Icon: Building2,
               },
               {

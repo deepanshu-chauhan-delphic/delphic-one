@@ -134,14 +134,20 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(res.body.data.map((r) => r.client.id)).toContain(unclassifiedLead.id);
   });
 
-  test('bucket all / with_requirements / without_active_requirements partition the set', async () => {
+  test('buckets: with_requirements = has an open/in-progress/hold req; without = never had any', async () => {
     const idle = await createActiveClientAccount(bda.id);
+
     const withOpenReq = await createActiveClientAccount(bda.id);
     await createRequirement(salesToken, withOpenReq.id, { title: 'Open req' });
 
     const onlyHold = await createActiveClientAccount(bda.id);
     const holdReq = await createRequirement(salesToken, onlyHold.id, { title: 'Hold req' });
     await prisma.requirement.update({ where: { id: holdReq.id }, data: { status: 'on_hold' } });
+
+    // Only a closed requirement — worked in the past, nothing open now.
+    const onlyClosed = await createActiveClientAccount(bda.id);
+    const closedReq = await createRequirement(salesToken, onlyClosed.id, { title: 'Closed req' });
+    await prisma.requirement.update({ where: { id: closedReq.id }, data: { status: 'closed' } });
 
     const get = (bucket) =>
       authed(
@@ -153,19 +159,20 @@ describe('GET /reports/clients-without-requirements', () => {
     const withIds = (await get('with_requirements')).body.data.map((r) => r.client.id);
     const withoutIds = (await get('without_active_requirements')).body.data.map((r) => r.client.id);
 
-    // "Has requirements" = any status, incl. on_hold.
+    // "Has requirements" = at least one open / in_progress / on_hold req.
     expect(withIds).toEqual(expect.arrayContaining([withOpenReq.id, onlyHold.id]));
     expect(withIds).not.toContain(idle.id);
+    expect(withIds).not.toContain(onlyClosed.id);
 
-    // "No requirements" = never had one.
+    // "No requirements" = never had one at all.
     expect(withoutIds).toContain(idle.id);
     expect(withoutIds).not.toContain(onlyHold.id);
     expect(withoutIds).not.toContain(withOpenReq.id);
+    expect(withoutIds).not.toContain(onlyClosed.id);
 
-    // all == with ∪ without, and with ∩ without == ∅.
-    expect(allIds).toEqual(expect.arrayContaining([idle.id, withOpenReq.id, onlyHold.id]));
+    // Buckets are disjoint; `all` is the superset (closed-only sits in neither).
+    expect(allIds).toEqual(expect.arrayContaining([idle.id, withOpenReq.id, onlyHold.id, onlyClosed.id]));
     expect(withIds.filter((id) => withoutIds.includes(id))).toEqual([]);
-    expect([...withIds, ...withoutIds].sort()).toEqual([...allIds].sort());
   });
 
   test('filters by Brought by (origin_owner_id)', async () => {
