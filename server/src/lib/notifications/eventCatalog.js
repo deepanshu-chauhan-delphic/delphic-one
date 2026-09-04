@@ -73,6 +73,7 @@ function actorPrefix(ctx) {
  */
 function renderNotification(type, ctx = {}) {
   const account = ctx.accountName || 'an account';
+  const accountSuffix = ctx.accountName ? ` (${ctx.accountName})` : '';
   const requirement = ctx.requirementTitle || 'a requirement';
   const candidate = ctx.candidateName || 'a candidate';
   const roundLabel = ctx.roundTypeLabel || 'Interview';
@@ -94,13 +95,13 @@ function renderNotification(type, ctx = {}) {
     case 'requirement_assigned':
       return envelope(
         'You were assigned to a requirement',
-        `${actorPrefix(ctx)}assigned you to "${truncate(requirement)}" (${account}).`,
+        `${actorPrefix(ctx)}assigned you to "${truncate(requirement)}"${accountSuffix}.`,
         'requirement', ctx.requirementId, ctx
       );
     case 'requirement_unassigned':
       return envelope(
         'You were removed from a requirement',
-        `${actorPrefix(ctx)}unassigned you from "${truncate(requirement)}" (${account}).`,
+        `${actorPrefix(ctx)}unassigned you from "${truncate(requirement)}"${accountSuffix}.`,
         'requirement', ctx.requirementId, ctx
       );
     case 'requirement_status_changed':
