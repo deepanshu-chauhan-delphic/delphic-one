@@ -50,6 +50,19 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestSta
         <PeekField label="Type"><span className="capitalize">{detail.type || 'Unclassified'}</span></PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
         <PeekField label="Industry">{detail.industry || '—'}</PeekField>
+        {detail.type === 'vendor' && (
+          <>
+            <PeekField label="Specializations">
+              {(detail.vendor_specializations || []).join(', ') || '—'}
+            </PeekField>
+            <PeekField label="Rate range">
+              {detail.vendor_rate_range
+                ? `${detail.vendor_rate_range.currency} ${detail.vendor_rate_range.min}–${detail.vendor_rate_range.max}`
+                : '—'}
+            </PeekField>
+            <PeekField label="Payment terms">{detail.vendor_payment_terms || '—'}</PeekField>
+          </>
+        )}
         <PeekField label="Owner">{detail.owner?.name || '—'}</PeekField>
         <PeekField label="Brought by">{detail.origin_owner?.name || '—'}</PeekField>
         <PeekField label="POC">{detail.poc_name || '—'}</PeekField>
@@ -218,6 +231,24 @@ export default function AccountsListPage() {
       },
       { key: 'type', header: 'Type', render: (row) => <span className="capitalize text-tertiary-700">{row.type || 'Unclassified'}</span> },
       { key: 'industry', header: 'Industry', render: (row) => row.industry || '—' },
+      {
+        key: 'specialization',
+        header: 'Specialization',
+        render: (row) => {
+          if (row.type !== 'vendor') return '—';
+          const tags = row.vendor_specializations || [];
+          if (tags.length === 0) return '—';
+          return (
+            <div className="flex flex-wrap gap-1">
+              {tags.map((tag) => (
+                <span key={tag} className="rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          );
+        },
+      },
       { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
       {
         key: 'owner',
