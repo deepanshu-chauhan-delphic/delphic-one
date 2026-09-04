@@ -1,7 +1,7 @@
 # RD — In-Platform Notifications + Interview Calendar
 
-> **Status:** Planned / not started. This is the canonical design + build spec.
-> **Owner:** TBD · **Created:** 2026-09-03
+> **Status:** Built (branch `feature/notifications-calendar`), pending full test run + manual QA. This is the canonical design + build spec; see §10 for as-built notes.
+> **Owner:** TBD · **Created:** 2026-09-03 · **Built:** 2026-09-04
 > Related: [API-Spec-and-Build-Plan.md](../architecture/API-Spec-and-Build-Plan.md) (v2 rows: email notifications, in-app bell, calendar integration), [UI-UX-JIRA.md](../ui/UI-UX-JIRA.md).
 
 ---
@@ -324,15 +324,15 @@ In `client/src/app/App.jsx`, add as children of the protected `AppLayout` route:
 
 ## 8. Rollout checklist / sequencing
 
-- [ ] **0. Docs** — this file + `docs/features/README.md`; wire `docs/AGENTS.md` (Docs-layout table + Features section), `docs/progress/TODO.md` backlog block, and mark the three v2 rows in `docs/architecture/API-Spec-and-Build-Plan.md`.
-- [ ] **1. Schema** — Prisma models + enums + `InterviewRound` columns; `npm run migrate`; `helpers.js` truncate list.
-- [ ] **2. Dispatch layer** — `lib/notifications/` + `modules/notifications` API + mount.
-- [ ] **3. Call sites** — accounts, requirements, submissions.
-- [ ] **4. Interviews API** — `modules/interviews` + mount; extend feedback permission; add reschedule `notify` to `updateInterviewRound`.
-- [ ] **5. Cron** — `node-cron` dep + `jobs/` + env (`ENABLE_JOBS`) + `index.js` wiring; `ENABLE_JOBS=false` in test env.
-- [ ] **6. Frontend shared bits** — extract `client/src/lib/interviewRounds.js`; add `components/ui/Toggle.jsx`; extend `Badge.jsx` `COLOR_MAP`; add `id="interview-rounds"` to the panel section.
-- [ ] **7. Frontend features** — `NotificationsProvider` + bell + `/notifications` + `/notifications/preferences`; then `/calendar` (page → `monthGrid.js` → month / agenda views → drawers); routes; nav; optional dashboard widget.
-- [ ] **8. Tests + finalize docs** — the three new suites; fill in "as-built" notes here; tick these boxes; add a dated `docs/progress/PROGRESS.md` entry; note the bell in `docs/ui/UI-UX-JIRA.md`; add `ENABLE_JOBS` to `docs/guides/DEPLOY-RUNBOOK.md`.
+- [x] **0. Docs** — this file + `docs/features/README.md`; wire `docs/AGENTS.md` (Docs-layout table + Features section), `docs/progress/TODO.md` backlog block, and mark the three v2 rows in `docs/architecture/API-Spec-and-Build-Plan.md`.
+- [x] **1. Schema** — Prisma models + enums + `InterviewRound` columns; `npm run migrate` (`20260903110804_notifications_and_calendar`); `helpers.js` truncate list + `createInterviewRound` helper.
+- [x] **2. Dispatch layer** — `lib/notifications/` (`eventCatalog` / `recipients` / `dispatch` / `index`) + `modules/notifications` API + mount.
+- [x] **3. Call sites** — accounts `changeStage`; requirements `create` / `assign` / `unassign` / `changeStatus`; submissions `addInterviewRound` / `updateInterviewRound` (reschedule + feedback) / `changeStage`.
+- [x] **4. Interviews API** — `modules/interviews` (`GET /`, `POST /:id/feedback`, `POST /:id/cancel`) + mount; feedback permission = manager **or** assigned interviewer.
+- [x] **5. Cron** — `node-cron` dep + `jobs/index.js` `startJobs()` + `jobs/interviewReminders.js` + `env.jobs.enabled` (`ENABLE_JOBS`) + `index.js` wiring; `ENABLE_JOBS=false` in `tests/env.setup.js`.
+- [x] **6. Frontend shared bits** — `client/src/lib/interviewRounds.js`; `components/ui/Toggle.jsx`; `Badge.jsx` `COLOR_MAP` += `scheduled`/`completed`/`cancelled`; `id="interview-rounds"` on the panel section.
+- [x] **7. Frontend features** — `NotificationsProvider` (in `main.jsx`, inside `AlertProvider`) + bell + `/notifications` + `/notifications/preferences`; `/calendar` (page → `monthGrid.js` → month / agenda views → `EventDetail` / `Feedback` drawers); routes; `Calendar` nav item + header title/subtitle. Dashboard widget: deferred (optional).
+- [x] **8. Tests + finalize docs** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`; as-built notes below; boxes ticked; dated `PROGRESS.md` entry; bell noted in `UI-UX-JIRA.md`; `ENABLE_JOBS` in `DEPLOY-RUNBOOK.md`. **Full `server` test run + browser QA still pending** (local Docker DB was down at build time).
 
 ---
 
@@ -348,3 +348,30 @@ In `client/src/app/App.jsx`, add as children of the protected `AppLayout` route:
   - **any** — reject a candidate → recruiter + sales + admins notified.
   - **preferences** — turn off `interview_reminder` in-app, re-run the cron job → that user is skipped.
   - **reminders** — set a round `scheduled_at` ~24h out, run `node -e "require('./src/jobs/interviewReminders').run()"` → one reminder notification per participant; re-run → no-op.
+
+---
+
+## 10. As-built notes (2026-09-04)
+
+Built on branch `feature/notifications-calendar` (server WIP commit `5fb7741`, `main` merged in, frontend commit follows). Follows the spec; deltas below.
+
+**Backend**
+
+- Migration `20260903110804_notifications_and_calendar` — `notifications` + `notification_preferences` tables, `NotificationType` (14) / `NotificationEntityType` (5) / `InterviewRoundStatus` (3) enums, `interview_rounds` gains `status` + `cancelled_at` + `cancellation_reason` + `reminder_sent_at` + `reminder_1h_sent_at` + `online_meeting_provider` + `external_event_id`, plus a `@@index([status, scheduled_at])`.
+- `lib/notifications/` — `eventCatalog.js` (`ROLE_EVENT_MATRIX` + `NOTIFICATION_LABELS` + `eventsForRole` + `renderNotification`), `recipients.js`, `dispatch.js` (`notify` — try/catch around the whole body, `logger.error('notification_dispatch_failed')` on any failure), `index.js` re-exports. `notify(client, …)` takes the caller's Prisma client (`tx` or the singleton).
+- `modules/notifications/` — `GET /`, `GET /unread-count`, `POST /read`, `POST /read-all`, `GET /preferences`, `PUT /preferences`, **`DELETE /preferences`** (reset-to-defaults; not in the original route list). Keyset pagination on `created_at desc` via `?cursor=<iso>`; responses carry `has_more` + `next_cursor`.
+- `modules/interviews/` — `GET /` (role scoping mirrors `entityAccess` + assigned-interviewer OR-clause; `mine=1`; `from`/`to` default to the current month), `POST /:id/feedback`, `POST /:id/cancel`. `serializeCalendarEvent` includes `can_submit_feedback`. Reschedule + feedback `notify` calls were added to `submissions.service.updateInterviewRound` (so `PATCH /interview-rounds/:id` stays consistent), not duplicated in the interviews module.
+- Cron — `env.jobs.enabled = NODE_ENV !== 'test' && ENABLE_JOBS !== 'false'`. `interviewReminders.run(now?)` scans two windows (T-24h ±15m via `reminder_sent_at`, T-1h 45–75m via `reminder_1h_sent_at`), per-round try/catch, returns `{ sent }`. `schedule()` wires `*/15 * * * *`. `env.notifications` reserved block (`email` / `msGraph`) added; nothing reads it.
+
+**Frontend**
+
+- `NotificationsProvider` sits **inside** `AlertProvider` in `main.jsx` (the spec said "wrapping AlertProvider", but the provider calls `useAlerts().pushInfo` for the "new notifications" nudge, so it must be a child of `AlertProvider`). Still inside `AuthProvider`, reads `user`.
+- 60s `unread-count` poll, paused while `document.hidden`, immediate refetch on `visibilitychange`. Every notification fetch swallows errors and keeps last-known state.
+- `lib/interviewRounds.js` — the round-type list/colors were lifted out of `InterviewRoundsPanel.jsx` verbatim and re-imported there; added `group` + `ROUND_GROUP_BORDER` + `ROUND_GROUP_LEGEND` for the calendar.
+- Calendar month view collapses to the agenda list under `md` (rendered inline, not a separate route). "All / My interviews" scope toggle is always shown (defaults `mine` for recruiter, `all` otherwise) rather than hidden for pure interviewers.
+- Dashboard "My upcoming interviews" widget — **not built** (spec marked it optional / low-effort-only).
+
+**Pending**
+
+- Full `cd server && npm test` (local Docker Postgres on `:5434` was down at build time; targeted suites — submissions / interviews / accounts / requirements — were green pre-merge).
+- Browser click-through per §9.

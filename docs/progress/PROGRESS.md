@@ -2,6 +2,41 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-04 — In-app notifications + interview calendar (built, branch `feature/notifications-calendar`)
+
+Full spec + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md).
+
+- **Schema** — migration `20260903110804_notifications_and_calendar`: `notifications`
+  + `notification_preferences` tables; `NotificationType` / `NotificationEntityType`
+  / `InterviewRoundStatus` enums; `interview_rounds` gains `status`, `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`, and reserved
+  `online_meeting_provider` / `external_event_id`. `tests/helpers.js` truncate list
+  + `createInterviewRound` helper.
+- **Dispatch** — `server/src/lib/notifications/` (`eventCatalog` `ROLE_EVENT_MATRIX`
+  + `renderNotification`; `recipients`; `dispatch.notify()` — role- + preference-
+  filtered, wrapped so it never throws / never rolls back a business `$transaction`).
+- **APIs** — `/api/v1/notifications` (`GET /`, `/unread-count`, `POST /read`,
+  `/read-all`, `GET`/`PUT`/`DELETE /preferences`) and `/api/v1/interviews`
+  (`GET /` role-scoped calendar feed, `POST /:id/feedback` for assigned
+  interviewers **or** managers, `POST /:id/cancel`). Both mounted in `app.js`.
+- **Call sites** — account → active; requirement create / assign / unassign /
+  status-changed; submission interview scheduled / rescheduled / feedback /
+  cancelled / submitted-to-client / rejected / backout / offer.
+- **Cron** — `node-cron`; `server/src/jobs/interviewReminders.js` (T-24h + T-1h,
+  deduped) started from `index.js` via `startJobs()`, gated by `ENABLE_JOBS`
+  (`!== 'false'`, always off in tests). Reserved `env.notifications` block.
+- **Frontend** — `NotificationsProvider` (60s poll, tab-visibility aware) in
+  `main.jsx`; header `NotificationBell` (9+ badge, popover); `/notifications` +
+  `/notifications/preferences` pages; `/calendar` page (month grid + agenda,
+  `localStorage` view, scope + status filters, `EventDetailDrawer` /
+  `FeedbackDrawer`), `Calendar` nav item; shared `lib/interviewRounds.js`,
+  `components/ui/Toggle.jsx`, `Badge` colors for the new statuses.
+- **Tests** — `notifications.test.js`, `interviews-calendar.test.js`,
+  `interview-reminders.test.js`. **Not yet run against the full suite** — local
+  Docker Postgres (`:5434`) was down; client `vite build` + `eslint` are clean,
+  and the submissions / interviews / accounts / requirements suites passed
+  pre-merge.
+
 ## 2026-09-03 — CWR: 3-way toggle (All / Has requirements / No requirements), default All
 
 The two-tab view left a gap: clients whose only requirements are on_hold /

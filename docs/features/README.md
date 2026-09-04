@@ -4,4 +4,4 @@ Feature-level design + build specs — one document per non-trivial feature. Eac
 
 | Doc | Scope | Status |
 |---|---|---|
-| [RD-NOTIFICATIONS-AND-CALENDAR.md](RD-NOTIFICATIONS-AND-CALENDAR.md) | In-platform role-aware notifications, interview calendar (month + agenda), interviewer feedback, reminder cron; email + MS Teams extension points | Planned |
+| [RD-NOTIFICATIONS-AND-CALENDAR.md](RD-NOTIFICATIONS-AND-CALENDAR.md) | In-platform role-aware notifications, interview calendar (month + agenda), interviewer feedback, reminder cron; email + MS Teams extension points | Built (2026-09-04) |

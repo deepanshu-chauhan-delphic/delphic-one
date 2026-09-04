@@ -29,7 +29,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 ### Features
 
 - [features/README.md](features/README.md) — index of feature specs
-- [RD-NOTIFICATIONS-AND-CALENDAR.md](features/RD-NOTIFICATIONS-AND-CALENDAR.md) — role-aware in-app notifications, interview calendar (month + agenda), interviewer feedback, reminder cron; email + MS Teams extension points (Planned)
+- [RD-NOTIFICATIONS-AND-CALENDAR.md](features/RD-NOTIFICATIONS-AND-CALENDAR.md) — role-aware in-app notifications, interview calendar (month + agenda), interviewer feedback, reminder cron; email + MS Teams extension points (Built 2026-09-04, branch feature/notifications-calendar)
 
 ### UI
 

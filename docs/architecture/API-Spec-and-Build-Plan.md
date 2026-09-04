@@ -1929,12 +1929,12 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 
 | Priority | Item | Sprint |
 |---|---|---|
-| P1 | Email notifications (assignment, stage change, interview reminder T-1) | v2 Sprint 1 |
-| P2 | In-app notification bell + notification center | v2 Sprint 1 |
+| P1 | Email notifications (assignment, stage change, interview reminder T-1) | **In-app shipped** ([RD-NOTIFICATIONS-AND-CALENDAR](../features/RD-NOTIFICATIONS-AND-CALENDAR.md)); email is a drop-in channel behind the same dispatch chokepoint + `NotificationPreference.email` flag |
+| P2 | In-app notification bell + notification center | **Shipped** — `Notification` / `NotificationPreference` models, `/api/v1/notifications`, header bell + `/notifications` + `/notifications/preferences` |
 | P3 | SLA auto-escalation alerts | v2 Sprint 2 |
 | P4 | JIRA/Sheets historical data migration | v2 Sprint 2 |
 | P5 | Advanced filters: saved views, custom columns | v2 Sprint 3 |
 | P6 | WhatsApp/Slack notification channels | v3 |
 | P7 | Vendor portal (limited login for vendors to submit profiles) | v3 |
-| P8 | Calendar integration (Google/Outlook for interview scheduling) | v3 |
+| P8 | Calendar integration (Google/Outlook for interview scheduling) | **In-app calendar shipped** (`/calendar`, `/api/v1/interviews`, `node-cron` reminders); external Google/Outlook/MS Teams sync is the remaining v3 piece (reserved `online_meeting_provider` / `external_event_id` columns) |
 | P9 | CI/CD pipeline (GitHub Actions → VPS) | v3 |
