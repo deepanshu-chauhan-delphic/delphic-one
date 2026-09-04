@@ -2,6 +2,132 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-03 — CWR: 3-way toggle (All / Has requirements / No requirements), default All
+
+The two-tab view left a gap: clients whose only requirements are on_hold /
+closed / dropped were in neither tab, so the tabs didn't sum to the stage total
+(e.g. 8 + 22 ≠ 36).
+
+- `bucket` enum gains `all`. **`with_requirements` now = `requirements: { some: {} }`**
+  (any status, not just open/in_progress). `without_active_requirements` unchanged
+  (`none: {}`). The three now partition the stage-filtered client set:
+  `all == with ∪ without`, `with ∩ without == ∅` (verified on the restored DB:
+  79 = 10 + 69).
+- Reports page: 3-button toggle, **default "All active clients"**; labels
+  All active clients / Has requirements / No requirements.
+- Test rewritten to assert the partition across all three buckets.
+
+## 2026-09-03 — Coverage reports: Brought-by + date filters, and complete people dropdowns
+
+- **RVG filters**: added **Brought by** (`origin_owner_id`) and a **date range**
+  (`date_from`/`date_to`, scopes the sourced-profile counts). Vendor + Our-POC
+  filters unchanged. `coverageSchema` gains `date_from`/`date_to`.
+- **CWR filter**: added a **Created** date range (`account.created_at`). Stage /
+  Brought by / Sales POC unchanged.
+- **Filter dropdowns were missing names.** The Brought-by / Sales-POC / Our-POC
+  option lists were role-scoped (`bda|admin`, `sales|admin`, …) and `active`-only,
+  so a POC / origin owner who is a recruiter or an inactive user never appeared —
+  even though their name is in the column. Now each list is the **full user
+  roster (`/users?limit=100`, no `active` filter) unioned with the people present
+  in the current report rows** (`mergePeople`). Same lists feed the superadmin
+  inline-edit cell.
+- Tests: `reports-coverage-gaps.test.js` — CWR created-date range; RVG
+  `origin_owner_id`; RVG date range scoping the sourced count. 29 suites / 201.
+
+## 2026-09-03 — recruiter-vendor-gaps: count every sourced profile; "active" = sourced from at all
+
+Two prod issues with the report:
+
+1. **`profiles_sourced` stayed 0.** `recruiterVendorGaps` iterated only
+   `account.type = 'vendor'` rows; on prod (user-created, no seed) many vendor
+   accounts were never classified `type='vendor'` / weren't `active`, so profiles
+   pointing at them were invisible. Fix — vendor set is now `type='vendor'` **OR**
+   any account id referenced by a `Profile.vendor_account_id`
+   (`prisma.profile.groupBy(['vendor_account_id'])`).
+2. **"Active vendors" hid vendors once any profile was submitted.** The whole
+   report was filtered to `!any_submitted` ("gap"). Now: with `vendor_activity`
+   set, that filter is dropped — `active` = "we've sourced ≥1 profile from this
+   vendor, submitted or not", `inactive` = "sourced nothing". Legacy no-toggle
+   call keeps the old "never submitted" meaning.
+
+- `profiles_submitted` is now a real count (was hardcoded `0`) — the "Submitted"
+  column is meaningful.
+- `ProfileFormPage`: vendor picker no longer filters `stage: 'active'` so a
+  non-active vendor account is still selectable.
+- Tests: `reports-coverage-gaps.test.js` — profile on a `type: null` account is
+  counted; `vendor_activity=active` lists a vendor whose profile WAS submitted
+  (`profiles_sourced: 1`, `profiles_submitted: 1`).
+- Server suite green (29 suites / 198 tests). Not yet on `main`.
+
+## 2026-09-03 — CWR "no requirements" bucket = zero requirements ever
+
+Follow-up to the entry below. The `without_active_requirements` bucket of
+clients-without-requirements now returns **only clients that have never had any
+requirement** (`requirements: { none: {} }`) instead of "no open/in-progress
+requirement". A client whose only requirements are on_hold / closed / dropped is
+now in neither toggle. Toggle relabelled **"No requirements"** ("…never had a
+requirement"); `with_requirements` hint tightened to "open / in-progress".
+`reports-coverage-gaps.test.js` updated. Server suite green.
+
+## 2026-09-03 — List-page filters, "Tagged Profiles" fix, RVG activity toggle, CWR bucket overlap fix
+
+Branch `feature/list-filters` (off `main`). One server file + validation + client
+list pages + Reports page. Server suite green (29 suites / 196 tests). Client
+`vite build` + `eslint` clean (0 errors). No schema/migration change.
+
+### 1. "Tagged Profiles" column counted every stage — now client-facing only
+
+- `requirements.service.js`: `DECORATE_INCLUDE.seats._count.submissions` is now
+  **stage-filtered** to `submitted_to_client → bgv` (`submitted_to_client`,
+  `interview_scheduled`, `interview_result`, `offer_sent`, `bgv`). Excludes
+  `sourced` / `internal_screening` (not with the client yet) and
+  `closed` / `backout` / `rejected` (out of play).
+- Serialized field renamed `tagged_profiles_count` → **`client_submissions_count`**;
+  Requirements list column header → **"Client Submissions"**, peek field too.
+- Test: `requirements-crud-ui.test.js` — one submission per stage, asserts the
+  count is exactly the 5 client-facing ones (list + detail).
+
+### 2. More filters on Requirements / Profiles / Submissions lists
+
+New shared `client/src/lib/lookups.js` — session-cached reference lists
+(`useUserOptions(role)`, `useClientAccountOptions`, `useVendorAccountOptions`,
+`useRequirementOptions`) so filter bars don't refetch rosters per mount.
+
+- **Requirements** — added Type, Client, Sales owner, Assigned recruiter, Tech
+  stack (apply-on-submit), Sort by/order. All URL-synced. (Backend already
+  accepted every param — `listQuerySchema` unchanged.)
+- **Profiles** — kept Source + On-bench; added a **"More filters"** panel: Vendor,
+  Added by, Experience min/max, Expected-CTC min/max, Notice ≤, Work mode,
+  Relocate, Active, Skills (apply-on-submit), Sort by/order + Clear. URL-synced.
+  Backend `profiles.validation` already had all of these.
+- **Submissions** — stage single-select → **multi-select** (CSV, already
+  supported); added Recruiter, Client, Requirement, Sort by/order; **added
+  pagination** (page/limit + pager — the page had none, footer used to read
+  `N of N`). URL-synced.
+
+### 3. recruiter-vendor-gaps — Active / Inactive vendor toggle
+
+- `coverageSchema` gains `vendor_activity: 'active' | 'inactive'`.
+  `recruiterVendorGaps` filters the (already not-submitted) gap list by
+  `profiles_sourced > 0` (active — "wasted relationship") vs `=== 0` (inactive —
+  dormant). Route unchanged (passes the parsed query through).
+- Reports page: a two-tab toggle above the table (mirrors the CWR one), default
+  **Active**; `vendor_activity` sent on run + export.
+- Test: `reports-coverage-gaps.test.js` — active list all `profiles_sourced > 0`,
+  inactive list all `=== 0`, disjoint.
+
+### 4. clients-without-requirements — buckets were not mutually exclusive (prod bug)
+
+- Prod showed the same client (e.g. Sinon Tech, Orangebites, DianApps) under
+  **both** "with requirements" and "no active requirements". Cause:
+  `with_requirements` = `requirements: { some: {} }` (any status), so a client
+  whose only reqs are `closed` / `on_hold` / `dropped` matched both toggles.
+- Fix: `with_requirements` now `requirements: { some: { status: { in: ['open','in_progress'] } } }`
+  — the exact complement of `without_active_requirements`. Verified against the
+  restored DB: with=10, without=69, overlap=0.
+- Test updated: on_hold-only client is now **only** in the without bucket; added a
+  "no id in both buckets" partition assertion.
+
 ## 2026-09-03 — Ticket undo/reactivate, actor names, Brought-by admin, report tweaks
 
 `main`, uncommitted. No schema/migration change.

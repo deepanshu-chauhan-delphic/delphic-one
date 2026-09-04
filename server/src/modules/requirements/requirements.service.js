@@ -13,6 +13,20 @@ const {
  */
 const STUCK_STATUSES = ['open', 'in_progress'];
 
+/**
+ * "Client submissions" = candidates that have actually reached the client on this
+ * requirement. Deliberately excludes sourced / internal_screening (not yet shown
+ * to the client) and closed / backout / rejected (no longer in play). Range is
+ * submitted_to_client → bgv inclusive.
+ */
+const CLIENT_SUBMISSION_STAGES = [
+  'submitted_to_client',
+  'interview_scheduled',
+  'interview_result',
+  'offer_sent',
+  'bgv',
+];
+
 function stuckCutoff() {
   return new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 }
@@ -31,8 +45,10 @@ function serialize(row) {
 
   const seats_total = row.seats_total;
   const seats_closed = seats ? seats.filter((s) => s.seat_status === 'closed').length : undefined;
-  // Every candidate profile tagged to this requirement (submissions across all its seats).
-  const tagged_profiles_count = seats
+  // Candidates that reached the client on this requirement (submitted_to_client → bgv),
+  // summed across all its seats. The seats._count.submissions is stage-filtered in
+  // DECORATE_INCLUDE, so this is not a full submission count.
+  const client_submissions_count = seats
     ? seats.reduce((sum, s) => sum + (s._count?.submissions || 0), 0)
     : undefined;
 
@@ -46,7 +62,7 @@ function serialize(row) {
       : undefined,
     seats_total,
     seats_closed,
-    tagged_profiles_count,
+    client_submissions_count,
   };
 }
 
@@ -57,7 +73,12 @@ const DECORATE_INCLUDE = {
     where: { role_on_req: 'recruiter', unassigned_at: null },
     include: { user: { select: { id: true, name: true } } },
   },
-  seats: { select: { seat_status: true, _count: { select: { submissions: true } } } },
+  seats: {
+    select: {
+      seat_status: true,
+      _count: { select: { submissions: { where: { stage: { in: CLIENT_SUBMISSION_STAGES } } } } },
+    },
+  },
 };
 
 async function list(filters) {

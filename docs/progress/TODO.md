@@ -22,6 +22,20 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [ ] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`.
 - [ ] **Docs finalize** — as-built notes in the feature spec; dated `PROGRESS.md` entry; note the bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; flip the three v2 rows in `architecture/API-Spec-and-Build-Plan.md`.
 
+## List filters + report fixes (branch `feature/list-filters`)
+
+- [x] **2026-09-03** — Requirements "Tagged Profiles" → **"Client Submissions"**:
+  count only `submitted_to_client → bgv` stages (`client_submissions_count`).
+- [x] **2026-09-03** — Requirements / Profiles / Submissions list pages: full
+  filter sets (URL-synced) via shared `client/src/lib/lookups.js`; Submissions
+  gained a multi-stage picker + pagination.
+- [x] **2026-09-03** — recruiter-vendor-gaps: `vendor_activity=active|inactive`
+  toggle (sourced ≥1 vs sourced 0). clients-without-requirements: `with_requirements`
+  bucket now = has open/in_progress req, so the two toggles no longer overlap.
+- [ ] Manual click-through: each new filter narrows the list + round-trips through
+  the URL; RVG toggle + CWR toggle switch the row set with no overlap; "Client
+  Submissions" count matches the client-facing pipeline on a known requirement.
+
 ## Backend
 
 - [x] Install, migrate, seed, Docker end-to-end verified.

@@ -166,4 +166,36 @@ describe('RD-103 detail page data + seat controls (API)', () => {
     const history = await authed(request(app).get(`/api/v1/requirements/${req.id}/history`), salesToken);
     expect(history.body.data.some((h) => h.to_stage === 'in_progress')).toBe(true);
   });
+
+  test('client_submissions_count only counts submitted_to_client → bgv stages', async () => {
+    const req = await createRequirement(salesToken, account.id, { seats_total: 1 });
+    const seatsRes = await authed(request(app).get(`/api/v1/requirements/${req.id}/seats`), salesToken);
+    const seatId = seatsRes.body.data[0].id;
+
+    // One submission per stage, straight into the DB so we skip the transition map.
+    const stages = [
+      'sourced', 'internal_screening',            // excluded (not yet with the client)
+      'submitted_to_client', 'interview_scheduled', 'interview_result', 'offer_sent', 'bgv', // counted
+      'closed', 'backout', 'rejected',            // excluded (out of play)
+    ];
+    for (const stage of stages) {
+      const profile = await prisma.profile.create({
+        data: {
+          name: `cand-${stage}`, total_experience_years: 5, primary_skills: ['Node.js'],
+          source: 'direct', added_by: sales.id,
+        },
+      });
+      await prisma.submission.create({
+        data: { requirement_seat_id: seatId, profile_id: profile.id, submitted_by: sales.id, stage },
+      });
+    }
+
+    const listed = await authed(request(app).get('/api/v1/requirements'), salesToken);
+    const row = listed.body.data.find((r) => r.id === req.id);
+    expect(row.client_submissions_count).toBe(5);
+    expect(row).not.toHaveProperty('tagged_profiles_count');
+
+    const detail = await authed(request(app).get(`/api/v1/requirements/${req.id}`), salesToken);
+    expect(detail.body.data.client_submissions_count).toBe(5);
+  });
 });

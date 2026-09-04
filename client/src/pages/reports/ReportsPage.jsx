@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Building2, CircleAlert } from 'lucide-react';
+import { Building2, CircleAlert, LayoutGrid } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -118,6 +118,17 @@ function coverageRowAccountId(row) {
   return row?.client?.id || row?.vendor?.id || null;
 }
 
+/** Union {id,name} people from any number of lists, de-duped by id, sorted by name. */
+function mergePeople(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const p of list || []) {
+      if (p && p.id && !map.has(p.id)) map.set(p.id, { id: p.id, name: p.name });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Inline person picker for a coverage-report cell. Superadmin-only — changes the
  * account's owner (Sales POC / Our POC) or origin_owner (Brought by) in place.
@@ -167,13 +178,20 @@ export default function ReportsPage() {
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
   // CWR toggle: active clients with reqs vs active clients without open/in_progress reqs.
-  const [coverageBucket, setCoverageBucket] = useState('without_active_requirements');
+  const [coverageBucket, setCoverageBucket] = useState('all');
   const [coveragePeople, setCoveragePeople] = useState([]);
   const [savingCoverageId, setSavingCoverageId] = useState(null);
-  // recruiter-vendor-gaps: filter by vendor account and by the vendor's POC from our end.
+  // recruiter-vendor-gaps: filter by vendor account, the vendor's POC from our end,
+  // and who brought the vendor in.
   const [rvgVendorId, setRvgVendorId] = useState('');
   const [rvgPocId, setRvgPocId] = useState('');
+  const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
+  // RVG toggle: vendors we've sourced ≥1 profile from (active) vs sourced nothing (inactive).
+  const [rvgActivity, setRvgActivity] = useState('active');
+  // Shared date range for both coverage reports (CWR = account created, RVG = profile sourced).
+  const [coverageDateFrom, setCoverageDateFrom] = useState('');
+  const [coverageDateTo, setCoverageDateTo] = useState('');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -200,20 +218,31 @@ export default function ReportsPage() {
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
-  // The coverage filter pickers each mean a specific role: "Brought by" is the
-  // originating BDA, "Sales POC" the sales owner, "Our POC" a vendor's owner. Scope
-  // the option lists so the dropdowns aren't three identical all-user lists.
+  // The filter dropdowns must contain EVERY name that can appear in the matching
+  // column — including inactive users and roles outside the "expected" set (an
+  // account owner / origin owner can be anyone). So each list is the full user
+  // roster unioned with the people actually present in the current report rows.
+  const rowPeople = useMemo(() => {
+    const rows = Array.isArray(payload) ? payload : [];
+    const pick = (field) =>
+      rows.flatMap((r) => {
+        const v = r[field];
+        return Array.isArray(v) ? v : v ? [v] : [];
+      });
+    return { brought_by: pick('brought_by'), sales_poc: pick('sales_poc'), our_poc: pick('our_poc') };
+  }, [payload]);
+
   const broughtByPeople = useMemo(
-    () => coveragePeople.filter((p) => p.role === 'bda' || p.role === 'admin'),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.brought_by),
+    [coveragePeople, rowPeople]
   );
   const salesPocPeople = useMemo(
-    () => coveragePeople.filter((p) => p.role === 'sales' || p.role === 'admin'),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.sales_poc),
+    [coveragePeople, rowPeople]
   );
   const ourPocPeople = useMemo(
-    () => coveragePeople.filter((p) => ['bda', 'sales', 'admin'].includes(p.role)),
-    [coveragePeople]
+    () => mergePeople(coveragePeople, rowPeople.our_poc),
+    [coveragePeople, rowPeople]
   );
 
   useEffect(() => {
@@ -259,7 +288,8 @@ export default function ReportsPage() {
       return undefined;
     }
     apiClient
-      .get('/users', { params: { active: 'true', limit: 100 } })
+      // No `active` filter — a "Brought by" / "POC" value can be an inactive user.
+      .get('/users', { params: { limit: 100 } })
       .then(({ data }) =>
         setCoveragePeople(
           [...(data.data || [])]
@@ -307,7 +337,9 @@ export default function ReportsPage() {
     if (active === 'aging') {
       params.threshold_days = thresholdDays || 7;
     } else if (isCoverage) {
-      // present-state coverage reports take no date range
+      // CWR: account created between; RVG: profile sourced between.
+      if (coverageDateFrom) params.date_from = coverageDateFrom;
+      if (coverageDateTo) params.date_to = coverageDateTo;
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -332,10 +364,12 @@ export default function ReportsPage() {
     // Both toggle buckets are active-client views — always send stage=active.
     if (isClientsWithoutReqs) {
       params.stage = 'active';
-      params.bucket = coverageBucket || 'without_active_requirements';
+      params.bucket = coverageBucket || 'all';
     }
     if (isRvg && rvgVendorId) params.vendor_id = rvgVendorId;
     if (isRvg && rvgPocId) params.owner_id = rvgPocId;
+    if (isRvg && rvgBroughtById) params.origin_owner_id = rvgBroughtById;
+    if (isRvg) params.vendor_activity = rvgActivity;
     return params;
   }
 
@@ -369,6 +403,10 @@ export default function ReportsPage() {
     coverageBucket,
     rvgVendorId,
     rvgPocId,
+    rvgBroughtById,
+    rvgActivity,
+    coverageDateFrom,
+    coverageDateTo,
     explorerStuckOnly,
     explorerPastSlaOnly,
     explorerStatus,
@@ -467,9 +505,13 @@ export default function ReportsPage() {
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
-              setCoverageBucket('without_active_requirements');
+              setCoverageBucket('all');
               setRvgVendorId('');
               setRvgPocId('');
+              setRvgBroughtById('');
+              setRvgActivity('active');
+              setCoverageDateFrom('');
+              setCoverageDateTo('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -570,7 +612,39 @@ export default function ReportsPage() {
               searchPlaceholder="Search people…"
               options={ourPocPeople.map((person) => ({ value: person.id, label: person.name }))}
             />
+            <SearchableSelect
+              className="w-52"
+              allowClear
+              ariaLabel="Filter by Brought by"
+              value={rvgBroughtById}
+              onChange={setRvgBroughtById}
+              placeholder="All (brought by)"
+              searchPlaceholder="Search people…"
+              options={broughtByPeople.map((person) => ({ value: person.id, label: person.name }))}
+            />
           </>
+        )}
+        {isCoverage && (
+          <label className="flex items-center gap-1.5 text-xs text-tertiary-500">
+            {isRvg ? 'Sourced' : 'Created'}
+            <input
+              type="date"
+              value={coverageDateFrom}
+              max={coverageDateTo || undefined}
+              onChange={(e) => setCoverageDateFrom(e.target.value)}
+              className="rounded-xl border px-2 py-1.5 text-sm"
+              aria-label={isRvg ? 'Sourced from' : 'Created from'}
+            />
+            <span>–</span>
+            <input
+              type="date"
+              value={coverageDateTo}
+              min={coverageDateFrom || undefined}
+              onChange={(e) => setCoverageDateTo(e.target.value)}
+              className="rounded-xl border px-2 py-1.5 text-sm"
+              aria-label={isRvg ? 'Sourced to' : 'Created to'}
+            />
+          </label>
         )}
         {active === 'aging' && (
           <label className="flex items-center gap-2 text-xs text-tertiary-500">
@@ -657,7 +731,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Active-stage clients only · switch between covered and gap lists
+                Active-stage clients · All = has a requirement + never had one
               </p>
             </div>
             {!loading && (
@@ -667,21 +741,27 @@ export default function ReportsPage() {
             )}
           </div>
           <div
-            className="grid gap-2 sm:grid-cols-2"
+            className="grid gap-2 sm:grid-cols-3"
             role="tablist"
             aria-label="Active client coverage"
           >
             {[
               {
+                key: 'all',
+                label: 'All active clients',
+                hint: 'Every client in the active stage',
+                Icon: LayoutGrid,
+              },
+              {
                 key: 'with_requirements',
-                label: 'Active clients',
-                hint: 'Have at least one requirement',
+                label: 'Has requirements',
+                hint: 'At least one requirement (open, in-progress or hold)',
                 Icon: Building2,
               },
               {
                 key: 'without_active_requirements',
-                label: 'No active requirements',
-                hint: 'Active clients with no open / in-progress req',
+                label: 'No requirements',
+                hint: 'Never had a requirement',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {
@@ -693,6 +773,76 @@ export default function ReportsPage() {
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setCoverageBucket(key)}
+                  className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-white text-tertiary-500'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${
+                        selected ? 'text-primary-800' : 'text-tertiary-800'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    <span className={`mt-0.5 block text-xs ${selected ? 'text-primary-700/80' : 'text-tertiary-500'}`}>
+                      {hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isRvg && (
+        <div className="rounded-2xl border border-tertiary-100 bg-white p-3 shadow-soft sm:p-4">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
+              <p className="mt-0.5 text-sm text-tertiary-600">
+                Split by whether we&apos;ve sourced any profile from the vendor (submitted or not)
+              </p>
+            </div>
+            {!loading && (
+              <span className="rounded-full bg-canvas-muted px-2.5 py-1 text-xs font-medium text-tertiary-600">
+                {tableRows.length} shown
+              </span>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+            {[
+              {
+                key: 'active',
+                label: 'Active vendors',
+                hint: 'We have sourced ≥1 profile from this vendor (submitted or not)',
+                Icon: Building2,
+              },
+              {
+                key: 'inactive',
+                label: 'Inactive vendors',
+                hint: 'We have sourced nothing from this vendor',
+                Icon: CircleAlert,
+              },
+            ].map(({ key, label, hint, Icon }) => {
+              const selected = rvgActivity === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setRvgActivity(key)}
                   className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
                     selected
                       ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
