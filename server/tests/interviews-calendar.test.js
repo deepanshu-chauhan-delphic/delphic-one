@@ -93,10 +93,14 @@ describe('GET /interviews', () => {
     expect(ids).not.toContain(outOfRangeRoundId);
   });
 
-  test('an unrelated recruiter sees nothing', async () => {
-    const res = await calendar(recruiterBToken);
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(0);
+  test('All is team-wide — an unrelated recruiter still sees every round; mine=1 hides them', async () => {
+    const allRes = await calendar(recruiterBToken);
+    expect(allRes.status).toBe(200);
+    expect(allRes.body.data.map((e) => e.id)).toContain(inRangeRoundId);
+
+    const mineRes = await calendar(recruiterBToken, { mine: '1' });
+    expect(mineRes.status).toBe(200);
+    expect(mineRes.body.data).toHaveLength(0);
   });
 
   test('mine=1 surfaces rounds where the caller is an assigned interviewer', async () => {

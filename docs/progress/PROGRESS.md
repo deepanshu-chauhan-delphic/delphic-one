@@ -2,6 +2,57 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-07 — Calendar: team-wide scope, clickable links, in-card actions, 24h time grid (branch `feature/notifications-calendar`)
+
+- **Scope filter.** `GET /interviews` "All" is now truly team-wide for **every**
+  role (no ownership / role scope). "My interviews" (`mine=1`) = rounds the user
+  **scheduled** (`scheduled_by`), is **tagged on** as an interviewer, or
+  **submitted the candidate** for. Removed the per-role `where.OR` branches in
+  `interviews.service.listForCalendar`. Test updated
+  (`interviews-calendar.test.js`: "All is team-wide … mine=1 hides them").
+- **Clickable links** in every calendar card (`EventCard`, `EventHoverCard`,
+  `EventDetailDrawer`): the **requirement** → `/requirements/:id`, the
+  **candidate** → `/submissions/:id`.
+- **In-card actions.** The month/week/day hover card (`EventHoverCard`) now
+  carries role/permission-gated buttons — **Open details** (always),
+  **Submit feedback** (when `can_submit_feedback` and the round has started),
+  **Cancel** (when it's still upcoming; routes to the detail drawer's reason
+  form), plus **Join meeting**. `onFeedback` threaded
+  `CalendarPage → CalendarMonthView / CalendarTimeGrid → EventPill / TimeBlock →
+  EventHoverCard`.
+- **Time grid.** `DAY_START_HOUR/DAY_END_HOUR` widened to a full 24h
+  (`monthGrid.js`) — an early-morning interview was clamped to `top: 0` and hidden
+  under the header ("top half hidden", wrong times). `CalendarTimeGrid` now
+  auto-scrolls to the day's **earliest event** (falls back to now).
+- **Schedule CTA.** Calendar toolbar gains a role-wise button: BDA →
+  "+ Schedule meeting" (`/accounts`); recruiter / sales / admin →
+  "+ Schedule interview" (`/submissions`). There is no standalone scheduler —
+  interviews are added from a submission's rounds panel, client meetings from an
+  account's stage flow — so the CTA routes to the right list.
+- **Time-grid polish.** Fixed the 12 AM label clipping (first hour label no
+  longer `-translate-y-1/2` off the top edge).
+- **Calendar colour model reworked** (`interviewRounds.js` `eventAppearance`) to
+  two independent signals: the **fill** now encodes the interview **category** —
+  internal = sky/blue, external (client-facing) = violet/purple, and *only* those
+  two — while **status** rides on the `<Badge>`s already shown on cards / hover /
+  detail, plus `cancelled` → grey + struck (overrides) and `rescheduled` → same
+  fill dimmed + struck. Previously the fill was status-coloured with clashing
+  hues (completed≈pass, no_show≈rescheduled) and internal/external was only a
+  thin border in a colliding shade. `STATUS_LEGEND` + the toolbar legend updated
+  to match.
+- **Reschedule / Cancel on every calendar surface, for every role.** `EventCard`
+  (agenda) and `EventHoverCard` gained a **Reschedule** button (opens the detail
+  drawer's inline form). Cancel + Reschedule are no longer gated on the
+  `can_*` permission flags client-side — they show for any live (non-cancelled,
+  non-past for cancel) round and the **server** enforces who may actually act
+  (`canManageInterviewRound` / scheduler), returning 403 otherwise.
+- **Reschedule no longer requires a new time.** The drawer's reschedule form
+  starts blank; with a time it PATCHes `scheduled_at`, without one it PATCHes
+  `{ result: 'rescheduled' }` — flags the round for rescheduling, slot set later.
+- Also fixed a missing `CalendarDays` lucide import in `CalendarPage.jsx` (crash
+  on the empty-agenda path) surfaced by the `main` merge.
+- Server suite **32 / 229** green; client lint 0 errors; `vite build` clean.
+
 ## 2026-09-07 — Notifications: admins get a copy of every event (branch `feature/notifications-calendar`)
 
 - `dispatch.notify()` now folds **every active admin** into the recipient set for

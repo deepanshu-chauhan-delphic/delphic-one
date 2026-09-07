@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import Badge from '../../components/ui/Badge.jsx';
 import { eventAppearance, audienceForRoundType, roundTypeMeta } from '../../lib/interviewRounds.js';
@@ -23,7 +24,14 @@ function Field({ label, children, className = '' }) {
  * Portalled to <body> and fixed-positioned so it escapes grid overflow.
  * Stays open while the pointer is over the card itself.
  */
-export default function EventHoverCard({ event, anchorRect, onMouseEnter, onMouseLeave }) {
+export default function EventHoverCard({
+  event,
+  anchorRect,
+  onMouseEnter,
+  onMouseLeave,
+  onOpenDetail,
+  onFeedback,
+}) {
   const ref = useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -55,6 +63,16 @@ export default function EventHoverCard({ event, anchorRect, onMouseEnter, onMous
     : event.interviewer_name || null;
   const title = event.round_name ? `${meta.label}: ${event.round_name}` : meta.label;
   const audience = event.audience || audienceForRoundType(event.round_type);
+
+  // Role/permission-gated actions — mirrors the agenda EventCard. `can_submit_feedback`
+  // is resolved per user on the server (assigned interviewer OR round manager).
+  const nowMs = new Date().getTime();
+  const startMs = event.scheduled_at ? new Date(event.scheduled_at).getTime() : null;
+  const live = !cancelled && event.result !== 'rescheduled';
+  const canFeedback = event.can_submit_feedback && live && startMs != null && startMs <= nowMs;
+  // Cancel / Reschedule shown to every role; server enforces who may act.
+  const canCancel = live && startMs != null && startMs > nowMs;
+  const canReschedule = live && event.status !== 'completed';
 
   return createPortal(
     <div
@@ -93,9 +111,26 @@ export default function EventHoverCard({ event, anchorRect, onMouseEnter, onMous
         </Field>
         <Field label="Scheduled by">{event.scheduled_by?.name || 'Not recorded'}</Field>
         <Field label="Candidate">
-          <span className={look.isStruck ? 'line-through text-tertiary-500' : ''}>{event.candidate_name || 'Not set'}</span>
+          {event.submission_id ? (
+            <Link
+              to={`/submissions/${event.submission_id}`}
+              className={`hover:underline ${look.isStruck ? 'text-tertiary-500 line-through' : 'text-primary-700'}`}
+            >
+              {event.candidate_name || 'View candidate'}
+            </Link>
+          ) : (
+            <span className={look.isStruck ? 'line-through text-tertiary-500' : ''}>{event.candidate_name || 'Not set'}</span>
+          )}
         </Field>
-        <Field label="Requirement">{event.requirement_title || 'Not set'}</Field>
+        <Field label="Requirement">
+          {event.requirement_id ? (
+            <Link to={`/requirements/${event.requirement_id}`} className="text-primary-700 hover:underline">
+              {event.requirement_title || 'View requirement'}
+            </Link>
+          ) : (
+            event.requirement_title || 'Not set'
+          )}
+        </Field>
         <Field label="Account">{event.account_name || 'Not set'}</Field>
         <Field label="Interviewers" className="col-span-2">
           {interviewerNames || 'Not set'}
@@ -113,18 +148,52 @@ export default function EventHoverCard({ event, anchorRect, onMouseEnter, onMous
         )}
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        {event.meeting_link && !cancelled && !look.isStruck ? (
-          <a
-            href={event.meeting_link}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+      {event.meeting_link && !cancelled && !look.isStruck ? (
+        <a
+          href={event.meeting_link}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+        >
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" /> Join meeting
+        </a>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-tertiary-100 pt-3">
+        <button
+          type="button"
+          className="btn-ghost px-2.5 py-1 text-xs"
+          onClick={() => onOpenDetail?.(event)}
+        >
+          Open details
+        </button>
+        {canFeedback && (
+          <button
+            type="button"
+            className="btn-secondary px-2.5 py-1 text-xs"
+            onClick={() => onFeedback?.(event)}
           >
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" /> Join meeting
-          </a>
-        ) : null}
-        <p className="shrink-0 text-[11px] text-tertiary-400">Click for actions</p>
+            Submit feedback
+          </button>
+        )}
+        {canReschedule && (
+          <button
+            type="button"
+            className="btn-ghost px-2.5 py-1 text-xs"
+            onClick={() => onOpenDetail?.(event)}
+          >
+            Reschedule
+          </button>
+        )}
+        {canCancel && (
+          <button
+            type="button"
+            className="btn-ghost px-2.5 py-1 text-xs text-danger-600"
+            onClick={() => onOpenDetail?.(event)}
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>,
     document.body

@@ -8,7 +8,7 @@ import useDelayedHoverCard from './useDelayedHoverCard.js';
  * Compact month-grid event pill. Status color fill + left accent bar;
  * cancelled / rescheduled are muted with strikethrough.
  */
-export default function EventPill({ event, onClick }) {
+export default function EventPill({ event, onClick, onFeedback }) {
   const look = eventAppearance(event);
   const { anchorRef, anchorRect, openSoon, closeSoon, closeNow, keepOpen } = useDelayedHoverCard();
 
@@ -59,6 +59,14 @@ export default function EventPill({ event, onClick }) {
           anchorRect={anchorRect}
           onMouseEnter={keepOpen}
           onMouseLeave={closeSoon}
+          onOpenDetail={() => {
+            closeNow();
+            onClick();
+          }}
+          onFeedback={(ev) => {
+            closeNow();
+            onFeedback?.(ev);
+          }}
         />
       )}
     </>

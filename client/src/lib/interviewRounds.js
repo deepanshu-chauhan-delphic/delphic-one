@@ -52,105 +52,75 @@ export const ROUND_GROUP_LEGEND = [
   { key: 'cancelled', label: 'Cancelled', dot: 'bg-tertiary-300' },
 ];
 
-/** Status / outcome colors for Teams-like calendar blocks. */
+/**
+ * Calendar colour model — TWO independent signals:
+ *   • FILL colour = interview category (audience): internal = sky/blue,
+ *     external (client-facing) = violet/purple. Only these two.
+ *   • STATUS = shown as a Badge on cards / hover / detail, plus:
+ *       cancelled   → grey, struck (overrides the fill)
+ *       rescheduled → same fill, dimmed + struck
+ *   Outcomes (pass / fail / no_show / completed) keep the audience fill; the
+ *   result Badge carries the meaning.
+ */
 export const STATUS_LEGEND = [
-  { key: 'scheduled', label: 'Scheduled', dot: 'bg-primary-500' },
-  { key: 'completed', label: 'Completed', dot: 'bg-success-500' },
-  { key: 'pass', label: 'Pass', dot: 'bg-emerald-500' },
-  { key: 'fail', label: 'Fail', dot: 'bg-danger-500' },
-  { key: 'no_show', label: 'Candidate did not join', dot: 'bg-warning-500' },
-  { key: 'rescheduled', label: 'Rescheduled', dot: 'bg-amber-500' },
-  { key: 'cancelled', label: 'Cancelled', dot: 'bg-tertiary-400' },
+  { key: 'internal', label: 'Internal interview', dot: 'bg-sky-500' },
+  { key: 'external', label: 'External / client interview', dot: 'bg-violet-500' },
+  { key: 'cancelled', label: 'Cancelled — grey & struck', dot: 'bg-slate-400' },
+  { key: 'rescheduled', label: 'Rescheduled — dimmed & struck', dot: 'bg-slate-300' },
 ];
 
-const APPEARANCE = {
-  scheduled: {
-    key: 'scheduled',
-    pill: 'bg-primary-500/15 text-primary-900 border-primary-200',
-    pillBar: 'bg-primary-500',
-    block: 'bg-primary-500 text-white border-l-primary-700',
-    accent: 'border-l-primary-500',
-    card: 'border-primary-200 bg-primary-50/40',
-    isMuted: false,
-    isStruck: false,
+const AUDIENCE_LOOK = {
+  internal: {
+    pill: 'bg-sky-500/15 text-sky-900 border-sky-200',
+    pillBar: 'bg-sky-500',
+    block: 'bg-sky-500 text-white',
+    accent: 'border-l-sky-500',
+    card: 'border-sky-200 bg-sky-50/50',
   },
-  completed: {
-    key: 'completed',
-    pill: 'bg-success-500/15 text-success-800 border-success-200',
-    pillBar: 'bg-success-500',
-    block: 'bg-success-500 text-white border-l-success-700',
-    accent: 'border-l-success-500',
-    card: 'border-success-200 bg-success-50/50',
-    isMuted: false,
-    isStruck: false,
-  },
-  pass: {
-    key: 'pass',
-    pill: 'bg-emerald-500/15 text-emerald-900 border-emerald-200',
-    pillBar: 'bg-emerald-500',
-    block: 'bg-emerald-500 text-white border-l-emerald-700',
-    accent: 'border-l-emerald-500',
-    card: 'border-emerald-200 bg-emerald-50/50',
-    isMuted: false,
-    isStruck: false,
-  },
-  fail: {
-    key: 'fail',
-    pill: 'bg-danger-500/15 text-danger-800 border-danger-200',
-    pillBar: 'bg-danger-500',
-    block: 'bg-danger-500 text-white border-l-danger-700',
-    accent: 'border-l-danger-500',
-    card: 'border-danger-200 bg-danger-50/40',
-    isMuted: false,
-    isStruck: false,
-  },
-  no_show: {
-    key: 'no_show',
-    pill: 'bg-warning-500/15 text-warning-900 border-warning-200',
-    pillBar: 'bg-warning-500',
-    block: 'bg-warning-500 text-white border-l-warning-700',
-    accent: 'border-l-warning-500',
-    card: 'border-warning-200 bg-warning-50/50',
-    isMuted: false,
-    isStruck: false,
-  },
-  rescheduled: {
-    key: 'rescheduled',
-    pill: 'bg-amber-100/80 text-amber-800/80 border-amber-200 opacity-80',
-    pillBar: 'bg-amber-400',
-    block: 'bg-amber-200/80 text-amber-900/70 border-l-amber-500 line-through opacity-75',
-    accent: 'border-l-amber-400',
-    card: 'border-amber-200 bg-amber-50/40 opacity-75',
-    isMuted: true,
-    isStruck: true,
-  },
-  cancelled: {
-    key: 'cancelled',
-    pill: 'bg-tertiary-100 text-tertiary-500 border-tertiary-200 opacity-70',
-    pillBar: 'bg-tertiary-400',
-    block: 'bg-tertiary-200 text-tertiary-500 border-l-tertiary-400 line-through opacity-65',
-    accent: 'border-l-tertiary-300',
-    card: 'border-tertiary-200 bg-tertiary-50 opacity-65',
-    isMuted: true,
-    isStruck: true,
+  external: {
+    pill: 'bg-violet-500/15 text-violet-900 border-violet-200',
+    pillBar: 'bg-violet-500',
+    block: 'bg-violet-500 text-white',
+    accent: 'border-l-violet-500',
+    card: 'border-violet-200 bg-violet-50/50',
   },
 };
 
+const CANCELLED_LOOK = {
+  key: 'cancelled',
+  pill: 'bg-slate-100 text-slate-500 border-slate-200 opacity-70',
+  pillBar: 'bg-slate-400',
+  block: 'bg-slate-300 text-slate-600 line-through opacity-70',
+  accent: 'border-l-slate-400',
+  card: 'border-slate-200 bg-slate-50 opacity-65',
+  isMuted: true,
+  isStruck: true,
+};
+
 /**
- * Resolve calendar appearance from interview status + result.
- * Cancelled and rescheduled are muted with strikethrough.
+ * Resolve calendar appearance. Fill follows the audience (internal/external);
+ * cancelled overrides to grey; rescheduled dims + strikes the audience fill.
  */
 export function eventAppearance(event) {
-  if (!event) return APPEARANCE.scheduled;
-  if (event.status === 'cancelled') return APPEARANCE.cancelled;
-  if (event.result === 'rescheduled') return APPEARANCE.rescheduled;
-  if (event.status === 'completed') {
-    if (event.result === 'pass') return APPEARANCE.pass;
-    if (event.result === 'fail') return APPEARANCE.fail;
-    if (event.result === 'no_show') return APPEARANCE.no_show;
-    return APPEARANCE.completed;
+  const audience = event ? eventAudience(event) : 'internal';
+  const base = AUDIENCE_LOOK[audience] || AUDIENCE_LOOK.internal;
+
+  if (event?.status === 'cancelled') return CANCELLED_LOOK;
+
+  if (event?.result === 'rescheduled') {
+    return {
+      key: 'rescheduled',
+      pill: `${base.pill} opacity-70`,
+      pillBar: base.pillBar,
+      block: `${base.block} line-through opacity-60`,
+      accent: base.accent,
+      card: `${base.card} opacity-70`,
+      isMuted: true,
+      isStruck: true,
+    };
   }
-  return APPEARANCE.scheduled;
+
+  return { key: audience, ...base, isMuted: false, isStruck: false };
 }
 
 export function isEventStruck(event) {
@@ -163,6 +133,10 @@ export function roundTypeMeta(type) {
 
 export function audienceForRoundType(roundType) {
   return roundTypeMeta(roundType).group === 'client' ? 'external' : 'internal';
+}
+
+export function eventAudience(event) {
+  return event?.audience || audienceForRoundType(event?.round_type);
 }
 
 export function roundTypeLabel(type) {

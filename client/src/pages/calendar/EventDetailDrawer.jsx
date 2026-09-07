@@ -19,13 +19,6 @@ function Row({ label, children }) {
   );
 }
 
-function toLocalInput(value) {
-  if (!value) return '';
-  const d = new Date(value);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 /** Full event view + feedback / cancel / reschedule actions. */
 export default function EventDetailDrawer({ event, open, onClose, onFeedback, onChanged }) {
   const { pushSuccess, pushError } = useAlerts();
@@ -40,7 +33,7 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
     setCancelReason('');
     setConfirming(false);
     setRescheduling(false);
-    setNextWhen(toLocalInput(event.scheduled_at));
+    setNextWhen('');
   }, [open, event]);
 
   if (!event) return null;
@@ -52,8 +45,10 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
   const isFuture = when && when.getTime() > nowMs;
   const isPastStart = when && when.getTime() <= nowMs;
   const canFeedback = event.can_submit_feedback && !cancelled && isPastStart;
-  const canCancel = event.can_submit_feedback && !cancelled && isFuture;
-  const canReschedule = event.can_reschedule && !cancelled && event.status !== 'completed';
+  // Cancel / Reschedule are offered to every role; the server enforces who may
+  // actually perform them and 403s otherwise.
+  const canCancel = !cancelled && isFuture;
+  const canReschedule = !cancelled && event.status !== 'completed' && event.result !== 'rescheduled';
 
   async function doCancel() {
     if (!cancelReason.trim()) {
@@ -76,16 +71,15 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
   }
 
   async function doReschedule() {
-    if (!nextWhen) {
-      pushError('Pick a new date and time');
-      return;
-    }
     setBusy(true);
     try {
-      await apiClient.patch(`/interview-rounds/${event.id}`, {
-        scheduled_at: new Date(nextWhen).toISOString(),
-      });
-      pushSuccess('Interview rescheduled');
+      // A new time is optional — with one, re-time the round; without one, just
+      // flag it as needing a reschedule (a new slot can be set later).
+      const body = nextWhen
+        ? { scheduled_at: new Date(nextWhen).toISOString() }
+        : { result: 'rescheduled' };
+      await apiClient.patch(`/interview-rounds/${event.id}`, body);
+      pushSuccess(nextWhen ? 'Interview rescheduled' : 'Marked for rescheduling');
       setRescheduling(false);
       onClose();
       onChanged?.();
@@ -145,7 +139,19 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
               {event.candidate_name || 'Candidate'}
             </Link>
           </Row>
-          <Row label="Requirement">{event.requirement_title || 'Not set'}</Row>
+          <Row label="Requirement">
+            {event.requirement_id ? (
+              <Link
+                to={`/requirements/${event.requirement_id}`}
+                className="text-primary-700 hover:underline"
+                onClick={onClose}
+              >
+                {event.requirement_title || 'View requirement'}
+              </Link>
+            ) : (
+              event.requirement_title || 'Not set'
+            )}
+          </Row>
           <Row label="Account">{event.account_name || 'Not set'}</Row>
           <Row label="Interviewers">
             {event.interviewers?.length ? (
@@ -204,7 +210,7 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
         {rescheduling && (
           <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-3">
             <label className="block text-xs font-medium text-primary-900">
-              New date and time
+              New date and time <span className="font-normal text-primary-700">(optional)</span>
               <input
                 type="datetime-local"
                 value={nextWhen}
@@ -212,12 +218,15 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
                 className="mt-1 w-full rounded-lg border border-primary-200 px-2 py-1.5 text-sm"
               />
             </label>
+            <p className="mt-1 text-[11px] text-primary-700">
+              Leave blank to just flag this interview for rescheduling — you can set a slot later.
+            </p>
             <div className="mt-2 flex justify-end gap-2">
               <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => setRescheduling(false)}>
                 Back
               </button>
               <button type="button" className="btn-primary text-xs" disabled={busy} onClick={doReschedule}>
-                {busy ? 'Saving…' : 'Save new time'}
+                {busy ? 'Saving…' : nextWhen ? 'Save new time' : 'Mark for rescheduling'}
               </button>
             </div>
           </div>

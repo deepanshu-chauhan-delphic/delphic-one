@@ -9,7 +9,7 @@ const MAX_PILLS = 3;
  * CSS grid month view. Each day cell shows up to 3 event pills + "+N more"
  * (opens that day's list in a Drawer). Click a pill → onSelectEvent(event).
  */
-export default function CalendarMonthView({ anchor, events, onSelectEvent }) {
+export default function CalendarMonthView({ anchor, events, onSelectEvent, onFeedback }) {
   const weeks = useMemo(() => buildMonthMatrix(anchor), [anchor]);
   const byDay = useMemo(() => groupEventsByDay(events), [events]);
   const [dayDrawer, setDayDrawer] = useState(null); // { key, label, rows }
@@ -52,7 +52,7 @@ export default function CalendarMonthView({ anchor, events, onSelectEvent }) {
               </div>
               <div className="space-y-1">
                 {shown.map((ev) => (
-                  <EventPill key={ev.id} event={ev} onClick={() => onSelectEvent(ev)} />
+                  <EventPill key={ev.id} event={ev} onClick={() => onSelectEvent(ev)} onFeedback={onFeedback} />
                 ))}
                 {extra > 0 && (
                   <button

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -152,6 +153,16 @@ export default function CalendarPage() {
           ? dayLabel(anchor)
           : monthLabel(anchor);
 
+  // Role-wise "schedule" CTA. There is no standalone scheduler — interviews are
+  // added from a submission's interview-rounds panel, client meetings from an
+  // account's stage/meeting flow — so route to the right list.
+  const scheduleCta =
+    user?.role === 'bda'
+      ? { label: 'Schedule meeting', to: '/accounts' }
+      : ['recruiter', 'sales', 'admin'].includes(user?.role)
+        ? { label: 'Schedule interview', to: '/submissions' }
+        : null;
+
   const weekDays = useMemo(() => buildWeekDays(anchor), [anchor]);
   const dayColumn = useMemo(() => {
     const today = new Date();
@@ -204,6 +215,7 @@ export default function CalendarPage() {
               type="button"
               onClick={() => setScope('mine')}
               className={`rounded px-2 py-1 text-xs ${scope === 'mine' ? 'bg-primary-600 text-white' : 'text-tertiary-600'}`}
+              title="Interviews you scheduled, are tagged on, or submitted the candidate for"
             >
               My interviews
             </button>
@@ -211,13 +223,7 @@ export default function CalendarPage() {
               type="button"
               onClick={() => setScope('all')}
               className={`rounded px-2 py-1 text-xs ${scope === 'all' ? 'bg-primary-600 text-white' : 'text-tertiary-600'}`}
-              title={
-                user?.role === 'recruiter'
-                  ? 'Interviews on your assigned requirements'
-                  : user?.role === 'sales'
-                    ? 'Interviews on requirements you own'
-                    : 'All interviews in your role scope'
-              }
+              title="Every interview and meeting, across all users"
             >
               All
             </button>
@@ -259,21 +265,26 @@ export default function CalendarPage() {
               </option>
             ))}
           </select>
+
+          {scheduleCta && (
+            <Link
+              to={scheduleCta.to}
+              className="btn-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
+              title={scheduleCta.label}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {scheduleCta.label}
+            </Link>
+          )}
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-tertiary-100 pt-2 text-[11px] text-tertiary-500">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-sky-500" /> Internal
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-violet-500" /> External
-          </span>
           {STATUS_LEGEND.map((l) => (
             <span key={l.key} className="flex items-center gap-1">
               <span className={`h-2 w-2 rounded-full ${l.dot}`} /> {l.label}
             </span>
           ))}
-          <span className="text-tertiary-400">Cancelled and rescheduled show struck and dull</span>
+          <span className="text-tertiary-400">Outcome (pass / fail / …) shows as a badge on the event.</span>
         </div>
       </div>
 
@@ -305,7 +316,7 @@ export default function CalendarPage() {
             />
           </div>
           <div className="hidden md:block">
-            <CalendarMonthView anchor={anchor} events={events} onSelectEvent={openDetail} />
+            <CalendarMonthView anchor={anchor} events={events} onSelectEvent={openDetail} onFeedback={openFeedback} />
           </div>
         </>
       ) : view === 'week' ? (
@@ -319,11 +330,11 @@ export default function CalendarPage() {
             />
           </div>
           <div className="hidden md:block">
-            <CalendarTimeGrid days={weekDays} events={events} onSelectEvent={openDetail} />
+            <CalendarTimeGrid days={weekDays} events={events} onSelectEvent={openDetail} onFeedback={openFeedback} />
           </div>
         </>
       ) : view === 'day' ? (
-        <CalendarTimeGrid days={dayColumn} events={events} onSelectEvent={openDetail} />
+        <CalendarTimeGrid days={dayColumn} events={events} onSelectEvent={openDetail} onFeedback={openFeedback} />
       ) : events.length === 0 ? (
         <EmptyState
           icon={CalendarDays}

@@ -39,7 +39,7 @@ function NowLine({ dayDate }) {
   );
 }
 
-function TimeBlock({ event, col, colCount, onSelect }) {
+function TimeBlock({ event, col, colCount, onSelect, onFeedback }) {
   const look = eventAppearance(event);
   const meta = roundTypeMeta(event.round_type);
   const { anchorRef, anchorRect, openSoon, closeSoon, closeNow, keepOpen } = useDelayedHoverCard();
@@ -67,7 +67,7 @@ function TimeBlock({ event, col, colCount, onSelect }) {
         onFocus={openSoon}
         onBlur={closeNow}
         title={`${timeLabel} · ${nameLabel} · ${meta.label}`}
-        className={`absolute z-10 overflow-hidden rounded-md border-l-[3px] px-1.5 text-left shadow-soft transition hover:brightness-95 ${
+        className={`absolute z-10 overflow-hidden rounded-md px-1.5 text-left shadow-soft transition hover:brightness-95 ${
           isCompact ? 'py-0' : 'py-0.5'
         } ${look.block}`}
         style={{
@@ -103,6 +103,14 @@ function TimeBlock({ event, col, colCount, onSelect }) {
           anchorRect={anchorRect}
           onMouseEnter={keepOpen}
           onMouseLeave={closeSoon}
+          onOpenDetail={() => {
+            closeNow();
+            onSelect(event);
+          }}
+          onFeedback={(ev) => {
+            closeNow();
+            onFeedback?.(ev);
+          }}
         />
       )}
     </>
@@ -112,7 +120,7 @@ function TimeBlock({ event, col, colCount, onSelect }) {
 /**
  * Teams-like timed grid for week (multiple day columns) or day (one column).
  */
-export default function CalendarTimeGrid({ days, events, onSelectEvent }) {
+export default function CalendarTimeGrid({ days, events, onSelectEvent, onFeedback }) {
   const scrollRef = useRef(null);
   const byDay = useMemo(() => groupEventsByDay(events), [events]);
   const hours = useMemo(() => hourLabels(), []);
@@ -120,11 +128,15 @@ export default function CalendarTimeGrid({ days, events, onSelectEvent }) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const now = new Date();
-    const mins = minutesFromGridStart(now);
-    const target = Math.max(0, (mins / 60) * HOUR_HEIGHT - 80);
-    el.scrollTop = target;
-  }, [days]);
+    const dayKeys = new Set(days.map((d) => ymd(d.date)));
+    const inView = events.filter(
+      (e) => e.scheduled_at && dayKeys.has(ymd(new Date(e.scheduled_at)))
+    );
+    const anchorMins = inView.length
+      ? Math.min(...inView.map((e) => minutesFromGridStart(new Date(e.scheduled_at))))
+      : minutesFromGridStart(new Date());
+    el.scrollTop = Math.max(0, (anchorMins / 60) * HOUR_HEIGHT - 60);
+  }, [days, events]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">
@@ -152,10 +164,12 @@ export default function CalendarTimeGrid({ days, events, onSelectEvent }) {
       <div ref={scrollRef} className="max-h-[min(70vh,720px)] overflow-auto">
         <div className="grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` }}>
           <div className="relative border-r border-tertiary-100" style={{ height: GRID_HEIGHT }}>
-            {hours.slice(0, -1).map((h) => (
+            {hours.slice(0, -1).map((h, i) => (
               <div
                 key={h.hour}
-                className="absolute right-1 -translate-y-1/2 text-[10px] font-medium text-tertiary-400"
+                className={`absolute right-1 text-[10px] font-medium text-tertiary-400 ${
+                  i === 0 ? '' : '-translate-y-1/2'
+                }`}
                 style={{ top: (h.hour - DAY_START_HOUR) * HOUR_HEIGHT }}
               >
                 {h.label}
@@ -187,6 +201,7 @@ export default function CalendarTimeGrid({ days, events, onSelectEvent }) {
                     col={col}
                     colCount={colCount}
                     onSelect={onSelectEvent}
+                    onFeedback={onFeedback}
                   />
                 ))}
               </div>

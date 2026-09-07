@@ -107,38 +107,15 @@ async function listForCalendar(user, opts = {}) {
   if (audience === 'internal') where.round_type = { in: INTERNAL_AUDIENCE_TYPES };
   if (audience === 'external') where.round_type = { in: EXTERNAL_AUDIENCE_TYPES };
 
-  const personalOr = [
-    { submission: { submitted_by: user.id } },
-    { interviewers: { some: { user_id: user.id } } },
-  ];
-
+  // "All" shows every interview / meeting for every user — no role or ownership
+  // scope. "My interviews" (mine=1) narrows to rounds this user scheduled, is
+  // tagged on as an interviewer, or submitted the candidate for.
   if (mine) {
-    where.OR = personalOr;
-  } else if (user.role === 'admin' || user.role === 'bda') {
-    // team-wide
-  } else if (user.role === 'sales') {
     where.OR = [
-      { submission: { seat: { requirement: { sales_owner_id: user.id } } } },
+      { scheduled_by: user.id },
       { interviewers: { some: { user_id: user.id } } },
-    ];
-  } else if (user.role === 'recruiter') {
-    where.OR = [
       { submission: { submitted_by: user.id } },
-      { interviewers: { some: { user_id: user.id } } },
-      {
-        submission: {
-          seat: {
-            requirement: {
-              assignments: {
-                some: { user_id: user.id, role_on_req: 'recruiter', unassigned_at: null },
-              },
-            },
-          },
-        },
-      },
     ];
-  } else {
-    where.OR = personalOr;
   }
 
   const rows = await prisma.interviewRound.findMany({

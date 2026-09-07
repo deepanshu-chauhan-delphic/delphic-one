@@ -17,8 +17,12 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
   const nowMs = new Date().getTime();
   const isPastStart = event.scheduled_at && new Date(event.scheduled_at).getTime() <= nowMs;
   const isFuture = event.scheduled_at && new Date(event.scheduled_at).getTime() > nowMs;
-  const canFeedback = event.can_submit_feedback && !cancelled && !rescheduled && isPastStart;
-  const canCancel = event.can_submit_feedback && !cancelled && !rescheduled && isFuture;
+  const live = !cancelled && !rescheduled;
+  const canFeedback = event.can_submit_feedback && live && isPastStart;
+  // Cancel / Reschedule are offered to every role; the server enforces who may
+  // actually do it (manager / scheduler) and 403s otherwise.
+  const canCancel = live && isFuture;
+  const canReschedule = live && event.status !== 'completed';
 
   return (
     <div className={`hover-zoom relative rounded-2xl border p-4 shadow-card ${look.card}`}>
@@ -40,7 +44,21 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
           {event.candidate_name || 'Candidate'}
         </Link>
         <span className="text-tertiary-500">
-          {event.requirement_title ? ` · ${event.requirement_title}` : ''}
+          {event.requirement_id ? (
+            <>
+              {' · '}
+              <Link
+                to={`/requirements/${event.requirement_id}`}
+                className={`hover:underline ${look.isStruck ? 'text-tertiary-500' : 'text-primary-700'}`}
+              >
+                {event.requirement_title || 'requirement'}
+              </Link>
+            </>
+          ) : event.requirement_title ? (
+            ` · ${event.requirement_title}`
+          ) : (
+            ''
+          )}
           {event.account_name ? ` · ${event.account_name}` : ''}
         </span>
       </div>
@@ -85,6 +103,11 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
         {canFeedback && (
           <button type="button" className="btn-secondary text-xs" onClick={() => onFeedback(event)}>
             Submit feedback
+          </button>
+        )}
+        {canReschedule && (
+          <button type="button" className="btn-ghost text-xs" onClick={() => onOpenDetail(event)}>
+            Reschedule
           </button>
         )}
         {canCancel && (
