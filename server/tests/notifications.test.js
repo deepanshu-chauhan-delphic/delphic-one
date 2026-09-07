@@ -85,6 +85,49 @@ describe('notification dispatch', () => {
     expect(await listFor(recruiter.id, 'candidate_rejected')).toHaveLength(0);
   });
 
+  test('every active admin gets a copy, even when not a participant', async () => {
+    const admin1 = await createUser({ role: 'admin' });
+    const admin2 = await createUser({ role: 'admin' });
+
+    const res = await authed(request(app).post(`/api/v1/requirements/${requirement.id}/assign`), salesToken).send({
+      user_id: recruiter.id,
+      role_on_req: 'recruiter',
+    });
+    expect(res.status).toBe(201);
+
+    expect(await listFor(admin1.id, 'requirement_assigned')).toHaveLength(1);
+    expect(await listFor(admin2.id, 'requirement_assigned')).toHaveLength(1);
+  });
+
+  test('an admin who performs the action is not self-notified', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+
+    const res = await authed(request(app).post(`/api/v1/requirements/${requirement.id}/assign`), adminToken).send({
+      user_id: recruiter.id,
+      role_on_req: 'recruiter',
+    });
+    expect(res.status).toBe(201);
+
+    expect(await listFor(admin.id, 'requirement_assigned')).toHaveLength(0);
+    // a different admin still gets it
+  });
+
+  test('an admin can still mute a type for themselves', async () => {
+    const admin = await createUser({ role: 'admin' });
+    await prisma.notificationPreference.create({
+      data: { user_id: admin.id, type: 'requirement_assigned', in_app: false },
+    });
+
+    const res = await authed(request(app).post(`/api/v1/requirements/${requirement.id}/assign`), salesToken).send({
+      user_id: recruiter.id,
+      role_on_req: 'recruiter',
+    });
+    expect(res.status).toBe(201);
+
+    expect(await listFor(admin.id, 'requirement_assigned')).toHaveLength(0);
+  });
+
   test('a NotificationPreference with in_app:false suppresses that type', async () => {
     await prisma.notificationPreference.create({
       data: { user_id: recruiter.id, type: 'requirement_assigned', in_app: false },

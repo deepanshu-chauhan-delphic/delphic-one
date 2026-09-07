@@ -35,13 +35,21 @@ const COLOR_MAP = {
   direct: 'bg-blue-50 text-blue-700',
   vendor: 'bg-amber-50 text-amber-800',
   linkedin: 'bg-green-50 text-green-700',
+  internal: 'bg-sky-50 text-sky-800',
+  external: 'bg-violet-50 text-violet-800',
 };
 
-export default function Badge({ value }) {
+const LABEL_OVERRIDES = {
+  no_show: 'Candidate did not join',
+};
+
+export default function Badge({ value, label }) {
   const classes = COLOR_MAP[value] || 'bg-tertiary-100 text-tertiary-700';
+  const text = label || LABEL_OVERRIDES[value] || String(value).replace(/_/g, ' ');
+  const caseClass = LABEL_OVERRIDES[value] || label ? 'normal-case' : 'capitalize';
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${classes}`}>
-      {String(value).replace(/_/g, ' ')}
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${caseClass} ${classes}`}>
+      {text}
     </span>
   );
 }

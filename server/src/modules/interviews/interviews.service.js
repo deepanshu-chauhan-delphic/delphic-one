@@ -1,6 +1,6 @@
 const prisma = require('../../config/db');
-const { ROUND_TYPE_LABELS, roundTypeLabel } = require('../submissions/stageMachines');
-const { canManageInterviewRound } = require('../submissions/submissions.service');
+const { ROUND_TYPE_LABELS, roundTypeLabel, INTERNAL_ROUND_TYPES, CLIENT_ROUND_TYPES } = require('../submissions/stageMachines');
+const { canManageInterviewRound, canRescheduleInterviewRound } = require('../submissions/submissions.service');
 const {
   notify,
   interviewRoundParticipants,
@@ -24,13 +24,23 @@ const CALENDAR_INCLUDE = {
     },
   },
   interviewers: { include: { user: { select: { id: true, name: true, email: true } } } },
+  scheduler: { select: { id: true, name: true, email: true } },
 };
+
+/** Company-side rounds (internal + HR). Client rounds are external. */
+const INTERNAL_AUDIENCE_TYPES = [...INTERNAL_ROUND_TYPES, 'hr_cto_ceo'];
+const EXTERNAL_AUDIENCE_TYPES = CLIENT_ROUND_TYPES.filter((t) => t !== 'hr_cto_ceo');
 
 function monthRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   return { from, to };
+}
+
+function audienceForRoundType(roundType) {
+  if (EXTERNAL_AUDIENCE_TYPES.includes(roundType)) return 'external';
+  return 'internal';
 }
 
 function canSubmitFeedbackFor(round, user) {
@@ -49,6 +59,10 @@ function serializeCalendarEvent(round, user) {
     ? new Date(new Date(startsAt).getTime() + round.duration_minutes * 60000)
     : null;
   const interviewers = (round.interviewers || []).map((i) => ({ id: i.user.id, name: i.user.name, email: i.user.email }));
+  const salesOwnerId = requirement.sales_owner_id ?? null;
+  const canReschedule = user
+    ? canRescheduleInterviewRound(round, submission, salesOwnerId, user)
+    : false;
   return {
     id: round.id,
     submission_id: round.submission_id,
@@ -59,6 +73,7 @@ function serializeCalendarEvent(round, user) {
     round_type: round.round_type,
     round_type_label: ROUND_TYPE_LABELS[round.round_type] || round.round_type,
     round_name: round.round_name,
+    audience: audienceForRoundType(round.round_type),
     result: round.result,
     meeting_link: round.meeting_link,
     candidate_name: submission.profile?.name || null,
@@ -68,9 +83,13 @@ function serializeCalendarEvent(round, user) {
     interviewers,
     interviewer_name: round.interviewer_name,
     interviewer_email: round.interviewer_email,
+    scheduled_by: round.scheduler
+      ? { id: round.scheduler.id, name: round.scheduler.name, email: round.scheduler.email }
+      : null,
     cancellation_reason: round.cancellation_reason,
     cancelled_at: round.cancelled_at,
     can_submit_feedback: user ? canSubmitFeedbackFor(round, user) : false,
+    can_reschedule: canReschedule,
   };
 }
 
@@ -79,33 +98,63 @@ async function listForCalendar(user, opts = {}) {
   const from = opts.from ? new Date(opts.from) : def.from;
   const to = opts.to ? new Date(opts.to) : def.to;
   const mine = opts.mine === '1';
+  const audience = opts.audience || 'all';
+  const sort = opts.sort || 'time';
 
   const where = { scheduled_at: { gte: from, lte: to } };
   if (opts.status) where.status = opts.status;
   if (opts.result) where.result = opts.result;
+  if (audience === 'internal') where.round_type = { in: INTERNAL_AUDIENCE_TYPES };
+  if (audience === 'external') where.round_type = { in: EXTERNAL_AUDIENCE_TYPES };
 
-  const scopeOr = [];
+  const personalOr = [
+    { submission: { submitted_by: user.id } },
+    { interviewers: { some: { user_id: user.id } } },
+  ];
+
   if (mine) {
-    scopeOr.push({ submission: { submitted_by: user.id } });
-    scopeOr.push({ interviewers: { some: { user_id: user.id } } });
-  } else if (user.role !== 'admin') {
-    if (user.role === 'sales') {
-      scopeOr.push({ submission: { seat: { requirement: { sales_owner_id: user.id } } } });
-    } else if (user.role === 'bda') {
-      scopeOr.push({ submission: { seat: { requirement: { account: { owner_id: user.id } } } } });
-    } else if (user.role === 'recruiter') {
-      scopeOr.push({ submission: { submitted_by: user.id } });
-    }
-    scopeOr.push({ interviewers: { some: { user_id: user.id } } });
+    where.OR = personalOr;
+  } else if (user.role === 'admin' || user.role === 'bda') {
+    // team-wide
+  } else if (user.role === 'sales') {
+    where.OR = [
+      { submission: { seat: { requirement: { sales_owner_id: user.id } } } },
+      { interviewers: { some: { user_id: user.id } } },
+    ];
+  } else if (user.role === 'recruiter') {
+    where.OR = [
+      { submission: { submitted_by: user.id } },
+      { interviewers: { some: { user_id: user.id } } },
+      {
+        submission: {
+          seat: {
+            requirement: {
+              assignments: {
+                some: { user_id: user.id, role_on_req: 'recruiter', unassigned_at: null },
+              },
+            },
+          },
+        },
+      },
+    ];
+  } else {
+    where.OR = personalOr;
   }
-  if (scopeOr.length) where.OR = scopeOr;
 
   const rows = await prisma.interviewRound.findMany({
     where,
     include: CALENDAR_INCLUDE,
     orderBy: { scheduled_at: 'asc' },
   });
-  return rows.map((r) => serializeCalendarEvent(r, user));
+
+  const events = rows.map((r) => serializeCalendarEvent(r, user));
+  if (sort === 'audience') {
+    events.sort((a, b) => {
+      if (a.audience !== b.audience) return a.audience === 'internal' ? -1 : 1;
+      return new Date(a.scheduled_at) - new Date(b.scheduled_at);
+    });
+  }
+  return events;
 }
 
 async function loadRoundForAction(client, id) {
@@ -195,4 +244,6 @@ module.exports = {
   submitFeedback,
   cancelRound,
   serializeCalendarEvent,
+  INTERNAL_AUDIENCE_TYPES,
+  EXTERNAL_AUDIENCE_TYPES,
 };

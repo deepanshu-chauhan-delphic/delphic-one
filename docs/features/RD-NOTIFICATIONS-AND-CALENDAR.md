@@ -139,9 +139,9 @@ A single choke point. Defensive: **never throws** — a notification bug must no
 
 **`notify` algorithm:**
 
-1. Dedupe `recipientIds`; drop `actorId` unless `context.notifySelf` (never notify someone of their own action).
-2. One query for recipients' `role`; keep only roles listed in `ROLE_EVENT_MATRIX[type].roles`.
-3. Load `NotificationPreference` rows for `(remainingUserIds, type)`; skip any user whose row has `in_app === false`.
+1. Dedupe `recipientIds`; **fold in every active admin** (admins get a copy of every event, participant or not); drop `actorId` unless `context.notifySelf` (never notify someone of their own action).
+2. One query for recipients' `role`; keep admins plus roles listed in `ROLE_EVENT_MATRIX[type].roles`.
+3. Load `NotificationPreference` rows for `(remainingUserIds, type)`; skip any user whose row has `in_app === false` (this still lets an admin mute a type for themselves).
 4. `renderNotification(type, context)` → `client.notification.createMany({ data: rows })`.
 5. Wrap the whole body in `try/catch` → `logger.error('notification_dispatch_failed', { type, err })` and return.
 
@@ -359,6 +359,7 @@ Built on branch `feature/notifications-calendar` (server WIP commit `5fb7741`, `
 
 - Migration `20260903110804_notifications_and_calendar` — `notifications` + `notification_preferences` tables, `NotificationType` (14) / `NotificationEntityType` (5) / `InterviewRoundStatus` (3) enums, `interview_rounds` gains `status` + `cancelled_at` + `cancellation_reason` + `reminder_sent_at` + `reminder_1h_sent_at` + `online_meeting_provider` + `external_event_id`, plus a `@@index([status, scheduled_at])`.
 - `lib/notifications/` — `eventCatalog.js` (`ROLE_EVENT_MATRIX` + `NOTIFICATION_LABELS` + `eventsForRole` + `renderNotification`), `recipients.js`, `dispatch.js` (`notify` — try/catch around the whole body, `logger.error('notification_dispatch_failed')` on any failure), `index.js` re-exports. `notify(client, …)` takes the caller's Prisma client (`tx` or the singleton).
+- **Admins get everything (2026-09-07):** `notify()` folds every active admin into the recipient set for *every* event type, independent of `ROLE_EVENT_MATRIX` and the per-event recipient resolvers. Actor-exclusion still applies (an admin who performed the action is not self-notified) and an admin can still mute a type via `NotificationPreference`. `admin` stays in every `roles` list purely so the preferences UI offers admins the full set of toggles. Costs one extra `user.findMany({ role: 'admin' })` per dispatch.
 - `modules/notifications/` — `GET /`, `GET /unread-count`, `POST /read`, `POST /read-all`, `GET /preferences`, `PUT /preferences`, **`DELETE /preferences`** (reset-to-defaults; not in the original route list). Keyset pagination on `created_at desc` via `?cursor=<iso>`; responses carry `has_more` + `next_cursor`.
 - `modules/interviews/` — `GET /` (role scoping mirrors `entityAccess` + assigned-interviewer OR-clause; `mine=1`; `from`/`to` default to the current month), `POST /:id/feedback`, `POST /:id/cancel`. `serializeCalendarEvent` includes `can_submit_feedback`. Reschedule + feedback `notify` calls were added to `submissions.service.updateInterviewRound` (so `PATCH /interview-rounds/:id` stays consistent), not duplicated in the interviews module.
 - Cron — `env.jobs.enabled = NODE_ENV !== 'test' && ENABLE_JOBS !== 'false'`. `interviewReminders.run(now?)` scans two windows (T-24h ±15m via `reminder_sent_at`, T-1h 45–75m via `reminder_1h_sent_at`), per-round try/catch, returns `{ sent }`. `schedule()` wires `*/15 * * * *`. `env.notifications` reserved block (`email` / `msGraph`) added; nothing reads it.

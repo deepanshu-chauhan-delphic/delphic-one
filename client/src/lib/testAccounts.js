@@ -4,8 +4,10 @@ export const QUICK_LOGIN_ACCOUNTS = [
   { role: 'bda', label: 'BDA', email: 'chahak.pandya@delphic.in', name: 'Chahak Pandya' },
   { role: 'sales', label: 'Sales', email: 'tanvi.saxena@delphic.in', name: 'Tanvi Saxena' },
   { role: 'recruiter', label: 'Recruiter', email: 'sarthak.solanki@delphic.in', name: 'Sarthak Solanki' },
+  { role: 'recruiter', label: 'Recruiter', email: 'nikhil.yadav@delphic.in', name: 'Nikhil Yadav' },
 ];
 
+/** Shared seed password for every roster user (server/prisma/team-roster.js). */
 export const DEFAULT_DEV_PASSWORD = 'Password123!';
 
 /** @deprecated use DEFAULT_DEV_PASSWORD */

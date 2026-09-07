@@ -6,6 +6,8 @@ const listQuerySchema = z.object({
   mine: z.enum(['0', '1']).optional(),
   status: z.enum(['scheduled', 'completed', 'cancelled']).optional(),
   result: z.enum(['pending', 'pass', 'fail', 'no_show', 'rescheduled']).optional(),
+  audience: z.enum(['all', 'internal', 'external']).optional(),
+  sort: z.enum(['time', 'audience']).optional(),
 });
 
 const feedbackSchema = z.object({

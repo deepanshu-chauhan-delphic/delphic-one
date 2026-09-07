@@ -6,6 +6,35 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Calendar hover cards + Merge `main` + schema realign (branch `feature/notifications-calendar`, 2026-09-07)
+
+PROGRESS.md 2026-09-07 top entries.
+
+- [x] Month-view event pills expand a full-detail `EventHoverCard` on hover/focus.
+- [ ] Browser check: hover a month-view meeting pill → card shows all details,
+      flips near the right edge, "Join meeting" link is clickable, closes on leave.
+
+- [x] Merged `origin/main` (`727ca7b`) → `8f15352`, no conflicts. Brings in
+      specialization column, CWR 3-tab / RVG 2-tab report rework + date-filter
+      removal, `active_requirements_count`, BDA full requirement map, open
+      document reads, `FileViewerModal` + `docx-preview`, multipart upload fix,
+      candidate "View full details".
+- [x] `npm ci` synced `node_modules`; `prisma generate`d.
+- [x] `server/prisma/schema.prisma` reconstructed to match
+      `20260903110804_notifications_and_calendar` (notification models +
+      `InterviewRound` status fields). Server suite 32/32 · 219/219 green.
+- [ ] **Commit `server/prisma/schema.prisma`** — the only uncommitted change.
+- [ ] Decide `chahak.pandya`: she is role **`sales`**, so the BDA requirement-map
+      fix doesn't widen her view (sees a scoped map, 0 rows — owns no
+      `sales_owner` requirements). Options: widen `sales` in `requirementScopeWhere`
+      too, or change her account role to `bda`.
+- [ ] Browser click-through of the merged features on this branch: CWR/RVG tabs;
+      resume upload + in-app viewer (PDF inline, `.docx` via docx-preview,
+      download); sales opens a candidate's full details from the peek; BDA sees
+      the full requirement map.
+- [ ] AGENTS.md "clients-without-requirements" bullet updated for the new
+      buckets — re-verify against the running app.
+
 ## Login polish + rename + hover-zoom + calendar dot (branch `feature/notifications-calendar`, 2026-09-04)
 
 PROGRESS.md 2026-09-04 top entry.

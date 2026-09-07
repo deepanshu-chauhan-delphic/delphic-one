@@ -3,6 +3,7 @@ import apiClient from '../../lib/apiClient.js';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Drawer from '../../components/ui/Drawer.jsx';
+import { RESULT_LABELS } from '../../lib/interviewRounds.js';
 
 const RESULTS = ['pending', 'pass', 'fail', 'no_show'];
 
@@ -72,7 +73,7 @@ export default function FeedbackDrawer({ event, open, onClose, onSaved }) {
             >
               {RESULTS.map((r) => (
                 <option key={r} value={r}>
-                  {r.replace(/_/g, ' ')}
+                  {RESULT_LABELS[r] || r.replace(/_/g, ' ')}
                 </option>
               ))}
             </select>

@@ -1,11 +1,20 @@
 /**
- * Pure calendar helpers — native Date only, no date library (matches the codebase).
- * Weeks are Monday-start.
+ * Pure calendar helpers. Native Date only. Weeks are Monday-start.
  */
+
+export const HOUR_HEIGHT = 72;
+export const DAY_START_HOUR = 7;
+export const DAY_END_HOUR = 21;
 
 export function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+export function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
   return x;
 }
 
@@ -27,9 +36,32 @@ export function addMonths(d, n) {
   return new Date(x.getFullYear(), x.getMonth() + n, 1);
 }
 
+export function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
 /** Monday-based weekday index (Mon=0 … Sun=6). */
 function mondayIndex(date) {
   return (date.getDay() + 6) % 7;
+}
+
+/** Monday 00:00 of the week containing `d`. */
+export function startOfWeek(d) {
+  const x = startOfDay(d);
+  x.setDate(x.getDate() - mondayIndex(x));
+  return x;
+}
+
+/** Seven Mon–Sun dates for the week containing `anchor`. */
+export function buildWeekDays(anchor) {
+  const start = startOfWeek(anchor);
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(start, i);
+    return { date, isToday: sameDay(date, today) };
+  });
 }
 
 /** 6×7 matrix of { date, inMonth, isToday } starting on the Monday on/before the 1st. */
@@ -87,11 +119,87 @@ export function formatTimeRange(start, durationMin) {
   const s = formatTime(start);
   if (!durationMin) return s;
   const end = new Date(new Date(start).getTime() + durationMin * 60000);
-  return `${s}–${formatTime(end)}`;
+  return `${s} - ${formatTime(end)}`;
 }
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function monthLabel(anchor) {
   return new Date(anchor).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+export function weekLabel(anchor) {
+  const days = buildWeekDays(anchor);
+  const a = days[0].date;
+  const b = days[6].date;
+  const sameMonth = a.getMonth() === b.getMonth();
+  if (sameMonth) {
+    return `${a.toLocaleDateString('en-US', { month: 'long' })} ${a.getDate()} - ${b.getDate()}, ${a.getFullYear()}`;
+  }
+  return `${a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${b.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
+export function dayLabel(anchor) {
+  return new Date(anchor).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export function hourLabels(startHour = DAY_START_HOUR, endHour = DAY_END_HOUR) {
+  const labels = [];
+  for (let h = startHour; h <= endHour; h += 1) {
+    const d = new Date();
+    d.setHours(h, 0, 0, 0);
+    labels.push({
+      hour: h,
+      label: d.toLocaleTimeString('en-US', { hour: 'numeric' }),
+    });
+  }
+  return labels;
+}
+
+/** Minutes from day-grid start for positioning a timed event. */
+export function minutesFromGridStart(date, startHour = DAY_START_HOUR) {
+  const d = new Date(date);
+  return d.getHours() * 60 + d.getMinutes() - startHour * 60;
+}
+
+/**
+ * Pack overlapping events into columns (Teams-like side-by-side blocks).
+ * Returns [{ event, col, colCount }].
+ */
+export function layoutDayEvents(events) {
+  const items = [...(events || [])]
+    .filter((e) => e.scheduled_at)
+    .map((e) => {
+      const start = new Date(e.scheduled_at).getTime();
+      const duration = Math.max(e.duration_minutes || 30, 15);
+      return { event: e, start, end: start + duration * 60000 };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const active = [];
+  const placed = [];
+
+  for (const item of items) {
+    for (let i = active.length - 1; i >= 0; i -= 1) {
+      if (active[i].end <= item.start) active.splice(i, 1);
+    }
+    const used = new Set(active.map((a) => a.col));
+    let col = 0;
+    while (used.has(col)) col += 1;
+    item.col = col;
+    active.push(item);
+    const colCount = Math.max(col + 1, ...active.map((a) => a.col + 1));
+    for (const a of active) a.colCount = Math.max(a.colCount || 1, colCount);
+    placed.push(item);
+  }
+
+  for (const item of placed) {
+    item.colCount = item.colCount || 1;
+  }
+  return placed.map(({ event, col, colCount }) => ({ event, col, colCount }));
 }

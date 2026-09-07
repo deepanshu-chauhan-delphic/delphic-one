@@ -11,10 +11,12 @@ const { ROLE_EVENT_MATRIX, renderNotification } = require('./eventCatalog');
  * caller is using (`tx` inside a transaction, or the `prisma` singleton).
  *
  * Algorithm:
- *  1. Dedupe recipientIds; drop actorId unless context.notifySelf.
- *  2. One query for recipients' role; keep only roles in ROLE_EVENT_MATRIX[type].roles.
+ *  1. Dedupe recipientIds; fold in every active admin (admins receive every
+ *     notification type, participant or not); drop actorId unless context.notifySelf.
+ *  2. One query for recipients' role; keep admins plus roles in ROLE_EVENT_MATRIX[type].roles.
  *  3. Load NotificationPreference rows for (users, type); drop any with in_app === false.
- *     Users with no row fall back to the matrix default (defaultInApp).
+ *     Users with no row fall back to the matrix default (defaultInApp) — this still
+ *     lets an admin mute a type for themselves.
  *  4. renderNotification(type, context) → notification.createMany.
  *  5. Whole body wrapped in try/catch → logger.error and return.
  */
@@ -26,7 +28,14 @@ async function notify(client, { type, actorId = null, recipientIds = [], context
       return;
     }
 
-    let ids = Array.from(new Set((recipientIds || []).filter(Boolean)));
+    // Admins get a copy of everything. Actor-exclusion and per-user preferences
+    // below still apply, so an admin who performed the action isn't self-notified.
+    const adminRows = await client.user.findMany({
+      where: { role: 'admin', active: true },
+      select: { id: true },
+    });
+
+    let ids = Array.from(new Set([...(recipientIds || []), ...adminRows.map((a) => a.id)].filter(Boolean)));
     if (!context.notifySelf && actorId) ids = ids.filter((id) => id !== actorId);
     if (ids.length === 0) return;
 
@@ -34,7 +43,9 @@ async function notify(client, { type, actorId = null, recipientIds = [], context
       where: { id: { in: ids }, active: true },
       select: { id: true, role: true },
     });
-    let eligible = users.filter((u) => matrix.roles.includes(u.role)).map((u) => u.id);
+    let eligible = users
+      .filter((u) => u.role === 'admin' || matrix.roles.includes(u.role))
+      .map((u) => u.id);
     if (eligible.length === 0) return;
 
     const prefs = await client.notificationPreference.findMany({

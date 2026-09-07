@@ -8,6 +8,12 @@
  * a row overrides it. The preferences UI shows a user only the types whose `roles`
  * list includes their role.
  *
+ * ADMINS ARE EXEMPT FROM THIS GATE: dispatch.notify() folds every active admin
+ * into the recipients of every event, whatever the `roles` list says. They are
+ * still dropped when they are the actor, and can still mute a type for themselves
+ * via NotificationPreference. `admin` therefore appears in every `roles` list here
+ * only so the preferences UI offers admins the full set of toggles.
+ *
  * renderNotification(type, ctx) returns a channel-agnostic "envelope"
  * ({ title, body, entity_type, entity_id, metadata }). The in-app channel persists
  * it verbatim; a future email / MS Teams channel formats from the same shape.

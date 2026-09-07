@@ -165,6 +165,37 @@ enum RoundResult {
   rescheduled
 }
 
+enum InterviewRoundStatus {
+  scheduled
+  completed
+  cancelled
+}
+
+enum NotificationType {
+  account_activated
+  requirement_created
+  requirement_assigned
+  requirement_unassigned
+  requirement_status_changed
+  interview_scheduled
+  interview_rescheduled
+  interview_cancelled
+  interview_reminder
+  interview_feedback_submitted
+  candidate_submitted_to_client
+  candidate_rejected
+  candidate_backout
+  candidate_offer
+}
+
+enum NotificationEntityType {
+  account
+  requirement
+  submission
+  interview_round
+  profile
+}
+
 enum HistoryEntityType {
   account
   requirement
@@ -213,6 +244,10 @@ model User {
   documents_uploaded          Document[]
   comments                    Comment[]
   interview_round_assignments InterviewRoundInterviewer[]
+  interview_rounds_scheduled  InterviewRound[]            @relation("InterviewRoundScheduler")
+  notifications               Notification[]             @relation("NotificationUser")
+  notifications_authored      Notification[]             @relation("NotificationActor")
+  notification_preferences    NotificationPreference[]
 
   @@index([department_id])
   @@map("users")
@@ -524,9 +559,22 @@ model InterviewRound {
   rating            Int?
   completed_at      DateTime?
 
+  status                  InterviewRoundStatus @default(scheduled)
+  cancelled_at            DateTime?
+  cancellation_reason     String?
+  reminder_sent_at        DateTime?
+  reminder_1h_sent_at     DateTime?
+  online_meeting_provider String?
+  external_event_id       String?
+
+  scheduled_by String? @db.Uuid
+  scheduler    User?   @relation("InterviewRoundScheduler", fields: [scheduled_by], references: [id], onDelete: SetNull)
+
   interviewers InterviewRoundInterviewer[]
 
   @@index([submission_id])
+  @@index([status, scheduled_at])
+  @@index([scheduled_by])
   @@map("interview_rounds")
 }
 
@@ -541,6 +589,40 @@ model InterviewRoundInterviewer {
   @@unique([interview_round_id, user_id])
   @@index([interview_round_id])
   @@map("interview_round_interviewers")
+}
+
+model Notification {
+  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String                  @db.Uuid
+  user        User                    @relation("NotificationUser", fields: [user_id], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  body        String
+  entity_type NotificationEntityType?
+  entity_id   String?                 @db.Uuid
+  actor_id    String?                 @db.Uuid
+  actor       User?                   @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: SetNull)
+  metadata    Json                    @default("{}")
+  read_at     DateTime?
+  created_at  DateTime                @default(now())
+
+  @@index([user_id, read_at])
+  @@index([user_id, created_at])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String           @db.Uuid
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       NotificationType
+  in_app     Boolean          @default(true)
+  email      Boolean          @default(false)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @default(now()) @updatedAt
+
+  @@unique([user_id, type])
+  @@map("notification_preferences")
 }
 
 model StageHistory {

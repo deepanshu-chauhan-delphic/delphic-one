@@ -2,6 +2,98 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-07 — Notifications: admins get a copy of every event (branch `feature/notifications-calendar`)
+
+- `dispatch.notify()` now folds **every active admin** into the recipient set for
+  *every* `NotificationType`, independent of `ROLE_EVENT_MATRIX` and the per-event
+  recipient resolvers. The existing filters still run after: an admin who is the
+  actor is not self-notified, and an admin can still mute a type for themselves
+  via `NotificationPreference` (`in_app: false`). Role filter changed to
+  `u.role === 'admin' || matrix.roles.includes(u.role)`. Costs one extra
+  `user.findMany({ role: 'admin', active: true })` per dispatch.
+- `eventCatalog.js` header comment documents the admin exemption; `admin` stays in
+  every `roles` list only so the preferences UI offers admins all toggles.
+- Tests: `notifications.test.js` +3 — every active admin gets a non-participant
+  event; an admin-actor is not self-notified; an admin can mute a type. Full
+  server suite **32 suites / 222 tests** green.
+- Docs: feature spec §4.1 algorithm + §10 as-built; `TESTING-NOTIFICATIONS-CALENDAR.md`
+  Part A note + regression checklist item.
+
+## 2026-09-07 — Calendar month-view: hover-expand meeting cards (branch `feature/notifications-calendar`)
+
+- New `client/src/pages/calendar/EventHoverCard.jsx` — a floating detail card,
+  portalled to `<body>` and `position: fixed` (escapes the month grid's
+  `overflow-hidden`), flips right/left + clamps to the viewport. Shows round type
+  + name, status/result, when, candidate, requirement, account, interviewers,
+  cancellation reason, feedback/rating, and a "Join meeting" link.
+- `EventPill.jsx` now opens the card on hover/focus (140 ms in, 160 ms out); the
+  card stays open while the pointer is on it (so the Join link is reachable).
+  Clicking the pill still opens `EventDetailDrawer`. Lint + `vite build` clean.
+
+## 2026-09-07 — Merge `main` into `feature/notifications-calendar` + Prisma schema realign (branch `feature/notifications-calendar`)
+
+**Merged `origin/main` (`727ca7b`) into the branch** — merge commit `8f15352`, no
+conflicts. What `main` brought in (all shipped to `main` first; see its own log
+`57ef425`..`727ca7b`):
+
+- **Accounts** — a **Specialization** column in the list table: vendor accounts
+  show `vendor_specializations` as chips, clients/unclassified show `—`. Row peek
+  gains Specializations / Rate range / Payment terms for vendors only.
+  Client-only; the list API already returned the fields.
+- **Reports — CWR** (`clients-without-requirements`) reworked to present-state, no
+  date filters: **3 tabs** — *All active clients* (strictly `type = 'client'`,
+  `stage = 'active'`), *Has requirements* (`bucket=with_requirements` — ≥1 req
+  open/in-progress/on-hold), *No requirements* (`bucket=no_active` — no such req;
+  closed/dropped only or never had one). `with_requirements` + `no_active`
+  partition the set. The "Reqs" column is now **"Active requirements"**
+  (`active_requirements_count`, a filtered `_count` on the same statuses).
+  `without_active_requirements` / `closed_only` buckets kept server-side for the
+  export route / back-compat.
+- **Reports — RVG** (`recruiter-vendor-gaps`) reworked: vendor set is strictly
+  `type = 'vendor'` **and** `stage = 'active'` (dropped the profile-linked wide
+  net). **2 tabs** — *Active vendors* (`vendor_activity=active`, every
+  active-stage vendor) and *Inactive vendors* (`vendor_activity=inactive` — no
+  sourced candidate currently in a live submission stage: any `SubmissionStage`
+  except `closed`/`rejected`/`backout`). New `has_live_submission` field per row.
+  `vendor_activity` enum trimmed back to `active|inactive`. Date inputs removed
+  from both reports (server still accepts `date_from`/`date_to`).
+- **BDA requirement map** — `requirementScopeWhere()` returns `{}` for `bda` (team-
+  wide, like admin) instead of scoping to accounts they own. Affects the pipeline
+  board + reports explorer. Sales (own) / recruiter (assigned) unchanged.
+- **Documents / resumes** — `documents.service.list()` no longer runs the per-
+  entity access gate on **reads**: any authenticated user can list an entity's
+  attachments (sales needs a recruiter's attached CV). `create` / `delete` stay
+  owner-gated. `FilesPanel` + `ProfileFormPage` drop the explicit
+  `Content-Type: multipart/form-data` header on upload (it dropped the boundary →
+  request hung on "Uploading…"). New `FileViewerModal` — PDF `<iframe>` /
+  image `<img>` inline, `.docx` rendered in-browser via **`docx-preview`**
+  (dynamic import, own chunk); other types → download. Row actions are now
+  **View** / **Download** / Delete, with a file-type badge + size.
+  `apiClient` exports `fetchAuthenticatedBlob`, adds `downloadAuthenticatedFile`.
+- **Candidate detail for sales** — the profile peek gains a **"View full
+  details"** action for every role (navigates to read-only `/profiles/:id`), so
+  sales no longer has to open the edit drawer to see the full record.
+
+**Prisma schema realign (this branch, `server/prisma/schema.prisma`).** A prior
+rebase on this branch had dropped the schema changes for migration
+`20260903110804_notifications_and_calendar` while keeping the migration SQL, the
+app code, and the tests — so the generated client lacked `prisma.notification`,
+`prisma.notificationPreference`, and `InterviewRound.status`, and the three
+notification/calendar suites failed. Reconstructed in `schema.prisma` to match
+the already-applied migration (no new migration, DB untouched,
+`prisma migrate diff` confirms alignment):
+
+- enums `InterviewRoundStatus`, `NotificationType`, `NotificationEntityType`
+- `InterviewRound`: `status` (default `scheduled`), `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`,
+  `online_meeting_provider`, `external_event_id`, `@@index([status, scheduled_at])`
+- `model Notification`, `model NotificationPreference` + their `User` relations
+
+**Status.** `node_modules` synced (`npm ci` — `docx-preview` + `lottie-web` +
+`node-cron`), Prisma client regenerated. **Server suite 32 / 32 suites, 219 / 219
+tests green** (`--runInBand`). Client `npm run lint` 0 errors, `vite build` clean.
+Nothing pushed. `server/prisma/schema.prisma` is the only uncommitted change.
+
 ## 2026-09-04 — Login polish + "Delphic one" rename + hover-zoom + calendar interview dot (branch `feature/notifications-calendar`)
 
 - **Rename** — the product now reads **"Delphic one"**: login brand panel heading

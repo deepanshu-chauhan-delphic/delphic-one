@@ -66,6 +66,7 @@ export default {
       fontFamily: {
         sans: ['var(--font-sans)'],
         heading: ['var(--font-heading)'],
+        login: ['Sora', 'var(--font-heading)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: 'var(--radius)',

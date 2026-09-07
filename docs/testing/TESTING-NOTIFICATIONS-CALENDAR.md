@@ -48,6 +48,16 @@ recipient resolver for that event. This part walks the whole matrix.
 > should get a row, **No bell** = who should *not* (usually the actor, or a role
 > not in the matrix).
 
+> **Admins get a copy of _every_ event** — every check in A1–A10 also lands in the
+> bell of every active admin who isn't the actor and hasn't muted that type in
+> **Settings → Notifications**. So when you run these with an admin window open on
+> the side, expect that admin's badge to tick up on *every* step. To verify the
+> admin path explicitly: log in as a second admin (`biswajit.dey`), keep them out
+> of every participant role, and confirm they still receive A2 (`requirement_created`),
+> B1 (`interview_scheduled`), D (`interview_reminder`), etc. An admin who performs
+> the action gets nothing for that action; an admin who toggles a type off in
+> Settings stops receiving it.
+
 ### A1. Account activated → `account_activated`
 
 Matrix roles: bda, sales, admin · Recipients: account owner + "brought by" + all admins.
@@ -312,7 +322,11 @@ Route `/notifications/preferences` (bell popover footer → **Settings**).
 - [ ] `/notifications` — Unread / All filter, day grouping, **Load more**.
 - [ ] Actor is never notified of their own action (spot-check 3 events).
 - [ ] Role matrix: recruiter gets no `account_activated` / `requirement_created`;
-      BDA gets no `requirement_assigned`.
+      BDA gets no `requirement_assigned` (non-admin roles only).
+- [ ] **Every active admin gets a copy of every event** — a non-participant admin
+      still receives `requirement_created`, `interview_scheduled`, `interview_reminder`,
+      etc.; an admin-actor is not self-notified; an admin who muted a type in
+      Settings stops receiving it.
 - [ ] Preference `in_app:false` suppresses exactly that type; Reset restores it.
 - [ ] Calendar Month ⇄ Agenda toggle persists across reload.
 - [ ] Calendar role scoping matches the table in C2; out-of-range rounds hidden.

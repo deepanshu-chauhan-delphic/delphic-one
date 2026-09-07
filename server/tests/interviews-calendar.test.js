@@ -62,12 +62,14 @@ beforeEach(async () => {
     round_type: 'internal_r1',
     scheduled_at: new Date(Date.now() + 2 * DAY),
     interviewer_ids: [interviewer.id],
+    scheduled_by: recruiterA.id,
   });
   inRangeRoundId = inRange.id;
 
   const outOfRange = await createInterviewRound(submissionId, {
     round_type: 'client_r1',
     scheduled_at: new Date(Date.now() + 90 * DAY),
+    scheduled_by: recruiterA.id,
   });
   outOfRangeRoundId = outOfRange.id;
 });
@@ -102,6 +104,76 @@ describe('GET /interviews', () => {
     expect(res.status).toBe(200);
     const ids = res.body.data.map((e) => e.id);
     expect(ids).toContain(inRangeRoundId);
+  });
+
+  test('sales All shows owned-requirement rounds; Mine hides them unless personal', async () => {
+    const allRes = await calendar(salesToken);
+    expect(allRes.status).toBe(200);
+    expect(allRes.body.data.map((e) => e.id)).toContain(inRangeRoundId);
+
+    const mineRes = await calendar(salesToken, { mine: '1' });
+    expect(mineRes.status).toBe(200);
+    expect(mineRes.body.data.map((e) => e.id)).not.toContain(inRangeRoundId);
+  });
+
+  test('recruiter All includes rounds on assigned requirements even when another recruiter submitted', async () => {
+    const requirement = await prisma.submission.findUnique({
+      where: { id: submissionId },
+      select: { seat: { select: { requirement_id: true } } },
+    });
+    await prisma.requirementAssignment.create({
+      data: {
+        requirement_id: requirement.seat.requirement_id,
+        user_id: recruiterB.id,
+        role_on_req: 'recruiter',
+        assigned_by: sales.id,
+      },
+    });
+
+    const allRes = await calendar(recruiterBToken);
+    expect(allRes.status).toBe(200);
+    expect(allRes.body.data.map((e) => e.id)).toContain(inRangeRoundId);
+
+    const mineRes = await calendar(recruiterBToken, { mine: '1' });
+    expect(mineRes.status).toBe(200);
+    expect(mineRes.body.data.map((e) => e.id)).not.toContain(inRangeRoundId);
+  });
+
+  test('audience=external returns only client rounds; sort=audience puts internal first', async () => {
+    const clientRound = await createInterviewRound(submissionId, {
+      round_type: 'client_r1',
+      scheduled_at: new Date(Date.now() + 3 * DAY),
+      scheduled_by: recruiterA.id,
+    });
+
+    const externalOnly = await calendar(recruiterAToken, { audience: 'external' });
+    expect(externalOnly.status).toBe(200);
+    const externalIds = externalOnly.body.data.map((e) => e.id);
+    expect(externalIds).toContain(clientRound.id);
+    expect(externalIds).not.toContain(inRangeRoundId);
+
+    const sorted = await calendar(recruiterAToken, { sort: 'audience' });
+    expect(sorted.status).toBe(200);
+    const audiences = sorted.body.data.map((e) => e.audience);
+    const firstExternal = audiences.indexOf('external');
+    const lastInternal = audiences.lastIndexOf('internal');
+    if (firstExternal !== -1 && lastInternal !== -1) {
+      expect(lastInternal).toBeLessThan(firstExternal);
+    }
+  });
+
+  test('scheduled_by is returned and the scheduler may reschedule', async () => {
+    const res = await calendar(recruiterAToken);
+    const row = res.body.data.find((e) => e.id === inRangeRoundId);
+    expect(row.scheduled_by?.id).toBe(recruiterA.id);
+    expect(row.can_reschedule).toBe(true);
+    expect(row.audience).toBe('internal');
+
+    const next = new Date(Date.now() + 5 * DAY).toISOString();
+    const patch = await authed(request(app).patch(`/api/v1/interview-rounds/${inRangeRoundId}`), recruiterAToken).send({
+      scheduled_at: next,
+    });
+    expect(patch.status).toBe(200);
   });
 
   test('a cancelled round comes back with status "cancelled"', async () => {

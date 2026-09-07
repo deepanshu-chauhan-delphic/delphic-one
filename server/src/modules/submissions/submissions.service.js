@@ -37,6 +37,7 @@ function fmtWhen(date) {
 
 const INTERVIEWER_INCLUDE = {
   interviewers: { include: { user: { select: { id: true, name: true, email: true } } } },
+  scheduler: { select: { id: true, name: true, email: true } },
 };
 
 const INCLUDE = {
@@ -54,9 +55,10 @@ const INCLUDE = {
 
 function serializeInterviewRound(round) {
   if (!round) return null;
-  const { interviewers, ...rest } = round;
+  const { interviewers, scheduler, ...rest } = round;
   return {
     ...rest,
+    scheduled_by: scheduler ? { id: scheduler.id, name: scheduler.name, email: scheduler.email } : null,
     interviewers: (interviewers || []).map((row) => ({
       id: row.user.id,
       name: row.user.name,
@@ -330,6 +332,11 @@ function canManageInterviewRound(submission, requirementSalesOwnerId, roundType,
   return false;
 }
 
+function canRescheduleInterviewRound(round, submission, requirementSalesOwnerId, user) {
+  if (canManageInterviewRound(submission, requirementSalesOwnerId, round.round_type, user)) return true;
+  return Boolean(round.scheduled_by && round.scheduled_by === user.id);
+}
+
 async function loadRequirementSalesOwnerId(tx, submission) {
   const seat = await tx.requirementSeat.findUnique({
     where: { id: submission.requirement_seat_id },
@@ -378,7 +385,7 @@ async function addInterviewRound(submissionId, data, user) {
     const round_number = last ? last.round_number + 1 : 1;
 
     const { interviewer_ids, ...roundFields } = data;
-    const payload = { ...roundFields, submission_id: submissionId, round_number };
+    const payload = { ...roundFields, submission_id: submissionId, round_number, scheduled_by: userId };
     if (payload.scheduled_at) payload.scheduled_at = new Date(payload.scheduled_at);
     if (payload.completed_at) payload.completed_at = new Date(payload.completed_at);
     if (['pass', 'fail', 'no_show'].includes(payload.result) && !payload.completed_at) {
@@ -444,25 +451,34 @@ async function updateInterviewRound(id, patch, user) {
     const submission = await tx.submission.findUnique({ where: { id: existing.submission_id } });
     if (!submission) return { error: 'not_found' };
     const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
-    if (!canManageInterviewRound(submission, salesOwnerId, existing.round_type, user)) return { error: 'forbidden' };
+    const isManager = canManageInterviewRound(submission, salesOwnerId, existing.round_type, user);
+    const isScheduler = canRescheduleInterviewRound(existing, submission, salesOwnerId, user);
+    if (!isManager && !isScheduler) return { error: 'forbidden' };
 
     const { interviewer_ids, ...patchFields } = patch;
     const finalPatch = { ...patchFields };
+    if (!isManager) {
+      const allowed = ['scheduled_at', 'duration_minutes', 'meeting_link', 'round_name'];
+      for (const key of Object.keys(finalPatch)) {
+        if (!allowed.includes(key)) delete finalPatch[key];
+      }
+    }
+    delete finalPatch.scheduled_by;
     if (finalPatch.scheduled_at) finalPatch.scheduled_at = new Date(finalPatch.scheduled_at);
     if (finalPatch.completed_at) finalPatch.completed_at = new Date(finalPatch.completed_at);
     if (finalPatch.interviewer_email === '') finalPatch.interviewer_email = null;
-    if (['pass', 'fail', 'no_show'].includes(patch.result) && !patch.completed_at) {
+    if (isManager && ['pass', 'fail', 'no_show'].includes(patch.result) && !patch.completed_at) {
       finalPatch.completed_at = new Date();
     }
 
-    if (INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
+    if (isManager && INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
       const check = await validateActiveInterviewers(tx, interviewer_ids);
       if (check.error) return { error: check.error };
     }
 
     await tx.interviewRound.update({ where: { id }, data: finalPatch });
 
-    if (INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
+    if (isManager && INTERNAL_ROUND_TYPES.includes(existing.round_type) && interviewer_ids !== undefined) {
       await syncInterviewers(tx, id, interviewer_ids);
     }
 
@@ -517,4 +533,5 @@ module.exports = {
   addInterviewRound,
   updateInterviewRound,
   canManageInterviewRound,
+  canRescheduleInterviewRound,
 };

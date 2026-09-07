@@ -179,3 +179,64 @@ h3,
     filter: none;
   }
 }
+
+/* Login page — brand plane, entrance, soft visual drift */
+.font-login {
+  font-family: 'Sora', var(--font-heading), system-ui, sans-serif;
+}
+
+.login-page__grain {
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+@keyframes login-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.login-page__enter {
+  animation: login-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-page__enter--1 {
+  animation-delay: 0.04s;
+}
+
+.login-page__enter--2 {
+  animation-delay: 0.14s;
+}
+
+.login-page__enter--3 {
+  animation-delay: 0.24s;
+}
+
+.login-page__visual {
+  animation: login-float 9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page__enter,
+  .login-page__visual {
+    animation: none;
+  }
+}
