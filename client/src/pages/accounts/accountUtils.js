@@ -34,7 +34,8 @@ export function canCreateAccount(user) {
 
 export function canMutateAccount(account, user) {
   if (!account || !user) return false;
-  return user.role === 'admin' || (user.role === 'bda' && account.owner?.id === user.id);
+  // Admin and BDA may edit any account and schedule / move meeting stages.
+  return user.role === 'admin' || user.role === 'bda';
 }
 
 export function canClassifyAccount(account, user) {

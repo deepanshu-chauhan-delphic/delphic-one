@@ -118,7 +118,9 @@ export default function AccountsListPage() {
   const [stage, setStage] = useState(() => searchParams.get('stage') || '');
   const [ownerId, setOwnerId] = useState(() => searchParams.get('owner_id') || '');
   const [broughtById, setBroughtById] = useState(() => searchParams.get('origin_owner_id') || '');
+  const [specialization, setSpecialization] = useState(() => searchParams.get('specialization') || '');
   const [people, setPeople] = useState([]);
+  const [specializationOptions, setSpecializationOptions] = useState([]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
@@ -134,6 +136,7 @@ export default function AccountsListPage() {
     if (stage) params.stage = stage;
     if (ownerId) params.owner_id = ownerId;
     if (broughtById) params.origin_owner_id = broughtById;
+    if (specialization) params.specialization = specialization;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
       .get('/accounts', { params })
@@ -148,7 +151,7 @@ export default function AccountsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stage, type, ownerId, broughtById]);
+  }, [appliedSearch, page, stage, type, ownerId, broughtById, specialization]);
 
   useEffect(() => {
     apiClient
@@ -164,12 +167,39 @@ export default function AccountsListPage() {
   }, []);
 
   useEffect(() => {
+    apiClient
+      .get('/accounts/specializations')
+      .then(({ data }) =>
+        setSpecializationOptions((data.data || []).map((tag) => ({ value: tag, label: tag })))
+      )
+      .catch(() => setSpecializationOptions([]));
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStage(searchParams.get('stage') || '');
     setType(searchParams.get('type') || '');
     setOwnerId(searchParams.get('owner_id') || '');
     setBroughtById(searchParams.get('origin_owner_id') || '');
+    setSpecialization(searchParams.get('specialization') || '');
   }, [searchParams]);
+
+  // Keep the active filters shareable via the URL.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const sync = (key, value) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    };
+    sync('type', type);
+    sync('stage', stage);
+    sync('owner_id', ownerId);
+    sync('origin_owner_id', broughtById);
+    sync('specialization', specialization);
+    if (searchParams.get('create') === '1') next.set('create', '1');
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, stage, ownerId, broughtById, specialization]);
 
   function closeCreate() {
     setCreateOpen(false);
@@ -357,6 +387,19 @@ export default function AccountsListPage() {
                   { value: 'rescheduled', label: 'Rescheduled' },
                   { value: 'dropped', label: 'Dropped' },
                 ]}
+              />
+              <SearchableSelect
+                className="w-48"
+                allowClear
+                ariaLabel="Filter by vendor specialization"
+                value={specialization}
+                onChange={(next) => {
+                  setPage(1);
+                  setSpecialization(next);
+                }}
+                placeholder="Specialization: All"
+                searchPlaceholder="Search specialization…"
+                options={specializationOptions}
               />
               <SearchableSelect
                 className="w-44"

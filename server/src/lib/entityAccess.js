@@ -5,14 +5,16 @@
 
 const prisma = require('../config/db');
 
+/**
+ * Accounts are readable and writable team-wide for notes/files.
+ * Account field edits and stage moves stay role-gated in accounts.service.
+ */
 async function canAccessAccount(user, accountId) {
   const account = await prisma.account.findUnique({
     where: { id: accountId },
-    select: { id: true, owner_id: true },
+    select: { id: true },
   });
   if (!account) return { error: 'not_found' };
-  if (user.role === 'admin') return { ok: true };
-  if (user.role === 'bda' && account.owner_id !== user.id) return { error: 'forbidden' };
   return { ok: true };
 }
 
@@ -68,8 +70,9 @@ const CHECKERS = {
 
 /**
  * Return { ok: true } or { error: 'not_found' | 'forbidden' | 'bad_entity' }.
+ * forWrite is accepted for call-site clarity; account access is open for both read and write.
  */
-async function assertCanAccessEntity(user, entityType, entityId) {
+async function assertCanAccessEntity(user, entityType, entityId, _opts = {}) {
   const checker = CHECKERS[entityType];
   if (!checker) return { error: 'bad_entity' };
   return checker(user, entityId);

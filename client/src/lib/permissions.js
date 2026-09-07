@@ -18,6 +18,7 @@ const ROLE_CAPS = {
     'editProfile',
     'editSubmission',
     'unlockEntity',
+    'unlockAccount',
     'viewProfiles',
     'createProfile',
     'assignRecruiters',
@@ -53,7 +54,15 @@ const ROLE_CAPS = {
     'viewCandidatePipeline',
     'viewRequirementMatrix',
   ]),
-  bda: new Set(['editAccount', 'viewPipeline', 'viewLeadPipeline', 'viewRequirementMatrix', 'viewReports']),
+  bda: new Set([
+    'editAccount',
+    'editBroughtBy',
+    'unlockAccount',
+    'viewPipeline',
+    'viewLeadPipeline',
+    'viewRequirementMatrix',
+    'viewReports',
+  ]),
 };
 
 /**
