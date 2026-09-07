@@ -21,7 +21,7 @@ afterAll(async () => {
 });
 
 describe('document entity access', () => {
-  test('owner can list documents; other bda is forbidden', async () => {
+  test('any authenticated user can list an entity\'s documents; upload stays owner-only', async () => {
     const owner = await createUser({ role: 'bda' });
     const other = await createUser({ role: 'bda' });
     const { access_token: ownerToken } = await loginAs(owner);
@@ -35,21 +35,31 @@ describe('document entity access', () => {
       .field('entity_id', account.id)
       .field('label', 'Note')
       .attach('file', tmp, 'note.pdf');
-    fs.unlinkSync(tmp);
     expect(uploaded.status).toBe(201);
 
-    const allowed = await authed(request(app).get('/api/v1/documents'), ownerToken).query({
+    // Reads are open across roles — a resume / attachment must be visible to everyone.
+    const asOwner = await authed(request(app).get('/api/v1/documents'), ownerToken).query({
       entity_type: 'account',
       entity_id: account.id,
     });
-    expect(allowed.status).toBe(200);
-    expect(allowed.body.data).toHaveLength(1);
+    expect(asOwner.status).toBe(200);
+    expect(asOwner.body.data).toHaveLength(1);
 
-    const denied = await authed(request(app).get('/api/v1/documents'), otherToken).query({
+    const asOther = await authed(request(app).get('/api/v1/documents'), otherToken).query({
       entity_type: 'account',
       entity_id: account.id,
     });
-    expect(denied.status).toBe(403);
+    expect(asOther.status).toBe(200);
+    expect(asOther.body.data).toHaveLength(1);
+
+    // …but a non-owner still cannot attach a new file.
+    const blockedUpload = await authed(request(app).post('/api/v1/documents'), otherToken)
+      .field('entity_type', 'account')
+      .field('entity_id', account.id)
+      .field('label', 'Sneaky')
+      .attach('file', tmp, 'note.pdf');
+    fs.unlinkSync(tmp);
+    expect(blockedUpload.status).toBe(403);
   });
 
   test('admin can list documents for any account', async () => {
@@ -76,7 +86,7 @@ describe('document entity access', () => {
     expect(listed.body.data).toHaveLength(1);
   });
 
-  test('unassigned recruiter cannot list requirement documents', async () => {
+  test('an unassigned recruiter can list requirement documents (reads are open)', async () => {
     const sales = await createUser({ role: 'sales' });
     const recruiter = await createUser({ role: 'recruiter' });
     const { access_token: salesToken } = await loginAs(sales);
@@ -84,11 +94,22 @@ describe('document entity access', () => {
     const account = await createActiveClientAccount(sales.id);
     const requirement = await createRequirement(salesToken, account.id);
 
-    const denied = await authed(request(app).get('/api/v1/documents'), recruiterToken).query({
+    const res = await authed(request(app).get('/api/v1/documents'), recruiterToken).query({
       entity_type: 'requirement',
       entity_id: requirement.id,
     });
-    expect(denied.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  test('listing documents for a missing entity still 404s', async () => {
+    const recruiter = await createUser({ role: 'recruiter' });
+    const { access_token: recruiterToken } = await loginAs(recruiter);
+    const res = await authed(request(app).get('/api/v1/documents'), recruiterToken).query({
+      entity_type: 'requirement',
+      entity_id: '00000000-0000-0000-0000-000000000000',
+    });
+    expect(res.status).toBe(404);
   });
 });
 

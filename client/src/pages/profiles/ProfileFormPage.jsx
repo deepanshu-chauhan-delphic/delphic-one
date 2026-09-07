@@ -77,7 +77,8 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
     body.append('entity_id', profileId);
     body.append('label', 'Resume');
     body.append('file', resumeFile);
-    await apiClient.post('/documents', body, { headers: { 'Content-Type': 'multipart/form-data' } });
+    // No explicit Content-Type — the browser adds the multipart boundary itself.
+    await apiClient.post('/documents', body);
   }
 
   async function saveProfile(event) {

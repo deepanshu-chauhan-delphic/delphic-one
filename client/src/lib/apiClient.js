@@ -68,17 +68,36 @@ apiClient.interceptors.response.use(
 /**
  * Download a protected /uploads file with the bearer token and open it in a new tab.
  */
-export async function openAuthenticatedFile(fileUrl) {
+/** Fetch a protected /uploads file with the bearer token and return the Blob. */
+export async function fetchAuthenticatedBlob(fileUrl) {
   const token = localStorage.getItem('access_token');
   const response = await fetch(fileUrl, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) {
-    throw new Error(`Failed to download file (${response.status})`);
+    throw new Error(`Failed to fetch file (${response.status})`);
   }
-  const blob = await response.blob();
+  return response.blob();
+}
+
+/** Fetch a protected /uploads file with the bearer token and open it in a new tab (inline view). */
+export async function openAuthenticatedFile(fileUrl) {
+  const blob = await fetchAuthenticatedBlob(fileUrl);
   const objectUrl = URL.createObjectURL(blob);
   window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+/** Fetch a protected /uploads file with the bearer token and save it with the given filename. */
+export async function downloadAuthenticatedFile(fileUrl, filename) {
+  const blob = await fetchAuthenticatedBlob(fileUrl);
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename || fileUrl.split('/').pop() || 'download';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 

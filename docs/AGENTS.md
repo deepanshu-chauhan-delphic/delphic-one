@@ -193,6 +193,7 @@ Zero-dependency structured logger. Full guide: [guides/BACKEND-LOGGING.md](guide
 
 ## Working conventions
 
+- **STRICT — an AI agent must never `git push` to `main` (or open/merge a PR into `main`).** `main` auto-deploys to production (`.github/workflows/deploy.yml`). An agent may push only to (a) local feature branches and (b) `staging`. For anything destined for `main`, the agent stops after committing and **hands the human the exact manual push/merge commands to run** — it does not run them, even if asked to "push", "deploy", or "ship". The human is the only one who advances `main`.
 - Keep [progress/PROGRESS.md](progress/PROGRESS.md) and [progress/TODO.md](progress/TODO.md) up to date as work lands — check them at the start of a session and update them at the end.
 - Prefer `logger` over bare `console.*` in server code. See [guides/BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md).
 - **Frontend must follow Jira-like UX** ([ui/UI-UX-JIRA.md](ui/UI-UX-JIRA.md)). Dense tables, filter bar, Create, inline status, avatar stacks — not a generic CRUD admin look. Compare list/dashboard work to the reference screenshot before calling UI tickets done.

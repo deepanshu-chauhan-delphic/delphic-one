@@ -4,12 +4,12 @@ const NO_MATCH_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Role-scoped requirement filter used by pipeline board and reports explorer.
- * admin sees all, sales sees own (sales_owner_id), recruiter sees assigned only,
- * bda sees requirements under client accounts they own.
+ * admin + bda see all (BDAs work the whole requirement map across the team),
+ * sales sees own (sales_owner_id), recruiter sees assigned only.
  */
 async function requirementScopeWhere(user) {
   if (!user) return { id: NO_MATCH_ID };
-  if (user.role === 'admin') return {};
+  if (user.role === 'admin' || user.role === 'bda') return {};
   if (user.role === 'sales') return { sales_owner_id: user.id };
   if (user.role === 'recruiter') {
     const assignments = await prisma.requirementAssignment.findMany({
@@ -19,7 +19,6 @@ async function requirementScopeWhere(user) {
     const ids = assignments.map((a) => a.requirement_id);
     return { id: { in: ids.length ? ids : [NO_MATCH_ID] } };
   }
-  if (user.role === 'bda') return { account: { owner_id: user.id } };
   return { id: NO_MATCH_ID };
 }
 
