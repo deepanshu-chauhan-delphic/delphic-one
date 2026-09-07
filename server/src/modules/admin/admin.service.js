@@ -10,6 +10,8 @@ const ENTITY_MODELS = {
 async function unlock(entityType, entityId, reason, user) {
   const model = ENTITY_MODELS[entityType];
   if (!model) return { error: 'invalid_entity_type' };
+  // BDA owns the account flow (like admin for accounts) but not requirement/submission unlock.
+  if (user.role === 'bda' && entityType !== 'account') return { error: 'forbidden' };
 
   return prisma.$transaction(async (tx) => {
     const row = await tx[model].findUnique({ where: { id: entityId } });

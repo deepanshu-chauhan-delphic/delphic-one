@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Product** | Delphic One — Requirement Management Dashboard |
-| **As of** | 2026-08-21 |
+| **As of** | 2026-09-07 |
 | **Audience** | Stakeholders, new developers, reviewers |
 | **Full HLD** | [HLD.md](HLD.md) |
 | **Field specs** | [Requirement-Dashboard-System-Design-v2.md](Requirement-Dashboard-System-Design-v2.md) |
@@ -45,10 +45,11 @@ This file lives in the git repo under `docs/architecture/`. Anyone with repo acc
 ```mermaid
 flowchart LR
   subgraph Actors
-    BDA[BDA]
-    Sales[Sales]
-    Rec[Recruiter]
+    BDA[BDA — account flow]
+    Sales[Sales — requirements]
+    Rec[Recruiter — submissions]
     Admin[Admin]
+    Super[Superadmin]
   end
 
   RMD[Requirement Management Dashboard]
@@ -57,9 +58,42 @@ flowchart LR
   Sales --> RMD
   Rec --> RMD
   Admin --> RMD
+  Super --> RMD
 
   RMD --> PG[(PostgreSQL)]
   RMD --> Files[Document store]
+```
+
+### 2.1b Role access (accounts vs requirements)
+
+```mermaid
+flowchart TB
+  AccAll[View all accounts]
+  AccMutate[Mutate all accounts · stages · meetings · unlock accounts]
+  ReqView[View requirements]
+  ReqMutate[Mutate own / assigned requirements]
+  UnlockAny[Unlock any entity]
+  Override[Stage override]
+
+  BDA --> AccAll
+  BDA --> AccMutate
+  BDA --> ReqView
+
+  Sales --> AccAll
+  Sales --> ReqView
+  Sales --> ReqMutate
+
+  Rec --> AccAll
+  Rec --> ReqView
+
+  Admin --> AccAll
+  Admin --> AccMutate
+  Admin --> ReqView
+  Admin --> ReqMutate
+  Admin --> UnlockAny
+
+  Super --> Admin
+  Super --> Override
 ```
 
 ### 2.2 Containers and request path (L2)
@@ -262,13 +296,17 @@ Usually derived from the furthest-advanced active submission; can be overridden.
 
 | Capability | BDA | Sales | Recruiter | Admin |
 |---|---|---|---|---|
-| Own accounts (leads) | Yes | View | View | Full |
-| Requirements + seats | View | Own | Assigned | Full |
+| Accounts (view) | All | All | All | All |
+| Accounts (edit / stage / meeting / type / brought-by) | All | — | — | All |
+| Unlock accounts | Yes | — | — | Yes |
+| Unlock requirements / seats / submissions | — | — | — | Yes |
+| Requirements + seats (view) | All | Own + assigned | Assigned | All |
+| Requirements + seats (mutate) | — | Own | — | All |
 | Assign recruiters | — | Yes | — | Yes |
 | Profiles + submissions | View | View | CRUD | Full |
-| Requirement map board | — | Own reqs | Assigned | Full |
-| Unlock locked records | — | — | — | Yes |
-| Reports scope | Own leads | Own reqs | Own subs | Org-wide |
+| Requirement map board | All | Own reqs | Assigned | Full |
+| Stage override (any → any) | — | — | — | Superadmin only |
+| Reports scope | Own-lead metrics | Own reqs | Own subs | Org-wide |
 
 ---
 

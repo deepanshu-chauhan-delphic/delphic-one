@@ -6,8 +6,9 @@ import Modal from './ui/Modal.jsx';
 import Tooltip from './ui/Tooltip.jsx';
 
 /**
- * Admin-only unlock for account | requirement | seat | submission.
+ * Unlock for locked account | requirement | seat | submission.
  * POST /admin/:entity_type/:entity_id/unlock { reason }
+ * (BDA may unlock accounts only; admin may unlock any entity type.)
  */
 export default function UnlockButton({ entityType, entityId, onUnlocked, label = 'Unlock' }) {
   const { pushError } = useAlerts();

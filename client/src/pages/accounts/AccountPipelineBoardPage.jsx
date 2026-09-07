@@ -46,6 +46,7 @@ import {
   apiErrorMessage,
   canMutateAccount,
 } from './accountUtils.js';
+import { userCan } from '../../lib/permissions.js';
 
 const STAGE_HEADER_COLORS = {
   sourced: 'bg-slate-100 text-slate-700',
@@ -344,6 +345,7 @@ export default function AccountPipelineBoardPage() {
   }
 
   const canMutate = canMutateAccount(account, user);
+  const canUnlock = userCan(user, 'unlockAccount');
   const nextAccountStages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const accent = accountAccent(account.id);
   const isVendor = account.type === 'vendor';
@@ -403,7 +405,7 @@ export default function AccountPipelineBoardPage() {
                 Move account stage
               </button>
             )}
-            {user?.role === 'admin' && account.is_locked && (
+            {canUnlock && account.is_locked && (
               <UnlockButton entityType="account" entityId={account.id} onUnlocked={load} />
             )}
           </div>

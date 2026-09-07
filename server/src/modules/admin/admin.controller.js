@@ -7,6 +7,7 @@ const ERROR_STATUS = {
   invalid_entity_type: [422, 'Invalid entity_type'],
   not_found: [404, 'Not found'],
   not_locked: [400, 'Record is not locked'],
+  forbidden: [403, 'Not permitted'],
 };
 
 const unlock = asyncHandler(async (req, res) => {

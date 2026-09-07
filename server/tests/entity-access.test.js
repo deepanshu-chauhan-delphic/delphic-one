@@ -21,7 +21,7 @@ afterAll(async () => {
 });
 
 describe('document entity access', () => {
-  test('any authenticated user can list an entity\'s documents; upload stays owner-only', async () => {
+  test('any authenticated user can list an entity\'s documents; BDA may upload on any account', async () => {
     const owner = await createUser({ role: 'bda' });
     const other = await createUser({ role: 'bda' });
     const { access_token: ownerToken } = await loginAs(owner);
@@ -52,14 +52,14 @@ describe('document entity access', () => {
     expect(asOther.status).toBe(200);
     expect(asOther.body.data).toHaveLength(1);
 
-    // …but a non-owner still cannot attach a new file.
-    const blockedUpload = await authed(request(app).post('/api/v1/documents'), otherToken)
+    // BDA may attach files on any account (team-wide account edit).
+    const peerUpload = await authed(request(app).post('/api/v1/documents'), otherToken)
       .field('entity_type', 'account')
       .field('entity_id', account.id)
-      .field('label', 'Sneaky')
+      .field('label', 'Peer note')
       .attach('file', tmp, 'note.pdf');
     fs.unlinkSync(tmp);
-    expect(blockedUpload.status).toBe(403);
+    expect(peerUpload.status).toBe(201);
   });
 
   test('admin can list documents for any account', async () => {
@@ -114,7 +114,7 @@ describe('document entity access', () => {
 });
 
 describe('comment entity access', () => {
-  test('other bda cannot list comments on an owned account', async () => {
+  test('other bda can list comments on an owned account', async () => {
     const owner = await createUser({ role: 'bda' });
     const other = await createUser({ role: 'bda' });
     const { access_token: ownerToken } = await loginAs(owner);
@@ -128,10 +128,11 @@ describe('comment entity access', () => {
     });
     expect(created.status).toBe(201);
 
-    const denied = await authed(request(app).get('/api/v1/comments'), otherToken).query({
+    const listed = await authed(request(app).get('/api/v1/comments'), otherToken).query({
       entity_type: 'account',
       entity_id: account.id,
     });
-    expect(denied.status).toBe(403);
+    expect(listed.status).toBe(200);
+    expect(listed.body.data.some((c) => c.body === 'private note')).toBe(true);
   });
 });

@@ -20,14 +20,15 @@ afterAll(async () => {
 });
 
 describe('history and sub-resource ownership', () => {
-  test('bda cannot read another bda account history', async () => {
+  test('bda can read another bda account history', async () => {
     const owner = await createUser({ role: 'bda' });
     const other = await createUser({ role: 'bda' });
     const { access_token: otherToken } = await loginAs(other);
     const account = await createActiveClientAccount(owner.id);
 
     const res = await authed(request(app).get(`/api/v1/accounts/${account.id}/history`), otherToken);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 
   test('unassigned recruiter cannot get requirement or its history', async () => {

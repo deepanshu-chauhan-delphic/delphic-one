@@ -24,11 +24,12 @@ async function requirementScopeWhere(user) {
 
 /**
  * Role-scoped account filter for lead pipeline boards.
+ * admin + bda see all accounts (BDAs may browse the full book); sales sees clients.
+ * Account mutation remains ownership-gated for BDAs.
  */
 function accountScopeWhere(user) {
   if (!user) return { id: NO_MATCH_ID };
-  if (user.role === 'admin') return {};
-  if (user.role === 'bda') return { owner_id: user.id };
+  if (user.role === 'admin' || user.role === 'bda') return {};
   if (user.role === 'sales') return { type: 'client' };
   return { id: NO_MATCH_ID };
 }

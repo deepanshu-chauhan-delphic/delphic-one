@@ -26,17 +26,18 @@ const ERROR_STATUS = {
 
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
-  if (req.user.role === 'bda') query.owner_id = req.user.id;
   const { rows, pagination } = await accountsService.list(query);
   return ok(res, rows, { pagination });
+});
+
+const listSpecializations = asyncHandler(async (req, res) => {
+  const tags = await accountsService.listSpecializations();
+  return ok(res, tags);
 });
 
 const getOne = asyncHandler(async (req, res) => {
   const account = await accountsService.getById(req.params.id);
   if (!account) return fail(res, 404, 'Not found');
-  if (req.user.role === 'bda' && account.owner?.id !== req.user.id) {
-    return fail(res, 403, 'You do not own this record');
-  }
   return ok(res, account);
 });
 
@@ -89,11 +90,8 @@ const classify = asyncHandler(async (req, res) => {
 const history = asyncHandler(async (req, res) => {
   const account = await accountsService.getById(req.params.id);
   if (!account) return fail(res, 404, 'Not found');
-  if (req.user.role === 'bda' && account.owner?.id !== req.user.id) {
-    return fail(res, 403, 'You do not own this record');
-  }
   const rows = await accountsService.getHistory(req.params.id);
   return ok(res, rows);
 });
 
-module.exports = { list, getOne, create, update, changeStage, changeStageOverride, classify, history };
+module.exports = { list, listSpecializations, getOne, create, update, changeStage, changeStageOverride, classify, history };
