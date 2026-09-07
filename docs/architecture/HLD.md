@@ -68,8 +68,8 @@ Internal teams at Delphic need one system to run the recruitment pipeline end to
 1. **Pipeline as state machines** — Account, seat, and submission progress only through documented transitions; every move is audited in `stage_history`.
 2. **Auth and authorization at the edge** — JWT and role checks live in transport middleware; services receive a narrowed identity (`user id`, `role`).
 3. **Thin transport, fat domain** — Route handlers parse HTTP and call services; multi-step business rules (stage advance, margin, ownership, lock) live in services / stage-machine modules.
-4. **Ownership scopes visibility and mutation** — BDA owns accounts; Sales owns requirements; Recruiter owns submissions on assigned requirements; Admin sees everything.
-5. **Lock is editability, not visibility** — Terminal records stay in lists and reports; `PATCH` / stage moves return locked errors until Admin unlocks with a reason.
+4. **Account flow is BDA-owned; requirements are Sales-owned** — BDA may view and mutate **all** accounts (edit, classify, stage, meetings, type, brought-by, unlock accounts). Sales mutates **own** requirements; Recruiter works **assigned** requirements. Stage override remains **superadmin-only**.
+5. **Lock is editability, not visibility** — Terminal records stay in lists and reports; `PATCH` / stage moves return locked errors until unlock with a reason (BDA: accounts; Admin: any entity).
 6. **Single source of schema truth** — Prisma models and migrations define persistence; API validation mirrors enums and required fields.
 7. **Prose-readable modules** — Domain folders follow `routes → controller → service → validation`; filenames answer “HTTP vs business vs IO”.
 
@@ -81,10 +81,10 @@ Internal teams at Delphic need one system to run the recruitment pipeline end to
 C4Context
     title Delphic One — System Context
 
-    Person(bda, "BDA", "Owns leads and account stages")
+    Person(bda, "BDA", "Full account flow across the team")
     Person(sales, "Sales", "Owns requirements, seats, assignments")
     Person(recruiter, "Recruiter", "Owns profiles, submissions, interviews")
-    Person(admin, "Admin", "Users, unlock, org reports")
+    Person(admin, "Admin", "Users, unlock any entity, org reports")
 
     System(rmd, "Requirement Management Dashboard", "Web app for recruitment pipeline, locking, margin, reporting")
 
@@ -102,7 +102,7 @@ C4Context
 
 | Actor | Primary goal |
 |---|---|
-| BDA | Convert leads to active clients / vendors |
+| BDA | Convert leads; run the full account flow on **all** clients / vendors |
 | Sales | Open jobs, allocate seats, assign recruiters |
 | Recruiter | Fill seats through submission pipeline to join |
 | Admin | Keep org unblocked; measure performance |
@@ -290,7 +290,7 @@ lead → meeting_scheduled → active
                          → dropped (terminal; allowed from earlier stages)
 ```
 
-Same machine regardless of `type` (`client`, `vendor`, or `null`/unclassified — **v2**). Owner is the BDA (`owner_id`). `type` is independent of `stage`: a lead can move through the whole meeting/active flow while still unclassified, then get classified via `POST /accounts/:id/classify` at any point (one-way, admin or owning BDA only).
+Same machine regardless of `type` (`client`, `vendor`, or `null`/unclassified — **v2**). Current POC is `owner_id` (reassignable by anyone who can edit the account). `origin_owner_id` is “Brought by”. `type` is independent of `stage`: a lead can move through the meeting/active flow while still unclassified, then get classified via `POST /accounts/:id/classify` (one-way). Admin or BDA may also reclassify via `PATCH` when correcting a mistake.
 
 Offline meetings (**v2**) additionally require `meeting_location`; any number of Sales users can be tagged as `meeting_attendees` on a `meeting_scheduled` move.
 
@@ -356,19 +356,22 @@ sequenceDiagram
 
 | Capability | BDA | Sales | Recruiter | Admin |
 |---|---|---|---|---|
-| Accounts | Create/edit **own** | View; create req on active clients | View | Full |
-| Requirements / seats | View | Create/edit **own**; assign | View **assigned** | Full |
+| Accounts | View/edit **all** (stage, meeting, type, brought-by) | View all | View all | Full |
+| Unlock accounts | Yes | — | — | Yes |
+| Unlock requirements / seats / submissions | — | — | — | Yes |
+| Requirements / seats | View all | Create/edit **own**; assign | View **assigned** | Full |
 | Profiles / submissions | View | View | CRUD on assigned work | Full |
-| Unlock | — | — | — | Yes + reason |
+| Stage override | — | — | — | Superadmin only |
 | Users admin | — | — | — | Yes |
-| Reports | Own leads | Own requirements | Own submissions | Org-wide |
+| Reports | Own-lead metrics | Own requirements | Own submissions | Org-wide |
 
 ### 8.3 Locking
 
 - Entities carry `is_locked`.
 - Auto-set on terminal transitions.
 - Locked: reads allowed; mutations return locked / 403-class errors.
-- Admin unlock via `POST /admin/:entity_type/:entity_id/unlock` with `{ reason }`.
+- Admin unlock via `POST /admin/:entity_type/:entity_id/unlock` with `{ reason }` (any entity).
+- BDA may unlock **accounts** only via the same endpoint (`entity_type=account`).
 
 ### 8.4 Validation and errors
 
@@ -432,7 +435,7 @@ Authoritative field-level contract: [API-Spec-and-Build-Plan.md](API-Spec-and-Bu
 **Threat notes (v1):**
 
 - Stolen JWT → short access TTL + refresh rotation reduces window.
-- Privilege escalation → Admin-only user create / unlock; non-admins blocked in UI and API.
+- Privilege escalation → Admin-only user create; unlock is Admin (any entity) or BDA (accounts only); stage override is superadmin-only.
 - Data exfiltration via reports → role-scoped report queries; Admin for org-wide.
 
 ---

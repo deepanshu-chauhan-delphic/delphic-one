@@ -2,6 +2,12 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-07 — BDA team-wide account flow + specialization filter + docs
+
+- **BDA accounts:** team-wide view + mutate (edit, classify, stage/meetings, type, brought-by); unlock **accounts** only. Still no requirement mutate and no superadmin stage override.
+- **Accounts list:** shared specialization filter + GET /accounts/specializations for all roles.
+- **Docs/diagrams updated:** README, ARCHITECTURE-OVERVIEW, HLD, API-Spec, System Design v2 role tables, AGENTS conventions.
+
 ## 2026-09-03 — Pipeline map filters, Tagged Profiles column, sales "submit to client", report/filter fixes
 
 `main`, uncommitted. No schema/migration change. eslint clean on touched files;
