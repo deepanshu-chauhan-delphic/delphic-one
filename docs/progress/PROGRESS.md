@@ -49,6 +49,12 @@ Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md
 - **Reschedule no longer requires a new time.** The drawer's reschedule form
   starts blank; with a time it PATCHes `scheduled_at`, without one it PATCHes
   `{ result: 'rescheduled' }` — flags the round for rescheduling, slot set later.
+- **Outcome recolours the slot.** `eventAppearance` now colours the interview
+  slot itself by outcome when there is one — passed=green, rejected/failed=red
+  (round `fail` *or* the submission is `rejected`/`backout`), did-not-join=orange,
+  cancelled=grey+struck — superseding the internal(sky)/external(violet) category
+  fill; only still-scheduled slots show the category colour. `serializeCalendarEvent`
+  gained `submission_stage`. Legend + trailing note updated.
 - Also fixed a missing `CalendarDays` lucide import in `CalendarPage.jsx` (crash
   on the empty-agenda path) surfaced by the `main` merge.
 - Server suite **32 / 229** green; client lint 0 errors; `vite build` clean.

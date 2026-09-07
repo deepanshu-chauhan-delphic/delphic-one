@@ -80,7 +80,7 @@ export default function FeedbackDrawer({ event, open, onClose, onSaved }) {
           </label>
 
           <label className="block text-xs font-medium text-tertiary-600">
-            Rating (1–10)
+            Rating (1-10)
             <input
               type="number"
               min={1}

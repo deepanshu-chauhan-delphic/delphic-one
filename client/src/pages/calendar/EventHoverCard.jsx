@@ -64,7 +64,7 @@ export default function EventHoverCard({
   const title = event.round_name ? `${meta.label}: ${event.round_name}` : meta.label;
   const audience = event.audience || audienceForRoundType(event.round_type);
 
-  // Role/permission-gated actions — mirrors the agenda EventCard. `can_submit_feedback`
+  // Role/permission-gated actions; mirrors the agenda EventCard. `can_submit_feedback`
   // is resolved per user on the server (assigned interviewer OR round manager).
   const nowMs = new Date().getTime();
   const startMs = event.scheduled_at ? new Date(event.scheduled_at).getTime() : null;

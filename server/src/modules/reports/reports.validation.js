@@ -34,10 +34,10 @@ const agingSchema = z.object({
 //   without_active_requirements / closed_only - kept server-side (export, back-compat).
 // recruiter-vendor-gaps lists `type = 'vendor'`, `stage = 'active'` accounts and
 // filters by `recruiter_id`, `vendor_id`, `owner_id` (our POC), `origin_owner_id`.
-// `vendor_activity`:
-//   active   - every active-stage vendor (default)
-//   inactive - no candidate currently in a live submission (any stage except
-//              closed / rejected / backout)
+// `vendor_activity` (partition of active-stage vendors; no value = all of them):
+//   active      - a sourced candidate is in a live submission
+//   has_profile - sourced >=1 profile but nothing live (the gap between the two)
+//   inactive    - never sourced a profile
 // `date_from` / `date_to` still accepted (profile sourced date) but the UI no
 // longer sends them.
 const coverageSchema = z.object({
@@ -50,7 +50,7 @@ const coverageSchema = z.object({
   bucket: z
     .enum(['all', 'with_requirements', 'no_active', 'without_active_requirements', 'closed_only'])
     .optional(),
-  vendor_activity: z.enum(['active', 'inactive']).optional(),
+  vendor_activity: z.enum(['active', 'has_profile', 'inactive']).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
 });

@@ -366,9 +366,9 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     );
   });
 
-  test('vendor_activity: active = every active-stage vendor; inactive = no live candidate', async () => {
+  test('vendor_activity partitions active-stage vendors into active / has_profile / inactive', async () => {
     const live = await seedVendorProfile(recruiterToken, { submitted: true }); // fresh submission → `sourced` (a live stage)
-    const noLive = await seedVendorProfile(recruiterToken); // sourced, never submitted
+    const noLive = await seedVendorProfile(recruiterToken); // sourced, never in a live submission
     const bare = await createBareVendor(); // nothing sourced
 
     const get = (vendor_activity) =>
@@ -377,31 +377,49 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
         adminToken
       );
 
-    const activeIds = (await get('active')).body.data.map((r) => r.vendor.id);
-    expect(activeIds).toEqual(expect.arrayContaining([live.vendor.id, noLive.vendor.id, bare.id]));
+    const activeRows = (await get('active')).body.data;
+    const activeIds = activeRows.map((r) => r.vendor.id);
+    expect(activeIds).toContain(live.vendor.id);
+    expect(activeIds).not.toContain(noLive.vendor.id);
+    expect(activeIds).not.toContain(bare.id);
+    expect(activeRows.every((r) => r.has_live_submission === true)).toBe(true);
+
+    const hasProfileRows = (await get('has_profile')).body.data;
+    const hasProfileIds = hasProfileRows.map((r) => r.vendor.id);
+    expect(hasProfileIds).toContain(noLive.vendor.id);
+    expect(hasProfileIds).not.toContain(live.vendor.id);
+    expect(hasProfileIds).not.toContain(bare.id);
+    expect(hasProfileRows.every((r) => r.profiles_sourced > 0 && r.has_live_submission === false)).toBe(true);
 
     const inactiveRows = (await get('inactive')).body.data;
     const inactiveIds = inactiveRows.map((r) => r.vendor.id);
-    expect(inactiveIds).toEqual(expect.arrayContaining([noLive.vendor.id, bare.id]));
+    expect(inactiveIds).toContain(bare.id);
     expect(inactiveIds).not.toContain(live.vendor.id);
-    expect(inactiveRows.every((r) => r.has_live_submission === false)).toBe(true);
+    expect(inactiveIds).not.toContain(noLive.vendor.id);
+    expect(inactiveRows.every((r) => r.profiles_sourced === 0)).toBe(true);
   });
 
-  test('a vendor whose only submission is terminal (rejected) counts as inactive', async () => {
+  test('a vendor whose only submission is terminal (rejected) counts as has_profile', async () => {
     const v = await seedVendorProfile(recruiterToken, { submitted: true });
     const sub = await prisma.submission.findFirst({
       where: { profile: { vendor_account_id: v.vendor.id } },
     });
     await prisma.submission.update({ where: { id: sub.id }, data: { stage: 'rejected' } });
 
+    const hasProfile = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'has_profile' }),
+      adminToken
+    );
+    const row = hasProfile.body.data.find((r) => r.vendor.id === v.vendor.id);
+    expect(row).toBeTruthy();
+    expect(row.has_live_submission).toBe(false);
+    expect(row.profiles_submitted).toBe(1);
+
     const inactive = await authed(
       request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'inactive' }),
       adminToken
     );
-    const row = inactive.body.data.find((r) => r.vendor.id === v.vendor.id);
-    expect(row).toBeTruthy();
-    expect(row.has_live_submission).toBe(false);
-    expect(row.profiles_submitted).toBe(1);
+    expect(inactive.body.data.find((r) => r.vendor.id === v.vendor.id)).toBeFalsy();
   });
 
   test('filters by origin_owner_id (brought by)', async () => {

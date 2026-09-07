@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Briefcase, Building2, CircleAlert, LayoutGrid } from 'lucide-react';
+import { Briefcase, Building2, CircleAlert, FileText, LayoutGrid } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -781,7 +781,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Active-stage vendors; &quot;inactive&quot; = no candidate currently in a live submission
+                Active-stage vendors split by sourcing: a live submission, a profile but nothing live, or nothing sourced
               </p>
             </div>
             {!loading && (
@@ -790,18 +790,24 @@ export default function ReportsPage() {
               </span>
             )}
           </div>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Vendor gap activity">
             {[
               {
                 key: 'active',
                 label: 'Active vendors',
-                hint: 'Every vendor account in the active stage',
+                hint: 'A sourced candidate is currently in a live submission (sourced → BGV)',
                 Icon: Building2,
+              },
+              {
+                key: 'has_profile',
+                label: 'Has profile',
+                hint: 'Sourced at least one profile, but none is in a live submission',
+                Icon: FileText,
               },
               {
                 key: 'inactive',
                 label: 'Inactive vendors',
-                hint: 'No candidate currently in an open submission (sourced → BGV)',
+                hint: 'No profile has ever been sourced from this vendor',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {

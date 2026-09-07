@@ -153,9 +153,9 @@ export default function CalendarPage() {
           ? dayLabel(anchor)
           : monthLabel(anchor);
 
-  // Role-wise "schedule" CTA. There is no standalone scheduler — interviews are
+  // Role-wise "schedule" CTA. There is no standalone scheduler; interviews are
   // added from a submission's interview-rounds panel, client meetings from an
-  // account's stage/meeting flow — so route to the right list.
+  // account's stage/meeting flow, so route to the right list.
   const scheduleCta =
     user?.role === 'bda'
       ? { label: 'Schedule meeting', to: '/accounts' }
@@ -284,7 +284,7 @@ export default function CalendarPage() {
               <span className={`h-2 w-2 rounded-full ${l.dot}`} /> {l.label}
             </span>
           ))}
-          <span className="text-tertiary-400">Outcome (pass / fail / …) shows as a badge on the event.</span>
+          <span className="text-tertiary-400">Scheduled slots show the interview category; an outcome recolours the slot.</span>
         </div>
       </div>
 

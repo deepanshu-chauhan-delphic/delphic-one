@@ -13,6 +13,7 @@ const CALENDAR_INCLUDE = {
     select: {
       id: true,
       submitted_by: true,
+      stage: true,
       profile: { select: { id: true, name: true } },
       seat: {
         select: {
@@ -66,6 +67,7 @@ function serializeCalendarEvent(round, user) {
   return {
     id: round.id,
     submission_id: round.submission_id,
+    submission_stage: submission.stage || null,
     scheduled_at: startsAt,
     duration_minutes: round.duration_minutes,
     ends_at: endsAt,

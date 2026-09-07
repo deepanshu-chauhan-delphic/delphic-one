@@ -4,7 +4,7 @@
 
 export const HOUR_HEIGHT = 72;
 // Full 24h so an interview at any hour (incl. early morning) lands at its true
-// position — the time grid scrolls to the day's earliest event on mount.
+// position; the time grid scrolls to the day's earliest event on mount.
 export const DAY_START_HOUR = 0;
 export const DAY_END_HOUR = 24;
 
@@ -56,7 +56,7 @@ export function startOfWeek(d) {
   return x;
 }
 
-/** Seven Mon–Sun dates for the week containing `anchor`. */
+/** Seven Mon-Sun dates for the week containing `anchor`. */
 export function buildWeekDays(anchor) {
   const start = startOfWeek(anchor);
   const today = new Date();

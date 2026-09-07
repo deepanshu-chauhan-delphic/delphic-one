@@ -73,7 +73,7 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
   async function doReschedule() {
     setBusy(true);
     try {
-      // A new time is optional — with one, re-time the round; without one, just
+      // A new time is optional: with one, re-time the round; without one, just
       // flag it as needing a reschedule (a new slot can be set later).
       const body = nextWhen
         ? { scheduled_at: new Date(nextWhen).toISOString() }
@@ -219,7 +219,7 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
               />
             </label>
             <p className="mt-1 text-[11px] text-primary-700">
-              Leave blank to just flag this interview for rescheduling — you can set a slot later.
+              Leave blank to just flag this interview for rescheduling; you can set a slot later.
             </p>
             <div className="mt-2 flex justify-end gap-2">
               <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => setRescheduling(false)}>

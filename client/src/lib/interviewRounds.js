@@ -37,7 +37,7 @@ export function resultLabel(result) {
   return RESULT_LABELS[result] || String(result || '').replace(/_/g, ' ');
 }
 
-// Left-border accent color per round-type group — used by calendar event pills.
+// Left-border accent color per round-type group; used by calendar event pills.
 export const ROUND_GROUP_BORDER = {
   internal: 'border-l-sky-400',
   client: 'border-l-violet-400',
@@ -53,20 +53,25 @@ export const ROUND_GROUP_LEGEND = [
 ];
 
 /**
- * Calendar colour model — TWO independent signals:
- *   • FILL colour = interview category (audience): internal = sky/blue,
- *     external (client-facing) = violet/purple. Only these two.
- *   • STATUS = shown as a Badge on cards / hover / detail, plus:
- *       cancelled   → grey, struck (overrides the fill)
- *       rescheduled → same fill, dimmed + struck
- *   Outcomes (pass / fail / no_show / completed) keep the audience fill; the
- *   result Badge carries the meaning.
+ * Calendar colour model. The interview SLOT itself is coloured:
+ *   • no outcome yet (scheduled)   → the interview CATEGORY:
+ *       internal = sky/blue, external (client-facing) = violet/purple.
+ *   • an outcome/terminal state SUPERSEDES the category colour:
+ *       passed      → green
+ *       rejected    → red   (round result `fail`, or the submission was rejected / backed out)
+ *       did not join→ orange (round result `no_show`)
+ *       cancelled   → grey, struck
+ *       rescheduled → category colour, dimmed + struck
+ *   Badges are secondary; the colour is on the slot.
  */
 export const STATUS_LEGEND = [
-  { key: 'internal', label: 'Internal interview', dot: 'bg-sky-500' },
-  { key: 'external', label: 'External / client interview', dot: 'bg-violet-500' },
-  { key: 'cancelled', label: 'Cancelled — grey & struck', dot: 'bg-slate-400' },
-  { key: 'rescheduled', label: 'Rescheduled — dimmed & struck', dot: 'bg-slate-300' },
+  { key: 'internal', label: 'Internal (scheduled)', dot: 'bg-sky-500' },
+  { key: 'external', label: 'External (scheduled)', dot: 'bg-violet-500' },
+  { key: 'pass', label: 'Passed', dot: 'bg-emerald-500' },
+  { key: 'fail', label: 'Rejected / failed', dot: 'bg-rose-500' },
+  { key: 'no_show', label: 'Candidate did not join', dot: 'bg-orange-500' },
+  { key: 'cancelled', label: 'Cancelled (struck through)', dot: 'bg-slate-400' },
+  { key: 'rescheduled', label: 'Rescheduled (dimmed)', dot: 'bg-slate-300' },
 ];
 
 const AUDIENCE_LOOK = {
@@ -86,6 +91,53 @@ const AUDIENCE_LOOK = {
   },
 };
 
+// Full literal class strings so Tailwind's JIT keeps them.
+const OUTCOME_LOOK = {
+  pass: {
+    key: 'pass',
+    pill: 'bg-emerald-500/15 text-emerald-900 border-emerald-200',
+    pillBar: 'bg-emerald-500',
+    block: 'bg-emerald-500 text-white',
+    accent: 'border-l-emerald-500',
+    card: 'border-emerald-200 bg-emerald-50/50',
+    isMuted: false,
+    isStruck: false,
+  },
+  fail: {
+    key: 'fail',
+    pill: 'bg-rose-500/15 text-rose-900 border-rose-200',
+    pillBar: 'bg-rose-500',
+    block: 'bg-rose-500 text-white',
+    accent: 'border-l-rose-500',
+    card: 'border-rose-200 bg-rose-50/50',
+    isMuted: false,
+    isStruck: false,
+  },
+  no_show: {
+    key: 'no_show',
+    pill: 'bg-orange-500/15 text-orange-900 border-orange-200',
+    pillBar: 'bg-orange-500',
+    block: 'bg-orange-500 text-white',
+    accent: 'border-l-orange-500',
+    card: 'border-orange-200 bg-orange-50/50',
+    isMuted: false,
+    isStruck: false,
+  },
+  completed: {
+    key: 'completed',
+    pill: 'bg-teal-500/15 text-teal-900 border-teal-200',
+    pillBar: 'bg-teal-500',
+    block: 'bg-teal-500 text-white',
+    accent: 'border-l-teal-500',
+    card: 'border-teal-200 bg-teal-50/50',
+    isMuted: false,
+    isStruck: false,
+  },
+};
+
+// Submission stages that mean "this candidate is out"; colour the slot as rejected.
+const REJECTED_STAGES = ['rejected', 'backout'];
+
 const CANCELLED_LOOK = {
   key: 'cancelled',
   pill: 'bg-slate-100 text-slate-500 border-slate-200 opacity-70',
@@ -98,8 +150,9 @@ const CANCELLED_LOOK = {
 };
 
 /**
- * Resolve calendar appearance. Fill follows the audience (internal/external);
- * cancelled overrides to grey; rescheduled dims + strikes the audience fill.
+ * Resolve calendar appearance. The slot is coloured by outcome when there is one
+ * (cancelled / rejected / did-not-join / passed / failed all supersede), else by
+ * the interview category (internal / external).
  */
 export function eventAppearance(event) {
   const audience = event ? eventAudience(event) : 'internal';
@@ -119,6 +172,10 @@ export function eventAppearance(event) {
       isStruck: true,
     };
   }
+
+  if (REJECTED_STAGES.includes(event?.submission_stage)) return OUTCOME_LOOK.fail;
+  if (event?.result && OUTCOME_LOOK[event.result]) return OUTCOME_LOOK[event.result];
+  if (event?.status === 'completed') return OUTCOME_LOOK.completed;
 
   return { key: audience, ...base, isMuted: false, isStruck: false };
 }
