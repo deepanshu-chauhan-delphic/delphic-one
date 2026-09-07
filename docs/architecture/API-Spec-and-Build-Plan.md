@@ -206,12 +206,14 @@ Response 200:
 ```
 
 ### GET /accounts
-**Roles:** all (BDA sees own; sales/recruiter see all; admin sees all)
+**Roles:** all authenticated (team-wide list; optional `owner_id` / `origin_owner_id` / `specialization` filters)
 ```
 Query params:
   ?type=client|vendor|unclassified   // (v2) "unclassified" = type IS NULL
   &stage=lead|meeting_scheduled|active|rescheduled|dropped
   &owner_id=uuid
+  &origin_owner_id=uuid
+  &specialization=string      // exact match on vendor_specializations[]
   &industry=string
   &search=string              // name, poc_name, poc_email substring
   &created_from=date&created_to=date
@@ -223,6 +225,16 @@ Response 200:
   success: true,
   data: [AccountObject],
   pagination: { page, limit, total, totalPages }
+}
+```
+
+### GET /accounts/specializations
+**Roles:** all authenticated
+```
+Response 200:
+{
+  success: true,
+  data: ["React", "Java", ...]   // distinct vendor_specializations tags, sorted
 }
 ```
 
@@ -281,8 +293,8 @@ Response 201:
 ```
 
 ### PATCH /accounts/:id
-**Roles:** bda (own), admin
-**Blocked if:** `is_locked = true` — returns `403 { success: false, message: "Record is locked" }`
+**Roles:** bda, admin (any account — BDA has team-wide account mutate)
+**Blocked if:** `is_locked = true` — returns `403 { success: false, message: "Record is locked" }` (superadmin may edit locked rows)
 ```
 Request: same fields as POST (all optional)
 
@@ -291,7 +303,7 @@ Response 200:
 ```
 
 ### POST /accounts/:id/stage
-**Roles:** bda (own), admin
+**Roles:** bda, admin (any account)
 **Blocked if:** `is_locked = true`
 ```
 Request:
@@ -329,7 +341,7 @@ Response 200:
 ```
 
 ### POST /accounts/:id/classify (v2)
-**Roles:** bda (own), admin
+**Roles:** bda, admin (any unclassified account)
 **Blocked if:** `type` is already set (non-null) — returns `400 { success: false, message: "Account type is already set" }`
 ```
 Request:
@@ -1281,7 +1293,7 @@ Response 201:
 ## 11. Admin — Unlock
 
 ### POST /admin/:entity_type/:entity_id/unlock
-**Roles:** admin only
+**Roles:** admin (any entity); **bda** when `entity_type=account` only
 ```
 Request:
 {
@@ -1291,6 +1303,7 @@ Request:
 Validation:
   - entity_type must be: account | requirement | seat | submission
   - Entity must exist and is_locked must be true
+  - BDA callers are rejected unless entity_type is account
   - Writes stage_history row with to_stage = "unlocked"
   - Sets is_locked = false
 
@@ -1750,7 +1763,7 @@ Nightly `pg_dump` cron. Deploy via scripted `git pull` + `npm run build` + `pm2 
 - [ ] `GET /accounts` — with all filters (type, stage, owner, search, date range, sort, pagination)
 - [ ] `GET /accounts/:id`
 - [ ] `POST /accounts` — full validation, all fields from §3
-- [ ] `PATCH /accounts/:id` — lock check, ownership check (BDA own, admin all)
+- [ ] `PATCH /accounts/:id` — lock check; mutate roles admin|bda (team-wide accounts)
 - [ ] `POST /accounts/:id/stage` — state machine validation, meeting fields enforcement, locking on drop, stage_history write
 - [ ] `GET /accounts/:id/history`
 
