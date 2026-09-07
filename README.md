@@ -37,10 +37,11 @@ Internal recruitment pipeline for Delphic. Tracks **client / vendor accounts →
 
 | Role | Goal |
 |---|---|
-| **BDA** | Capture and convert client / vendor leads |
+| **BDA** | Own the full account (lead) flow: capture, classify, schedule meetings, convert clients / vendors |
 | **Sales** | Open job requirements and seats; assign recruiters |
 | **Recruiter** | Source candidates, submit to seats, run interviews through join, track margin |
-| **Admin** | Manage users, unlock locked records, read org-wide reports |
+| **Admin** | Manage users, unlock any locked entity, read org-wide reports |
+| **Superadmin** | Admin plus free-form stage overrides and locked-row edits |
 
 ### In scope
 
@@ -71,8 +72,8 @@ Internal recruitment pipeline for Delphic. Tracks **client / vendor accounts →
 1. **Pipeline as state machines** — Account, seat, and submission progress only through documented transitions; every move is audited in `stage_history`.
 2. **Auth and authorization at the edge** — JWT and role checks live in transport middleware; services receive a narrowed identity (user id, role).
 3. **Thin transport, fat domain** — Route handlers parse HTTP and call services; stage advance, margin, ownership, and lock rules live in services.
-4. **Ownership scopes visibility and mutation** — BDA owns accounts; Sales owns requirements; Recruiter works assigned requirements; Admin sees everything.
-5. **Lock is editability, not visibility** — Terminal records stay in lists and reports; mutations are blocked until Admin unlocks with a reason.
+4. **Account flow is BDA-owned; requirements are Sales-owned** — BDA may view and mutate **all** accounts (like admin on the account domain). Sales mutates **own** requirements; Recruiter works **assigned** requirements. Requirement create/edit stays Sales/Admin. Superadmin-only powers (stage override, edit locked rows in place) stay off ordinary BDA/Admin.
+5. **Lock is editability, not visibility** — Terminal records stay in lists and reports; mutations are blocked until unlock with a reason (BDA may unlock **accounts**; Admin unlocks any entity type).
 6. **Single source of schema truth** — Prisma models and migrations define persistence; API validation mirrors enums and required fields.
 7. **Readable modules** — Domain folders follow `routes → controller → service → validation`.
 
@@ -101,6 +102,49 @@ flowchart LR
   RMD --> PG[(PostgreSQL)]
   RMD --> Files[Document store]
 ```
+
+### Access model (current)
+
+```mermaid
+flowchart TB
+  subgraph Read
+    AccR[All accounts]
+    ReqR[Requirements]
+  end
+
+  subgraph AccountWrite[Account mutations]
+    AccW[Edit · classify · stage · meeting · type · brought-by]
+    AccU[Unlock account]
+  end
+
+  subgraph ReqWrite[Requirement mutations]
+    ReqW[Create · edit · status · assign]
+  end
+
+  BDA[BDA] --> AccR
+  BDA --> ReqR
+  BDA --> AccW
+  BDA --> AccU
+
+  Sales[Sales] --> AccR
+  Sales --> ReqR
+  Sales --> ReqW
+
+  Rec[Recruiter] --> AccR
+  Rec --> ReqR
+
+  Admin[Admin] --> AccR
+  Admin --> ReqR
+  Admin --> AccW
+  Admin --> AccU
+  Admin --> ReqW
+  Admin --> UnlockAll[Unlock any entity]
+
+  Super[Superadmin] --> Admin
+  Super --> Override[Stage override]
+```
+
+POC credit stays on the account: `owner_id` is the current internal POC (reassignable); `origin_owner_id` is “Brought by” (set at create; admin/BDA/superadmin may correct).
 
 ### Containers and request path
 
@@ -150,7 +194,7 @@ Services do not import Express request types. Controllers stay thin.
 | Domain | Covers |
 |---|---|
 | **Auth & users** | Login, refresh, change password, admin user provisioning |
-| **Accounts** | Client / vendor leads (type unset until BDA classifies), stage machine, one-way classify, meeting mode / location / attendees, BDA ownership, lock on drop |
+| **Accounts** | Client / vendor leads (type unset until classified), stage machine, classify, meeting mode / location / attendees, team-wide BDA mutate, specialization filter, lock on drop (BDA/Admin unlock) |
 | **Requirements & seats** | Jobs (managed services / recruitment / project), seats, assign / unassign history, seat stages |
 | **Profiles** | Candidates, skills, CTC, availability, on-bench flag, resume upload |
 | **Submissions** | Put candidate forward, pipeline stages, margin, kanban by stage |
@@ -339,12 +383,16 @@ From **any** stage: `backout` or `rejected` (reason required).
 
 | Capability | BDA | Sales | Recruiter | Admin |
 |---|---|---|---|---|
-| Own accounts (leads) | Yes | View | View | Full |
-| Requirements + seats | View | Own | Assigned | Full |
+| Accounts (view) | All | All | All | All |
+| Accounts (edit / stage / meeting / type / brought-by) | All | — | — | All |
+| Unlock accounts | Yes | — | — | Yes |
+| Unlock requirements / seats / submissions | — | — | — | Yes |
+| Requirements + seats (view) | All | Own + assigned | Assigned | All |
+| Requirements + seats (mutate) | — | Own | — | All |
 | Assign recruiters | — | Yes | — | Yes |
 | Profiles + submissions | View | View | CRUD | Full |
-| Unlock locked records | — | — | — | Yes |
-| Reports scope | Own leads | Own reqs | Own subs | Org-wide |
+| Stage override (any → any) | — | — | — | Superadmin only |
+| Reports scope | Own-lead metrics | Own reqs | Own subs | Org-wide |
 
 ---
 
@@ -355,7 +403,7 @@ From **any** stage: `backout` or `rejected` (reason required).
 | Transport | HTTPS at the edge (Nginx / TLS) |
 | AuthN | JWT access + refresh; bcrypt passwords |
 | AuthZ | Role middleware on routes; ownership filters in services |
-| Locking | `is_locked` on terminal states; Admin unlock with audited reason |
+| Locking | `is_locked` on terminal states; unlock with audited reason (BDA: accounts; Admin: any entity) |
 | Input | Schema validation on write paths; uniform response envelope |
 | Login abuse | Rate limit on `/auth/login` |
 | CORS | Locked to frontend origin |
@@ -389,7 +437,7 @@ Base path: `/api/v1` (full contracts in the API spec).
 |---|---|
 | Auth | `POST /auth/login`, `/auth/refresh`, `/auth/change-password` |
 | Users | `GET /users/me`, admin `GET/POST/PATCH /users` |
-| Accounts | CRUD + `POST /accounts/:id/stage` + `POST /accounts/:id/classify` |
+| Accounts | CRUD + `POST /accounts/:id/stage` + `POST /accounts/:id/classify` + `GET /accounts/specializations` + `?specialization=` |
 | Requirements | CRUD + assign / unassign + status |
 | Seats | List/create under requirement + `POST /seats/:id/stage` |
 | Profiles | CRUD + resume via documents |
