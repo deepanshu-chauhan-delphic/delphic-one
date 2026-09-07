@@ -425,10 +425,11 @@ From **any** stage: `backout` (reason required, seat reopened manually) or `reje
 
 | Role | Account | Requirement | Submission | Assignment | Unlock | Reports |
 |---|---|---|---|---|---|---|
-| BDA | Create/edit own leads | View | View | — | — | Own leads |
-| Sales | View all; create requirement on active clients | Create/edit; assign recruiters | View | Assign recruiters to own requirements | — | Own requirements |
-| Recruiter | View | View assigned | Full CRUD on assigned requirements | — | — | Own submissions |
-| Admin | Full | Full | Full | Full | Yes | All org-wide |
+| BDA | View/edit **all** (stage, meeting, type, brought-by); unlock accounts | View all | View | — | Accounts only | Own-lead metrics |
+| Sales | View all; create requirement on active clients | Create/edit own; assign recruiters | View | Assign recruiters to own requirements | — | Own requirements |
+| Recruiter | View all | View assigned | Full CRUD on assigned requirements | — | — | Own submissions |
+| Admin | Full | Full | Full | Full | Any entity | All org-wide |
+| Superadmin | Full + locked-row edit + stage override | Full | Full + stage override | Full | Any entity | All org-wide |
 
 ---
 
@@ -438,10 +439,12 @@ From **any** stage: `backout` (reason required, seat reopened manually) or `reje
 POST   /auth/login
 POST   /auth/refresh
 
-GET    /accounts               ?type=&stage=&owner=&search=
+GET    /accounts               ?type=&stage=&owner_id=&origin_owner_id=&specialization=&search=
+GET    /accounts/specializations
 POST   /accounts
 PATCH  /accounts/:id
 POST   /accounts/:id/stage      { to_stage, reason? }
+POST   /accounts/:id/classify
 
 GET    /requirements            ?status=&sales_owner=&account=&priority=&tech_stack=
 POST   /requirements
