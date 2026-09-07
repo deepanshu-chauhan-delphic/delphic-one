@@ -188,7 +188,8 @@ export default function ReportsPage() {
   const [rvgPocId, setRvgPocId] = useState('');
   const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
-  // RVG tab: active (every active-stage vendor) | inactive (no live candidate submission).
+  // RVG: active = every active-stage vendor; inactive = no live submission;
+  // has_live = Active − Inactive (has a live candidate).
   const [rvgActivity, setRvgActivity] = useState('active');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
@@ -781,7 +782,7 @@ export default function ReportsPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-tertiary-500">View</p>
               <p className="mt-0.5 text-sm text-tertiary-600">
-                Active-stage vendors split by sourcing: a live submission, a profile but nothing live, or nothing sourced
+                Active-stage vendors; &quot;inactive&quot; = no candidate currently in a live submission
               </p>
             </div>
             {!loading && (
@@ -795,20 +796,20 @@ export default function ReportsPage() {
               {
                 key: 'active',
                 label: 'Active vendors',
-                hint: 'A sourced candidate is currently in a live submission (sourced → BGV)',
+                hint: 'Every vendor account in the active stage',
                 Icon: Building2,
-              },
-              {
-                key: 'has_profile',
-                label: 'Has profile',
-                hint: 'Sourced at least one profile, but none is in a live submission',
-                Icon: FileText,
               },
               {
                 key: 'inactive',
                 label: 'Inactive vendors',
-                hint: 'No profile has ever been sourced from this vendor',
+                hint: 'No candidate currently in an open submission (sourced → BGV)',
                 Icon: CircleAlert,
+              },
+              {
+                key: 'has_live',
+                label: 'With live submissions',
+                hint: 'Difference: active-stage vendors that currently have a live candidate',
+                Icon: FileText,
               },
             ].map(({ key, label, hint, Icon }) => {
               const selected = rvgActivity === key;

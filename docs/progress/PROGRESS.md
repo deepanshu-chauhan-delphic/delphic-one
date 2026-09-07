@@ -2,6 +2,14 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-07 — Fix RVG tabs: restore Active/Inactive, add With live submissions
+
+Wrong 3-way split in `eb1d7c8` redefined Active/Inactive. Restored prior meanings and added the difference tab:
+
+- **Active vendors** — every active-stage vendor (`vendor_activity=active`)
+- **Inactive vendors** — no candidate currently in a live submission (`inactive`)
+- **With live submissions** — Active − Inactive (`has_live`)
+
 ## 2026-09-07 — Calendar: team-wide scope, clickable links, in-card actions, 24h time grid (branch `feature/notifications-calendar`)
 
 - **Scope filter.** `GET /interviews` "All" is now truly team-wide for **every**
