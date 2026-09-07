@@ -1,7 +1,27 @@
 import { useEffect, useState } from 'react';
-import apiClient, { openAuthenticatedFile } from '../lib/apiClient.js';
+import apiClient, { downloadAuthenticatedFile } from '../lib/apiClient.js';
 import { useAlerts } from '../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../lib/alerts/apiErrorMessage.js';
+import FileViewerModal from './FileViewerModal.jsx';
+
+function fileExt(url = '') {
+  const base = String(url).split('/').pop() || '';
+  const dot = base.lastIndexOf('.');
+  return dot > -1 ? base.slice(dot + 1).toUpperCase() : 'FILE';
+}
+
+function humanSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function downloadName(doc) {
+  const ext = fileExt(doc.file_url);
+  const label = (doc.label || 'attachment').replace(/[^\w.\- ]+/g, '').trim() || 'attachment';
+  return label.toLowerCase().endsWith(`.${ext.toLowerCase()}`) ? label : `${label}.${ext.toLowerCase()}`;
+}
 
 /**
  * Reusable files panel for account | requirement | profile | submission.
@@ -20,6 +40,7 @@ export default function FilesPanel({
   const [label, setLabel] = useState(defaultLabel);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState(null);
 
   async function loadFiles() {
     if (!entityType || !entityId) return;
@@ -51,7 +72,9 @@ export default function FilesPanel({
       body.append('entity_id', entityId);
       body.append('label', (label || defaultLabel).trim() || defaultLabel);
       body.append('file', file);
-      await apiClient.post('/documents', body, { headers: { 'Content-Type': 'multipart/form-data' } });
+      // Let the browser set `multipart/form-data; boundary=…` — passing the
+      // header explicitly drops the boundary and the upload hangs ("Uploading…").
+      await apiClient.post('/documents', body);
       await loadFiles();
     } catch (requestError) {
       pushError(apiErrorMessage(requestError, 'Failed to upload file'), 'Something went wrong');
@@ -69,11 +92,11 @@ export default function FilesPanel({
     }
   }
 
-  async function openFile(fileUrl) {
+  async function downloadFile(doc) {
     try {
-      await openAuthenticatedFile(fileUrl);
+      await downloadAuthenticatedFile(doc.file_url, downloadName(doc));
     } catch (requestError) {
-      pushError(requestError.message || 'Failed to open file', 'Something went wrong');
+      pushError(requestError.message || 'Failed to download file', 'Something went wrong');
     }
   }
 
@@ -104,13 +127,13 @@ export default function FilesPanel({
             <th className="px-4 py-2 font-medium">File</th>
             <th className="px-4 py-2 font-medium">Uploaded</th>
             <th className="px-4 py-2 font-medium">By</th>
-            {canUpload && <th className="px-4 py-2 font-medium">Actions</th>}
+            <th className="px-4 py-2 font-medium text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {loading && (
             <tr>
-              <td colSpan={canUpload ? 5 : 4} className="px-4 py-5 text-center text-tertiary-400">
+              <td colSpan={5} className="px-4 py-5 text-center text-tertiary-400">
                 Loading files…
               </td>
             </tr>
@@ -120,36 +143,59 @@ export default function FilesPanel({
               <tr key={doc.id} className="hover:bg-tertiary-50">
                 <td className="px-4 py-2">{doc.label}</td>
                 <td className="px-4 py-2">
-                  <button
-                    type="button"
-                    onClick={() => openFile(doc.file_url)}
-                    className="text-primary-700 hover:underline"
-                  >
-                    Open
-                  </button>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="rounded bg-tertiary-100 px-1.5 py-0.5 text-[10px] font-semibold text-tertiary-600">
+                      {fileExt(doc.file_url)}
+                    </span>
+                    {doc.file_size_bytes ? (
+                      <span className="text-xs text-tertiary-400">{humanSize(doc.file_size_bytes)}</span>
+                    ) : null}
+                  </span>
                 </td>
                 <td className="px-4 py-2 text-tertiary-500">
                   {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : '—'}
                 </td>
                 <td className="px-4 py-2 text-tertiary-600">{doc.uploaded_by?.name || '—'}</td>
-                {canUpload && (
-                  <td className="px-4 py-2">
-                    <button type="button" onClick={() => deleteFile(doc.id)} className="text-xs text-red-700 hover:underline">
-                      Delete
+                <td className="px-4 py-2">
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewerDoc(doc)}
+                      className="text-xs font-medium text-primary-700 hover:underline"
+                    >
+                      View
                     </button>
-                  </td>
-                )}
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(doc)}
+                      className="text-xs font-medium text-primary-700 hover:underline"
+                    >
+                      Download
+                    </button>
+                    {canUpload && (
+                      <button
+                        type="button"
+                        onClick={() => deleteFile(doc.id)}
+                        className="text-xs text-red-700 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           {!loading && files.length === 0 && (
             <tr>
-              <td colSpan={canUpload ? 5 : 4} className="px-4 py-5 text-center text-tertiary-400">
+              <td colSpan={5} className="px-4 py-5 text-center text-tertiary-400">
                 No files uploaded yet.
               </td>
             </tr>
           )}
         </tbody>
       </table>
+
+      <FileViewerModal open={Boolean(viewerDoc)} doc={viewerDoc} onClose={() => setViewerDoc(null)} />
     </section>
   );
 }
