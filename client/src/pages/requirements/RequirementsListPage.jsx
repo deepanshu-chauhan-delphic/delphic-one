@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Filter } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
-import { canCreateRequirement } from '../../lib/requirementStages.js';
+import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 import { useClientAccountOptions, useUserOptions } from '../../lib/lookups.js';
 import Badge from '../../components/ui/Badge.jsx';
 import DataTable from '../../components/ui/DataTable.jsx';
@@ -96,9 +96,11 @@ function RequirementPeek({ row, onClose, onAssign }) {
         >
           {canAssignRecruiters(user, detail) ? 'Assign recruiters' : 'View assignments'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => navigate(`/requirements/${detail.id}?edit=1`)}>
-          Edit
-        </button>
+        {canMutateRequirement(detail, user) && (
+          <button type="button" className="btn-secondary" onClick={() => navigate(`/requirements/${detail.id}?edit=1`)}>
+            Edit
+          </button>
+        )}
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>

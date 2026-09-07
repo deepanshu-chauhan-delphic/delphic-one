@@ -15,6 +15,7 @@ import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
 import AccountStageOverrideDrawer from './AccountStageOverrideDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canClassifyAccount, canMutateAccount, formatAccountValue } from './accountUtils.js';
+import { userCan } from '../../lib/permissions.js';
 
 function DetailField({ label, value, children }) {
   return (
@@ -132,6 +133,7 @@ export default function AccountDetailPage() {
 
   const canMutate = canMutateAccount(account, user);
   const canOverride = Boolean(user?.is_superadmin);
+  const canUnlock = userCan(user, 'unlockAccount');
   const nextStages = ACCOUNT_TRANSITIONS[account.stage] || [];
   const additionalContacts = Array.isArray(account.additional_contacts) ? account.additional_contacts : [];
   const accent = accountAccent(account.id);
@@ -189,7 +191,7 @@ export default function AccountDetailPage() {
                 </button>
               </>
             )}
-            {user?.role === 'admin' && account.is_locked && (
+            {canUnlock && account.is_locked && (
               <UnlockButton entityType="account" entityId={account.id} onUnlocked={loadAccount} />
             )}
           </div>
@@ -199,7 +201,7 @@ export default function AccountDetailPage() {
       {account.is_locked && (
         <div className="rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-sm text-danger-700">
           This account is locked because it reached a terminal stage. It remains available for viewing.
-          {user?.role === 'admin' ? ' Use Unlock to allow edits again.' : ''}
+          {canUnlock ? ' Use Unlock to allow edits again.' : ''}
         </div>
       )}
 

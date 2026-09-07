@@ -47,7 +47,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   owner_id: z.string().uuid().optional(),
-  // "Brought by" — normally immutable; only honoured for a superadmin (enforced in the service).
+  // "Brought by" — normally immutable; honoured for admin/BDA/superadmin (enforced in the service).
   origin_owner_id: z.string().uuid().optional(),
   type: z.enum(['client', 'vendor']).optional(),
   ...baseFields,
@@ -89,6 +89,8 @@ const listQuerySchema = z.object({
   owner_id: z.string().uuid().optional(),
   origin_owner_id: z.string().uuid().optional(),
   industry: z.string().optional(),
+  /** Exact vendor specialization tag (matches `vendor_specializations` array element). */
+  specialization: z.string().min(1).max(120).optional(),
   search: z.string().optional(),
   created_from: z.string().optional(),
   created_to: z.string().optional(),

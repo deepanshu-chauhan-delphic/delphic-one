@@ -47,8 +47,8 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
   const [ownerOptions, setOwnerOptions] = useState([]);
   // Anyone who can edit the account can also reassign its owner/POC to any active user.
   const canEditOwner = isEditing && canMutateAccount(account, user);
-  const canEditType = isEditing && user?.role === 'admin';
-  // "Brought by" is normally set once at creation — an admin or superadmin may correct it.
+  const canEditType = isEditing && (user?.role === 'admin' || user?.role === 'bda');
+  // "Brought by" is normally set once at creation — admin or BDA may correct it (not superadmin-only).
   const canEditOriginOwner = isEditing && canEditBroughtBy(user);
 
   useEffect(() => {

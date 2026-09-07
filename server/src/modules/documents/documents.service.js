@@ -39,7 +39,7 @@ async function list({ entity_type, entity_id }, user) {
 async function create({ entity_type, entity_id, label, file }, user) {
   if (!file) return { error: 'file_required' };
 
-  const access = await assertCanAccessEntity(user, entity_type, entity_id);
+  const access = await assertCanAccessEntity(user, entity_type, entity_id, { forWrite: true });
   if (access.error) return { error: access.error };
 
   const row = await prisma.document.create({

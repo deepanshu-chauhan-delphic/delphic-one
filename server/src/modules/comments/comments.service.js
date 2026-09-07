@@ -26,7 +26,7 @@ async function list({ entity_type, entity_id }, user) {
 }
 
 async function create(data, user) {
-  const access = await assertCanAccessEntity(user, data.entity_type, data.entity_id);
+  const access = await assertCanAccessEntity(user, data.entity_type, data.entity_id, { forWrite: true });
   if (access.error) return { error: access.error };
 
   const row = await prisma.comment.create({

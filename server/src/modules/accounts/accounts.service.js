@@ -27,7 +27,7 @@ const ACCOUNT_INCLUDE = {
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
 
-async function list({ type, include_unclassified, stage, owner_id, origin_owner_id, industry, search, created_from, created_to, sort_by, sort_order, page, limit }) {
+async function list({ type, include_unclassified, stage, owner_id, origin_owner_id, industry, specialization, search, created_from, created_to, sort_by, sort_order, page, limit }) {
   // Accumulate into an AND array so multiple OR-bearing clauses (type scope +
   // search) can coexist without one clobbering the other in the object literal.
   const and = [];
@@ -38,6 +38,7 @@ async function list({ type, include_unclassified, stage, owner_id, origin_owner_
   if (owner_id) and.push({ owner_id });
   if (origin_owner_id) and.push({ origin_owner_id });
   if (industry) and.push({ industry: { contains: industry, mode: 'insensitive' } });
+  if (specialization) and.push({ vendor_specializations: { has: specialization } });
   if (search) {
     and.push({
       OR: [
@@ -71,6 +72,22 @@ async function list({ type, include_unclassified, stage, owner_id, origin_owner_
   return { rows: rows.map(serialize), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
+/** Distinct vendor specialization tags for list filters (any authenticated role). */
+async function listSpecializations() {
+  const rows = await prisma.account.findMany({
+    where: { vendor_specializations: { isEmpty: false } },
+    select: { vendor_specializations: true },
+  });
+  const tags = new Set();
+  for (const row of rows) {
+    for (const tag of row.vendor_specializations || []) {
+      const trimmed = String(tag || '').trim();
+      if (trimmed) tags.add(trimmed);
+    }
+  }
+  return [...tags].sort((a, b) => a.localeCompare(b));
+}
+
 async function getById(id) {
   const row = await prisma.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE });
   return serialize(row);
@@ -78,8 +95,8 @@ async function getById(id) {
 
 function canMutateAccount(account, user) {
   if (!account) return false;
-  if (user.role === 'admin') return true;
-  return user.role === 'bda' && account.owner_id === user.id;
+  // Admin and BDA may edit any account (clients, vendors, unclassified) and move stages / schedule meetings.
+  return user.role === 'admin' || user.role === 'bda';
 }
 
 async function create(data, ownerId) {
@@ -104,8 +121,8 @@ async function update(id, patch, user) {
   }
 
   if ('origin_owner_id' in patch) {
-    // "Brought by" is normally set once at creation; an admin or superadmin may correct it.
-    if (!user.is_superadmin && user.role !== 'admin') {
+    // "Brought by" is normally set once at creation; admin or BDA may correct it (not a superadmin-only power).
+    if (user.role !== 'admin' && user.role !== 'bda' && !user.is_superadmin) {
       return { error: 'forbidden_brought_by' };
     }
     if (patch.origin_owner_id !== existing.origin_owner_id) {
@@ -116,8 +133,8 @@ async function update(id, patch, user) {
 
   const data = { ...patch };
   if (patch.type && patch.type !== existing.type) {
-    // Re-classifying an already-typed account is an admin-only correction.
-    if (user.role !== 'admin') return { error: 'forbidden_type_change' };
+    // Re-classifying an already-typed account is an admin/BDA correction (account flow owners).
+    if (user.role !== 'admin' && user.role !== 'bda') return { error: 'forbidden_type_change' };
     data.classified_at = new Date();
     data.classified_by = user.id;
   } else {
@@ -293,6 +310,7 @@ async function getHistory(id) {
 
 module.exports = {
   list,
+  listSpecializations,
   getById,
   create,
   update,

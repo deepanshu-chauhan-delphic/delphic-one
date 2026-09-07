@@ -32,6 +32,15 @@ async function makeAccount(overrides = {}) {
 }
 
 describe('superadmin account powers', () => {
+  test('bda can reclassify client/vendor type like an admin', async () => {
+    const account = await makeAccount({ type: 'client' });
+    const res = await authed(request(app).patch(`/api/v1/accounts/${account.id}`), bdaToken).send({
+      type: 'vendor',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.type).toBe('vendor');
+  });
+
   test('superadmin can change origin_owner_id ("Brought by")', async () => {
     const account = await makeAccount();
     const res = await authed(request(app).patch(`/api/v1/accounts/${account.id}`), superToken).send({
@@ -41,17 +50,15 @@ describe('superadmin account powers', () => {
     expect(res.body.data.origin_owner.id).toBe(otherUser.id);
   });
 
-  test('a BDA sending origin_owner_id is rejected', async () => {
+  test('a BDA can change origin_owner_id ("Brought by") like an admin', async () => {
     const account = await makeAccount();
     const res = await authed(request(app).patch(`/api/v1/accounts/${account.id}`), bdaToken).send({
       origin_owner_id: otherUser.id,
       name: 'Renamed Co',
     });
-    expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/Brought by/i);
-    const refreshed = await prisma.account.findUnique({ where: { id: account.id } });
-    expect(refreshed.origin_owner_id).toBe(bda.id);
-    expect(refreshed.name).toBe(account.name);
+    expect(res.status).toBe(200);
+    expect(res.body.data.origin_owner.id).toBe(otherUser.id);
+    expect(res.body.data.name).toBe('Renamed Co');
   });
 
   test('an admin (non-superadmin) can change origin_owner_id', async () => {
