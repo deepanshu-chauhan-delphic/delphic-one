@@ -850,9 +850,11 @@ const LIVE_SUBMISSION_STAGES = [
  *     (the route also forces this to the caller for the recruiter role).
  *   - `date_from` / `date_to` — scope the sourced-profile counts by profile
  *     created date.
- *   - `vendor_activity`:
- *       `active` (default) — every active-stage vendor.
- *       `inactive` — no sourced candidate is currently in a live submission.
+ *   - `vendor_activity` (no value = every active-stage vendor):
+ *       `active` — every active-stage vendor (same as omitting the filter).
+ *       `inactive` — no sourced candidate currently in a live submission.
+ *       `has_live` — Active − Inactive: at least one live submission
+ *         (sourced → BGV).
  */
 async function recruiterVendorGaps({
   recruiter_id, vendor_id, owner_id, origin_owner_id, vendor_activity, date_from, date_to,
@@ -923,8 +925,13 @@ async function recruiterVendorGaps({
 
   return rows
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
-    // `active` (default) = every active-stage vendor; `inactive` = no live candidate.
-    .filter((r) => vendor_activity !== 'inactive' || !r.has_live_submission)
+    // `active` (or omitted) = every active-stage vendor;
+    // `inactive` = no live candidate; `has_live` = Active − Inactive.
+    .filter((r) => {
+      if (vendor_activity === 'inactive') return !r.has_live_submission;
+      if (vendor_activity === 'has_live') return r.has_live_submission;
+      return true;
+    })
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }
 

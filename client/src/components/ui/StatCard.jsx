@@ -4,7 +4,7 @@
 export default function StatCard({ label, value, hint, accent = false }) {
   return (
     <div
-      className={`rounded-2xl border p-4 shadow-soft transition-colors ${
+      className={`hover-zoom relative rounded-2xl border p-4 shadow-soft ${
         accent ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white'
       }`}
     >

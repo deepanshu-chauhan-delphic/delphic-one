@@ -23,6 +23,8 @@ const reportsRoutes = require('./modules/reports/reports.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const departmentsRoutes = require('./modules/departments/departments.routes');
 const pipelineRoutes = require('./modules/pipeline/pipeline.routes');
+const notificationsRoutes = require('./modules/notifications/notifications.routes');
+const interviewsRoutes = require('./modules/interviews/interviews.routes');
 
 const app = express();
 
@@ -69,6 +71,8 @@ app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/departments', departmentsRoutes);
 app.use('/api/v1/pipeline', pipelineRoutes);
+app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/interviews', interviewsRoutes);
 
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
 app.use(errorHandler);

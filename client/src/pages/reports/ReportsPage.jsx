@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Briefcase, Building2, CircleAlert, LayoutGrid } from 'lucide-react';
+import { Briefcase, Building2, CircleAlert, FileText, LayoutGrid } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -188,7 +188,8 @@ export default function ReportsPage() {
   const [rvgPocId, setRvgPocId] = useState('');
   const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
-  // RVG tab: active (every active-stage vendor) | inactive (no live candidate submission).
+  // RVG: active = every active-stage vendor; inactive = no live submission;
+  // has_live = Active − Inactive (has a live candidate).
   const [rvgActivity, setRvgActivity] = useState('active');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
@@ -790,7 +791,7 @@ export default function ReportsPage() {
               </span>
             )}
           </div>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Vendor gap activity">
             {[
               {
                 key: 'active',
@@ -803,6 +804,12 @@ export default function ReportsPage() {
                 label: 'Inactive vendors',
                 hint: 'No candidate currently in an open submission (sourced → BGV)',
                 Icon: CircleAlert,
+              },
+              {
+                key: 'has_live',
+                label: 'With live submissions',
+                hint: 'Difference: active-stage vendors that currently have a live candidate',
+                Icon: FileText,
               },
             ].map(({ key, label, hint, Icon }) => {
               const selected = rvgActivity === key;

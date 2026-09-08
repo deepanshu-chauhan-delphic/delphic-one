@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
+const { notify, requirementParticipants, admins } = require('../../lib/notifications');
 const {
   REQUIREMENT_STATUS_TRANSITIONS,
   SEAT_STATUS_TRANSITIONS,
@@ -140,7 +141,7 @@ function canMutateRequirement(requirement, user) {
   return user.role === 'sales' && requirement.sales_owner_id === user.id;
 }
 
-async function create(data, salesOwnerId) {
+async function create(data, salesOwnerId, actor = null) {
   const account = await prisma.account.findUnique({ where: { id: data.account_id } });
   if (!account || account.type !== 'client' || account.stage !== 'active') {
     return { error: 'invalid_account' };
@@ -158,6 +159,22 @@ async function create(data, salesOwnerId) {
       },
     },
     include: DECORATE_INCLUDE,
+  });
+
+  const recipientIds = [
+    ...(await requirementParticipants(prisma, row.id)),
+    ...(await admins(prisma)),
+  ];
+  await notify(prisma, {
+    type: 'requirement_created',
+    actorId: actor?.id || salesOwnerId,
+    recipientIds,
+    context: {
+      actorName: actor?.name,
+      requirementTitle: row.title,
+      requirementId: row.id,
+      accountName: account.name,
+    },
   });
 
   return { requirement: serialize(row) };
@@ -217,6 +234,19 @@ async function changeStatus(id, { to_status, reason }, user) {
       },
     });
 
+    await notify(tx, {
+      type: 'requirement_status_changed',
+      actorId: user.id,
+      recipientIds: await requirementParticipants(tx, id),
+      context: {
+        actorName: user.name,
+        requirementTitle: updated.title,
+        requirementId: id,
+        accountName: updated.account?.name,
+        toStatus: to_status,
+      },
+    });
+
     return { requirement: serialize(updated) };
   });
 }
@@ -239,6 +269,17 @@ async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
     data: { requirement_id: requirementId, user_id, role_on_req, assigned_by: assignedByUser.id },
   });
 
+  await notify(prisma, {
+    type: 'requirement_assigned',
+    actorId: assignedByUser.id,
+    recipientIds: [user_id],
+    context: {
+      actorName: assignedByUser.name,
+      requirementTitle: requirement.title,
+      requirementId,
+    },
+  });
+
   return {
     assignment: {
       id: row.id,
@@ -259,6 +300,18 @@ async function unassign(requirementId, assignmentId, user) {
   if (!assignment || assignment.requirement_id !== requirementId) return { error: 'not_found' };
 
   await prisma.requirementAssignment.update({ where: { id: assignmentId }, data: { unassigned_at: new Date() } });
+
+  await notify(prisma, {
+    type: 'requirement_unassigned',
+    actorId: user.id,
+    recipientIds: [assignment.user_id],
+    context: {
+      actorName: user.name,
+      requirementTitle: requirement.title,
+      requirementId,
+    },
+  });
+
   return { ok: true };
 }
 

@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/me', controller.me);
+router.get('/me/activity', controller.myActivity);
 router.get('/', authorize('admin', 'sales', 'bda'), controller.list);
 router.get('/:id', authorize('admin'), controller.getOne);
 router.post('/', authorize('admin'), controller.create);

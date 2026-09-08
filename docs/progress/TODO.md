@@ -6,21 +6,83 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
-## Notifications + Interview Calendar (planned)
+## Calendar hover cards + Merge `main` + schema realign (branch `feature/notifications-calendar`, 2026-09-07)
 
-Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md). Sequenced:
+PROGRESS.md 2026-09-07 top entries.
 
-- [ ] **Schema** — `Notification` + `NotificationPreference` models + enums; `InterviewRound` gains `status` (`scheduled`/`completed`/`cancelled`), `cancelled_at`/`cancellation_reason`, `reminder_sent_at`/`reminder_1h_sent_at`, reserved `online_meeting_provider`/`external_event_id`. `npm run migrate`; add tables to `helpers.js` truncate list.
-- [ ] **Dispatch layer** — `server/src/lib/notifications/` (`eventCatalog.js` `ROLE_EVENT_MATRIX` + `renderNotification`, `recipients.js`, `dispatch.js` `notify()` — role + preference filtered, never throws).
-- [ ] **Notifications API** — `server/src/modules/notifications/` (`GET /`, `/unread-count`, `POST /read`, `/read-all`, `GET`/`PUT /preferences`); mount in `app.js`.
-- [ ] **Wire call sites** — accounts `changeStage` (→active), requirements `create`/`assign`/`unassign`/`changeStatus`, submissions `addInterviewRound`/`updateInterviewRound`/`changeStage` (submitted/rejected/backout/offer).
-- [ ] **Interviews API** — `server/src/modules/interviews/` (`GET /` calendar feed, role-scoped like `entityAccess`; `POST /:id/feedback` for assigned interviewers + managers; `POST /:id/cancel`); mount in `app.js`.
-- [ ] **Reminder cron** — add `node-cron`; `server/src/jobs/interviewReminders.js` (T-24h + T-1h, deduped); `startJobs()` from `index.js` guarded by `ENABLE_JOBS` (`false` in test env).
-- [ ] **Frontend shared bits** — extract `client/src/lib/interviewRounds.js` (round-type colors/labels); `components/ui/Toggle.jsx`; extend `Badge.jsx` `COLOR_MAP` with `scheduled`/`completed`/`cancelled`; `id="interview-rounds"` on the panel section.
-- [ ] **Frontend — notifications** — `NotificationsProvider` (60s poll) in `main.jsx`; `NotificationBell` in `AppLayout` header; `/notifications` page; `/notifications/preferences` page.
-- [ ] **Frontend — calendar** — `/calendar` page + nav item (all roles); `monthGrid.js` helpers; `CalendarMonthView` + `CalendarAgendaView`; `EventDetailDrawer` + `FeedbackDrawer`; cancelled shown struck-through / "Cancelled" strip; optional dashboard "My upcoming interviews" widget.
-- [ ] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`.
-- [ ] **Docs finalize** — as-built notes in the feature spec; dated `PROGRESS.md` entry; note the bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; flip the three v2 rows in `architecture/API-Spec-and-Build-Plan.md`.
+- [x] Month-view event pills expand a full-detail `EventHoverCard` on hover/focus.
+- [ ] Browser check: hover a month-view meeting pill → card shows all details,
+      flips near the right edge, "Join meeting" link is clickable, closes on leave.
+
+- [x] Merged `origin/main` (`727ca7b`) → `8f15352`, no conflicts. Brings in
+      specialization column, CWR 3-tab / RVG 2-tab report rework + date-filter
+      removal, `active_requirements_count`, BDA full requirement map, open
+      document reads, `FileViewerModal` + `docx-preview`, multipart upload fix,
+      candidate "View full details".
+- [x] `npm ci` synced `node_modules`; `prisma generate`d.
+- [x] `server/prisma/schema.prisma` reconstructed to match
+      `20260903110804_notifications_and_calendar` (notification models +
+      `InterviewRound` status fields). Server suite 32/32 · 219/219 green.
+- [ ] **Commit `server/prisma/schema.prisma`** — the only uncommitted change.
+- [ ] Decide `chahak.pandya`: she is role **`sales`**, so the BDA requirement-map
+      fix doesn't widen her view (sees a scoped map, 0 rows — owns no
+      `sales_owner` requirements). Options: widen `sales` in `requirementScopeWhere`
+      too, or change her account role to `bda`.
+- [ ] Browser click-through of the merged features on this branch: CWR/RVG tabs;
+      resume upload + in-app viewer (PDF inline, `.docx` via docx-preview,
+      download); sales opens a candidate's full details from the peek; BDA sees
+      the full requirement map.
+- [ ] AGENTS.md "clients-without-requirements" bullet updated for the new
+      buckets — re-verify against the running app.
+
+## Login polish + rename + hover-zoom + calendar dot (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] "Delphic one" rename on login + `index.html` title; login page redesigned (gradient brand panel + card).
+- [x] `.hover-zoom` utility applied to KPI / stat / dashboard-panel / calendar cards.
+- [x] `interviewUnread` in notifications context → red count pill on the Calendar nav item.
+- [ ] Browser check: Calendar nav badge appears when an interview_scheduled notification is unread and clears once the bell / notifications page marks it read; login panel looks right at `lg` / `xl` and on mobile; hover-zoom feels right (no clipping) on the dashboard.
+
+## Settings page (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] `/settings` tabbed page (Account / Security / Notifications / Activity), `?tab=` synced, nav item + header title/subtitle.
+- [x] Change-password extracted to `ChangePasswordForm`; modal removed; avatar menu → Settings link + Logout.
+- [x] `GET /users/me/activity` (own `stage_history`, labelled) powering the Activity tab.
+- [x] `/notifications/preferences` redirects to `/settings?tab=notifications`; bell "Settings" link updated.
+- [ ] `cd server && npm test` when `:5434` is up — add a small `users-activity` check (own rows only, respects `limit`). Not run this session.
+- [ ] Browser click-through: each tab loads; deep-link `?tab=activity` selects the right tab; password change still works from Settings; logout from the Account tab; old `/notifications/preferences` bookmark lands on the Notifications tab.
+
+## Brand pass — accent #105aa9 + login redesign + home preloader (branch `feature/notifications-calendar`, 2026-09-04)
+
+PROGRESS.md 2026-09-04 top entry.
+
+- [x] `primary` Tailwind scale + `--color-primary*` tokens rebuilt around `#105aa9`; hardcoded `#0052FF`/`#EEF4FF`/`#DBE6FE` literals swapped app-wide.
+- [x] Login page split layout using `undraw_dashboard_p93p.svg` + `Delphic_D-logo_transparent.png` + `delphic-logo.png`.
+- [x] `HomePreloaderGate` (Lottie `d_preloader.json`, `lottie-web`, sessionStorage `site_preloader_played`, fail-open) wraps the index route.
+- [ ] Browser click-through: first load shows the Lottie overlay then reveals the dashboard once a loop completes; reload in the same tab skips the Lottie; new tab/session shows it again; login page split panel renders and is responsive; spot-check that no screen still shows the old blue.
+- [ ] `client/package-lock.json` / root lockfile now include `lottie-web` — commit with the rest.
+
+## Notifications + Interview Calendar — BUILT (branch `feature/notifications-calendar`, 2026-09-04)
+
+Full design + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md) §10. PROGRESS.md 2026-09-04.
+
+- [x] **Schema** — migration `20260903110804_notifications_and_calendar`; `helpers.js` truncate list + `createInterviewRound`.
+- [x] **Dispatch layer** — `server/src/lib/notifications/` (`eventCatalog` / `recipients` / `dispatch` / `index`).
+- [x] **Notifications API** — `server/src/modules/notifications/` + `DELETE /preferences` (reset); mounted.
+- [x] **Wire call sites** — accounts `changeStage`; requirements `create`/`assign`/`unassign`/`changeStatus`; submissions `addInterviewRound`/`updateInterviewRound`/`changeStage`.
+- [x] **Interviews API** — `server/src/modules/interviews/` (`GET /`, `POST /:id/feedback`, `POST /:id/cancel`); mounted.
+- [x] **Reminder cron** — `node-cron`; `jobs/interviewReminders.js` + `jobs/index.js` `startJobs()`; `ENABLE_JOBS` in `env.js` + both `.env.example`; `ENABLE_JOBS=false` in `tests/env.setup.js`.
+- [x] **Frontend shared bits** — `client/src/lib/interviewRounds.js`; `components/ui/Toggle.jsx`; `Badge.jsx` colors; `id="interview-rounds"`.
+- [x] **Frontend — notifications** — `NotificationsProvider` (inside `AlertProvider`) + `NotificationBell` + `/notifications` + `/notifications/preferences`.
+- [x] **Frontend — calendar** — `/calendar` + nav item; `monthGrid.js`; month + agenda views; `EventDetailDrawer` + `FeedbackDrawer`; cancelled struck-through / red strip. Dashboard widget: **skipped** (optional).
+- [x] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js` written.
+- [x] **Docs finalize** — spec §10 as-built; PROGRESS.md entry; bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; three v2 rows flipped in `architecture/API-Spec-and-Build-Plan.md`.
+- [ ] **Run `cd server && npm test`** once Docker Postgres (`:5434`) is back up — the full suite + the 3 new suites did not execute at build time (daemon was down). `vite build` + `eslint` (client + server) are clean.
+- [ ] **Browser click-through** per spec §9 (assign→bell, schedule→calendar, reschedule, cancel, feedback→panel, preference suppression, reminder cron `node -e`).
+- [ ] Decide on the optional dashboard "My upcoming interviews" widget.
 
 ## List filters + report fixes (branch `feature/list-filters`)
 

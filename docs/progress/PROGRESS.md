@@ -2,6 +2,280 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-07 — Fix RVG tabs: restore Active/Inactive, add With live submissions
+
+Wrong 3-way split in `eb1d7c8` redefined Active/Inactive. Restored prior meanings and added the difference tab:
+
+- **Active vendors** — every active-stage vendor (`vendor_activity=active`)
+- **Inactive vendors** — no candidate currently in a live submission (`inactive`)
+- **With live submissions** — Active − Inactive (`has_live`)
+
+## 2026-09-07 — Calendar: team-wide scope, clickable links, in-card actions, 24h time grid (branch `feature/notifications-calendar`)
+
+- **Scope filter.** `GET /interviews` "All" is now truly team-wide for **every**
+  role (no ownership / role scope). "My interviews" (`mine=1`) = rounds the user
+  **scheduled** (`scheduled_by`), is **tagged on** as an interviewer, or
+  **submitted the candidate** for. Removed the per-role `where.OR` branches in
+  `interviews.service.listForCalendar`. Test updated
+  (`interviews-calendar.test.js`: "All is team-wide … mine=1 hides them").
+- **Clickable links** in every calendar card (`EventCard`, `EventHoverCard`,
+  `EventDetailDrawer`): the **requirement** → `/requirements/:id`, the
+  **candidate** → `/submissions/:id`.
+- **In-card actions.** The month/week/day hover card (`EventHoverCard`) now
+  carries role/permission-gated buttons — **Open details** (always),
+  **Submit feedback** (when `can_submit_feedback` and the round has started),
+  **Cancel** (when it's still upcoming; routes to the detail drawer's reason
+  form), plus **Join meeting**. `onFeedback` threaded
+  `CalendarPage → CalendarMonthView / CalendarTimeGrid → EventPill / TimeBlock →
+  EventHoverCard`.
+- **Time grid.** `DAY_START_HOUR/DAY_END_HOUR` widened to a full 24h
+  (`monthGrid.js`) — an early-morning interview was clamped to `top: 0` and hidden
+  under the header ("top half hidden", wrong times). `CalendarTimeGrid` now
+  auto-scrolls to the day's **earliest event** (falls back to now).
+- **Schedule CTA.** Calendar toolbar gains a role-wise button: BDA →
+  "+ Schedule meeting" (`/accounts`); recruiter / sales / admin →
+  "+ Schedule interview" (`/submissions`). There is no standalone scheduler —
+  interviews are added from a submission's rounds panel, client meetings from an
+  account's stage flow — so the CTA routes to the right list.
+- **Time-grid polish.** Fixed the 12 AM label clipping (first hour label no
+  longer `-translate-y-1/2` off the top edge).
+- **Calendar colour model reworked** (`interviewRounds.js` `eventAppearance`) to
+  two independent signals: the **fill** now encodes the interview **category** —
+  internal = sky/blue, external (client-facing) = violet/purple, and *only* those
+  two — while **status** rides on the `<Badge>`s already shown on cards / hover /
+  detail, plus `cancelled` → grey + struck (overrides) and `rescheduled` → same
+  fill dimmed + struck. Previously the fill was status-coloured with clashing
+  hues (completed≈pass, no_show≈rescheduled) and internal/external was only a
+  thin border in a colliding shade. `STATUS_LEGEND` + the toolbar legend updated
+  to match.
+- **Reschedule / Cancel on every calendar surface, for every role.** `EventCard`
+  (agenda) and `EventHoverCard` gained a **Reschedule** button (opens the detail
+  drawer's inline form). Cancel + Reschedule are no longer gated on the
+  `can_*` permission flags client-side — they show for any live (non-cancelled,
+  non-past for cancel) round and the **server** enforces who may actually act
+  (`canManageInterviewRound` / scheduler), returning 403 otherwise.
+- **Reschedule no longer requires a new time.** The drawer's reschedule form
+  starts blank; with a time it PATCHes `scheduled_at`, without one it PATCHes
+  `{ result: 'rescheduled' }` — flags the round for rescheduling, slot set later.
+- **Outcome recolours the slot.** `eventAppearance` now colours the interview
+  slot itself by outcome when there is one — passed=green, rejected/failed=red
+  (round `fail` *or* the submission is `rejected`/`backout`), did-not-join=orange,
+  cancelled=grey+struck — superseding the internal(sky)/external(violet) category
+  fill; only still-scheduled slots show the category colour. `serializeCalendarEvent`
+  gained `submission_stage`. Legend + trailing note updated.
+- Also fixed a missing `CalendarDays` lucide import in `CalendarPage.jsx` (crash
+  on the empty-agenda path) surfaced by the `main` merge.
+- Server suite **32 / 229** green; client lint 0 errors; `vite build` clean.
+
+## 2026-09-07 — Notifications: admins get a copy of every event (branch `feature/notifications-calendar`)
+
+- `dispatch.notify()` now folds **every active admin** into the recipient set for
+  *every* `NotificationType`, independent of `ROLE_EVENT_MATRIX` and the per-event
+  recipient resolvers. The existing filters still run after: an admin who is the
+  actor is not self-notified, and an admin can still mute a type for themselves
+  via `NotificationPreference` (`in_app: false`). Role filter changed to
+  `u.role === 'admin' || matrix.roles.includes(u.role)`. Costs one extra
+  `user.findMany({ role: 'admin', active: true })` per dispatch.
+- `eventCatalog.js` header comment documents the admin exemption; `admin` stays in
+  every `roles` list only so the preferences UI offers admins all toggles.
+- Tests: `notifications.test.js` +3 — every active admin gets a non-participant
+  event; an admin-actor is not self-notified; an admin can mute a type. Full
+  server suite **32 suites / 222 tests** green.
+- Docs: feature spec §4.1 algorithm + §10 as-built; `TESTING-NOTIFICATIONS-CALENDAR.md`
+  Part A note + regression checklist item.
+
+## 2026-09-07 — Calendar month-view: hover-expand meeting cards (branch `feature/notifications-calendar`)
+
+- New `client/src/pages/calendar/EventHoverCard.jsx` — a floating detail card,
+  portalled to `<body>` and `position: fixed` (escapes the month grid's
+  `overflow-hidden`), flips right/left + clamps to the viewport. Shows round type
+  + name, status/result, when, candidate, requirement, account, interviewers,
+  cancellation reason, feedback/rating, and a "Join meeting" link.
+- `EventPill.jsx` now opens the card on hover/focus (140 ms in, 160 ms out); the
+  card stays open while the pointer is on it (so the Join link is reachable).
+  Clicking the pill still opens `EventDetailDrawer`. Lint + `vite build` clean.
+
+## 2026-09-07 — Merge `main` into `feature/notifications-calendar` + Prisma schema realign (branch `feature/notifications-calendar`)
+
+**Merged `origin/main` (`727ca7b`) into the branch** — merge commit `8f15352`, no
+conflicts. What `main` brought in (all shipped to `main` first; see its own log
+`57ef425`..`727ca7b`):
+
+- **Accounts** — a **Specialization** column in the list table: vendor accounts
+  show `vendor_specializations` as chips, clients/unclassified show `—`. Row peek
+  gains Specializations / Rate range / Payment terms for vendors only.
+  Client-only; the list API already returned the fields.
+- **Reports — CWR** (`clients-without-requirements`) reworked to present-state, no
+  date filters: **3 tabs** — *All active clients* (strictly `type = 'client'`,
+  `stage = 'active'`), *Has requirements* (`bucket=with_requirements` — ≥1 req
+  open/in-progress/on-hold), *No requirements* (`bucket=no_active` — no such req;
+  closed/dropped only or never had one). `with_requirements` + `no_active`
+  partition the set. The "Reqs" column is now **"Active requirements"**
+  (`active_requirements_count`, a filtered `_count` on the same statuses).
+  `without_active_requirements` / `closed_only` buckets kept server-side for the
+  export route / back-compat.
+- **Reports — RVG** (`recruiter-vendor-gaps`) reworked: vendor set is strictly
+  `type = 'vendor'` **and** `stage = 'active'` (dropped the profile-linked wide
+  net). **2 tabs** — *Active vendors* (`vendor_activity=active`, every
+  active-stage vendor) and *Inactive vendors* (`vendor_activity=inactive` — no
+  sourced candidate currently in a live submission stage: any `SubmissionStage`
+  except `closed`/`rejected`/`backout`). New `has_live_submission` field per row.
+  `vendor_activity` enum trimmed back to `active|inactive`. Date inputs removed
+  from both reports (server still accepts `date_from`/`date_to`).
+- **BDA requirement map** — `requirementScopeWhere()` returns `{}` for `bda` (team-
+  wide, like admin) instead of scoping to accounts they own. Affects the pipeline
+  board + reports explorer. Sales (own) / recruiter (assigned) unchanged.
+- **Documents / resumes** — `documents.service.list()` no longer runs the per-
+  entity access gate on **reads**: any authenticated user can list an entity's
+  attachments (sales needs a recruiter's attached CV). `create` / `delete` stay
+  owner-gated. `FilesPanel` + `ProfileFormPage` drop the explicit
+  `Content-Type: multipart/form-data` header on upload (it dropped the boundary →
+  request hung on "Uploading…"). New `FileViewerModal` — PDF `<iframe>` /
+  image `<img>` inline, `.docx` rendered in-browser via **`docx-preview`**
+  (dynamic import, own chunk); other types → download. Row actions are now
+  **View** / **Download** / Delete, with a file-type badge + size.
+  `apiClient` exports `fetchAuthenticatedBlob`, adds `downloadAuthenticatedFile`.
+- **Candidate detail for sales** — the profile peek gains a **"View full
+  details"** action for every role (navigates to read-only `/profiles/:id`), so
+  sales no longer has to open the edit drawer to see the full record.
+
+**Prisma schema realign (this branch, `server/prisma/schema.prisma`).** A prior
+rebase on this branch had dropped the schema changes for migration
+`20260903110804_notifications_and_calendar` while keeping the migration SQL, the
+app code, and the tests — so the generated client lacked `prisma.notification`,
+`prisma.notificationPreference`, and `InterviewRound.status`, and the three
+notification/calendar suites failed. Reconstructed in `schema.prisma` to match
+the already-applied migration (no new migration, DB untouched,
+`prisma migrate diff` confirms alignment):
+
+- enums `InterviewRoundStatus`, `NotificationType`, `NotificationEntityType`
+- `InterviewRound`: `status` (default `scheduled`), `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`,
+  `online_meeting_provider`, `external_event_id`, `@@index([status, scheduled_at])`
+- `model Notification`, `model NotificationPreference` + their `User` relations
+
+**Status.** `node_modules` synced (`npm ci` — `docx-preview` + `lottie-web` +
+`node-cron`), Prisma client regenerated. **Server suite 32 / 32 suites, 219 / 219
+tests green** (`--runInBand`). Client `npm run lint` 0 errors, `vite build` clean.
+Nothing pushed. `server/prisma/schema.prisma` is the only uncommitted change.
+
+## 2026-09-04 — Login polish + "Delphic one" rename + hover-zoom + calendar interview dot (branch `feature/notifications-calendar`)
+
+- **Rename** — the product now reads **"Delphic one"**: login brand panel heading
+  + wordmark, sign-in card copy, `client/index.html` `<title>`. (The old
+  "Requirement Management Dashboard" string is gone from the login page.)
+- **Login UI** — reworked into a proper split: full-bleed `primary-700→800`
+  gradient brand panel (white text, glass card around `undraw_dashboard_p93p.svg`,
+  soft light blobs) on `lg+`; right side a centered card with a gradient top
+  accent bar, larger inputs (shadow-soft, 4px `primary/15` focus ring), and a
+  faint `primary-50` wash behind the form on mobile. `delphic-logo.png` shows
+  above the card on mobile, `Delphic_D-logo_transparent.png` in the panel.
+- **Accent audit** — confirmed no `#0052ff` / `rgb(0 82 255)` / `#3d7bff`
+  anywhere under `client/` (grep clean); buttons + avatars already ride the
+  `primary` scale / solid `primary-600` from the earlier brand pass.
+- **Hover-zoom** — new `.hover-zoom` utility in `global.css` (`scale(1.02)`,
+  soft easing, `prefers-reduced-motion` aware). Applied to `KpiCard`, `StatCard`,
+  the three dashboard panels (Stuck leads / Stuck requirements / Recent activity),
+  and calendar `EventCard`.
+- **Calendar interview indicator** — `notificationsContext` now derives
+  `interviewUnread` (unread notifications whose `type` starts with `interview_` —
+  scheduled / rescheduled / cancelled / reminder). `AppLayout` shows a red count
+  pill on the **Calendar** nav item (a dot on the icon when the sidebar is
+  collapsed), mirroring the bell badge.
+- `vite build` + `eslint` clean.
+
+## 2026-09-04 — Settings page (tabbed): account / security / notifications / activity (branch `feature/notifications-calendar`)
+
+- **New `/settings` route + nav item** (`Settings` icon, no capability — everyone).
+  `client/src/pages/settings/SettingsPage.jsx` — top tab bar (`?tab=` synced,
+  `account` is the default / bare URL): **Account** (profile summary + Log out),
+  **Security** (change-password form), **Notifications** (renders the existing
+  `NotificationPreferencesPage`), **Activity** (account history).
+- **Change-password** extracted from the modal into
+  `client/src/components/ChangePasswordForm.jsx` (fields + submit, optional
+  `onDone`/`onCancel`). `ChangePasswordModal.jsx` deleted — the header avatar
+  menu no longer opens a modal; its "Change password" item is replaced by a
+  **Settings** link, "Logout" kept. `AppLayout` lost the `passwordOpen` state +
+  modal mount.
+- **Account history** — new read-only `GET /users/me/activity` (`users.routes` →
+  `users.controller.myActivity` → `users.service.listActivity`): the caller's own
+  `stage_history` rows (account / requirement / seat / submission), newest first,
+  `limit` 1–200 (default 50), entity labels resolved (account name, requirement
+  title, `candidate → requirement` for submissions). No schema change. The
+  Activity tab renders it as a timeline with `from → to` stage, reason, and a
+  link to the entity where one exists.
+- **Redirect** `/notifications/preferences` → `/settings?tab=notifications`; the
+  notification-bell dropdown "Settings" link and `headerTitle` updated to match.
+- `vite build` + `eslint` (client + server) clean.
+
+## 2026-09-04 — Brand pass: accent → #105aa9, login redesign, home Lottie preloader (branch `feature/notifications-calendar`)
+
+- **Accent colour** — the `primary` Tailwind scale (`client/tailwind.config.js`) rebuilt
+  around `#105aa9` (600 = the accent); `--color-primary` / `--color-primary-soft`
+  tokens in `client/src/styles/global.css` updated to match. Hardcoded `#0052FF` /
+  `#EEF4FF` / `#DBE6FE` literals swapped for `#105AA9` / `#EEF5FC` / `#D8E8F6` across
+  `AppLayout`, `FilterBar`, `chartTheme.js`, and the Accounts / Dashboard / Pipeline /
+  Profiles / Requirements / Submissions / Users pages. Everything else already goes
+  through `primary-*` utilities so it recolours automatically. `Avatar` (initials
+  badge for candidates + people) switched to a solid `#105aa9` fill / white text
+  (was `primary-100` / `primary-800`); the redundant `bg-primary-600` override on
+  the sidebar user avatar dropped. Sidebar brand now `Delphic_D-logo_transparent.png`
+  + "Delphic one" text (was a letter-D tile + "Delphic").
+- **Login page** (`client/src/pages/auth/LoginPage.jsx`) — split layout: left brand
+  panel (`primary-50→100` gradient, soft blur blobs, `Delphic_D-logo_transparent.png`,
+  `undraw_dashboard_p93p.svg` illustration, feature bullets), right sign-in card
+  (`shadow-card`, rounded-2xl, `primary` focus ring). Panel is `lg`+ only; mobile
+  shows `delphic-logo.png` above the card. Assets are the new files dropped in
+  `client/public/`.
+- **Home Lottie preloader** — `client/public/assets/preloader/d_preloader.json`
+  (copied from `public/d_preloader.json`); `lottie-web@^5.13` added to the client
+  workspace. New self-contained `client/src/components/HomePreloaderGate.jsx` wraps
+  the index route (`DashboardPage`) in `App.jsx`. First visit per browser session:
+  fixed full-screen white overlay (`z-9999`, `role="status"`, `aria-busy`), Lottie
+  (`svg`, loop, `xMidYMid meet`, 180×230) plays while critical home images preload;
+  page reveals only when a full `loopComplete` **and** the assets are both done, then
+  the overlay fades + scales + blurs out (~320ms) and unmounts. `sessionStorage`
+  `site_preloader_played='1'` — revisits skip the Lottie and wait on assets only.
+  Fail-open: any Lottie fetch/parse error reveals as soon as assets are ready.
+  `lottie-web` is a dynamic `import()` so it stays out of the login-route bundle
+  (separate 308 kB / 79 kB gzip chunk). CSS lives under `.site-preloader*` in
+  `global.css` (respects `prefers-reduced-motion`). `vite build` + `eslint` clean.
+
+## 2026-09-04 — In-app notifications + interview calendar (built, branch `feature/notifications-calendar`)
+
+Full spec + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md).
+
+- **Schema** — migration `20260903110804_notifications_and_calendar`: `notifications`
+  + `notification_preferences` tables; `NotificationType` / `NotificationEntityType`
+  / `InterviewRoundStatus` enums; `interview_rounds` gains `status`, `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`, and reserved
+  `online_meeting_provider` / `external_event_id`. `tests/helpers.js` truncate list
+  + `createInterviewRound` helper.
+- **Dispatch** — `server/src/lib/notifications/` (`eventCatalog` `ROLE_EVENT_MATRIX`
+  + `renderNotification`; `recipients`; `dispatch.notify()` — role- + preference-
+  filtered, wrapped so it never throws / never rolls back a business `$transaction`).
+- **APIs** — `/api/v1/notifications` (`GET /`, `/unread-count`, `POST /read`,
+  `/read-all`, `GET`/`PUT`/`DELETE /preferences`) and `/api/v1/interviews`
+  (`GET /` role-scoped calendar feed, `POST /:id/feedback` for assigned
+  interviewers **or** managers, `POST /:id/cancel`). Both mounted in `app.js`.
+- **Call sites** — account → active; requirement create / assign / unassign /
+  status-changed; submission interview scheduled / rescheduled / feedback /
+  cancelled / submitted-to-client / rejected / backout / offer.
+- **Cron** — `node-cron`; `server/src/jobs/interviewReminders.js` (T-24h + T-1h,
+  deduped) started from `index.js` via `startJobs()`, gated by `ENABLE_JOBS`
+  (`!== 'false'`, always off in tests). Reserved `env.notifications` block.
+- **Frontend** — `NotificationsProvider` (60s poll, tab-visibility aware) in
+  `main.jsx`; header `NotificationBell` (9+ badge, popover); `/notifications` +
+  `/notifications/preferences` pages; `/calendar` page (month grid + agenda,
+  `localStorage` view, scope + status filters, `EventDetailDrawer` /
+  `FeedbackDrawer`), `Calendar` nav item; shared `lib/interviewRounds.js`,
+  `components/ui/Toggle.jsx`, `Badge` colors for the new statuses.
+- **Tests** — `notifications.test.js`, `interviews-calendar.test.js`,
+  `interview-reminders.test.js`. **Not yet run against the full suite** — local
+  Docker Postgres (`:5434`) was down; client `vite build` + `eslint` are clean,
+  and the submissions / interviews / accounts / requirements suites passed
+  pre-merge.
+
 ## 2026-09-07 — BDA team-wide account flow + specialization filter + docs
 
 - **BDA accounts:** team-wide view + mutate (edit, classify, stage/meetings, type, brought-by); unlock **accounts** only. Still no requirement mutate and no superadmin stage override.

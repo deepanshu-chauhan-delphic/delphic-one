@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LogOut, Menu, MoreVertical, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Menu, MoreVertical, Settings, X } from 'lucide-react';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useNotifications } from '../../lib/notifications/notificationsContext.jsx';
 import { usePermissions } from '../../lib/permissions.js';
-import ChangePasswordModal from '../ChangePasswordModal.jsx';
 import Avatar from '../ui/Avatar.jsx';
+import NotificationBell from '../notifications/NotificationBell.jsx';
 import { headerSubtitleForPath, headerTitleForPath } from './headerTitle.js';
 import { NAV_ITEMS } from './navItems.js';
 
@@ -18,6 +19,7 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const { can } = usePermissions(user);
+  const { interviewUnread } = useNotifications();
   const navItems = useMemo(
     () => NAV_ITEMS.filter((item) => !item.capability || can(item.capability)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- can is derived from user.role
@@ -27,7 +29,6 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const sidebarMenuRef = useRef(null);
 
   useEffect(() => {
@@ -63,18 +64,21 @@ export default function AppLayout() {
   const navContent = (
     <>
       <div className={`flex items-center gap-2.5 px-3 py-4 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-bold text-white">
-          D
-        </div>
+        <img
+          src="/Delphic_D-logo_transparent.png"
+          alt="Delphic"
+          className="h-9 w-9 shrink-0 object-contain"
+        />
         {!collapsed && (
           <span className="font-heading text-lg font-bold tracking-tight text-tertiary-900">
-            Delphic
+            Delphic one
           </span>
         )}
       </div>
       <nav className="flex-1 space-y-1 px-2">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const showInterviewDot = item.to === '/calendar' && interviewUnread > 0;
           return (
             <NavLink
               key={item.to}
@@ -85,13 +89,27 @@ export default function AppLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-[#0052FF] text-white shadow-sm'
+                    ? 'bg-[#105AA9] text-white shadow-sm'
                     : 'text-tertiary-600 hover:bg-tertiary-50 hover:text-tertiary-900'
                 } ${collapsed ? 'justify-center px-2' : ''}`
               }
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              <span className="relative shrink-0">
+                <Icon className="h-4 w-4" />
+                {showInterviewDot && collapsed && (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-danger-600 ring-2 ring-canvas-sidebar" />
+                )}
+              </span>
+              {!collapsed && (
+                <span className="flex flex-1 items-center justify-between gap-2">
+                  <span>{item.label}</span>
+                  {showInterviewDot && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-600 px-1 text-[10px] font-semibold text-white">
+                      {interviewUnread > 9 ? '9+' : interviewUnread}
+                    </span>
+                  )}
+                </span>
+              )}
             </NavLink>
           );
         })}
@@ -109,7 +127,7 @@ export default function AppLayout() {
         {user && !collapsed && (
           <div className="relative" ref={sidebarMenuRef}>
             <div className="flex items-center gap-2 rounded-xl border border-tertiary-100 bg-white/70 px-2.5 py-2 shadow-soft">
-              <Avatar name={user.name} size="sm" className="bg-primary-600 text-white" />
+              <Avatar name={user.name} size="sm" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-tertiary-900">{user.name}</div>
                 <div className="truncate text-xs text-tertiary-500">{user.email}</div>
@@ -135,17 +153,15 @@ export default function AppLayout() {
                   exit={{ opacity: 0, y: 4 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <button
-                    type="button"
+                  <Link
+                    to="/settings"
                     role="menuitem"
-                    className="block w-full px-3 py-2 text-left text-sm text-tertiary-700 transition-colors hover:bg-tertiary-50"
-                    onClick={() => {
-                      setSidebarMenuOpen(false);
-                      setPasswordOpen(true);
-                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-tertiary-700 transition-colors hover:bg-tertiary-50"
+                    onClick={() => setSidebarMenuOpen(false)}
                   >
-                    Change password
-                  </button>
+                    <Settings className="h-3.5 w-3.5" />
+                    Settings
+                  </Link>
                   <button
                     type="button"
                     role="menuitem"
@@ -216,22 +232,27 @@ export default function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="dashboard-canvas-glow flex-1 overflow-auto bg-canvas">
           <header className={`px-4 pt-4 md:px-6 md:pt-5 ${needsExtraSubtitleGap ? 'pb-3' : 'pb-0'}`}>
-            <div className="flex items-start gap-3">
-              <button
-                type="button"
-                className="mt-0.5 rounded-lg p-2 text-tertiary-600 hover:bg-tertiary-50 md:hidden"
-                aria-label="Open menu"
-                onClick={() => setMobileOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="truncate font-heading text-lg font-bold tracking-tight text-tertiary-900 md:text-xl">
-                  {headerTitle}
-                </h1>
-                {headerSubtitle && (
-                  <p className="mt-0.5 text-sm text-tertiary-500">{headerSubtitle}</p>
-                )}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <button
+                  type="button"
+                  className="mt-0.5 rounded-lg p-2 text-tertiary-600 hover:bg-tertiary-50 md:hidden"
+                  aria-label="Open menu"
+                  onClick={() => setMobileOpen(true)}
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div className="min-w-0">
+                  <h1 className="truncate font-heading text-lg font-bold tracking-tight text-tertiary-900 md:text-xl">
+                    {headerTitle}
+                  </h1>
+                  {headerSubtitle && (
+                    <p className="mt-0.5 text-sm text-tertiary-500">{headerSubtitle}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <NotificationBell />
               </div>
             </div>
           </header>
@@ -241,8 +262,6 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
-
-      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>
   );
 }
