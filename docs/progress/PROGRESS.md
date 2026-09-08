@@ -2,6 +2,35 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-08 — Reports polish + candidate-source relabel + notification time fix + calendar overlap fix
+
+- **Reports dates** — all dates in the Reports section render as `08 September 26`
+  (`formatReportDate` in `reportViews.js`); the HR chart axis uses a compact
+  `08 Sep 26` and tooltips the full form.
+- **Candidate source relabel (display only)** — stored enum values stay
+  `direct` / `vendor` / `linkedin`; UI labels are now **Bench** (`direct`),
+  **Vendor**, **Market** (`linkedin`). Via `Badge` `LABEL_OVERRIDES` + the source
+  dropdowns (profile form / profiles list / HR reports filter) + server
+  `reports.service SOURCE_LABEL`. No migration, no logic change.
+- **HR report — no more per-type row spam.** The Sourcing / Submissions tables
+  now have **one row per (sourcer, day)**; the per-source split lives in
+  `by_type` and shows on **hover** over the Count cell ("Bench 3 · Vendor 2 ·
+  Market 1"). `hrReport` groups without the source dimension; server test updated.
+- **HR chart is horizontally scrollable** — dropped the day-window carousel;
+  the plot area now has a `min-width` that grows with the number of days inside
+  an `overflow-x-auto` wrapper, so every day is reachable by scrolling. Sourcing /
+  submissions = stacked bars by source; round tables = multi-line.
+- **Notification times were wrong (UTC).** The server clock is UTC, so
+  `fmtWhen` in `jobs/interviewReminders.js` and `modules/submissions/
+  submissions.service.js` rendered interview times in UTC (e.g. 5:00 PM IST shown
+  as 11:30 AM). Now formatted in `env.timezone` — new `APP_TIMEZONE` env var,
+  default `Asia/Kolkata`. Calendar (client-side, local TZ) was already correct.
+- **Calendar time-grid horizontal overlap.** `layoutDayEvents` computed
+  `colCount` only across *currently-active* events, so blocks in the same visual
+  cluster could disagree on width and render on top of each other. Rewritten as
+  cluster-based column packing — every event in a cluster shares one `colCount`;
+  freed columns are reused. New `monthGrid.test.mjs`.
+
 ## 2026-09-08 — Superadmin record deletion (soft-delete) — branch `feature/superadmin-record-deletion`
 
 Replaces hand-written prod SQL for pruning duplicate / mistaken rows (the trigger:

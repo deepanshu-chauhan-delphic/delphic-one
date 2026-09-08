@@ -940,7 +940,8 @@ async function recruiterVendorGaps({
 // excluded everywhere. Date anchors: sourcing = Profile.created_at, submission =
 // Submission.created_at, round = InterviewRound.scheduled_at.
 
-const SOURCE_LABEL = { direct: 'Direct', vendor: 'Vendor', linkedin: 'LinkedIn' };
+// Display labels for the candidate-source enum; stored values stay direct/linkedin.
+const SOURCE_LABEL = { direct: 'Bench', vendor: 'Vendor', linkedin: 'Market' };
 
 function dayKey(value) {
   return value ? new Date(value).toISOString().slice(0, 10) : null;
@@ -964,23 +965,22 @@ async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source
     },
     select: { added_by: true, created_at: true, source: true, added_by_user: { select: { id: true, name: true } } },
   });
+  // One row per (sourcer, day); the per-source split lives in `by_type` and is
+  // shown on hover, not as extra rows.
+  const addTyped = (map, personId, personName, day, sourceKey) => {
+    const key = `${personId}|${day}`;
+    if (!map.has(key)) {
+      map.set(key, { sourcer: personName || 'Unknown', sourcer_id: personId, date: day, count: 0, by_type: {} });
+    }
+    const row = map.get(key);
+    row.count += 1;
+    const label = SOURCE_LABEL[sourceKey] || sourceKey;
+    row.by_type[label] = (row.by_type[label] || 0) + 1;
+  };
+
   const sourcingMap = new Map();
   for (const p of sourcedProfiles) {
-    const key = `${p.added_by}|${dayKey(p.created_at)}|${p.source}`;
-    bump(
-      sourcingMap,
-      key,
-      () => ({
-        sourcer: p.added_by_user?.name || 'Unknown',
-        sourcer_id: p.added_by,
-        date: dayKey(p.created_at),
-        type: SOURCE_LABEL[p.source] || p.source,
-        count: 0,
-      }),
-      (row) => {
-        row.count += 1;
-      }
-    );
+    addTyped(sourcingMap, p.added_by, p.added_by_user?.name, dayKey(p.created_at), p.source);
   }
 
   // Table 2 - submissions
@@ -997,21 +997,7 @@ async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source
   const submissionMap = new Map();
   for (const s of submissions) {
     const p = s.profile;
-    const key = `${p.added_by}|${dayKey(s.created_at)}|${p.source}`;
-    bump(
-      submissionMap,
-      key,
-      () => ({
-        sourcer: p.added_by_user?.name || 'Unknown',
-        sourcer_id: p.added_by,
-        date: dayKey(s.created_at),
-        type: SOURCE_LABEL[p.source] || p.source,
-        count: 0,
-      }),
-      (row) => {
-        row.count += 1;
-      }
-    );
+    addTyped(submissionMap, p.added_by, p.added_by_user?.name, dayKey(s.created_at), p.source);
   }
 
   // Tables 3 & 4 - internal round 1

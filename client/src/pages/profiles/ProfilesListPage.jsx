@@ -412,9 +412,9 @@ export default function ProfilesListPage() {
               aria-label="Source"
             >
               <option value="">Source: All</option>
-              <option value="direct">Direct</option>
+              <option value="direct">Bench</option>
               <option value="vendor">Vendor</option>
-              <option value="linkedin">LinkedIn</option>
+              <option value="linkedin">Market</option>
             </select>
             <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft">
               <input

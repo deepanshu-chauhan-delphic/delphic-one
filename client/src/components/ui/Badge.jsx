@@ -41,6 +41,9 @@ const COLOR_MAP = {
 
 const LABEL_OVERRIDES = {
   no_show: 'Candidate did not join',
+  // Candidate source labels — the stored enum values stay `direct` / `linkedin`.
+  direct: 'Bench',
+  linkedin: 'Market',
 };
 
 export default function Badge({ value, label }) {

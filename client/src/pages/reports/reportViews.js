@@ -36,6 +36,32 @@ function cell(value) {
   return String(value);
 }
 
+/**
+ * Human-readable date for every date shown in the Reports section, e.g.
+ * "08 September 26". Accepts a `YYYY-MM-DD` string (parsed as a local date so it
+ * doesn't shift a day across time zones), an ISO string, or a Date.
+ */
+export function formatReportDate(value) {
+  if (!value) return '—';
+  let date;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    date = new Date(y, m - 1, d);
+  } else {
+    date = new Date(value);
+  }
+  if (Number.isNaN(date.getTime())) return String(value);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleString('en-US', { month: 'long' });
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${dd} ${month} ${yy}`;
+}
+
+/** Compact variant for dense chart axes, e.g. "08 Sep 26". */
+export function formatReportDateShort(value) {
+  return formatReportDate(value).replace(/^(\d{2}) (\w{3})\w* (\d{2})$/, '$1 $2 $3');
+}
+
 export function personName(row, key) {
   return row?.[key]?.name || '—';
 }
@@ -153,7 +179,7 @@ export function columnsForReport(reportKey) {
       { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
       { key: 'sales_poc', header: 'Sales POC', render: (r) => personName(r, 'sales_poc') },
       { key: 'active_requirements_count', header: 'Active requirements', render: (r) => cell(r.active_requirements_count) },
-      { key: 'created_at', header: 'Created', render: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString() : '—') },
+      { key: 'created_at', header: 'Created', render: (r) => formatReportDate(r.created_at) },
       { key: 'days_idle', header: 'Days idle', render: (r) => cell(r.days_idle) },
     ];
   }
@@ -167,7 +193,7 @@ export function columnsForReport(reportKey) {
       {
         key: 'last_sourced_at',
         header: 'Last sourced',
-        render: (r) => (r.last_sourced_at ? new Date(r.last_sourced_at).toLocaleDateString() : '—'),
+        render: (r) => formatReportDate(r.last_sourced_at),
       },
       { key: 'days_since_sourced', header: 'Days since', render: (r) => cell(r.days_since_sourced) },
     ];
@@ -271,32 +297,44 @@ export function agingSections(data) {
 }
 
 // HR report - server returns { tables: [{ key, title, rows }] }; column defs live here.
+const hrDate = (header) => ({ key: 'date', header, render: (r) => formatReportDate(r.date) });
+
+/** "Bench 3 · Vendor 2 · Market 1" from a { label: count } map. */
+export function hrTypeSummary(byType) {
+  const parts = Object.entries(byType || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => `${label} ${n}`);
+  return parts.join(' · ') || '—';
+}
+
+// Count column carries `by_type` on the row; ReportsPage swaps in a hover cell.
+const hrCount = { key: 'count', header: 'Count' };
+
 const HR_COLUMNS = {
   sourcing: [
     { key: 'sourcer', header: 'Sourcer' },
-    { key: 'count', header: 'Count' },
-    { key: 'date', header: 'Sourcing date' },
-    { key: 'type', header: 'Type' },
+    hrCount,
+    hrDate('Sourcing date'),
   ],
   submissions: [
     { key: 'sourcer', header: 'Sourcer' },
-    { key: 'count', header: 'Count' },
-    { key: 'date', header: 'Submission date' },
-    { key: 'type', header: 'Type' },
+    hrCount,
+    hrDate('Submission date'),
   ],
   round1_by_sourcer: [
     { key: 'sourcer', header: 'Sourcer' },
     { key: 'scheduled', header: 'Scheduled' },
     { key: 'completed', header: 'Completed' },
     { key: 'shortlisted', header: 'Shortlisted' },
-    { key: 'date', header: 'Round date' },
+    hrDate('Round date'),
   ],
   round1_by_interviewer: [
     { key: 'interviewer', header: 'Interviewer' },
     { key: 'scheduled', header: 'Scheduled' },
     { key: 'completed', header: 'Completed' },
     { key: 'shortlisted', header: 'Shortlisted' },
-    { key: 'date', header: 'Round date' },
+    hrDate('Round date'),
   ],
 };
 

@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const prisma = require('../config/db');
+const env = require('../config/env');
 const logger = require('../config/logger');
 const { roundTypeLabel } = require('../modules/submissions/stageMachines');
 const { notify, interviewRoundParticipants } = require('../lib/notifications');
@@ -16,8 +17,10 @@ const REMINDER_INCLUDE = {
 
 function fmtWhen(date) {
   try {
+    // Server clock is UTC — render in the business timezone or notifications show the wrong time.
     return new Date(date).toLocaleString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      timeZone: env.timezone,
     });
   } catch (_err) {
     return '';

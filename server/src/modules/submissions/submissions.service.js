@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const env = require('../../config/env');
 const { SUBMISSION_STAGE_TRANSITIONS, CLIENT_ROUND_TYPES, INTERNAL_ROUND_TYPES, computeMargin, computeMissingMandatoryRounds, isBackwardTransition, roundTypeLabel } = require('./stageMachines');
 const { computeClosureDetail } = require('../../utils/closureProgress');
 const { notify, interviewRoundParticipants, submissionParticipants, admins } = require('../../lib/notifications');
@@ -27,8 +28,10 @@ async function loadNotifyContext(tx, submissionId) {
 function fmtWhen(date) {
   if (!date) return '';
   try {
+    // Server clock is UTC — render in the business timezone or the time is wrong in notifications.
     return new Date(date).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      timeZone: env.timezone,
     });
   } catch (_err) {
     return '';
