@@ -72,22 +72,26 @@ beforeEach(async () => {
 
   submissionIds = [await makeSubmission(seatId, p1.id), await makeSubmission(seatId, p2.id)];
 
-  // internal round 1: pass (shortlisted), fail, no_show  -> scheduled 3 / completed 2 / shortlisted 1
+  // internal round 1 -> scheduled 4 / completed 3 (pass+pass+fail, no_show excluded) / shortlisted 2.
+  // Note: recording a result does NOT flip `status`, so the pass rounds below keep
+  // status 'scheduled' — completed must still count them.
   await createInterviewRound(submissionIds[0], {
     scheduled_at: new Date(),
-    status: 'completed',
     result: 'pass',
     interviewer_ids: [interviewerA.id, interviewerB.id],
   });
   await createInterviewRound(submissionIds[0], {
     scheduled_at: new Date(),
-    status: 'completed',
+    result: 'pass',
+    interviewer_ids: [interviewerA.id],
+  });
+  await createInterviewRound(submissionIds[0], {
+    scheduled_at: new Date(),
     result: 'fail',
     interviewer_ids: [interviewerA.id],
   });
   await createInterviewRound(submissionIds[1], {
     scheduled_at: new Date(),
-    status: 'scheduled',
     result: 'no_show',
     interviewer_ids: [interviewerA.id],
   });
@@ -138,17 +142,17 @@ describe('GET /reports/hr', () => {
     expect(rows[0]).toMatchObject({ sourcer: 'Prashant', date: today });
   });
 
-  test('round1_by_sourcer: scheduled 3 / completed 2 / shortlisted 1', async () => {
+  test('round1_by_sourcer: scheduled 4 / completed 3 (pass or fail) / shortlisted 2', async () => {
     const rows = table((await getHr(adminToken)).body, 'round1_by_sourcer').rows;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ sourcer: 'Prashant', scheduled: 3, completed: 2, shortlisted: 1 });
+    expect(rows[0]).toMatchObject({ sourcer: 'Prashant', scheduled: 4, completed: 3, shortlisted: 2 });
   });
 
   test('round1_by_interviewer: both linked interviewers get credit; filter narrows', async () => {
     const all = table((await getHr(adminToken)).body, 'round1_by_interviewer').rows;
     const ivy = all.find((r) => r.interviewer === 'Ivy');
     const omar = all.find((r) => r.interviewer === 'Omar');
-    expect(ivy).toMatchObject({ scheduled: 3, completed: 2, shortlisted: 1 });
+    expect(ivy).toMatchObject({ scheduled: 4, completed: 3, shortlisted: 2 });
     expect(omar).toMatchObject({ scheduled: 1, completed: 1, shortlisted: 1 });
 
     const narrowed = table((await getHr(adminToken, { interviewer_id: interviewerB.id })).body, 'round1_by_interviewer').rows;
