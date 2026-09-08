@@ -71,6 +71,9 @@ export default function SubmissionCreatePage({
     }
     const reqParams = { limit: 100 };
     if (accountId) reqParams.account_id = accountId;
+    // Only offer in-progress requirements in the picker — unless we were opened
+    // locked to a specific requirement row, which shows regardless of status.
+    if (!initialRequirementId) reqParams.status = 'in_progress';
     Promise.all([
       apiClient.get('/profiles', { params: { is_active: 'true', limit: 100 } }),
       apiClient.get('/requirements', { params: reqParams }),
