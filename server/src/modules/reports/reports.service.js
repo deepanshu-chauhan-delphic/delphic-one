@@ -1025,8 +1025,12 @@ async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source
 
   const metricSeed = (base) => () => ({ ...base, scheduled: 0, completed: 0, shortlisted: 0 });
   const applyMetrics = (row, r) => {
+    // Scheduled = every internal round 1. Completed = the interview actually
+    // happened, i.e. a pass/fail result was recorded (recording a result stamps
+    // completed_at but NOT `status`, so `status` alone can't be trusted).
+    // Shortlisted = the pass ones.
     row.scheduled += 1;
-    if (r.status === 'completed' && ['pass', 'fail'].includes(r.result)) row.completed += 1;
+    if (['pass', 'fail'].includes(r.result)) row.completed += 1;
     if (r.result === 'pass') row.shortlisted += 1;
   };
 
