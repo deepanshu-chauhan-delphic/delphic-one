@@ -86,6 +86,20 @@ describe('RD-104 create / update requirement (form API)', () => {
     expect(res.body.data.designation).toBe('Senior Engineer');
     expect(res.body.data.priority).toBe('urgent');
   });
+
+  test('the requirements list can be filtered by work_mode', async () => {
+    await createRequirement(salesToken, account.id, { title: 'Remote role', work_mode: 'remote' });
+    await createRequirement(salesToken, account.id, { title: 'Onsite role', work_mode: 'onsite' });
+
+    const remote = await authed(request(app).get('/api/v1/requirements').query({ work_mode: 'remote' }), salesToken);
+    expect(remote.status).toBe(200);
+    expect(remote.body.data.length).toBeGreaterThan(0);
+    expect(remote.body.data.every((r) => r.work_mode === 'remote')).toBe(true);
+    expect(remote.body.data.some((r) => r.title === 'Onsite role')).toBe(false);
+
+    const bad = await authed(request(app).get('/api/v1/requirements').query({ work_mode: 'wfh' }), salesToken);
+    expect(bad.status).toBe(422);
+  });
 });
 
 describe('RD-103 detail page data + seat controls (API)', () => {

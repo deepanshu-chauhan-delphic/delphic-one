@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
@@ -29,6 +29,7 @@ import SubmissionStageOverrideDrawer from '../submissions/SubmissionStageOverrid
 import { canCreateRequirement } from '../../lib/requirementStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
+import OpenInNewTabButton from '../../components/OpenInNewTabButton.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
@@ -61,12 +62,12 @@ const STAGE_HEADER_COLORS = {
   rejected: 'bg-red-50 text-red-700',
 };
 
-function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStage, isDragging, onOpen }) {
+function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStage, isDragging }) {
   const next = nextSubmissionStages(submission.stage).filter(
     (to) => canMoveBackward || !isBackwardTransition(submission.stage, to)
   );
   const actions = [
-    { key: 'open', label: 'Open submission', onClick: () => onOpen(submission.id) },
+    { key: 'open', label: 'Open submission', to: `/submissions/${submission.id}` },
     ...(canMove && !submission.is_locked
       ? next.map((to) => ({
           key: `move-${to}`,
@@ -89,13 +90,12 @@ function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStag
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button
-          type="button"
+        <Link
+          to={`/submissions/${submission.id}`}
           className="min-w-0 flex-1 text-left text-sm font-medium text-primary-700 hover:underline"
-          onClick={() => onOpen(submission.id)}
         >
           {submission.profile?.name || 'Candidate'}
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'candidate'}`} />
       </div>
       <p className="mt-0.5 text-[11px] text-tertiary-500">
@@ -110,7 +110,7 @@ function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStag
   );
 }
 
-function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage, onOpen }) {
+function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: submission.id,
     disabled: !canMove || submission.is_locked,
@@ -130,7 +130,6 @@ function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage
         busy={busy}
         onMoveStage={onMoveStage}
         isDragging={isDragging}
-        onOpen={onOpen}
       />
     </div>
   );
@@ -157,7 +156,6 @@ function DroppableCell({ requirementId, stage, children, isOver }) {
 export default function AccountPipelineBoardPage() {
   const { id, accountId: accountIdParam } = useParams();
   const accountId = accountIdParam || id;
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -381,6 +379,7 @@ export default function AccountPipelineBoardPage() {
           <div className="flex flex-wrap gap-2">
             <Link to="/pipeline" className="btn-secondary">All accounts</Link>
             <Link to={`/accounts/${accountId}`} className="btn-secondary">Account detail</Link>
+            <OpenInNewTabButton />
             <button type="button" className="btn-secondary" onClick={load}>Refresh</button>
             {canCreateReqHere && (
               <button type="button" className="btn-secondary" onClick={() => setCreateReqOpen(true)}>
@@ -531,7 +530,6 @@ export default function AccountPipelineBoardPage() {
                               canMoveBackward={canMoveSubsBackward}
                               busy={busyId === sub.id}
                               onMoveStage={requestStageMove}
-                              onOpen={(subId) => navigate(`/submissions/${subId}`)}
                             />
                           ))}
                           {cards.length === 0 && (
@@ -554,7 +552,6 @@ export default function AccountPipelineBoardPage() {
                   canMove={false}
                   busy={false}
                   onMoveStage={() => {}}
-                  onOpen={() => {}}
                   isDragging
                 />
               </div>

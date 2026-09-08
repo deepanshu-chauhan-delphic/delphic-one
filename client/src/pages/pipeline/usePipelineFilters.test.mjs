@@ -67,4 +67,27 @@ assert.equal(written.get('status'), 'open');
 assert.equal(written.get('past_sla_only'), 'true');
 assert.equal(written.get('stuck_only'), null);
 
+// Persistence contract: a fully-populated filter set survives a
+// write → URL → read round-trip unchanged (so Back / reload / new tab keep it).
+const full = {
+  ...emptyPipelineFilters(),
+  search: 'Backend',
+  account_id: 'acc-1',
+  bda_id: 'bda-1',
+  sales_id: 'sales-1',
+  admin_id: 'admin-1',
+  recruiter_id: 'rec-1',
+  recruiter_ids: ['rec-2', 'rec-3'],
+  submitted_by_ids: ['rec-4'],
+  status: ['open', 'on_hold'],
+  priority: ['high', 'urgent'],
+  submission_stage: ['sourced', 'bgv'],
+  stuck: 'stuck',
+  past_sla_only: true,
+  date_from: '2026-01-01',
+  date_to: '2026-03-31',
+};
+const roundTripped = filtersFromSearchParams(applyFiltersToSearchParams(new URLSearchParams(), full));
+assert.deepEqual(roundTripped, full);
+
 console.log('usePipelineFilters.test.mjs: ok');

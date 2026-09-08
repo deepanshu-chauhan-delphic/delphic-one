@@ -187,13 +187,13 @@ export default function SubmissionCreatePage({
               searchPlaceholder="Search candidates…"
               options={visibleProfiles.map((p) => ({
                 value: p.id,
-                label: `${p.name}${p.current_company ? ` — ${p.current_company}` : ''}${
+                label: `${p.name}${p.current_company ? ` - ${p.current_company}` : ''}${
                   p.source ? ` (${p.source}${p.on_bench ? ', on bench' : ''})` : ''
                 }`,
               }))}
             />
             {vendorRequired && (
-              <p className="mt-1 text-xs text-warning-700">Vendor candidate — vendor rate is required.</p>
+              <p className="mt-1 text-xs text-warning-700">Vendor candidate - vendor rate is required.</p>
             )}
           </div>
 
@@ -208,7 +208,7 @@ export default function SubmissionCreatePage({
               searchPlaceholder="Search jobs…"
               options={requirements.map((r) => ({
                 value: r.id,
-                label: `${r.title}${r.account?.name ? ` — ${r.account.name}` : ''} (${r.status})`,
+                label: `${r.title}${r.account?.name ? ` - ${r.account.name}` : ''} (${r.status})`,
               }))}
             />
             {requirementLocked && (
@@ -227,7 +227,7 @@ export default function SubmissionCreatePage({
               searchPlaceholder="Search seats…"
               options={seats.map((s) => ({
                 value: s.id,
-                label: `${s.seat_label || s.id.slice(0, 8)} — ${s.seat_status}${
+                label: `${s.seat_label || s.id.slice(0, 8)} - ${s.seat_status}${
                   s.active_submissions_count ? ` (${s.active_submissions_count} active)` : ''
                 }`,
               }))}

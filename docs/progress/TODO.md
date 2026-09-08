@@ -6,6 +6,69 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Boards/lists: new-tab + filter persistence + Clear all + work-mode (2026-09-08)
+
+- [x] `OpenInNewTabButton` → real `<a target=_blank>`; every board card + menu nav
+      item is a `<Link>` (correct entity opens in a new tab).
+- [x] List pages re-hydrate filters from URL (Back/reload/new-tab persistence).
+- [x] **Clear all filters** button on `PipelineFilters` + all 4 list pages; only way to clear.
+- [x] Requirements list **Work mode** filter (server `listQuerySchema`/`list()`) + column + peek field.
+- [x] Fix `RequirementDetailPage` `limit: 200` → 100 (422 "Number must be ≤ 100" on every open).
+- [x] Requirement peek: **Job details** CTA `<Link>`.
+- [ ] Manual: cmd-click a board card → correct entity in a new tab; drag still works;
+      Back keeps filters; Clear all filters is the only reset; Work mode column/filter show.
+
+## Calendar "Review feedback" (2026-09-08)
+
+- [x] `hasSubmittedFeedback` helper; EventCard / EventDetailDrawer / EventHoverCard
+      relabel "Submit feedback" → "Review feedback" once feedback exists.
+- [x] `FeedbackDrawer` pre-fills existing result/rating/feedback; "Update feedback".
+- [ ] Manual: submit feedback (e.g. fail) on a calendar interview → CTA now reads
+      "Review feedback" and reopening the drawer shows the saved values.
+
+## Pipeline "Open in new tab" + Tagged profiles (2026-09-08)
+
+- [x] `OpenInNewTabButton` on every pipeline board header (PipelineShell,
+      RequirementKanbanPage, AccountPipelineBoardPage) — all roles; filters are
+      already URL-synced so the new tab keeps them.
+- [x] **Tagged profiles** table on `RequirementDetailPage` (`GET /submissions?requirement_id=`).
+- [ ] Manual: filter a pipeline board, click Open in new tab → new tab shows the same
+      filtered board; open a requirement → Tagged profiles lists its candidates with links.
+
+## HR report + em-dash sweep (2026-09-08)
+
+PROGRESS.md 2026-09-08 top entry.
+
+- [x] `GET /reports/hr` — 4 per-day tables (sourcing, submissions, round-1 by
+      sourcer, round-1 by interviewer); on-bench excluded; export + tests.
+- [x] Reports page: visible **HR reports**, Type/Sourcer/Interviewer filters,
+      named tabs (icon + count pill) + per-day bar chart per tab.
+- [x] Em-dash → hyphen in `client/src` visible prose (31 lines); placeholders +
+      comments left as-is.
+- [ ] Manual: Reports → HR as admin — 4 tables render, filters narrow, on-bench
+      candidate never appears, `no_show` counts scheduled-not-completed, xlsx = 4 sheets.
+- [ ] Future: extra HR tables (round 2, client rounds) as they're requested; a
+      dedicated `hr` role.
+
+## Superadmin record deletion — soft-delete (branch `feature/superadmin-record-deletion`, 2026-09-08)
+
+PROGRESS.md 2026-09-08. Spec: [RD-SUPERADMIN-RECORD-DELETION.md](../features/RD-SUPERADMIN-RECORD-DELETION.md).
+
+- [x] Schema: `deleted_at`/`deleted_by`/`delete_reason` on 5 models + `AuditLog`.
+- [x] Migration `20260908120000_soft_delete_and_audit` (additive, idempotent).
+- [x] `prisma.$use` soft-delete filter in `config/db.js`.
+- [x] `admin` module: `POST /admin/:type/:id/delete` + `/restore` + `GET /admin/deleted`.
+- [x] Client `DeleteRecordButton` on 4 detail pages + `InterviewRoundsPanel`; cap `deleteRecords`.
+- [x] **Settings → Deleted records** tab (superadmin) — `DeletedRecordsPanel`: list + Restore + audit trail.
+- [x] `GET /admin/deleted` (+ deleter name) and `GET /admin/audit`; deletions folded into dashboard Recent activity.
+- [x] **`GET /users/directory`** — every role reads the full roster (inactive included); all filter/owner/POC pickers repointed. `users-directory.test.js`.
+- [x] Settings tab bar full-width (`flex-1`), container `max-w-5xl`.
+- [x] `server/tests/admin-soft-delete.test.js` 12/12; full server suite 34/245 green.
+- [x] Migration applied to local dev + test DBs.
+- [ ] Manual: superadmin deletes Spiral TechnoLabs (`ACC-F637AC68`) → gone from
+      `/accounts`, `/dashboard`, `/reports`; `GET /admin/deleted` lists it; restore works.
+- [ ] Hand the human the `prisma migrate deploy` step for staging/prod (agent never touches `main`).
+
 ## Calendar hover cards + Merge `main` + schema realign (branch `feature/notifications-calendar`, 2026-09-07)
 
 PROGRESS.md 2026-09-07 top entries.

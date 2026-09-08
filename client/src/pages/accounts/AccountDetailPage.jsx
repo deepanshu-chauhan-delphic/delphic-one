@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -10,6 +10,7 @@ import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
 import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
 import AccountStageOverrideDrawer from './AccountStageOverrideDrawer.jsx';
@@ -39,6 +40,7 @@ function DetailSection({ title, children }) {
 
 export default function AccountDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -193,6 +195,14 @@ export default function AccountDetailPage() {
             )}
             {canUnlock && account.is_locked && (
               <UnlockButton entityType="account" entityId={account.id} onUnlocked={loadAccount} />
+            )}
+            {userCan(user, 'deleteRecords') && (
+              <DeleteRecordButton
+                entityType="account"
+                entityId={account.id}
+                entityLabel={`${accountKey(account.id)} · ${account.name}`}
+                onDeleted={() => navigate('/accounts')}
+              />
             )}
           </div>
         </div>

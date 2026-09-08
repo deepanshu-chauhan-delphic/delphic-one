@@ -62,6 +62,7 @@ const ROLE_CAPS = {
     'viewLeadPipeline',
     'viewRequirementMatrix',
     'viewReports',
+    'viewProfiles',
   ]),
 };
 
@@ -81,7 +82,7 @@ export function can(role, capability) {
 }
 
 // Capabilities no ordinary role has — only a superadmin (is_superadmin flag).
-const SUPERADMIN_ONLY = new Set(['overrideStage', 'editAnyUser']);
+const SUPERADMIN_ONLY = new Set(['overrideStage', 'editAnyUser', 'deleteRecords']);
 
 /**
  * Capability check against the full auth user (not just the role string).

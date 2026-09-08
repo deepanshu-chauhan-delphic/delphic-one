@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, Bell, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { Activity, Bell, LogOut, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -8,14 +8,18 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Avatar from '../../components/ui/Avatar.jsx';
 import Skeleton from '../../components/ui/Skeleton.jsx';
 import ChangePasswordForm from '../../components/ChangePasswordForm.jsx';
+import DeletedRecordsPanel from '../../components/admin/DeletedRecordsPanel.jsx';
+import { userCan } from '../../lib/permissions.js';
 import NotificationPreferencesPage from '../notifications/NotificationPreferencesPage.jsx';
 
-const TABS = [
+const BASE_TABS = [
   { key: 'account', label: 'Account', icon: UserRound },
   { key: 'security', label: 'Security', icon: ShieldCheck },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'activity', label: 'Activity', icon: Activity },
 ];
+
+const DELETED_TAB = { key: 'deleted', label: 'Deleted records', icon: Trash2 };
 
 const ENTITY_PATH = {
   account: (id) => `/accounts/${id}`,
@@ -118,7 +122,7 @@ function ActivityTab() {
   return (
     <Card
       title="Account history"
-      description="Every stage and status change you've made — newest first."
+      description="Every stage and status change you've made - newest first."
     >
       {rows === null ? (
         <div className="space-y-2">
@@ -170,9 +174,14 @@ export default function SettingsPage() {
   const { user, logout } = useAuth();
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
+  const canSeeDeleted = userCan(user, 'deleteRecords');
+  const TABS = useMemo(
+    () => (canSeeDeleted ? [...BASE_TABS, DELETED_TAB] : BASE_TABS),
+    [canSeeDeleted]
+  );
   const active = useMemo(
     () => (TABS.some((t) => t.key === requested) ? requested : 'account'),
-    [requested]
+    [TABS, requested]
   );
 
   function selectTab(key) {
@@ -180,7 +189,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 py-2">
+    <div className="mx-auto max-w-5xl space-y-5 py-2">
       <div
         role="tablist"
         aria-label="Settings sections"
@@ -195,7 +204,7 @@ export default function SettingsPage() {
               role="tab"
               aria-selected={selected}
               onClick={() => selectTab(key)}
-              className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors ${
+              className={`-mb-px flex flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors ${
                 selected
                   ? 'border-primary-600 text-primary-700'
                   : 'border-transparent text-tertiary-500 hover:border-tertiary-200 hover:text-tertiary-800'
@@ -212,6 +221,7 @@ export default function SettingsPage() {
       {active === 'security' && <SecurityTab />}
       {active === 'notifications' && <NotificationPreferencesPage />}
       {active === 'activity' && <ActivityTab />}
+      {active === 'deleted' && canSeeDeleted && <DeletedRecordsPanel />}
     </div>
   );
 }

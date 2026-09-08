@@ -6,7 +6,14 @@ const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./reports.service');
 const explorerService = require('./explorer.service');
-const { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema } = require('./reports.validation');
+const {
+  dateRangeSchema,
+  agingSchema,
+  closureSchema,
+  explorerSchema,
+  coverageSchema,
+  hrSchema,
+} = require('./reports.validation');
 
 const router = express.Router();
 router.use(authenticate);
@@ -22,6 +29,7 @@ const REPORTS = {
   'pipeline-explorer': (q, user) => explorerService.pipelineExplorer(user, q),
   'clients-without-requirements': (q) => service.clientsWithoutRequirements(q),
   'recruiter-vendor-gaps': (q) => service.recruiterVendorGaps(q),
+  hr: (q) => service.hrReport(q),
 };
 
 router.get(
@@ -96,6 +104,16 @@ router.get(
 );
 
 router.get(
+  '/hr',
+  authorize('admin'),
+  asyncHandler(async (req, res) => {
+    const query = hrSchema.parse(req.query);
+    const data = await service.hrReport(query);
+    return ok(res, data);
+  })
+);
+
+router.get(
   '/pipeline-explorer',
   authorize('admin', 'sales', 'recruiter', 'bda'),
   asyncHandler(async (req, res) => {
@@ -135,11 +153,14 @@ router.get(
     const fn = REPORTS[report];
     if (!fn) return fail(res, 422, 'Unknown report');
     if (!['xlsx', 'pdf'].includes(type)) return fail(res, 422, 'type must be xlsx or pdf');
+    // HR is admin-only for the GET; keep its export admin-only too.
+    if (report === 'hr' && req.user.role !== 'admin') return fail(res, 403, 'Admin only');
 
     let query = { ...req.query };
     if (report === 'aging') query = agingSchema.parse(req.query);
     else if (report === 'closure') query = closureSchema.parse(req.query);
     else if (report === 'pipeline-explorer') query = explorerSchema.parse(req.query);
+    else if (report === 'hr') query = hrSchema.parse(req.query);
     else if (report === 'clients-without-requirements' || report === 'recruiter-vendor-gaps') {
       query = coverageSchema.parse(req.query);
     } else query = dateRangeSchema.parse(req.query);
@@ -208,6 +229,10 @@ function buildExportSheets(report, data) {
 
   if (report === 'pipeline-explorer' && data && typeof data === 'object' && Array.isArray(data.rows)) {
     return [{ name: 'pipeline-explorer', rows: data.rows.map((r) => flatten(r)) }];
+  }
+
+  if (report === 'hr' && data && typeof data === 'object' && Array.isArray(data.tables)) {
+    return data.tables.map((t) => ({ name: t.title, rows: (t.rows || []).map((r) => flatten(r)) }));
   }
 
   if (report === 'recruiter-vendor-gaps' && Array.isArray(data)) {

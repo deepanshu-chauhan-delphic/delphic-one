@@ -53,9 +53,10 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
 
   useEffect(() => {
     if (!canEditOwner && !canEditOriginOwner) return;
+    // /users/directory: readable by every role, includes inactive users.
     apiClient
-      .get('/users', { params: { active: 'true', limit: 100 } })
-      .then(({ data }) => setOwnerOptions([...(data.data || [])].sort((a, b) => a.name.localeCompare(b.name))))
+      .get('/users/directory')
+      .then(({ data }) => setOwnerOptions(data.data || []))
       .catch(() => setOwnerOptions([]));
   }, [canEditOwner, canEditOriginOwner]);
 

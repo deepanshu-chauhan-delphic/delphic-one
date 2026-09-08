@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -116,14 +116,14 @@ function SubmissionStageDrawer({ submission, open, saving, preferredToStage, can
   );
 }
 
-function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onRequestMove, onOpenDetail, onOpenBoard }) {
+function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onRequestMove }) {
   const next = nextSubmissionStages(submission.stage).filter(
     (stage) => canMoveBackward || !isBackwardTransition(submission.stage, stage)
   );
   const actions = [
-    { key: 'detail', label: 'Open submission', onClick: () => onOpenDetail(submission.id) },
+    { key: 'detail', label: 'Open submission', to: `/submissions/${submission.id}` },
     submission.requirement?.id
-      ? { key: 'board', label: 'Open job board', onClick: () => onOpenBoard(submission.requirement.id) }
+      ? { key: 'board', label: 'Open job board', to: `/requirements/${submission.requirement.id}/board` }
       : null,
     ...(canMove && !submission.is_locked
       ? next.map((stage) => ({
@@ -146,7 +146,7 @@ function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onReq
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpenDetail(submission.id)}>
+        <Link to={`/submissions/${submission.id}`} className="min-w-0 flex-1 text-left">
           <div className="font-mono text-[10px] text-primary-600">{shortKey('SUB', submission.id)}</div>
           <div className="truncate text-sm font-semibold text-tertiary-900">
             {submission.profile?.name || 'Candidate'}
@@ -160,7 +160,7 @@ function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onReq
               via {submission.profile.vendor_account.name}
             </div>
           )}
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'submission'}`} />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
@@ -178,7 +178,6 @@ function CandidateCard({ submission, canMove, canMoveBackward, isDragging, onReq
 export default function CandidatePipelineBoard() {
   const { user } = useAuth();
   const { pushError } = useAlerts();
-  const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
   const boardParams = useMemo(() => {
@@ -347,8 +346,6 @@ export default function CandidatePipelineBoard() {
                           canMoveBackward={canMoveBackward}
                           isDragging={isDragging}
                           onRequestMove={requestMove}
-                          onOpenDetail={(id) => navigate(`/submissions/${id}`)}
-                          onOpenBoard={(id) => navigate(`/requirements/${id}/board`)}
                         />
                       )}
                     </DraggableCard>

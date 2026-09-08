@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../lib/authContext.jsx';
 import { usePermissions } from '../../lib/permissions.js';
 import { defaultPipelineView } from './pipelineBoardUtils.js';
+import OpenInNewTabButton from '../../components/OpenInNewTabButton.jsx';
 import LeadPipelineBoard from './LeadPipelineBoard.jsx';
 import JobPipelineBoard from './JobPipelineBoard.jsx';
 import CandidatePipelineBoard from './CandidatePipelineBoard.jsx';
@@ -46,27 +47,32 @@ export default function PipelineShell() {
 
   return (
     <div className="space-y-4">
-      {showSwitcher && (
-        <div className="inline-flex rounded-xl border border-tertiary-200 bg-white p-1 shadow-soft">
-          {availableViews.map((option) => {
-            const isActive = option.key === activeView;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setView(option.key)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-primary-600 text-white'
-                    : 'text-tertiary-600 hover:bg-tertiary-50 hover:text-tertiary-900'
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {showSwitcher ? (
+          <div className="inline-flex rounded-xl border border-tertiary-200 bg-white p-1 shadow-soft">
+            {availableViews.map((option) => {
+              const isActive = option.key === activeView;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setView(option.key)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-primary-600 text-white'
+                      : 'text-tertiary-600 hover:bg-tertiary-50 hover:text-tertiary-900'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <span />
+        )}
+        <OpenInNewTabButton />
+      </div>
 
       {activeView === 'lead' && <LeadPipelineBoard />}
       {activeView === 'jobs' && <JobPipelineBoard />}

@@ -21,7 +21,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
     setLoading(true);
     try {
       const requests = [apiClient.get(`/requirements/${requirement.id}/assignments`)];
-      if (canAssign) requests.push(apiClient.get('/users', { params: { role: 'recruiter', active: true, limit: 100 } }));
+      if (canAssign) requests.push(apiClient.get('/users/directory', { params: { role: 'recruiter', active: 'true' } }));
       const [assignmentsResponse, usersResponse] = await Promise.all(requests);
       setAssignments(assignmentsResponse.data.data || []);
       setRecruiters(usersResponse?.data?.data || []);
@@ -102,7 +102,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
 
       {!canAssign && !isSalesButNotOwner && (
         <p className="mb-3 rounded-xl border border-tertiary-100 bg-tertiary-50 px-3 py-2 text-xs text-tertiary-600">
-          View only — sign in as Admin or the Sales owner to assign or unassign recruiters.
+          View only - sign in as Admin or the Sales owner to assign or unassign recruiters.
         </p>
       )}
 

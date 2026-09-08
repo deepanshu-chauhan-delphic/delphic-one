@@ -2,6 +2,8 @@ import FilterChip from './FilterChip.jsx';
 import SearchableSelect from './SearchableSelect.jsx';
 
 const DATE_PRESETS = [
+  { key: 'today', label: 'Today' },
+  { key: 'this_week', label: 'This week' },
   { key: 'this_month', label: 'This month' },
   { key: 'last_month', label: 'Last month' },
   { key: 'this_quarter', label: 'This quarter' },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateSubmission } from '../../lib/submissionStages.js';
@@ -42,7 +42,6 @@ function csvToList(value) {
 }
 
 function SubmissionPeek({ row, onClose }) {
-  const navigate = useNavigate();
   const [detail, setDetail] = useState(row);
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +58,11 @@ function SubmissionPeek({ row, onClose }) {
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{subKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/submissions/${detail.id}`} className="text-primary-700 hover:underline">
+            {subKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Candidate">{detail.profile?.name || '—'}</PeekField>
         <PeekField label="Job">{detail.requirement?.title || '—'}</PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
@@ -77,9 +80,9 @@ function SubmissionPeek({ row, onClose }) {
         <PeekField label="Notes">{detail.submission_notes}</PeekField>
       )}
       <PeekActions>
-        <button type="button" className="btn-primary" onClick={() => navigate(`/submissions/${detail.id}`)}>
+        <Link to={`/submissions/${detail.id}`} className="btn-primary">
           Manage interviews
-        </button>
+        </Link>
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
@@ -131,6 +134,43 @@ export default function SubmissionsListPage() {
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageCsv, submittedBy, accountId, requirementId, sortBy, sortOrder]);
+
+  // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
+  useEffect(() => {
+    const g = (k, d = '') => searchParams.get(k) || d;
+    const set = (setter, value) => setter((prev) => (prev === value ? prev : value));
+    setStages((prev) => {
+      const nextCsv = g('stage');
+      return prev.join(',') === nextCsv ? prev : csvToList(nextCsv);
+    });
+    set(setSubmittedBy, g('submitted_by'));
+    set(setAccountId, g('account_id'));
+    set(setRequirementId, g('requirement_id'));
+    set(setSortBy, g('sort_by', 'created_at'));
+    set(setSortOrder, g('sort_order', 'desc'));
+  }, [searchParams]);
+
+  const hasActiveFilters = Boolean(
+    stageCsv || submittedBy || accountId || requirementId || appliedSearch ||
+      sortBy !== 'created_at' || sortOrder !== 'desc'
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setStages([]);
+    setSubmittedBy('');
+    setAccountId('');
+    setRequirementId('');
+    setSortBy('created_at');
+    setSortOrder('desc');
+    setSearch('');
+    setAppliedSearch('');
+    const kept = new URLSearchParams();
+    ['create', 'profile_id'].forEach((k) => {
+      if (searchParams.get(k)) kept.set(k, searchParams.get(k));
+    });
+    setSearchParams(kept, { replace: true });
+  }
 
   function reload() {
     setLoading(true);
@@ -270,6 +310,12 @@ export default function SubmissionsListPage() {
                 searchPlaceholder="Search stage…"
               />
             </div>
+            {hasActiveFilters && (
+              <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                Clear all filters
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

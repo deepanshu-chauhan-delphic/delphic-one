@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { CalendarX, ExternalLink, RefreshCw } from 'lucide-react';
 import Badge from '../../components/ui/Badge.jsx';
 import AvatarStack from '../../components/ui/AvatarStack.jsx';
-import { eventAppearance, roundTypeMeta } from '../../lib/interviewRounds.js';
+import { eventAppearance, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
 import { formatRelative } from '../../lib/notifications/notificationLinks.js';
 import { formatTimeRange } from './monthGrid.js';
 
@@ -18,7 +18,8 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
   const isPastStart = event.scheduled_at && new Date(event.scheduled_at).getTime() <= nowMs;
   const isFuture = event.scheduled_at && new Date(event.scheduled_at).getTime() > nowMs;
   const live = !cancelled && !rescheduled;
-  const canFeedback = event.can_submit_feedback && live && isPastStart;
+  const feedbackDone = hasSubmittedFeedback(event);
+  const canFeedback = event.can_submit_feedback && live && (isPastStart || feedbackDone);
   // Cancel / Reschedule are offered to every role; the server enforces who may
   // actually do it (manager / scheduler) and 403s otherwise.
   const canCancel = live && isFuture;
@@ -102,7 +103,7 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
         </button>
         {canFeedback && (
           <button type="button" className="btn-secondary text-xs" onClick={() => onFeedback(event)}>
-            Submit feedback
+            {feedbackDone ? 'Review feedback' : 'Submit feedback'}
           </button>
         )}
         {canReschedule && (

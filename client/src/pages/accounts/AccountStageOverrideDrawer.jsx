@@ -43,7 +43,7 @@ export default function AccountStageOverrideDrawer({ account, preferredToStage =
   useEffect(() => {
     if (!open) return;
     apiClient
-      .get('/users', { params: { role: 'sales', active: true, limit: 100 } })
+      .get('/users/directory', { params: { role: 'sales', active: 'true' } })
       .then(({ data }) => setSalesUsers(data.data || []))
       .catch(() => setSalesUsers([]));
   }, [open]);
@@ -89,7 +89,7 @@ export default function AccountStageOverrideDrawer({ account, preferredToStage =
     >
       <form id="account-stage-override-form" onSubmit={submit} className="space-y-3">
         <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-          Superadmin override — skips the normal transition rules and the lock. The move is recorded in stage history.
+          Superadmin override - skips the normal transition rules and the lock. The move is recorded in stage history.
         </div>
         <p className="text-xs text-tertiary-500">Current stage: {formatAccountValue(account.stage)}</p>
         <label className="block text-xs font-medium text-tertiary-600">

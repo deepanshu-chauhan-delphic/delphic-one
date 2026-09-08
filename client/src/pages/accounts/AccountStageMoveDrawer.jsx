@@ -49,7 +49,7 @@ export default function AccountStageMoveDrawer({
   useEffect(() => {
     if (!open) return;
     apiClient
-      .get('/users', { params: { role: 'sales', active: true, limit: 100 } })
+      .get('/users/directory', { params: { role: 'sales', active: 'true' } })
       .then(({ data }) => setSalesUsers(data.data || []))
       .catch(() => setSalesUsers([]));
   }, [open]);

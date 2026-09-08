@@ -1,7 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created, fail } = require('../../utils/response');
 const usersService = require('./users.service');
-const { listQuerySchema, createSchema, updateSchema } = require('./users.validation');
+const { listQuerySchema, directoryQuerySchema, createSchema, updateSchema } = require('./users.validation');
 
 const ERROR_STATUS = {
   email_taken: [409, 'Email already in use'],
@@ -31,6 +31,12 @@ const list = asyncHandler(async (req, res) => {
   return ok(res, rows, { pagination });
 });
 
+const directory = asyncHandler(async (req, res) => {
+  const query = directoryQuerySchema.parse(req.query);
+  const rows = await usersService.listDirectory(query);
+  return ok(res, rows);
+});
+
 const getOne = asyncHandler(async (req, res) => {
   const user = await usersService.getById(req.params.id);
   if (!user) return fail(res, 404, 'User not found');
@@ -57,4 +63,4 @@ const update = asyncHandler(async (req, res) => {
   return ok(res, result.user);
 });
 
-module.exports = { me, myActivity, list, getOne, create, update };
+module.exports = { me, myActivity, directory, list, getOne, create, update };

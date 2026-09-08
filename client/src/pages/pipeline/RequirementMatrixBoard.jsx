@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import Badge from '../../components/ui/Badge.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
@@ -36,12 +36,11 @@ const MATRIX_FIELDS = [
   'date_range',
 ];
 
-function CandidateCard({ submission, onOpen }) {
+function CandidateCard({ submission }) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(submission.id)}
-      className="w-full rounded-md border border-tertiary-200 bg-white p-2 text-left shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+    <Link
+      to={`/submissions/${submission.id}`}
+      className="block w-full rounded-md border border-tertiary-200 bg-white p-2 text-left shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50/40"
     >
       <div className="flex items-start justify-between gap-1.5">
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-primary-700">{submission.profile?.name || 'Candidate'}</p>
@@ -59,12 +58,11 @@ function CandidateCard({ submission, onOpen }) {
         Recruiter: {submission.submitted_by?.name || '—'}
       </p>
       <ScreeningRoundChips rounds={submission.internal_rounds} className="mt-1" />
-    </button>
+    </Link>
   );
 }
 
 export default function RequirementMatrixBoard() {
-  const navigate = useNavigate();
   const [requirements, setRequirements] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +188,7 @@ export default function RequirementMatrixBoard() {
                     return (
                       <div key={`${req.id}::${stage}`} className="min-h-[88px] space-y-2 border-b border-r border-tertiary-100 bg-white p-2">
                         {cards.map((sub) => (
-                          <CandidateCard key={sub.id} submission={sub} onOpen={(subId) => navigate(`/submissions/${subId}`)} />
+                          <CandidateCard key={sub.id} submission={sub} />
                         ))}
                         {cards.length === 0 && <p className="px-1 py-3 text-center text-[11px] text-tertiary-300">—</p>}
                       </div>

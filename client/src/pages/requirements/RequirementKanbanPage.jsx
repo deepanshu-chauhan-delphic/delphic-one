@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -7,6 +7,7 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
+import OpenInNewTabButton from '../../components/OpenInNewTabButton.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
@@ -99,12 +100,12 @@ function StageReasonDrawer({ submission, toStage, open, saving, onClose, onConfi
   );
 }
 
-function KanbanCard({ submission, canMove, canMoveBackward, busy, isDragging, onMoveStage, onOpen }) {
+function KanbanCard({ submission, canMove, canMoveBackward, busy, isDragging, onMoveStage }) {
   const next = nextSubmissionStages(submission.stage).filter(
     (to) => canMoveBackward || !isBackwardTransition(submission.stage, to)
   );
   const actions = [
-    { key: 'open', label: 'Open submission', onClick: () => onOpen(submission.id) },
+    { key: 'open', label: 'Open submission', to: `/submissions/${submission.id}` },
     ...(canMove && !submission.is_locked
       ? next.map((to) => ({
           key: `move-${to}`,
@@ -125,13 +126,12 @@ function KanbanCard({ submission, canMove, canMoveBackward, busy, isDragging, on
       className={`rounded-md border bg-white p-2 shadow-sm ${isDragging ? 'opacity-40 ring-2 ring-primary-300' : ''}`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button
-          type="button"
+        <Link
+          to={`/submissions/${submission.id}`}
           className="min-w-0 flex-1 text-left text-sm font-medium text-primary-700 hover:underline"
-          onClick={() => onOpen(submission.id)}
         >
           {submission.profile?.name || 'Candidate'}
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'candidate'}`} />
       </div>
       <p className="mt-0.5 text-[11px] text-tertiary-500">
@@ -148,7 +148,6 @@ function KanbanCard({ submission, canMove, canMoveBackward, busy, isDragging, on
 
 export default function RequirementKanbanPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const sensors = usePipelineSensors();
@@ -295,6 +294,7 @@ export default function RequirementKanbanPage() {
           <Link to={`/requirements/${id}`} className="btn-secondary">
             Job detail
           </Link>
+          <OpenInNewTabButton />
           <button type="button" className="btn-secondary" onClick={load}>
             Refresh
           </button>
@@ -338,7 +338,6 @@ export default function RequirementKanbanPage() {
                         busy={busyId === sub.id}
                         isDragging={isDragging}
                         onMoveStage={requestMove}
-                        onOpen={(subId) => navigate(`/submissions/${subId}`)}
                       />
                     )}
                   </DraggableCard>

@@ -17,7 +17,8 @@ export const ALL_REPORTS = [
   { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'], hidden: true },
   { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'], hidden: true },
   { key: 'clients-without-requirements', label: 'Clients w/o requirements', roles: ['admin', 'sales', 'bda'] },
-  { key: 'recruiter-vendor-gaps', label: 'Recruiter–vendor gaps', roles: ['admin', 'recruiter'] },
+  { key: 'recruiter-vendor-gaps', label: 'Recruiter-vendor gaps', roles: ['admin', 'recruiter'] },
+  { key: 'hr', label: 'HR reports', roles: ['admin'] },
 ];
 
 export function reportsForRole(role) {
@@ -176,7 +177,7 @@ export function columnsForReport(reportKey) {
 
 export function tableRowsForReport(reportKey, data) {
   if (!data) return [];
-  if (reportKey === 'aging') return [];
+  if (reportKey === 'aging' || reportKey === 'hr') return [];
   if (reportKey === 'pipeline-explorer') {
     const rows = Array.isArray(data.rows) ? data.rows : [];
     return rows.map((row, index) => ({
@@ -267,6 +268,46 @@ export function agingSections(data) {
       rows: (data.past_sla_requirements || []).map((r, i) => ({ id: r.requirement?.id || `sla-${i}`, ...r })),
     },
   ];
+}
+
+// HR report - server returns { tables: [{ key, title, rows }] }; column defs live here.
+const HR_COLUMNS = {
+  sourcing: [
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'count', header: 'Count' },
+    { key: 'date', header: 'Sourcing date' },
+    { key: 'type', header: 'Type' },
+  ],
+  submissions: [
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'count', header: 'Count' },
+    { key: 'date', header: 'Submission date' },
+    { key: 'type', header: 'Type' },
+  ],
+  round1_by_sourcer: [
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'scheduled', header: 'Scheduled' },
+    { key: 'completed', header: 'Completed' },
+    { key: 'shortlisted', header: 'Shortlisted' },
+    { key: 'date', header: 'Round date' },
+  ],
+  round1_by_interviewer: [
+    { key: 'interviewer', header: 'Interviewer' },
+    { key: 'scheduled', header: 'Scheduled' },
+    { key: 'completed', header: 'Completed' },
+    { key: 'shortlisted', header: 'Shortlisted' },
+    { key: 'date', header: 'Round date' },
+  ],
+};
+
+export function hrSections(data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: HR_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
 }
 
 export function chartDataForReport(reportKey, data) {
