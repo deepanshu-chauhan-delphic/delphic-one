@@ -51,8 +51,11 @@ import {
   formatReportDateShort,
   hrSections,
   hrTypeSummary,
+  joiningsSections,
   reportsForRole,
   tableRowsForReport,
+  timeToSubmitColumns,
+  timeToSubmitRows,
 } from './reportViews.js';
 
 const HR_SOURCE_OPTIONS = [
@@ -308,6 +311,14 @@ export default function ReportsPage() {
   const [hrSource, setHrSource] = useState('');
   const [hrPeople, setHrPeople] = useState([]);
   const [hrTab, setHrTab] = useState('sourcing');
+  const [joiningsTab, setJoiningsTab] = useState('by_sourcer');
+  const [ttsClientId, setTtsClientId] = useState('');
+  const [ttsRequirementId, setTtsRequirementId] = useState('');
+  const [ttsSourcerId, setTtsSourcerId] = useState('');
+  const [ttsSearch, setTtsSearch] = useState('');
+  const [ttsSearchApplied, setTtsSearchApplied] = useState('');
+  const [ttsClients, setTtsClients] = useState([]);
+  const [ttsRequirements, setTtsRequirements] = useState([]);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -321,6 +332,9 @@ export default function ReportsPage() {
 
   const isExplorer = active === 'pipeline-explorer';
   const isHr = active === 'hr';
+  const isJoinings = active === 'joinings';
+  const isTimeToSubmit = active === 'time-to-submit';
+  const isDateOnly = isHr || isJoinings || isTimeToSubmit; // reports that take only a date range
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
   const isRvg = active === 'recruiter-vendor-gaps';
@@ -369,7 +383,7 @@ export default function ReportsPage() {
   }, [available, active]);
 
   useEffect(() => {
-    if (!isHr) return;
+    if (!isHr && !isTimeToSubmit) return;
     apiClient
       .get('/users/directory')
       .then(({ data }) =>
@@ -381,7 +395,23 @@ export default function ReportsPage() {
         )
       )
       .catch(() => setHrPeople([]));
-  }, [isHr]);
+  }, [isHr, isTimeToSubmit]);
+
+  useEffect(() => {
+    if (!isTimeToSubmit) return;
+    apiClient
+      .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
+      .then(({ data }) => setTtsClients((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
+      .catch(() => setTtsClients([]));
+    apiClient
+      .get('/requirements', { params: { limit: 100, sort_by: 'created_at', sort_order: 'desc' } })
+      .then(({ data }) =>
+        setTtsRequirements(
+          (data.data || []).map((r) => ({ value: r.id, label: `${r.title}${r.account?.name ? ` · ${r.account.name}` : ''}` }))
+        )
+      )
+      .catch(() => setTtsRequirements([]));
+  }, [isTimeToSubmit]);
 
   useEffect(() => {
     if (datePreset === 'custom') return;
@@ -477,6 +507,16 @@ export default function ReportsPage() {
       if (hrSourcerId) params.sourcer_id = hrSourcerId;
       if (hrInterviewerId) params.interviewer_id = hrInterviewerId;
       if (hrSource) params.source = hrSource;
+    } else if (isJoinings) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+    } else if (isTimeToSubmit) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+      if (ttsClientId) params.client_id = ttsClientId;
+      if (ttsRequirementId) params.requirement_id = ttsRequirementId;
+      if (ttsSourcerId) params.sourcer_id = ttsSourcerId;
+      if (ttsSearchApplied.trim()) params.search = ttsSearchApplied.trim();
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -549,6 +589,10 @@ export default function ReportsPage() {
     hrSourcerId,
     hrInterviewerId,
     hrSource,
+    ttsClientId,
+    ttsRequirementId,
+    ttsSourcerId,
+    ttsSearchApplied,
   ]);
 
   async function exportReport(type) {
@@ -620,8 +664,15 @@ export default function ReportsPage() {
   const chartRows = chartDataForReport(active, payload);
   const chartBars = chartBarsForReport(active);
   const sections =
-    active === 'aging' ? agingSections(payload) : active === 'hr' ? hrSections(payload) : [];
+    active === 'aging'
+      ? agingSections(payload)
+      : active === 'hr'
+        ? hrSections(payload)
+        : active === 'joinings'
+          ? joiningsSections(payload)
+          : [];
   const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
+  const joiningsSection = isJoinings ? sections.find((s) => s.key === joiningsTab) || sections[0] : null;
   // Count cell reveals the per-source split (Bench 3 · Vendor 2 · Market 1) on hover.
   const hrColumns = (hrSection?.columns || []).map((col) =>
     col.key === 'count'
@@ -670,6 +721,12 @@ export default function ReportsPage() {
               setHrInterviewerId('');
               setHrSource('');
               setHrTab('sourcing');
+              setJoiningsTab('by_sourcer');
+              setTtsClientId('');
+              setTtsRequirementId('');
+              setTtsSourcerId('');
+              setTtsSearch('');
+              setTtsSearchApplied('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -715,7 +772,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept && !isExplorer && !isCoverage && !isHr}
+        showDepartment={showDept && !isExplorer && !isCoverage && !isDateOnly}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -753,6 +810,60 @@ export default function ReportsPage() {
               value={hrInterviewerId}
               onChange={setHrInterviewerId}
               placeholder="Interviewer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+          </>
+        )}
+        {isTimeToSubmit && (
+          <>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTtsSearchApplied(ttsSearch.trim());
+              }}
+              className="flex"
+            >
+              <input
+                value={ttsSearch}
+                onChange={(e) => setTtsSearch(e.target.value)}
+                placeholder="Candidate name…"
+                className="w-44 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              <button
+                type="submit"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
+              >
+                Search
+              </button>
+            </form>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by client"
+              value={ttsClientId}
+              onChange={setTtsClientId}
+              placeholder="Client: All"
+              searchPlaceholder="Search clients…"
+              options={ttsClients}
+            />
+            <SearchableSelect
+              className="w-56"
+              allowClear
+              ariaLabel="Filter by requirement"
+              value={ttsRequirementId}
+              onChange={setTtsRequirementId}
+              placeholder="Requirement: All"
+              searchPlaceholder="Search requirements…"
+              options={ttsRequirements}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by sourcer"
+              value={ttsSourcerId}
+              onChange={setTtsSourcerId}
+              placeholder="Sourcer: All"
               searchPlaceholder="Search people…"
               options={hrPeople}
             />
@@ -1116,6 +1227,50 @@ export default function ReportsPage() {
             emptyLabel="No rows for this range"
           />
         </div>
+      ) : isJoinings ? (
+        <div className="space-y-4">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Joinings tables">
+            {sections.map((section) => {
+              const selected = joiningsSection?.key === section.key;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setJoiningsTab(section.key)}
+                  className={`relative rounded-xl border px-3 py-2.5 pr-12 text-left text-sm font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 text-primary-800 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 text-tertiary-800 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {section.title}
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {section.rows.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DataTable
+            columns={joiningsSection?.columns || []}
+            rows={joiningsSection?.rows || []}
+            loading={loading}
+            emptyLabel="No joinings in this range"
+          />
+        </div>
+      ) : isTimeToSubmit ? (
+        <DataTable
+          columns={timeToSubmitColumns()}
+          rows={timeToSubmitRows(payload)}
+          loading={loading}
+          emptyLabel="No candidates sourced in this range"
+        />
       ) : active === 'aging' ? (
         <div className="space-y-4">
           {sections.map((section) => (

@@ -6,6 +6,15 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Reports: Joinings + Time to submit (2026-09-08, branch `feature/reports-joinings-time-to-submit`)
+
+- [x] `GET /reports/joinings` — by sourcer / by interviewer (L1+L2) / by vendor, per month.
+- [x] `GET /reports/time-to-submit` — per submission: sourced→submission, submission→R1, R1→submitted; sourcer column; hover shows from/to timestamps.
+- [x] Time to submit filters: client_id / requirement_id / sourcer_id / candidate search + date range.
+- [x] Client: visible "Joinings" (3 tabs) + "Time to submit" reports; export branches.
+- [x] Tests: reports-joinings (5), reports-time-to-submit (5); all 6 reports suites (53) green.
+- [ ] Manual: numbers match a hand count against `/submissions?stage=closed`; xlsx export.
+
 ## Reports polish + source relabel + notif time + calendar overlap (2026-09-08)
 
 - [x] Reports dates as `08 September 26`; HR chart axis `08 Sep 26`.

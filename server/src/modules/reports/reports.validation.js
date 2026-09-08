@@ -70,6 +70,22 @@ const hrSchema = z.object({
   source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
 });
 
+// Joinings by month (by sourcer / interviewer L1+L2 / vendor).
+const joiningsSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+});
+
+// Time-to-submit per candidate; filterable by the entity columns.
+const timeToSubmitSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  client_id: optionalUuid,
+  requirement_id: optionalUuid,
+  sourcer_id: optionalUuid,
+  search: z.string().optional(),
+});
+
 const boolFlag = z
   .enum(['true', 'false'])
   .optional()
@@ -96,4 +112,13 @@ const explorerSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema, hrSchema };
+module.exports = {
+  dateRangeSchema,
+  agingSchema,
+  closureSchema,
+  explorerSchema,
+  coverageSchema,
+  hrSchema,
+  joiningsSchema,
+  timeToSubmitSchema,
+};
