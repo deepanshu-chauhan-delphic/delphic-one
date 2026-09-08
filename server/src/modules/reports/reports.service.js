@@ -1094,6 +1094,202 @@ async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source
   };
 }
 
+// --- Joinings + time-to-submit -------------------------------------------------
+
+function monthKey(value) {
+  const d = new Date(value);
+  return {
+    label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+    sort: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+  };
+}
+
+/** ms -> "1d 6h" / "4h 20m" / "12m" / "<1m"; null/negative -> null. */
+function formatDuration(ms) {
+  if (ms == null || Number.isNaN(ms) || ms < 0) return null;
+  const totalMin = Math.floor(ms / 60000);
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h) return m ? `${h}h ${m}m` : `${h}h`;
+  return m ? `${m}m` : '<1m';
+}
+
+const dur = (fromDate, toDate) => {
+  if (!fromDate || !toDate) return { ms: null, label: null };
+  const ms = new Date(toDate) - new Date(fromDate);
+  return { ms, label: formatDuration(ms) };
+};
+
+// A joining = a submission that reached `closed` with a joining date in range.
+async function joinings({ date_from, date_to }) {
+  const range = optionalDateRange(date_from, date_to);
+  const rows = await prisma.submission.findMany({
+    where: { stage: 'closed', actual_joining_date: range },
+    select: {
+      actual_joining_date: true,
+      profile: {
+        select: {
+          added_by: true,
+          added_by_user: { select: { id: true, name: true } },
+          vendor_account_id: true,
+          vendor_account: { select: { id: true, name: true } },
+        },
+      },
+      interview_rounds: {
+        select: {
+          round_type: true,
+          interviewer_name: true,
+          interviewers: { select: { user: { select: { id: true, name: true } } } },
+        },
+      },
+    },
+  });
+
+  const bySourcer = new Map();
+  const byInterviewer = new Map();
+  const byVendor = new Map();
+
+  for (const r of rows) {
+    const mk = monthKey(r.actual_joining_date);
+    const p = r.profile || {};
+
+    // by sourcer
+    const sKey = `${mk.sort}|${p.added_by}`;
+    if (!bySourcer.has(sKey)) {
+      bySourcer.set(sKey, {
+        month: mk.label,
+        sort: mk.sort,
+        sourcer: p.added_by_user?.name || 'Unknown',
+        sourcer_id: p.added_by,
+        joinings: 0,
+      });
+    }
+    bySourcer.get(sKey).joinings += 1;
+
+    // by vendor (vendor-sourced only)
+    if (p.vendor_account_id) {
+      const vKey = `${mk.sort}|${p.vendor_account_id}`;
+      if (!byVendor.has(vKey)) {
+        byVendor.set(vKey, {
+          month: mk.label,
+          sort: mk.sort,
+          vendor: p.vendor_account?.name || 'Unknown vendor',
+          joinings: 0,
+        });
+      }
+      byVendor.get(vKey).joinings += 1;
+    }
+
+    // by interviewer, split L1 (internal_r1) / L2 (internal_r2)
+    const perLevel = { l1: new Map(), l2: new Map() };
+    for (const round of r.interview_rounds || []) {
+      const level = round.round_type === 'internal_r1' ? 'l1' : round.round_type === 'internal_r2' ? 'l2' : null;
+      if (!level) continue;
+      const people = round.interviewers.length
+        ? round.interviewers.map((i) => i.user)
+        : [{ id: null, name: round.interviewer_name || 'Unassigned' }];
+      for (const person of people) {
+        perLevel[level].set(person.id || `name:${person.name}`, person);
+      }
+    }
+    for (const [level, people] of Object.entries(perLevel)) {
+      for (const [pid, person] of people) {
+        const iKey = `${mk.sort}|${pid}`;
+        if (!byInterviewer.has(iKey)) {
+          byInterviewer.set(iKey, {
+            month: mk.label,
+            sort: mk.sort,
+            interviewer: person.name || 'Unassigned',
+            interviewer_id: person.id,
+            l1: 0,
+            l2: 0,
+            total: 0,
+          });
+        }
+        const row = byInterviewer.get(iKey);
+        row[level] += 1;
+        row.total += 1;
+      }
+    }
+  }
+
+  const sortRows = (nameKey) => (a, b) =>
+    b.sort.localeCompare(a.sort) || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+  return {
+    tables: [
+      { key: 'by_sourcer', title: 'By sourcer', rows: [...bySourcer.values()].sort(sortRows('sourcer')) },
+      { key: 'by_interviewer', title: 'By interviewer (L1 / L2)', rows: [...byInterviewer.values()].sort(sortRows('interviewer')) },
+      { key: 'by_vendor', title: 'By vendor', rows: [...byVendor.values()].sort(sortRows('vendor')) },
+    ],
+  };
+}
+
+// Per-candidate stage timing: sourced -> internal round 1 -> submitted to client.
+async function timeToSubmit({ date_from, date_to }) {
+  const range = optionalDateRange(date_from, date_to);
+  const subs = await prisma.submission.findMany({
+    where: { created_at: range },
+    orderBy: { created_at: 'desc' },
+    select: {
+      id: true,
+      created_at: true,
+      profile: { select: { name: true } },
+      seat: {
+        select: {
+          requirement: { select: { id: true, title: true, created_at: true, account: { select: { name: true } } } },
+        },
+      },
+    },
+  });
+
+  const ids = subs.map((s) => s.id);
+  const [historyRows, roundRows] = await Promise.all([
+    ids.length
+      ? prisma.stageHistory.findMany({
+          where: { entity_type: 'submission', entity_id: { in: ids }, to_stage: 'submitted_to_client' },
+          orderBy: { changed_at: 'asc' },
+        })
+      : [],
+    ids.length
+      ? prisma.interviewRound.findMany({
+          where: { submission_id: { in: ids }, round_type: 'internal_r1' },
+          orderBy: [{ scheduled_at: 'asc' }, { round_number: 'asc' }],
+        })
+      : [],
+  ]);
+
+  const submittedAtBySub = new Map();
+  for (const h of historyRows) {
+    if (!submittedAtBySub.has(h.entity_id)) submittedAtBySub.set(h.entity_id, h.changed_at);
+  }
+  const firstR1BySub = new Map();
+  for (const r of roundRows) {
+    const at = r.scheduled_at || r.completed_at;
+    if (at && !firstR1BySub.has(r.submission_id)) firstR1BySub.set(r.submission_id, at);
+  }
+
+  return {
+    rows: subs.map((s) => {
+      const req = s.seat?.requirement;
+      const r1At = firstR1BySub.get(s.id) || null;
+      const submittedAt = submittedAtBySub.get(s.id) || null;
+      return {
+        id: s.id,
+        requirement_created_at: req?.created_at || null,
+        requirement: req?.title || '—',
+        client: req?.account?.name || '—',
+        candidate: s.profile?.name || '—',
+        sourced_to_r1: dur(s.created_at, r1At),
+        r1_to_submitted: dur(r1At, submittedAt),
+        sourced_to_submitted: dur(s.created_at, submittedAt),
+      };
+    }),
+  };
+}
+
 module.exports = {
   recruiterPerformance,
   salesPerformance,
@@ -1105,4 +1301,6 @@ module.exports = {
   clientsWithoutRequirements,
   recruiterVendorGaps,
   hrReport,
+  joinings,
+  timeToSubmit,
 };

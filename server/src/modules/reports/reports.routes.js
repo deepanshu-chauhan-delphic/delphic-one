@@ -13,6 +13,8 @@ const {
   explorerSchema,
   coverageSchema,
   hrSchema,
+  joiningsSchema,
+  timeToSubmitSchema,
 } = require('./reports.validation');
 
 const router = express.Router();
@@ -30,6 +32,8 @@ const REPORTS = {
   'clients-without-requirements': (q) => service.clientsWithoutRequirements(q),
   'recruiter-vendor-gaps': (q) => service.recruiterVendorGaps(q),
   hr: (q) => service.hrReport(q),
+  joinings: (q) => service.joinings(q),
+  'time-to-submit': (q) => service.timeToSubmit(q),
 };
 
 router.get(
@@ -114,6 +118,24 @@ router.get(
 );
 
 router.get(
+  '/joinings',
+  authorize('admin', 'sales'),
+  asyncHandler(async (req, res) => {
+    const query = joiningsSchema.parse(req.query);
+    return ok(res, await service.joinings(query));
+  })
+);
+
+router.get(
+  '/time-to-submit',
+  authorize('admin', 'sales'),
+  asyncHandler(async (req, res) => {
+    const query = timeToSubmitSchema.parse(req.query);
+    return ok(res, await service.timeToSubmit(query));
+  })
+);
+
+router.get(
   '/pipeline-explorer',
   authorize('admin', 'sales', 'recruiter', 'bda'),
   asyncHandler(async (req, res) => {
@@ -161,6 +183,8 @@ router.get(
     else if (report === 'closure') query = closureSchema.parse(req.query);
     else if (report === 'pipeline-explorer') query = explorerSchema.parse(req.query);
     else if (report === 'hr') query = hrSchema.parse(req.query);
+    else if (report === 'joinings') query = joiningsSchema.parse(req.query);
+    else if (report === 'time-to-submit') query = timeToSubmitSchema.parse(req.query);
     else if (report === 'clients-without-requirements' || report === 'recruiter-vendor-gaps') {
       query = coverageSchema.parse(req.query);
     } else query = dateRangeSchema.parse(req.query);
@@ -231,8 +255,27 @@ function buildExportSheets(report, data) {
     return [{ name: 'pipeline-explorer', rows: data.rows.map((r) => flatten(r)) }];
   }
 
-  if (report === 'hr' && data && typeof data === 'object' && Array.isArray(data.tables)) {
+  if ((report === 'hr' || report === 'joinings') && data && typeof data === 'object' && Array.isArray(data.tables)) {
     return data.tables.map((t) => ({ name: t.title, rows: (t.rows || []).map((r) => flatten(r)) }));
+  }
+
+  if (report === 'time-to-submit' && data && typeof data === 'object' && Array.isArray(data.rows)) {
+    return [
+      {
+        name: report,
+        rows: data.rows.map((r) =>
+          flatten({
+            requirement_created_at: r.requirement_created_at,
+            requirement: r.requirement,
+            client: r.client,
+            candidate: r.candidate,
+            sourced_to_r1: r.sourced_to_r1?.label || '',
+            r1_to_submitted: r.r1_to_submitted?.label || '',
+            sourced_to_submitted: r.sourced_to_submitted?.label || '',
+          })
+        ),
+      },
+    ];
   }
 
   if (report === 'recruiter-vendor-gaps' && Array.isArray(data)) {

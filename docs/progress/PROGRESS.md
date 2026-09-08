@@ -2,6 +2,35 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-08 — Two new reports: Joinings + Time to submit — branch `feature/reports-joinings-time-to-submit`
+
+Both `authorize('admin', 'sales')`, visible in the Reports picker, follow the HR-report pattern.
+
+- **`GET /reports/joinings`** (`joiningsSchema`: `date_from`/`date_to`).
+  `reports.service.joinings` — a joining = `Submission` `stage='closed'` with
+  `actual_joining_date` in range. Returns `{ tables: [by_sourcer,
+  by_interviewer, by_vendor] }`, all grouped by joining **month**:
+  - `by_sourcer` — month × `Profile.added_by` → count.
+  - `by_interviewer` — month × interviewer, split `l1` (users on the joined
+    candidate's `internal_r1` rounds) / `l2` (`internal_r2`) / `total`; every
+    linked interviewer credited, `interviewer_name` fallback.
+  - `by_vendor` — vendor-sourced joinings only, month × `vendor_account.name`.
+- **`GET /reports/time-to-submit`** (`timeToSubmitSchema`). One row per
+  submission `created_at` in range (any stage). Columns: requirement created-at,
+  requirement, client, candidate, and three durations (raw `ms` + `"1d 6h"`
+  label, `—` when not reached): **sourced → internal R1**, **R1 → submitted to
+  client**, **sourced → submitted to client** (`submission.created_at` →
+  first `internal_r1` `scheduled_at` → first `submitted_to_client` stage-history
+  entry).
+- Wired into `reports.routes` (`REPORTS` map + routes + `/export` branches:
+  joinings = one sheet per table, time-to-submit = one sheet from `rows`).
+- Client: `reportViews.js` `joiningsSections()` / `timeToSubmitColumns()` +
+  `ALL_REPORTS` entries; `ReportsPage` renders Joinings as a 3-tab block (like
+  HR) and Time to submit as one table.
+- Tests: `reports-joinings.test.js` (5), `reports-time-to-submit.test.js` (4).
+  Server **37 suites / 262** green; client eslint + build clean;
+  `reportViews.test.mjs` updated.
+
 ## 2026-09-08 — Reports polish + candidate-source relabel + notification time fix + calendar overlap fix
 
 - **Reports dates** — all dates in the Reports section render as `08 September 26`

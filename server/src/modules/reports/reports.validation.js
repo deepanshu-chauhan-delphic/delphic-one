@@ -70,6 +70,14 @@ const hrSchema = z.object({
   source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
 });
 
+// Joinings by month (by sourcer / interviewer L1+L2 / vendor) and time-to-submit
+// per candidate. Plain date range only.
+const joiningsSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+});
+const timeToSubmitSchema = joiningsSchema;
+
 const boolFlag = z
   .enum(['true', 'false'])
   .optional()
@@ -96,4 +104,13 @@ const explorerSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema, hrSchema };
+module.exports = {
+  dateRangeSchema,
+  agingSchema,
+  closureSchema,
+  explorerSchema,
+  coverageSchema,
+  hrSchema,
+  joiningsSchema,
+  timeToSubmitSchema,
+};

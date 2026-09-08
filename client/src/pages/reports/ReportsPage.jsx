@@ -51,8 +51,11 @@ import {
   formatReportDateShort,
   hrSections,
   hrTypeSummary,
+  joiningsSections,
   reportsForRole,
   tableRowsForReport,
+  timeToSubmitColumns,
+  timeToSubmitRows,
 } from './reportViews.js';
 
 const HR_SOURCE_OPTIONS = [
@@ -308,6 +311,7 @@ export default function ReportsPage() {
   const [hrSource, setHrSource] = useState('');
   const [hrPeople, setHrPeople] = useState([]);
   const [hrTab, setHrTab] = useState('sourcing');
+  const [joiningsTab, setJoiningsTab] = useState('by_sourcer');
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -321,6 +325,9 @@ export default function ReportsPage() {
 
   const isExplorer = active === 'pipeline-explorer';
   const isHr = active === 'hr';
+  const isJoinings = active === 'joinings';
+  const isTimeToSubmit = active === 'time-to-submit';
+  const isDateOnly = isHr || isJoinings || isTimeToSubmit; // reports that take only a date range
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
   const isRvg = active === 'recruiter-vendor-gaps';
@@ -477,6 +484,9 @@ export default function ReportsPage() {
       if (hrSourcerId) params.sourcer_id = hrSourcerId;
       if (hrInterviewerId) params.interviewer_id = hrInterviewerId;
       if (hrSource) params.source = hrSource;
+    } else if (isJoinings || isTimeToSubmit) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -620,8 +630,15 @@ export default function ReportsPage() {
   const chartRows = chartDataForReport(active, payload);
   const chartBars = chartBarsForReport(active);
   const sections =
-    active === 'aging' ? agingSections(payload) : active === 'hr' ? hrSections(payload) : [];
+    active === 'aging'
+      ? agingSections(payload)
+      : active === 'hr'
+        ? hrSections(payload)
+        : active === 'joinings'
+          ? joiningsSections(payload)
+          : [];
   const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
+  const joiningsSection = isJoinings ? sections.find((s) => s.key === joiningsTab) || sections[0] : null;
   // Count cell reveals the per-source split (Bench 3 · Vendor 2 · Market 1) on hover.
   const hrColumns = (hrSection?.columns || []).map((col) =>
     col.key === 'count'
@@ -670,6 +687,7 @@ export default function ReportsPage() {
               setHrInterviewerId('');
               setHrSource('');
               setHrTab('sourcing');
+              setJoiningsTab('by_sourcer');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -715,7 +733,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept && !isExplorer && !isCoverage && !isHr}
+        showDepartment={showDept && !isExplorer && !isCoverage && !isDateOnly}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -1116,6 +1134,50 @@ export default function ReportsPage() {
             emptyLabel="No rows for this range"
           />
         </div>
+      ) : isJoinings ? (
+        <div className="space-y-4">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Joinings tables">
+            {sections.map((section) => {
+              const selected = joiningsSection?.key === section.key;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setJoiningsTab(section.key)}
+                  className={`relative rounded-xl border px-3 py-2.5 pr-12 text-left text-sm font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 text-primary-800 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 text-tertiary-800 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {section.title}
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {section.rows.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DataTable
+            columns={joiningsSection?.columns || []}
+            rows={joiningsSection?.rows || []}
+            loading={loading}
+            emptyLabel="No joinings in this range"
+          />
+        </div>
+      ) : isTimeToSubmit ? (
+        <DataTable
+          columns={timeToSubmitColumns()}
+          rows={timeToSubmitRows(payload)}
+          loading={loading}
+          emptyLabel="No candidates sourced in this range"
+        />
       ) : active === 'aging' ? (
         <div className="space-y-4">
           {sections.map((section) => (

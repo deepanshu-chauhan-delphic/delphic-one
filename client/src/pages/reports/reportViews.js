@@ -19,6 +19,8 @@ export const ALL_REPORTS = [
   { key: 'clients-without-requirements', label: 'Clients w/o requirements', roles: ['admin', 'sales', 'bda'] },
   { key: 'recruiter-vendor-gaps', label: 'Recruiter-vendor gaps', roles: ['admin', 'recruiter'] },
   { key: 'hr', label: 'HR reports', roles: ['admin'] },
+  { key: 'joinings', label: 'Joinings', roles: ['admin', 'sales'] },
+  { key: 'time-to-submit', label: 'Time to submit', roles: ['admin', 'sales'] },
 ];
 
 export function reportsForRole(role) {
@@ -203,7 +205,7 @@ export function columnsForReport(reportKey) {
 
 export function tableRowsForReport(reportKey, data) {
   if (!data) return [];
-  if (reportKey === 'aging' || reportKey === 'hr') return [];
+  if (['aging', 'hr', 'joinings', 'time-to-submit'].includes(reportKey)) return [];
   if (reportKey === 'pipeline-explorer') {
     const rows = Array.isArray(data.rows) ? data.rows : [];
     return rows.map((row, index) => ({
@@ -346,6 +348,65 @@ export function hrSections(data) {
     columns: HR_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
     rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
   }));
+}
+
+// --- Joinings + Time to submit ----------------------------------------------
+const JOININGS_COLUMNS = {
+  by_sourcer: [
+    { key: 'month', header: 'Month' },
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
+  by_interviewer: [
+    { key: 'month', header: 'Month' },
+    { key: 'interviewer', header: 'Interviewer' },
+    { key: 'l1', header: 'L1' },
+    { key: 'l2', header: 'L2' },
+    { key: 'total', header: 'Total' },
+  ],
+  by_vendor: [
+    { key: 'month', header: 'Month' },
+    { key: 'vendor', header: 'Vendor' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
+};
+
+export function joiningsSections(data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: JOININGS_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
+}
+
+const durCell = (key) => (r) => r[key]?.label || '—';
+
+export function timeToSubmitColumns() {
+  return [
+    {
+      key: 'requirement_created_at',
+      header: 'Req created',
+      render: (r) =>
+        r.requirement_created_at
+          ? `${formatReportDate(r.requirement_created_at)} ${new Date(r.requirement_created_at).toLocaleTimeString(
+              'en-US',
+              { hour: '2-digit', minute: '2-digit' }
+            )}`
+          : '—',
+    },
+    { key: 'requirement', header: 'Requirement' },
+    { key: 'client', header: 'Client' },
+    { key: 'candidate', header: 'Candidate' },
+    { key: 'sourced_to_r1', header: 'Sourced → R1', render: durCell('sourced_to_r1') },
+    { key: 'r1_to_submitted', header: 'R1 → Submitted', render: durCell('r1_to_submitted') },
+    { key: 'sourced_to_submitted', header: 'Sourced → Submitted', render: durCell('sourced_to_submitted') },
+  ];
+}
+
+export function timeToSubmitRows(data) {
+  return (data?.rows || []).map((r, i) => ({ id: r.id || `tts-${i}`, ...r }));
 }
 
 export function chartDataForReport(reportKey, data) {
