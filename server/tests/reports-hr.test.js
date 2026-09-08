@@ -111,22 +111,25 @@ describe('GET /reports/hr', () => {
     expect((await getHr(adminToken)).status).toBe(200);
   });
 
-  test('sourcing table: counts by sourcer/date/type, excludes on-bench', async () => {
+  test('sourcing table: one row per sourcer/day, source split in by_type, excludes on-bench', async () => {
     const res = await getHr(adminToken);
     const rows = table(res.body, 'sourcing').rows;
-    const direct = rows.find((r) => r.type === 'Bench'); // `direct` enum -> "Bench" label
-    const vendor = rows.find((r) => r.type === 'Vendor');
-    expect(direct).toMatchObject({ sourcer: 'Prashant', date: today, count: 2 });
-    expect(vendor).toMatchObject({ count: 1 });
-    // on-bench profile never shows: total sourced counted = 3, not 4
-    expect(rows.reduce((n, r) => n + r.count, 0)).toBe(3);
+    // Prashant sourced 2 direct + 1 vendor today (the on-bench one is excluded) -> a single row.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      sourcer: 'Prashant',
+      date: today,
+      count: 3,
+      by_type: { Bench: 2, Vendor: 1 }, // direct -> "Bench" label
+    });
   });
 
   test('source filter narrows every table', async () => {
     const res = await getHr(adminToken, { source: 'vendor' });
     const rows = table(res.body, 'sourcing').rows;
     expect(rows).toHaveLength(1);
-    expect(rows[0].type).toBe('Vendor');
+    expect(rows[0]).toMatchObject({ count: 1, by_type: { Vendor: 1 } });
+    expect(rows[0].by_type.Bench).toBeUndefined();
   });
 
   test('submissions table counts submissions per sourcer/day', async () => {

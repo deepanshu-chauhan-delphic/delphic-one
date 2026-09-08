@@ -299,18 +299,28 @@ export function agingSections(data) {
 // HR report - server returns { tables: [{ key, title, rows }] }; column defs live here.
 const hrDate = (header) => ({ key: 'date', header, render: (r) => formatReportDate(r.date) });
 
+/** "Bench 3 · Vendor 2 · Market 1" from a { label: count } map. */
+export function hrTypeSummary(byType) {
+  const parts = Object.entries(byType || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => `${label} ${n}`);
+  return parts.join(' · ') || '—';
+}
+
+// Count column carries `by_type` on the row; ReportsPage swaps in a hover cell.
+const hrCount = { key: 'count', header: 'Count' };
+
 const HR_COLUMNS = {
   sourcing: [
     { key: 'sourcer', header: 'Sourcer' },
-    { key: 'count', header: 'Count' },
+    hrCount,
     hrDate('Sourcing date'),
-    { key: 'type', header: 'Type' },
   ],
   submissions: [
     { key: 'sourcer', header: 'Sourcer' },
-    { key: 'count', header: 'Count' },
+    hrCount,
     hrDate('Submission date'),
-    { key: 'type', header: 'Type' },
   ],
   round1_by_sourcer: [
     { key: 'sourcer', header: 'Sourcer' },

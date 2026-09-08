@@ -171,7 +171,10 @@ export function minutesFromGridStart(date, startHour = DAY_START_HOUR) {
 
 /**
  * Pack overlapping events into columns (Teams-like side-by-side blocks).
- * Returns [{ event, col, colCount }].
+ *
+ * Events are split into clusters of transitively-overlapping items; every event
+ * in a cluster shares the same `colCount` (the cluster's column count) so no two
+ * blocks can render on top of each other. Returns [{ event, col, colCount }].
  */
 export function layoutDayEvents(events) {
   const items = [...(events || [])]
@@ -179,29 +182,40 @@ export function layoutDayEvents(events) {
     .map((e) => {
       const start = new Date(e.scheduled_at).getTime();
       const duration = Math.max(e.duration_minutes || 30, 15);
-      return { event: e, start, end: start + duration * 60000 };
+      return { event: e, start, end: start + duration * 60000, col: 0, colCount: 1 };
     })
     .sort((a, b) => a.start - b.start || a.end - b.end);
 
-  const active = [];
-  const placed = [];
+  const result = [];
+  let cluster = [];
+  let clusterEnd = -Infinity; // latest end within the open cluster
+  let columnEnds = []; // per-column: end time of the last event placed there
+
+  const flush = () => {
+    const colCount = Math.max(columnEnds.length, 1);
+    for (const item of cluster) {
+      result.push({ event: item.event, col: item.col, colCount });
+    }
+    cluster = [];
+    columnEnds = [];
+    clusterEnd = -Infinity;
+  };
 
   for (const item of items) {
-    for (let i = active.length - 1; i >= 0; i -= 1) {
-      if (active[i].end <= item.start) active.splice(i, 1);
-    }
-    const used = new Set(active.map((a) => a.col));
-    let col = 0;
-    while (used.has(col)) col += 1;
-    item.col = col;
-    active.push(item);
-    const colCount = Math.max(col + 1, ...active.map((a) => a.col + 1));
-    for (const a of active) a.colCount = Math.max(a.colCount || 1, colCount);
-    placed.push(item);
-  }
+    if (item.start >= clusterEnd) flush(); // no overlap with the open cluster
 
-  for (const item of placed) {
-    item.colCount = item.colCount || 1;
+    let col = columnEnds.findIndex((endAt) => endAt <= item.start);
+    if (col === -1) {
+      col = columnEnds.length;
+      columnEnds.push(item.end);
+    } else {
+      columnEnds[col] = item.end;
+    }
+    item.col = col;
+    cluster.push(item);
+    clusterEnd = Math.max(clusterEnd, item.end);
   }
-  return placed.map(({ event, col, colCount }) => ({ event, col, colCount }));
+  flush();
+
+  return result;
 }

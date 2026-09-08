@@ -19,8 +19,6 @@ import {
 import {
   Briefcase,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   CircleAlert,
   ClipboardCheck,
   FileText,
@@ -52,6 +50,7 @@ import {
   formatReportDate,
   formatReportDateShort,
   hrSections,
+  hrTypeSummary,
   reportsForRole,
   tableRowsForReport,
 } from './reportViews.js';
@@ -69,13 +68,14 @@ const HR_TAB_META = {
   round1_by_interviewer: { hint: 'Internal round 1 per day, grouped by the interviewer', Icon: UserCheck },
 };
 
-const HR_CHART_WINDOW = 14; // days per carousel page
+const HR_DAY_PX = 46; // horizontal space per day; the chart scrolls when it overflows
 
-// Daily trend chart for the active HR tab, paged in windows of HR_CHART_WINDOW
-// days (carousel). Round tables → multi-line (scheduled / completed / shortlisted);
-// sourcing / submissions → streamgraph (stacked area, silhouette offset) by type.
-function HrChart({ section, page, onPageChange }) {
-  const { allData, series, isRound } = useMemo(() => {
+// Daily HR trend chart. One point per day across the whole selected range; the
+// plot area scrolls horizontally so every day is reachable. Round tables ->
+// multi-line (scheduled / completed / shortlisted); sourcing / submissions ->
+// stacked bars by source (Bench / Vendor / Market).
+function HrChart({ section }) {
+  const { data, series, isRound } = useMemo(() => {
     const round = section?.key.startsWith('round1');
     const byDate = new Map();
     for (const r of section?.rows || []) {
@@ -87,135 +87,66 @@ function HrChart({ section, page, onPageChange }) {
         bucket.completed = (bucket.completed || 0) + (r.completed || 0);
         bucket.shortlisted = (bucket.shortlisted || 0) + (r.shortlisted || 0);
       } else {
-        const key = r.type || 'Count';
-        bucket[key] = (bucket[key] || 0) + (r.count || 0);
+        for (const [label, n] of Object.entries(r.by_type || {})) {
+          bucket[label] = (bucket[label] || 0) + n;
+        }
       }
     }
     const rows = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const typeKeys = round
+      ? []
+      : [...new Set((section?.rows || []).flatMap((r) => Object.keys(r.by_type || {})))].sort();
     const s = round
       ? [
           { key: 'scheduled', name: 'Scheduled', color: CHART_COLORS.info },
           { key: 'completed', name: 'Completed', color: CHART_COLORS.success },
           { key: 'shortlisted', name: 'Shortlisted', color: CHART_COLORS.purple },
         ]
-      : [...new Set((section?.rows || []).map((r) => r.type || 'Count'))].map((t, i) => ({
-          key: t,
-          name: t,
-          color: CHART_PALETTE[i % CHART_PALETTE.length],
-        }));
-    // Fill zero for every series so the stream/line is continuous.
+      : typeKeys.map((t, i) => ({ key: t, name: t, color: CHART_PALETTE[i % CHART_PALETTE.length] }));
     for (const row of rows) for (const ser of s) row[ser.key] = row[ser.key] || 0;
-    return { allData: rows, series: s, isRound: round };
+    return { data: rows, series: s, isRound: round };
   }, [section]);
 
-  if (!section || !allData.length) return null;
+  if (!section || !data.length) return null;
 
-  // Short range (a day, a week, or any range up to HR_CHART_WINDOW days): a
-  // grouped/stacked bar chart with every date visible, no carousel. Longer
-  // ranges: a paged line / streamgraph carousel.
-  const windowed = allData.length > HR_CHART_WINDOW;
-  const pageCount = windowed ? Math.ceil(allData.length / HR_CHART_WINDOW) : 1;
-  const safePage = Math.min(Math.max(page, 0), pageCount - 1);
-  const start = safePage * HR_CHART_WINDOW;
-  const data = windowed ? allData.slice(start, start + HR_CHART_WINDOW) : allData;
-  const rangeLabel =
-    data.length > 1
-      ? `${formatReportDate(data[0].date)} → ${formatReportDate(data[data.length - 1].date)}`
-      : formatReportDate(data[0]?.date);
-
-  const carousel = windowed ? (
-    <div className="flex items-center gap-1.5 text-xs text-tertiary-500">
-      <button
-        type="button"
-        className="rounded-lg border border-tertiary-200 p-1 disabled:opacity-40"
-        disabled={safePage === 0}
-        onClick={() => onPageChange(safePage - 1)}
-        aria-label="Earlier days"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <span className="tabular-nums">
-        {rangeLabel} · {safePage + 1}/{pageCount}
-      </span>
-      <button
-        type="button"
-        className="rounded-lg border border-tertiary-200 p-1 disabled:opacity-40"
-        disabled={safePage === pageCount - 1}
-        onClick={() => onPageChange(safePage + 1)}
-        aria-label="Later days"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
-    </div>
-  ) : null;
+  const minWidth = Math.max(560, data.length * HR_DAY_PX);
+  const axis = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+      <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} interval={0} />
+      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+      <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
+      <Legend wrapperStyle={{ fontSize: 12 }} />
+    </>
+  );
 
   return (
     <ChartCard
       title={section.title}
-      subtitle={isRound ? 'Scheduled / completed / shortlisted per day' : 'By day, by type'}
-      action={carousel}
+      subtitle={
+        isRound ? 'Scheduled / completed / shortlisted per day — scroll for more' : 'By day, by source — scroll for more'
+      }
     >
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          {!windowed ? (
-            <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              {series.map((s) => (
-                <Bar
-                  key={s.key}
-                  dataKey={s.key}
-                  name={s.name}
-                  fill={s.color}
-                  stackId={isRound ? undefined : 'stack'}
-                  radius={[3, 3, 0, 0]}
-                />
-              ))}
-            </BarChart>
-          ) : isRound ? (
-            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              {series.map((s) => (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color}
-                  strokeWidth={2}
-                  dot={{ r: 2 }}
-                />
-              ))}
-            </LineChart>
-          ) : (
-            <AreaChart data={data} stackOffset="silhouette" margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              {series.map((s) => (
-                <Area
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.name}
-                  stackId="stream"
-                  stroke={s.color}
-                  fill={s.color}
-                  fillOpacity={0.65}
-                />
-              ))}
-            </AreaChart>
-          )}
-        </ResponsiveContainer>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth, height: 256 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            {isRound ? (
+              <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                {axis}
+                {series.map((s) => (
+                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} dot={{ r: 2 }} />
+                ))}
+              </LineChart>
+            ) : (
+              <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                {axis}
+                {series.map((s) => (
+                  <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} stackId="src" radius={[2, 2, 0, 0]} />
+                ))}
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
       </div>
     </ChartCard>
   );
@@ -377,7 +308,6 @@ export default function ReportsPage() {
   const [hrSource, setHrSource] = useState('');
   const [hrPeople, setHrPeople] = useState([]);
   const [hrTab, setHrTab] = useState('sourcing');
-  const [hrChartPage, setHrChartPage] = useState(0);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -452,11 +382,6 @@ export default function ReportsPage() {
       )
       .catch(() => setHrPeople([]));
   }, [isHr]);
-
-  // Reset the HR chart carousel to the newest window when the tab or data changes.
-  useEffect(() => {
-    setHrChartPage(0);
-  }, [hrTab, payload]);
 
   useEffect(() => {
     if (datePreset === 'custom') return;
@@ -697,6 +622,22 @@ export default function ReportsPage() {
   const sections =
     active === 'aging' ? agingSections(payload) : active === 'hr' ? hrSections(payload) : [];
   const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
+  // Count cell reveals the per-source split (Bench 3 · Vendor 2 · Market 1) on hover.
+  const hrColumns = (hrSection?.columns || []).map((col) =>
+    col.key === 'count'
+      ? {
+          ...col,
+          render: (r) => (
+            <span
+              className="cursor-help underline decoration-dotted decoration-tertiary-300 underline-offset-2"
+              title={hrTypeSummary(r.by_type)}
+            >
+              {r.count}
+            </span>
+          ),
+        }
+      : col
+  );
 
   const drawerTitle =
     drawerRow?.requirement?.title ||
@@ -1166,12 +1107,10 @@ export default function ReportsPage() {
             })}
           </div>
 
-          {!loading && (
-            <HrChart section={hrSection} page={hrChartPage} onPageChange={setHrChartPage} />
-          )}
+          {!loading && <HrChart section={hrSection} />}
 
           <DataTable
-            columns={hrSection?.columns || []}
+            columns={hrColumns}
             rows={hrSection?.rows || []}
             loading={loading}
             emptyLabel="No rows for this range"

@@ -47,6 +47,9 @@ const env = {
     refreshExpires: process.env.JWT_REFRESH_EXPIRES || '7d',
   },
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  // Business timezone for human-readable dates in notifications / emails. The
+  // server clock is UTC; without this, notification times render in UTC.
+  timezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
   uploadDir: process.env.UPLOAD_DIR || './uploads',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 10,
   // In-process background jobs (interview reminder cron). Off in tests; opt out in
