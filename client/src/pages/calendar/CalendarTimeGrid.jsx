@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { CalendarX, RefreshCw } from 'lucide-react';
-import { eventAppearance, roundTypeMeta } from '../../lib/interviewRounds.js';
+import { eventAppearance, eventPrimaryLabel, eventTypeLabel } from '../../lib/interviewRounds.js';
 import EventHoverCard from './EventHoverCard.jsx';
 import useDelayedHoverCard from './useDelayedHoverCard.js';
 import {
@@ -41,7 +41,7 @@ function NowLine({ dayDate }) {
 
 function TimeBlock({ event, col, colCount, onSelect, onFeedback }) {
   const look = eventAppearance(event);
-  const meta = roundTypeMeta(event.round_type);
+  const typeLabel = eventTypeLabel(event);
   const { anchorRef, anchorRect, openSoon, closeSoon, closeNow, keepOpen } = useDelayedHoverCard();
   const mins = minutesFromGridStart(event.scheduled_at);
   const duration = Math.max(event.duration_minutes || 30, 15);
@@ -50,7 +50,7 @@ function TimeBlock({ event, col, colCount, onSelect, onFeedback }) {
   const widthPct = 100 / colCount;
   const leftPct = col * widthPct;
   const timeLabel = formatTime(event.scheduled_at);
-  const nameLabel = event.candidate_name || 'Interview';
+  const nameLabel = eventPrimaryLabel(event);
   const isCompact = height < COMPACT_HEIGHT;
 
   return (
@@ -66,7 +66,7 @@ function TimeBlock({ event, col, colCount, onSelect, onFeedback }) {
         onMouseLeave={closeSoon}
         onFocus={openSoon}
         onBlur={closeNow}
-        title={`${timeLabel} · ${nameLabel} · ${meta.label}`}
+        title={`${timeLabel} · ${nameLabel} · ${typeLabel}`}
         className={`absolute z-10 overflow-hidden rounded-md px-1.5 text-left shadow-soft transition hover:brightness-95 ${
           isCompact ? 'py-0' : 'py-0.5'
         } ${look.block}`}
@@ -90,7 +90,7 @@ function TimeBlock({ event, col, colCount, onSelect, onFeedback }) {
                 {nameLabel}
               </p>
               <p className={`truncate text-[10px] leading-[1.2] opacity-90 ${look.isStruck ? 'line-through' : ''}`}>
-                {timeLabel} · {meta.label}
+                {timeLabel} · {typeLabel}
               </p>
             </div>
           )}

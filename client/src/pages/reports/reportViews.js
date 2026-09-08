@@ -420,20 +420,22 @@ export function timeToSubmitColumns() {
     { key: 'client', header: 'Client' },
     { key: 'candidate', header: 'Candidate' },
     { key: 'sourcer', header: 'Sourcer' },
+    { key: 'type', header: 'Type' },
+    { key: 'vendor_name', header: 'Vendor' },
     {
-      key: 'sourced_to_submission',
-      header: 'Sourced → Submission',
-      render: durCell('sourced_to_submission', 'Profile sourced', 'Submission created'),
+      key: 'req_to_submission',
+      header: 'Requirement → Submission',
+      render: durCell('req_to_submission', 'Requirement created', 'Submission created'),
     },
     {
-      key: 'submission_to_r1',
-      header: 'Submission → R1',
-      render: durCell('submission_to_r1', 'Submission created', 'R1 scheduled'),
+      key: 'req_to_r1',
+      header: 'Requirement → R1',
+      render: durCell('req_to_r1', 'Requirement created', 'R1 scheduled'),
     },
     {
-      key: 'r1_to_submitted',
-      header: 'R1 → Submitted to client',
-      render: durCell('r1_to_submitted', 'R1 scheduled', 'Submitted to client'),
+      key: 'req_to_submitted',
+      header: 'Requirement → Submitted to client',
+      render: durCell('req_to_submitted', 'Requirement created', 'Submitted to client'),
     },
   ];
 }

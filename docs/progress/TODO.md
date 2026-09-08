@@ -6,6 +6,14 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 
+## Time to submit re-anchor + Type/Vendor + calendar meetings (2026-09-08, branch `dev-deep`)
+
+- [x] Time to submit durations re-anchored to `requirement.created_at` (req→submission / req→R1 / req→submitted).
+- [x] Time to submit: Type (Bench/Vendor/Market) + Vendor name columns; export updated.
+- [x] Calendar feed includes client meetings (`meeting_date` accounts); online = blue, in-person = amber; legend + labels + `/accounts/:id` links; interview-only actions hidden.
+- [x] Tests: reports-time-to-submit (6), interviews-calendar (+3 meeting cases); full server suite 267 green; client lint+build clean.
+- [ ] Manual: open the calendar as admin — a scheduled client meeting shows in blue/amber and opens the account.
+
 ## Reports: Joinings + Time to submit (2026-09-08, branch `feature/reports-joinings-time-to-submit`)
 
 - [x] `GET /reports/joinings` — by sourcer / by interviewer (L1+L2) / by vendor, per month.

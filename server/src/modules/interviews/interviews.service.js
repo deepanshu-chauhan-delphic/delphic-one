@@ -32,6 +32,72 @@ const CALENDAR_INCLUDE = {
 const INTERNAL_AUDIENCE_TYPES = [...INTERNAL_ROUND_TYPES, 'hr_cto_ceo'];
 const EXTERNAL_AUDIENCE_TYPES = CLIENT_ROUND_TYPES.filter((t) => t !== 'hr_cto_ceo');
 
+const CLIENT_MEETING_INCLUDE = {
+  owner: { select: { id: true, name: true, email: true } },
+  meeting_attendees: { include: { user: { select: { id: true, name: true, email: true } } } },
+};
+
+/** An account's scheduled meeting, shaped like a calendar event (kind: client_meeting). */
+function serializeClientMeeting(account) {
+  const startsAt = account.meeting_date;
+  const endsAt = startsAt ? new Date(new Date(startsAt).getTime() + 60 * 60000) : null;
+  const attendees = (account.meeting_attendees || []).map((a) => ({
+    id: a.user.id,
+    name: a.user.name,
+    email: a.user.email,
+  }));
+  const mode = account.meeting_mode === 'offline' ? 'offline' : 'online';
+  return {
+    id: `meeting-${account.id}`,
+    kind: 'client_meeting',
+    submission_id: null,
+    account_id: account.id,
+    account_name: account.name,
+    scheduled_at: startsAt,
+    duration_minutes: 60,
+    ends_at: endsAt,
+    status: account.stage === 'dropped' ? 'cancelled' : 'scheduled',
+    round_type: null,
+    round_type_label: mode === 'offline' ? 'Client meeting · In person' : 'Client meeting · Online',
+    round_name: null,
+    audience: 'external',
+    result: null,
+    meeting_mode: mode,
+    meeting_location: account.meeting_location || null,
+    meeting_notes: account.meeting_notes || null,
+    meeting_link: null,
+    candidate_name: null,
+    requirement_id: null,
+    requirement_title: null,
+    interviewers: attendees,
+    interviewer_name: null,
+    interviewer_email: null,
+    scheduled_by: account.owner
+      ? { id: account.owner.id, name: account.owner.name, email: account.owner.email }
+      : null,
+    cancellation_reason: null,
+    cancelled_at: null,
+    can_submit_feedback: false,
+    can_reschedule: false,
+  };
+}
+
+async function listClientMeetings({ from, to, mine, user, status }) {
+  if (status === 'completed') return [];
+  const where = { meeting_date: { gte: from, lte: to }, deleted_at: null };
+  if (status === 'scheduled') where.stage = { in: ['meeting_scheduled', 'rescheduled'] };
+  if (status === 'cancelled') where.stage = 'dropped';
+  if (mine) {
+    where.OR = [
+      { owner_id: user.id },
+      { origin_owner_id: user.id },
+      { meeting_attendees: { some: { user_id: user.id } } },
+    ];
+  }
+  const accounts = await prisma.account.findMany({ where, include: CLIENT_MEETING_INCLUDE });
+  return accounts.map(serializeClientMeeting);
+}
+
 function monthRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -126,12 +192,22 @@ async function listForCalendar(user, opts = {}) {
     orderBy: { scheduled_at: 'asc' },
   });
 
-  const events = rows.map((r) => serializeCalendarEvent(r, user));
+  let events = rows.map((r) => serializeCalendarEvent(r, user));
+
+  // Client meetings (an account's scheduled meeting) join the same feed, unless
+  // the user has narrowed the calendar to internal interviews only.
+  if (audience !== 'internal') {
+    const meetings = await listClientMeetings({ from, to, mine, user, status: opts.status });
+    events = events.concat(meetings);
+  }
+
   if (sort === 'audience') {
     events.sort((a, b) => {
       if (a.audience !== b.audience) return a.audience === 'internal' ? -1 : 1;
       return new Date(a.scheduled_at) - new Date(b.scheduled_at);
     });
+  } else {
+    events.sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
   }
   return events;
 }

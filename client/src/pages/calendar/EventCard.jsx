@@ -2,7 +2,14 @@ import { Link } from 'react-router-dom';
 import { CalendarX, ExternalLink, RefreshCw } from 'lucide-react';
 import Badge from '../../components/ui/Badge.jsx';
 import AvatarStack from '../../components/ui/AvatarStack.jsx';
-import { eventAppearance, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
+import {
+  eventAppearance,
+  eventPrimaryLabel,
+  eventTypeLabel,
+  hasSubmittedFeedback,
+  isClientMeeting,
+  roundTypeMeta,
+} from '../../lib/interviewRounds.js';
 import { formatRelative } from '../../lib/notifications/notificationLinks.js';
 import { formatTimeRange } from './monthGrid.js';
 
@@ -11,19 +18,23 @@ import { formatTimeRange } from './monthGrid.js';
  */
 export default function EventCard({ event, onOpenDetail, onFeedback, onCancel }) {
   const look = eventAppearance(event);
+  const meeting = isClientMeeting(event);
   const cancelled = event.status === 'cancelled';
   const rescheduled = event.result === 'rescheduled';
   const meta = roundTypeMeta(event.round_type);
+  const typeLabel = eventTypeLabel(event);
+  const primaryTo = meeting ? `/accounts/${event.account_id}` : `/submissions/${event.submission_id}`;
   const nowMs = new Date().getTime();
   const isPastStart = event.scheduled_at && new Date(event.scheduled_at).getTime() <= nowMs;
   const isFuture = event.scheduled_at && new Date(event.scheduled_at).getTime() > nowMs;
   const live = !cancelled && !rescheduled;
   const feedbackDone = hasSubmittedFeedback(event);
-  const canFeedback = event.can_submit_feedback && live && (isPastStart || feedbackDone);
+  // Client meetings carry no interview actions (feedback / cancel / reschedule).
+  const canFeedback = !meeting && event.can_submit_feedback && live && (isPastStart || feedbackDone);
   // Cancel / Reschedule are offered to every role; the server enforces who may
   // actually do it (manager / scheduler) and 403s otherwise.
-  const canCancel = live && isFuture;
-  const canReschedule = live && event.status !== 'completed';
+  const canCancel = !meeting && live && isFuture;
+  const canReschedule = !meeting && live && event.status !== 'completed';
 
   return (
     <div className={`hover-zoom relative rounded-2xl border p-4 shadow-card ${look.card}`}>
@@ -31,7 +42,7 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
         <span className={`font-heading text-sm font-semibold text-tertiary-900 ${look.isStruck ? 'line-through text-tertiary-500' : ''}`}>
           {formatTimeRange(event.scheduled_at, event.duration_minutes)}
         </span>
-        <span className={`rounded-full border px-2 py-0.5 ${meta.color}`}>{meta.label}</span>
+        <span className={`rounded-full border px-2 py-0.5 ${meeting ? look.pill : meta.color}`}>{typeLabel}</span>
         <Badge value={event.status} />
         {event.result && event.result !== 'pending' && <Badge value={event.result} />}
         <span className="ml-auto text-tertiary-400">{formatRelative(event.scheduled_at)}</span>
@@ -39,12 +50,13 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
 
       <div className={`mt-2 text-sm ${look.isStruck ? 'line-through text-tertiary-500' : ''}`}>
         <Link
-          to={`/submissions/${event.submission_id}`}
+          to={primaryTo}
           className={`font-semibold hover:underline ${look.isStruck ? 'text-tertiary-500' : 'text-primary-700'}`}
         >
-          {event.candidate_name || 'Candidate'}
+          {eventPrimaryLabel(event, 'Candidate')}
         </Link>
         <span className="text-tertiary-500">
+          {meeting && event.meeting_location ? ` · ${event.meeting_location}` : ''}
           {event.requirement_id ? (
             <>
               {' · '}
@@ -60,7 +72,7 @@ export default function EventCard({ event, onOpenDetail, onFeedback, onCancel })
           ) : (
             ''
           )}
-          {event.account_name ? ` · ${event.account_name}` : ''}
+          {!meeting && event.account_name ? ` · ${event.account_name}` : ''}
         </span>
       </div>
 

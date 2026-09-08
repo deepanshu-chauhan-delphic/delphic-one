@@ -2,6 +2,36 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-08 — Time to submit re-anchored + Type/Vendor cols + client meetings on the calendar — branch `dev-deep`
+
+- **Time to submit** — the three durations now all start at **requirement
+  creation** (leadership's definition), not hop-to-hop:
+  `req_to_submission` (`requirement.created_at → submission.created_at`),
+  `req_to_r1` (`→ first internal_r1 scheduled_at`),
+  `req_to_submitted` (`→ first submitted_to_client stage-history entry`). Each
+  keeps `{ ms, label, from, to }`; hover still shows the bound timestamps.
+- Two new columns: **Type** (`Bench` / `Vendor` / `Market` from `Profile.source`
+  via `SOURCE_LABEL`) and **Vendor** (`Profile.vendor_account.name`, `—` when not
+  vendor-sourced). Export sheet carries both + the renamed `requirement_to_*`
+  columns.
+- **Calendar now shows client meetings.** `interviews.service.listForCalendar`
+  concats `listClientMeetings()` — accounts with `meeting_date` in range
+  (`deleted_at: null`), serialized as `{ kind: 'client_meeting', meeting_mode,
+  meeting_location, meeting_notes, audience: 'external', … }` with id
+  `meeting-<accountId>`. Dropped `audience=internal` from the feed; `mine=1`
+  scopes to `owner_id` / `origin_owner_id` / a `meeting_attendees` row;
+  `status=completed` excludes meetings, `cancelled` → `stage=dropped`.
+- Client colour model (`interviewRounds.js`): `CLIENT_MEETING_LOOK` — **online =
+  blue, in-person = amber**; `isClientMeeting()`, `eventPrimaryLabel()`,
+  `eventTypeLabel()` helpers; `eventAppearance` / `eventAudience` handle the new
+  kind; two new `STATUS_LEGEND` rows. `CalendarTimeGrid` / `EventPill` /
+  `EventCard` / `EventHoverCard` / `EventDetailDrawer` render meeting labels,
+  link to `/accounts/:id`, show Mode/Location/Notes, and hide the interview-only
+  feedback/cancel/reschedule actions.
+- Tests: `reports-time-to-submit.test.js` (6 — re-anchored durations, Type +
+  Vendor, filters), `interviews-calendar.test.js` (+3 — meeting kind/mode,
+  audience filter, `mine=1` scoping). Server + client lint/build clean.
+
 ## 2026-09-08 — Two new reports: Joinings + Time to submit — branch `feature/reports-joinings-time-to-submit`
 
 Both `authorize('admin', 'sales')`, visible in the Reports picker, follow the HR-report pattern.

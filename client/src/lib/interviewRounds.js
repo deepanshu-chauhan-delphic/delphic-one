@@ -76,12 +76,60 @@ export const ROUND_GROUP_LEGEND = [
 export const STATUS_LEGEND = [
   { key: 'internal', label: 'Internal (scheduled)', dot: 'bg-sky-500' },
   { key: 'external', label: 'External (scheduled)', dot: 'bg-violet-500' },
+  { key: 'meeting_online', label: 'Client meeting · online', dot: 'bg-blue-500' },
+  { key: 'meeting_offline', label: 'Client meeting · in person', dot: 'bg-amber-500' },
   { key: 'pass', label: 'Passed', dot: 'bg-emerald-500' },
   { key: 'fail', label: 'Rejected / failed', dot: 'bg-rose-500' },
   { key: 'no_show', label: 'Candidate did not join', dot: 'bg-orange-500' },
   { key: 'cancelled', label: 'Cancelled (struck through)', dot: 'bg-slate-400' },
   { key: 'rescheduled', label: 'Rescheduled (dimmed)', dot: 'bg-slate-300' },
 ];
+
+/**
+ * Client meetings (an account's scheduled meeting) ride the same calendar feed
+ * as interviews but get their own hues so a glance separates them: an online
+ * meeting is blue, an in-person one amber.
+ */
+const CLIENT_MEETING_LOOK = {
+  online: {
+    key: 'meeting_online',
+    pill: 'bg-blue-500/15 text-blue-900 border-blue-200',
+    pillBar: 'bg-blue-500',
+    block: 'bg-blue-500 text-white',
+    accent: 'border-l-blue-500',
+    card: 'border-blue-200 bg-blue-50/50',
+    isMuted: false,
+    isStruck: false,
+  },
+  offline: {
+    key: 'meeting_offline',
+    pill: 'bg-amber-500/15 text-amber-900 border-amber-300',
+    pillBar: 'bg-amber-500',
+    block: 'bg-amber-500 text-white',
+    accent: 'border-l-amber-500',
+    card: 'border-amber-200 bg-amber-50/60',
+    isMuted: false,
+    isStruck: false,
+  },
+};
+
+export function isClientMeeting(event) {
+  return event?.kind === 'client_meeting';
+}
+
+/** Primary line for a calendar event: candidate for interviews, client for meetings. */
+export function eventPrimaryLabel(event, fallback = 'Interview') {
+  if (isClientMeeting(event)) return event?.account_name || 'Client meeting';
+  return event?.candidate_name || fallback;
+}
+
+/** Type line: the round label for interviews, the meeting mode for meetings. */
+export function eventTypeLabel(event) {
+  if (isClientMeeting(event)) {
+    return event?.meeting_mode === 'offline' ? 'Client meeting · In person' : 'Client meeting · Online';
+  }
+  return roundTypeMeta(event?.round_type).label;
+}
 
 const AUDIENCE_LOOK = {
   internal: {
@@ -164,10 +212,13 @@ const CANCELLED_LOOK = {
  * the interview category (internal / external).
  */
 export function eventAppearance(event) {
+  if (event?.status === 'cancelled') return CANCELLED_LOOK;
+  if (isClientMeeting(event)) {
+    return CLIENT_MEETING_LOOK[event.meeting_mode === 'offline' ? 'offline' : 'online'];
+  }
+
   const audience = event ? eventAudience(event) : 'internal';
   const base = AUDIENCE_LOOK[audience] || AUDIENCE_LOOK.internal;
-
-  if (event?.status === 'cancelled') return CANCELLED_LOOK;
 
   if (event?.result === 'rescheduled') {
     return {
@@ -202,6 +253,7 @@ export function audienceForRoundType(roundType) {
 }
 
 export function eventAudience(event) {
+  if (isClientMeeting(event)) return 'external';
   return event?.audience || audienceForRoundType(event?.round_type);
 }
 

@@ -17,6 +17,9 @@ let salesToken;
 let recruiterToken;
 let recruiter;
 let seatId;
+let reqId;
+
+const DAY = 24 * 3600 * 1000;
 
 async function mkProfile() {
   return prisma.profile.create({
@@ -35,6 +38,10 @@ beforeEach(async () => {
 
   const account = await createActiveClientAccount(sales.id);
   const req = await createRequirement(salesToken, account.id);
+  reqId = req.id;
+  // Backdate the requirement so every "requirement created -> …" span is positive
+  // for the backdated submissions the tests seed.
+  await prisma.requirement.update({ where: { id: reqId }, data: { created_at: new Date(Date.now() - 30 * DAY) } });
   const seats = await authed(request(app).get(`/api/v1/requirements/${req.id}/seats`), salesToken);
   seatId = seats.body.data[0].id;
 });
@@ -56,16 +63,14 @@ describe('GET /reports/time-to-submit', () => {
     expect((await getTts(adminToken)).status).toBe(200);
   });
 
-  const DAY = 24 * 3600 * 1000;
-
-  test('a full funnel gets all three hop durations', async () => {
+  test('durations are all measured from requirement creation', async () => {
     const p = await mkProfile();
-    await prisma.profile.update({ where: { id: p.id }, data: { created_at: new Date(Date.now() - 8 * DAY) } });
-    const created = new Date(Date.now() - 5 * DAY); // submission row created 5d ago (profile sourced 8d ago)
+    // requirement was created 30d ago (see beforeEach)
+    const created = new Date(Date.now() - 20 * DAY); // submission created 20d after the requirement
     const sub = await prisma.submission.create({
       data: { requirement_seat_id: seatId, profile_id: p.id, submitted_by: recruiter.id, stage: 'submitted_to_client', created_at: created },
     });
-    await createInterviewRound(sub.id, { round_type: 'internal_r1', scheduled_at: new Date(created.getTime() + 2 * DAY) }); // 3d ago
+    await createInterviewRound(sub.id, { round_type: 'internal_r1', scheduled_at: new Date(Date.now() - 12 * DAY) }); // R1 ~18d after req
     await prisma.stageHistory.create({
       data: {
         entity_type: 'submission',
@@ -73,17 +78,44 @@ describe('GET /reports/time-to-submit', () => {
         from_stage: 'internal_screening',
         to_stage: 'submitted_to_client',
         changed_by: recruiter.id,
-        changed_at: new Date(created.getTime() + 4 * DAY), // 1d ago
+        changed_at: new Date(Date.now() - 4 * DAY), // submitted ~26d after req
       },
     });
 
     const row = (await getTts(adminToken)).body.data.rows.find((r) => r.candidate === p.name);
-    // 8d->5d ago = ~3d ; 5d->3d ago = ~2d ; 3d->1d ago = ~2d
-    expect(row.sourced_to_submission.ms).toBeGreaterThan(2.5 * DAY);
-    expect(row.submission_to_r1.ms).toBeGreaterThan(1.5 * DAY);
-    expect(row.r1_to_submitted.ms).toBeGreaterThan(1.5 * DAY);
-    expect(row.sourced_to_submission.label).toMatch(/\d/);
+    // req(30d ago) -> submission(20d ago) ~= 10d ; -> R1(12d ago) ~= 18d ; -> submitted(4d ago) ~= 26d
+    expect(row.req_to_submission.ms).toBeGreaterThan(9 * DAY);
+    expect(row.req_to_r1.ms).toBeGreaterThan(16 * DAY);
+    expect(row.req_to_submitted.ms).toBeGreaterThan(24 * DAY);
+    // each successive span is longer (same anchor, later end)
+    expect(row.req_to_r1.ms).toBeGreaterThan(row.req_to_submission.ms);
+    expect(row.req_to_submitted.ms).toBeGreaterThan(row.req_to_r1.ms);
+    // hover bounds carried on every cell
+    expect(row.req_to_submission.from).toBe(row.requirement_created_at);
+    expect(row.req_to_r1.to).toEqual(expect.any(String));
     expect(row.sourcer).toBe(recruiter.name);
+  });
+
+  test('reports candidate type and vendor name', async () => {
+    const vendorAcc = await prisma.account.create({
+      data: { name: `V ${Date.now()}`, type: 'vendor', stage: 'active', owner_id: recruiter.id, origin_owner_id: recruiter.id },
+    });
+    const benchP = await prisma.profile.create({
+      data: { name: 'Bench Person', total_experience_years: 2, primary_skills: ['x'], source: 'direct', added_by: recruiter.id },
+    });
+    const vendorP = await prisma.profile.create({
+      data: { name: 'Vendor Person', total_experience_years: 2, primary_skills: ['x'], source: 'vendor', added_by: recruiter.id, vendor_account_id: vendorAcc.id },
+    });
+    await prisma.submission.create({ data: { requirement_seat_id: seatId, profile_id: benchP.id, submitted_by: recruiter.id, stage: 'sourced' } });
+    await prisma.submission.create({ data: { requirement_seat_id: seatId, profile_id: vendorP.id, submitted_by: recruiter.id, stage: 'sourced' } });
+
+    const rows = (await getTts(adminToken)).body.data.rows;
+    const bench = rows.find((r) => r.candidate === 'Bench Person');
+    const vend = rows.find((r) => r.candidate === 'Vendor Person');
+    expect(bench.type).toBe('Bench');
+    expect(bench.vendor_name).toBe('—');
+    expect(vend.type).toBe('Vendor');
+    expect(vend.vendor_name).toBe(vendorAcc.name);
   });
 
   test('filters by sourcer, client, requirement and candidate search', async () => {
@@ -118,10 +150,10 @@ describe('GET /reports/time-to-submit', () => {
     });
 
     const row = (await getTts(adminToken)).body.data.rows.find((r) => r.id === sub.id);
-    expect(row.submission_to_r1).toMatchObject({ ms: null, label: null });
-    expect(row.r1_to_submitted).toMatchObject({ ms: null, label: null });
-    // sourced -> submission created is always known
-    expect(row.sourced_to_submission.ms).not.toBeNull();
+    expect(row.req_to_r1).toMatchObject({ ms: null, label: null });
+    expect(row.req_to_submitted).toMatchObject({ ms: null, label: null });
+    // requirement created -> submission created is always known
+    expect(row.req_to_submission.ms).not.toBeNull();
   });
 
   test('date range filters on submission.created_at', async () => {
