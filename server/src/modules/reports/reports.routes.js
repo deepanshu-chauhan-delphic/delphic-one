@@ -269,9 +269,10 @@ function buildExportSheets(report, data) {
             requirement: r.requirement,
             client: r.client,
             candidate: r.candidate,
-            sourced_to_r1: r.sourced_to_r1?.label || '',
-            r1_to_submitted: r.r1_to_submitted?.label || '',
-            sourced_to_submitted: r.sourced_to_submitted?.label || '',
+            sourcer: r.sourcer,
+            sourced_to_submission: r.sourced_to_submission?.label || '',
+            submission_to_r1: r.submission_to_r1?.label || '',
+            r1_to_submitted_to_client: r.r1_to_submitted?.label || '',
           })
         ),
       },

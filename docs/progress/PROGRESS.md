@@ -15,21 +15,27 @@ Both `authorize('admin', 'sales')`, visible in the Reports picker, follow the HR
     candidate's `internal_r1` rounds) / `l2` (`internal_r2`) / `total`; every
     linked interviewer credited, `interviewer_name` fallback.
   - `by_vendor` — vendor-sourced joinings only, month × `vendor_account.name`.
-- **`GET /reports/time-to-submit`** (`timeToSubmitSchema`). One row per
-  submission `created_at` in range (any stage). Columns: requirement created-at,
-  requirement, client, candidate, and three durations (raw `ms` + `"1d 6h"`
-  label, `—` when not reached): **sourced → internal R1**, **R1 → submitted to
-  client**, **sourced → submitted to client** (`submission.created_at` →
-  first `internal_r1` `scheduled_at` → first `submitted_to_client` stage-history
-  entry).
+- **`GET /reports/time-to-submit`** (`timeToSubmitSchema`: `date_from`/`date_to`
+  + `client_id` / `requirement_id` / `sourcer_id` / `search` candidate-name).
+  One row per submission `created_at` in range (any stage). Columns: requirement
+  created-at, requirement, client, candidate, **sourcer** (`Profile.added_by`),
+  and the three hop durations of the app flow **profile sourced → submission
+  created → internal round 1 → submitted to client** (raw `ms` + `"1d 6h"`
+  label + `from`/`to` ISO bounds, `—` when not reached):
+  `sourced_to_submission` (`profile.created_at → submission.created_at`),
+  `submission_to_r1` (`submission.created_at → first internal_r1 scheduled_at`),
+  `r1_to_submitted` (`→ first submitted_to_client stage-history entry`).
+  Each duration cell shows its lower/upper bound timestamps on hover (`from`/`to`).
 - Wired into `reports.routes` (`REPORTS` map + routes + `/export` branches:
   joinings = one sheet per table, time-to-submit = one sheet from `rows`).
 - Client: `reportViews.js` `joiningsSections()` / `timeToSubmitColumns()` +
   `ALL_REPORTS` entries; `ReportsPage` renders Joinings as a 3-tab block (like
-  HR) and Time to submit as one table.
-- Tests: `reports-joinings.test.js` (5), `reports-time-to-submit.test.js` (4).
-  Server **37 suites / 262** green; client eslint + build clean;
-  `reportViews.test.mjs` updated.
+  HR) and Time to submit as one table with a Candidate-search box + Client /
+  Requirement / Sourcer `SearchableSelect` filters (client & requirement lists
+  fetched from `/accounts?type=client` + `/requirements`, `limit=100`).
+- Tests: `reports-joinings.test.js` (5), `reports-time-to-submit.test.js` (5,
+  incl. sourcer field + sourcer/search filter narrowing). All 6 reports suites
+  (53 tests) green; client eslint + build clean; `reportViews.test.mjs` updated.
 
 ## 2026-09-08 — Reports polish + candidate-source relabel + notification time fix + calendar overlap fix
 

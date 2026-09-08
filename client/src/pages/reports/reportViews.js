@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { rangeForPreset } from '../../lib/datePresets.js';
 
 /**
@@ -381,7 +382,26 @@ export function joiningsSections(data) {
   }));
 }
 
-const durCell = (key) => (r) => r[key]?.label || '—';
+const fmtStamp = (iso) => {
+  if (!iso) return '—';
+  return `${formatReportDate(iso)} ${new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+// A duration cell that reveals its lower/upper bound timestamps on hover.
+const durCell = (key, fromLabel, toLabel) => {
+  // eslint-disable-next-line react/display-name
+  return (r) => {
+    const cell = r[key] || {};
+    const text = cell.label || '—';
+    if (!cell.from && !cell.to) return text;
+    const title = `${fromLabel}: ${fmtStamp(cell.from)}\n${toLabel}: ${fmtStamp(cell.to)}`;
+    return createElement(
+      'span',
+      { title, className: 'cursor-help border-b border-dotted border-tertiary-300' },
+      text
+    );
+  };
+};
 
 export function timeToSubmitColumns() {
   return [
@@ -399,9 +419,22 @@ export function timeToSubmitColumns() {
     { key: 'requirement', header: 'Requirement' },
     { key: 'client', header: 'Client' },
     { key: 'candidate', header: 'Candidate' },
-    { key: 'sourced_to_r1', header: 'Sourced → R1', render: durCell('sourced_to_r1') },
-    { key: 'r1_to_submitted', header: 'R1 → Submitted', render: durCell('r1_to_submitted') },
-    { key: 'sourced_to_submitted', header: 'Sourced → Submitted', render: durCell('sourced_to_submitted') },
+    { key: 'sourcer', header: 'Sourcer' },
+    {
+      key: 'sourced_to_submission',
+      header: 'Sourced → Submission',
+      render: durCell('sourced_to_submission', 'Profile sourced', 'Submission created'),
+    },
+    {
+      key: 'submission_to_r1',
+      header: 'Submission → R1',
+      render: durCell('submission_to_r1', 'Submission created', 'R1 scheduled'),
+    },
+    {
+      key: 'r1_to_submitted',
+      header: 'R1 → Submitted to client',
+      render: durCell('r1_to_submitted', 'R1 scheduled', 'Submitted to client'),
+    },
   ];
 }
 

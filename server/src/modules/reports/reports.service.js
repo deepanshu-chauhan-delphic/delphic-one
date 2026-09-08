@@ -1117,9 +1117,11 @@ function formatDuration(ms) {
 }
 
 const dur = (fromDate, toDate) => {
-  if (!fromDate || !toDate) return { ms: null, label: null };
+  const from = fromDate ? new Date(fromDate).toISOString() : null;
+  const to = toDate ? new Date(toDate).toISOString() : null;
+  if (!fromDate || !toDate) return { ms: null, label: null, from, to };
   const ms = new Date(toDate) - new Date(fromDate);
-  return { ms, label: formatDuration(ms) };
+  return { ms, label: formatDuration(ms), from, to };
 };
 
 // A joining = a submission that reached `closed` with a joining date in range.
@@ -1227,16 +1229,32 @@ async function joinings({ date_from, date_to }) {
   };
 }
 
-// Per-candidate stage timing: sourced -> internal round 1 -> submitted to client.
-async function timeToSubmit({ date_from, date_to }) {
+// App flow (one row per submission): profile sourced -> submission created for
+// this requirement -> first internal round 1 scheduled -> submitted to client.
+// The 3 columns are the 3 hops of that chain.
+async function timeToSubmit({ date_from, date_to, client_id, requirement_id, sourcer_id, search }) {
   const range = optionalDateRange(date_from, date_to);
+  const profileWhere = {
+    ...(sourcer_id ? { added_by: sourcer_id } : {}),
+    ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+  };
+  const reqWhere = {
+    ...(requirement_id ? { id: requirement_id } : {}),
+    ...(client_id ? { account_id: client_id } : {}),
+  };
   const subs = await prisma.submission.findMany({
-    where: { created_at: range },
+    where: {
+      created_at: range,
+      ...(Object.keys(profileWhere).length ? { profile: profileWhere } : {}),
+      ...(Object.keys(reqWhere).length ? { seat: { requirement: reqWhere } } : {}),
+    },
     orderBy: { created_at: 'desc' },
     select: {
       id: true,
       created_at: true,
-      profile: { select: { name: true } },
+      profile: {
+        select: { name: true, created_at: true, added_by: true, added_by_user: { select: { id: true, name: true } } },
+      },
       seat: {
         select: {
           requirement: { select: { id: true, title: true, created_at: true, account: { select: { name: true } } } },
@@ -1282,9 +1300,14 @@ async function timeToSubmit({ date_from, date_to }) {
         requirement: req?.title || '—',
         client: req?.account?.name || '—',
         candidate: s.profile?.name || '—',
-        sourced_to_r1: dur(s.created_at, r1At),
+        sourcer: s.profile?.added_by_user?.name || '—',
+        sourcer_id: s.profile?.added_by || null,
+        // profile sourced -> submission created for this requirement
+        sourced_to_submission: dur(s.profile?.created_at, s.created_at),
+        // submission created -> first internal round 1 scheduled
+        submission_to_r1: dur(s.created_at, r1At),
+        // first internal round 1 scheduled -> submitted to client
         r1_to_submitted: dur(r1At, submittedAt),
-        sourced_to_submitted: dur(s.created_at, submittedAt),
       };
     }),
   };

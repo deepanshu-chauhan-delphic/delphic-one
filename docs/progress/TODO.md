@@ -9,9 +9,10 @@ Working task list. Check off / move to [PROGRESS.md](PROGRESS.md) as items land.
 ## Reports: Joinings + Time to submit (2026-09-08, branch `feature/reports-joinings-time-to-submit`)
 
 - [x] `GET /reports/joinings` — by sourcer / by interviewer (L1+L2) / by vendor, per month.
-- [x] `GET /reports/time-to-submit` — per candidate: sourced→R1, R1→submitted, sourced→submitted.
+- [x] `GET /reports/time-to-submit` — per submission: sourced→submission, submission→R1, R1→submitted; sourcer column; hover shows from/to timestamps.
+- [x] Time to submit filters: client_id / requirement_id / sourcer_id / candidate search + date range.
 - [x] Client: visible "Joinings" (3 tabs) + "Time to submit" reports; export branches.
-- [x] Tests: reports-joinings (5), reports-time-to-submit (4); server 37/262 green.
+- [x] Tests: reports-joinings (5), reports-time-to-submit (5); all 6 reports suites (53) green.
 - [ ] Manual: numbers match a hand count against `/submissions?stage=closed`; xlsx export.
 
 ## Reports polish + source relabel + notif time + calendar overlap (2026-09-08)

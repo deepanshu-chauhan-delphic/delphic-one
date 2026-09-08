@@ -312,6 +312,13 @@ export default function ReportsPage() {
   const [hrPeople, setHrPeople] = useState([]);
   const [hrTab, setHrTab] = useState('sourcing');
   const [joiningsTab, setJoiningsTab] = useState('by_sourcer');
+  const [ttsClientId, setTtsClientId] = useState('');
+  const [ttsRequirementId, setTtsRequirementId] = useState('');
+  const [ttsSourcerId, setTtsSourcerId] = useState('');
+  const [ttsSearch, setTtsSearch] = useState('');
+  const [ttsSearchApplied, setTtsSearchApplied] = useState('');
+  const [ttsClients, setTtsClients] = useState([]);
+  const [ttsRequirements, setTtsRequirements] = useState([]);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -376,7 +383,7 @@ export default function ReportsPage() {
   }, [available, active]);
 
   useEffect(() => {
-    if (!isHr) return;
+    if (!isHr && !isTimeToSubmit) return;
     apiClient
       .get('/users/directory')
       .then(({ data }) =>
@@ -388,7 +395,23 @@ export default function ReportsPage() {
         )
       )
       .catch(() => setHrPeople([]));
-  }, [isHr]);
+  }, [isHr, isTimeToSubmit]);
+
+  useEffect(() => {
+    if (!isTimeToSubmit) return;
+    apiClient
+      .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
+      .then(({ data }) => setTtsClients((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
+      .catch(() => setTtsClients([]));
+    apiClient
+      .get('/requirements', { params: { limit: 100, sort_by: 'created_at', sort_order: 'desc' } })
+      .then(({ data }) =>
+        setTtsRequirements(
+          (data.data || []).map((r) => ({ value: r.id, label: `${r.title}${r.account?.name ? ` · ${r.account.name}` : ''}` }))
+        )
+      )
+      .catch(() => setTtsRequirements([]));
+  }, [isTimeToSubmit]);
 
   useEffect(() => {
     if (datePreset === 'custom') return;
@@ -484,9 +507,16 @@ export default function ReportsPage() {
       if (hrSourcerId) params.sourcer_id = hrSourcerId;
       if (hrInterviewerId) params.interviewer_id = hrInterviewerId;
       if (hrSource) params.source = hrSource;
-    } else if (isJoinings || isTimeToSubmit) {
+    } else if (isJoinings) {
       params.date_from = dateFrom;
       params.date_to = dateTo;
+    } else if (isTimeToSubmit) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+      if (ttsClientId) params.client_id = ttsClientId;
+      if (ttsRequirementId) params.requirement_id = ttsRequirementId;
+      if (ttsSourcerId) params.sourcer_id = ttsSourcerId;
+      if (ttsSearchApplied.trim()) params.search = ttsSearchApplied.trim();
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -559,6 +589,10 @@ export default function ReportsPage() {
     hrSourcerId,
     hrInterviewerId,
     hrSource,
+    ttsClientId,
+    ttsRequirementId,
+    ttsSourcerId,
+    ttsSearchApplied,
   ]);
 
   async function exportReport(type) {
@@ -688,6 +722,11 @@ export default function ReportsPage() {
               setHrSource('');
               setHrTab('sourcing');
               setJoiningsTab('by_sourcer');
+              setTtsClientId('');
+              setTtsRequirementId('');
+              setTtsSourcerId('');
+              setTtsSearch('');
+              setTtsSearchApplied('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -771,6 +810,60 @@ export default function ReportsPage() {
               value={hrInterviewerId}
               onChange={setHrInterviewerId}
               placeholder="Interviewer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+          </>
+        )}
+        {isTimeToSubmit && (
+          <>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTtsSearchApplied(ttsSearch.trim());
+              }}
+              className="flex"
+            >
+              <input
+                value={ttsSearch}
+                onChange={(e) => setTtsSearch(e.target.value)}
+                placeholder="Candidate name…"
+                className="w-44 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              <button
+                type="submit"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
+              >
+                Search
+              </button>
+            </form>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by client"
+              value={ttsClientId}
+              onChange={setTtsClientId}
+              placeholder="Client: All"
+              searchPlaceholder="Search clients…"
+              options={ttsClients}
+            />
+            <SearchableSelect
+              className="w-56"
+              allowClear
+              ariaLabel="Filter by requirement"
+              value={ttsRequirementId}
+              onChange={setTtsRequirementId}
+              placeholder="Requirement: All"
+              searchPlaceholder="Search requirements…"
+              options={ttsRequirements}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by sourcer"
+              value={ttsSourcerId}
+              onChange={setTtsSourcerId}
+              placeholder="Sourcer: All"
               searchPlaceholder="Search people…"
               options={hrPeople}
             />
