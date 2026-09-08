@@ -52,10 +52,10 @@ export const ROLE_COPY = {
     subtitle: 'Company-wide leads, jobs, pipeline, and aging alerts.',
   },
   bda: {
-    subtitle: 'Your owned accounts — leads, meetings, and stuck follow-ups.',
+    subtitle: 'Your owned accounts - leads, meetings, and stuck follow-ups.',
   },
   sales: {
-    subtitle: 'Your owned requirements — openings, submissions, and stuck jobs.',
+    subtitle: 'Your owned requirements - openings, submissions, and stuck jobs.',
   },
   recruiter: {
     subtitle: 'Assigned jobs and your active submissions / interviews.',
@@ -200,7 +200,7 @@ export function statsForRole(role, summary) {
       label: 'Active leads',
       value: summary.leads_active ?? 0,
       hint: 'Company-wide',
-      description: 'All accounts company-wide currently in the "lead" stage — any type, including unclassified.',
+      description: 'All accounts company-wide currently in the "lead" stage - any type, including unclassified.',
       icon: Target,
       theme: 'blue',
       href: KPI_LINKS.leadsActive,

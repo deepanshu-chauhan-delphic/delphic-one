@@ -6,6 +6,8 @@ import { required, runValidations, fieldErrorClass } from '../../lib/alerts/form
 import Drawer from '../../components/ui/Drawer.jsx';
 import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import { canManageInterviewRound, isInternalRoundType, roundTypeLabel } from '../../lib/submissionStages.js';
 import { ROUND_TYPES, RESULT_COLORS, ROUND_RESULTS as RESULTS, roundTypeMeta } from '../../lib/interviewRounds.js';
 
@@ -104,7 +106,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
   useEffect(() => {
     if (!open || !showInternalInterviewers) return;
     apiClient
-      .get('/users', { params: { active: true, limit: 100 } })
+      .get('/users/directory', { params: { active: 'true' } })
       .then(({ data }) => setActiveUsers(data.data || []))
       .catch(() => setActiveUsers([]));
   }, [open, showInternalInterviewers]);
@@ -192,7 +194,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${meta.color}`}>
                         {meta.label}
                       </span>
-                      {r.round_name ? ` — ${r.round_name}` : ''}
+                      {r.round_name ? ` - ${r.round_name}` : ''}
                     </p>
                     <p className="mt-1.5 text-xs text-tertiary-600">
                       <span className="font-medium text-sky-800">Interview:</span>{' '}
@@ -221,6 +223,15 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                       <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => openEdit(r)}>
                         Edit
                       </button>
+                    )}
+                    {userCan(user, 'deleteRecords') && (
+                      <DeleteRecordButton
+                        entityType="interview_round"
+                        entityId={r.id}
+                        entityLabel={`Interview round #${r.round_number}`}
+                        label="Delete"
+                        onDeleted={onChanged}
+                      />
                     )}
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical, SlidersHorizontal } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical, SlidersHorizontal, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -55,7 +55,11 @@ function ProfilePeek({ row, onClose }) {
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{profileKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/profiles/${detail.id}`} className="text-primary-700 hover:underline">
+            {profileKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
         <PeekField label="Company">{detail.current_company || '—'}</PeekField>
         <PeekField label="Experience">{detail.total_experience_years ?? '—'}</PeekField>
@@ -87,9 +91,9 @@ function ProfilePeek({ row, onClose }) {
         </div>
       </dl>
       <PeekActions>
-        <button type="button" className="btn-primary" onClick={() => navigate(`/profiles/${detail.id}`)}>
+        <Link to={`/profiles/${detail.id}`} className="btn-primary">
           View full details
-        </button>
+        </Link>
         {canEditProfile(user) && (
           <button type="button" className="btn-secondary" onClick={() => navigate(`/profiles/${detail.id}?edit=1`)}>
             Edit candidate
@@ -245,6 +249,49 @@ export default function ProfilesListPage() {
     }
   }
 
+  // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
+  useEffect(() => {
+    const g = (k, d = '') => searchParams.get(k) || d;
+    const set = (setter, value) => setter((prev) => (prev === value ? prev : value));
+    set(setSource, g('source'));
+    setOnBench((prev) => {
+      const v = g('on_bench') === 'true';
+      return prev === v ? prev : v;
+    });
+    set(setVendorId, g('vendor_id'));
+    set(setAddedBy, g('added_by'));
+    set(setExpMin, g('experience_min'));
+    set(setExpMax, g('experience_max'));
+    set(setCtcMin, g('expected_ctc_min'));
+    set(setCtcMax, g('expected_ctc_max'));
+    set(setNoticeMax, g('notice_period_max'));
+    set(setWorkMode, g('preferred_work_mode'));
+    set(setRelocate, g('willing_to_relocate'));
+    set(setActiveState, g('is_active'));
+    set(setAppliedSkills, g('primary_skills'));
+    set(setSkills, g('primary_skills'));
+    set(setSortBy, g('sort_by', 'created_at'));
+    set(setSortOrder, g('sort_order', 'desc'));
+  }, [searchParams]);
+
+  const hasActiveFilters = Boolean(
+    appliedSearch || source || onBench || vendorId || addedBy || expMin || expMax || ctcMin ||
+      ctcMax || noticeMax || workMode || relocate || activeState || appliedSkills ||
+      sortBy !== 'created_at' || sortOrder !== 'desc'
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setSearch('');
+    setAppliedSearch('');
+    setSource('');
+    setOnBench(false);
+    clearMore();
+    const kept = new URLSearchParams();
+    if (searchParams.get('create')) kept.set('create', searchParams.get('create'));
+    setSearchParams(kept, { replace: true });
+  }
+
   const numberInput =
     'w-20 rounded-lg border border-tertiary-100 bg-white px-2 py-1.5 text-sm text-tertiary-700 shadow-soft';
   const selectInput =
@@ -386,6 +433,12 @@ export default function ProfilesListPage() {
               <SlidersHorizontal className="h-3.5 w-3.5" />
               {showMore ? 'Fewer filters' : 'More filters'}
             </button>
+            {hasActiveFilters && (
+              <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                Clear all filters
+              </button>
+            )}
           </div>
 
           {showMore && (

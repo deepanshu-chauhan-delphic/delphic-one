@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
@@ -15,6 +15,8 @@ import ClosureStepsBreakdown from '../../components/ui/ClosureStepsBreakdown.jsx
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
 import SubmissionStageOverrideDrawer from './SubmissionStageOverrideDrawer.jsx';
 import {
@@ -96,6 +98,7 @@ function StageStepper({ stage }) {
 
 export default function SubmissionDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [submission, setSubmission] = useState(null);
@@ -326,6 +329,14 @@ export default function SubmissionDetailPage() {
           {user?.role === 'admin' && submission.is_locked && (
             <UnlockButton entityType="submission" entityId={submission.id} onUnlocked={load} />
           )}
+          {userCan(user, 'deleteRecords') && (
+            <DeleteRecordButton
+              entityType="submission"
+              entityId={submission.id}
+              entityLabel={`Submission - ${submission.profile?.name || submission.id}`}
+              onDeleted={() => navigate('/submissions')}
+            />
+          )}
           </div>
         </div>
       </div>
@@ -408,7 +419,7 @@ export default function SubmissionDetailPage() {
             <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setOverrideOpen(true)}>
               Override stage…
             </button>
-            <span className="ml-2 text-xs text-tertiary-400">Superadmin — bypasses the transition rules.</span>
+            <span className="ml-2 text-xs text-tertiary-400">Superadmin - bypasses the transition rules.</span>
           </div>
         )}
       </section>
@@ -418,7 +429,7 @@ export default function SubmissionDetailPage() {
           <div className="flex items-center gap-3">
             <ProgressRing percent={submission.progress.percent} size="md" />
             <div>
-              <h2 className="text-sm font-semibold text-tertiary-800">Closure probability — {submission.progress.percent}%</h2>
+              <h2 className="text-sm font-semibold text-tertiary-800">Closure probability - {submission.progress.percent}%</h2>
               <p className="text-xs text-tertiary-500">
                 {submission.progress.completed} of {submission.progress.total} pipeline steps complete.
               </p>
@@ -776,7 +787,7 @@ export default function SubmissionDetailPage() {
               <span className="font-medium capitalize">{h.to_stage?.replace(/_/g, ' ')}</span>
               <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
               <span className="text-tertiary-500"> · {h.changed_by?.name || 'Unknown'}</span>
-              {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
+              {h.reason && <span className="text-tertiary-500"> - {h.reason}</span>}
             </li>
           ))}
         </ul>

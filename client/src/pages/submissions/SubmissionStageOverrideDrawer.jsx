@@ -68,7 +68,7 @@ export default function SubmissionStageOverrideDrawer({
       <form id="submission-stage-override-form" onSubmit={submit} className="space-y-3">
         <p className="text-xs text-tertiary-500">
           Current stage: <span className="font-medium text-tertiary-800">{formatStageLabel(submission.stage)}</span>.
-          This bypasses the normal transition rules and gates — use only to correct a mistake.
+          This bypasses the normal transition rules and gates - use only to correct a mistake.
         </p>
         <label className="block text-xs font-medium text-tertiary-600">
           Move to

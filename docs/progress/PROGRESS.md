@@ -2,6 +2,175 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-08 — Superadmin record deletion (soft-delete) — branch `feature/superadmin-record-deletion`
+
+Replaces hand-written prod SQL for pruning duplicate / mistaken rows (the trigger:
+vendor `ACC-F637AC68` "Spiral TechnoLabs" entered twice). Spec:
+[RD-SUPERADMIN-RECORD-DELETION.md](../features/RD-SUPERADMIN-RECORD-DELETION.md).
+
+- **Schema** — `account`, `requirement`, `submission`, `profile`, `interview_round`
+  gain `deleted_at` / `deleted_by` / `delete_reason` (+ a `deleted_at` index). New
+  `AuditLog` model (`audit_logs`): `actor_id`, `action`, `entity_type`, `entity_id`,
+  `reason`, `snapshot` JSON. Migration `20260908120000_soft_delete_and_audit`
+  (additive, `IF NOT EXISTS` throughout) — applied to the local dev + test DBs.
+- **Global filter** — one `prisma.$use` middleware in `config/db.js` injects
+  `deleted_at: null` into every `findMany/findFirst/findUnique/count/aggregate/groupBy`
+  on those 5 models (no raw SQL anywhere, so one hook covers ~150 read sites).
+  `findUnique` is promoted to `findFirst`. Escape hatch: pass an explicit
+  `deleted_at` in the `where`. Known gap: nested-include reads aren't filtered.
+- **API** — extends the `admin` module, all `authorizeSuperadmin`:
+  `POST /admin/:entity_type/:entity_id/delete` `{ password, reason }` (bcrypt-checks
+  the caller's **own** password), `POST .../restore` `{ reason }`,
+  `GET /admin/deleted?entity_type=` (current deletions + deleter name),
+  `GET /admin/audit?entity_type=&limit=` (full delete + restore trail). Every
+  delete/restore writes an `audit_logs` row with a pre-image snapshot. Delete
+  response carries live-dependency counts (informational — soft-delete is
+  reversible, so it never blocks).
+- **Visibility + reversal UI** — **Settings → Deleted records** tab (superadmin
+  only, `DeletedRecordsPanel`) lists everything currently deleted with a
+  **Restore** action (reason required) plus the full delete/restore audit trail.
+  Deletions/restores are also folded into the dashboard **Recent activity** feed
+  (`recentActivity` now merges `stage_history` + `audit_logs`). Settings tab bar
+  now stretches full-width (`flex-1` tabs) at `max-w-5xl`.
+
+## 2026-09-08 — Boards/lists: open-in-new-tab, filter persistence, Clear all filters + Requirements work-mode
+
+- **Open in new tab.** `OpenInNewTabButton` is now a real `<a href={path+search}
+  target="_blank">` (was `window.open(url, '_blank', 'features')`, which opens a
+  popup-blocked window). Every board card's primary open action + `CardActionsMenu`
+  nav items are React-Router `<Link>`s (menu items gained a `to`/`href` prop), so
+  cmd/ctrl/middle-click opens the **correct** requirement / account / profile /
+  submission in a new tab. Applied to Lead/Job/Candidate/Matrix boards,
+  `RequirementKanbanPage`, `AccountPipelineBoardPage`. Drag-and-drop unaffected.
+- List peeks (`{Accounts,Profiles,Submissions,Requirements}ListPage`): the peek
+  **Key** field and the primary "Open …" action are `<Link>`s now.
+- **Filter persistence.** The 4 list pages hydrated filter state from the URL only
+  once; added a `useEffect([searchParams])` that re-hydrates every filter state
+  var from the params (guarded, converges with the existing mirror-to-URL effect),
+  so Back / reload / a shared link / a new tab all restore the filters.
+  (Pipeline boards were already URL-authoritative via `PipelineFilters`.)
+- **"Clear all filters"** — the only way to clear. `PipelineFilters`' tiny ghost
+  "Clear" is now a `btn-secondary` **Clear all filters** (X icon), shown only when
+  a filter/search is active. Same button added to each of the 4 list toolbars with
+  a `clearAllFilters()` that resets every filter state + strips the params
+  (keeping only `create` / `profile_id`). No implicit clears anywhere.
+- **Requirements list: Work mode.** New `work_mode` list filter — server
+  `listQuerySchema` + `list()` where-clause (`requirements.validation` /
+  `.service`), test in `requirements-crud-ui.test.js`. Client: a "Work mode: All /
+  Remote / Onsite / Hybrid" `<select>`, a **Work mode** table column, and a peek
+  field — all URL-synced + cleared by Clear all filters. Visible to every role.
+- Fix: `RequirementDetailPage` requested `GET /submissions?…&limit=200`
+  (`listQuerySchema` caps at 100) → every requirement detail page threw "Number
+  must be less than or equal to 100". Now `limit: 100`. Also added a **Job
+  details** `<Link>` CTA to the requirement peek (was reachable only via the Key).
+- Server suite **35 / 253** green; client eslint 0 errors; `vite build` +
+  `usePipelineFilters.test.mjs` (new round-trip case) pass.
+
+## 2026-09-08 — Calendar: "Review feedback" once feedback is submitted
+
+The interview "Submit feedback" CTA kept showing (and opened a blank form) even
+after feedback was recorded for a round (e.g. a rejection). Now:
+- New `hasSubmittedFeedback(event)` in `interviewRounds.js` — true when
+  `result ∈ {pass,fail,no_show}` or free-text `feedback` exists.
+- `EventCard`, `EventDetailDrawer`, `EventHoverCard`: the button reads **Review
+  feedback** (not "Submit feedback") once feedback exists, and stays available
+  even if the start time check would otherwise hide it. The detail drawer's
+  "Candidate did not join" quick action is hidden once feedback is in.
+- `FeedbackDrawer` pre-fills `result` / `rating` / `feedback` from the round (was
+  blanking rating + feedback), retitles to "Review interview feedback", and the
+  save button reads "Update feedback". Server already allowed amending (no
+  "already submitted" guard on `POST /interviews/:id/feedback`).
+
+## 2026-09-08 — Pipeline "Open in new tab" + Tagged profiles on requirement detail
+
+- **Open in new tab** — new shared `OpenInNewTabButton` (`window.open(location.href)`,
+  every role, no gate) in the pipeline board headers: `PipelineShell` (covers
+  Leads / Jobs / Candidates / Requirement map), `RequirementKanbanPage`
+  (`/requirements/:id/board`), `AccountPipelineBoardPage` (`/pipeline/:accountId`).
+  Board filters + `view` are already URL-synced (`usePipelineFilters` →
+  `applyFiltersToSearchParams`), so the new tab opens the same filtered view.
+- **Tagged profiles on the requirement detail page** — `RequirementDetailPage`
+  loads `GET /submissions?requirement_id=<id>` and shows a **Tagged profiles**
+  table (candidate → profile link, stage badge, seat, recruiter, tagged-on date,
+  "Open submission" link) between Seats and Status history. Recruiters see only
+  their own submissions (existing `GET /submissions` scope) — a note says so.
+
+## 2026-09-08 — Date presets (Today / This week) + BDA can view profiles + CVs
+
+- **Filter bar date presets** gain **Today** and **This week** (Monday-start,
+  matches the calendar grid) ahead of This month. `rangeForPreset` +
+  `FilterBar.DATE_PRESETS`; Reports `groupBy` now defaults to `month` for any
+  non-quarter preset. Applies to Reports + Dashboard filter bars.
+- **BDA read access to profiles.** `GET /profiles`, `/profiles/:id`,
+  `/profiles/:id/submissions` now allow `bda` (create/edit still recruiter+admin);
+  client cap `viewProfiles` added to `bda`. A BDA can now open a candidate and see
+  the **attached CV** (document reads were already open across roles; the block
+  was the profile routes + the missing client cap). Test in `entity-access.test.js`.
+
+## 2026-09-08 — HR report (4 tables) + em-dash → hyphen sweep
+
+- **New `GET /reports/hr`** (`authorize('admin')`, `hrSchema`: `date_from`,
+  `date_to`, `sourcer_id?`, `interviewer_id?`, `source?`). `reports.service.hrReport`
+  returns `{ tables: [...] }`, all per-day, on-bench profiles excluded:
+  - **Sourcing** — group `Profile` (added_by, `created_at` day, `source`) → count.
+  - **Submissions** — group `Submission` (profile.added_by, `created_at` day,
+    profile.source) → count.
+  - **Internal round 1 by sourcer** / **by interviewer** — from `internal_r1`
+    rounds keyed on `scheduled_at` day: `scheduled` = all, `completed` =
+    `status='completed' && result in (pass,fail)`, `shortlisted` = `result='pass'`.
+    The interviewer table expands each round to every linked `interviewers[].user`
+    (falls back to `interviewer_name`); `interviewer_id` narrows it.
+  - Wired into `/reports/export` (4 sheets) + the `REPORTS` map.
+- Client: `reportViews.js` gains a visible `{ key: 'hr', label: 'HR reports' }` +
+  `hrSections()`. `ReportsPage` shows the 4 tables on **named tabs** (icon +
+  title + hint, row count as a highlighted pill top-right — mirrors the RVG/CWR
+  tab cards), one table at a time, above it an **adaptive `HrChart`**: a range of
+  ≤14 days (Today / This week / short custom) renders a grouped/stacked **bar
+  chart** with every date; longer ranges render a **line chart** (round tables:
+  scheduled/completed/shortlisted) or **streamgraph** (stacked area, silhouette
+  offset — sourcing/submissions by type) with a **day-window carousel** (prev/next,
+  14 days/page). Type / Sourcer / Interviewer filter row (people from
+  `/users/directory`) + standard date-range presets; the chart always reflects the
+  filtered response.
+- Tests: `server/tests/reports-hr.test.js` (6). Server suite **35 / 251** green.
+- **Em-dash sweep** — replaced `—` with `-` in **user-facing prose only** across
+  `client/src` (31 lines: JSX text, labels, placeholders, tooltips, option
+  labels, toasts). Left untouched: the `'—'` empty-value placeholder in
+  tables/detail fields, and code comments / JSDoc.
+
+## 2026-09-08 — Team directory endpoint: filters + owner/POC pickers work for every role
+
+The Accounts **Owner** / **Brought by** filters (and owner / POC pickers elsewhere)
+were empty or wrong for non-admin roles: `GET /users` is gated to
+`admin|sales|bda` (recruiters got 403) **and** clamps a `sales` caller's results
+to recruiters only — so a sales/recruiter user never saw BDAs like Garv / Krupali
+/ Prashanth. The lists also filtered `active: true`, hiding deactivated people
+whose names still appear on existing records.
+
+- **New `GET /users/directory`** — any authenticated user; lightweight
+  `{ id, name, role, active }` only (no email/phone/pagination), inactive users
+  **included**, no role clamp. Optional `?role=` / `?active=true`.
+  (`users.service.listDirectory`, `directoryQuerySchema`.)
+- Client `useUserOptions` and every filter/picker `/users` fetch (Accounts list +
+  form, PipelineFilters, ReportsPage, AssignRecruiterDrawer, RequirementFormPage,
+  InterviewRoundsPanel, Account stage move/override drawers) repointed to
+  `/users/directory`. Inactive people show as "Name (inactive)".
+- Tests: `server/tests/users-directory.test.js` (recruiter blocked on `/users`
+  but reads the directory; inactive included unless `?active=true`; sales not
+  clamped; `?role=` narrows). 34 suites / 245 green.
+- **Client** — superadmin-only `DeleteRecordButton` (password + reason modal, reuses
+  `PasswordInput` / `Modal`) on Account / Submission / Profile / Requirement detail
+  pages and per-round in `InterviewRoundsPanel`. New cap `deleteRecords` in
+  `permissions.js` `SUPERADMIN_ONLY`.
+- **Tests** — `server/tests/admin-soft-delete.test.js` (9 cases: happy path + audit,
+  wrong password, non-superadmin 403, reason required, double-delete 409, restore +
+  409-on-live, dependency counts, submission drops out of list, unknown type 422).
+  `cleanDatabase` TRUNCATE list gains `audit_logs`.
+- **Server suite 34 / 245 green** (no regressions from the `$use` middleware or the
+  directory endpoint); server `eslint` 0 errors; client `vite build` + `eslint` clean.
+- Still to do: manual superadmin click-through; hand the human `prisma migrate
+  deploy` for staging/prod.
+
 ## 2026-09-07 — Fix RVG tabs: restore Active/Inactive, add With live submissions
 
 Wrong 3-way split in `eb1d7c8` redefined Active/Inactive. Restored prior meanings and added the difference tab:

@@ -133,7 +133,7 @@ async function recentActivity(whereExtra = {}) {
     take: 10,
     include: { changed_by_user: { select: { id: true, name: true } } },
   });
-  return rows.map((r) => ({
+  const stageEvents = rows.map((r) => ({
     entity_type: r.entity_type,
     entity_id: r.entity_id,
     entity_label: r.entity_type,
@@ -141,6 +141,38 @@ async function recentActivity(whereExtra = {}) {
     user: r.changed_by_user,
     timestamp: r.changed_at,
   }));
+
+  // Fold in superadmin record deletions / restores (audit_logs). Department-scoped
+  // dashboards skip these — audit rows have no department dimension.
+  if (whereExtra.changed_by_user) return stageEvents.slice(0, 10);
+  const auditWhere = {};
+  if (whereExtra.entity_type) auditWhere.entity_type = whereExtra.entity_type;
+  if (whereExtra.changed_by) auditWhere.actor_id = whereExtra.changed_by;
+  const auditRows = await prisma.auditLog.findMany({
+    where: auditWhere,
+    orderBy: { created_at: 'desc' },
+    take: 10,
+  });
+  const actorNames = await namesByIds(auditRows.map((r) => r.actor_id));
+  const auditEvents = auditRows.map((r) => ({
+    entity_type: r.entity_type,
+    entity_id: r.entity_id,
+    entity_label: r.entity_type,
+    action: `${r.action === 'restore' ? 'restored' : 'deleted'} ${r.entity_type.replace(/_/g, ' ')} (${r.reason})`,
+    user: r.actor_id ? { id: r.actor_id, name: actorNames[r.actor_id] || null } : null,
+    timestamp: r.created_at,
+  }));
+
+  return [...stageEvents, ...auditEvents]
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
+}
+
+async function namesByIds(ids) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return {};
+  const users = await prisma.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true } });
+  return Object.fromEntries(users.map((u) => [u.id, u.name]));
 }
 
 async function summaryForAdmin(department_id) {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import Badge from '../../components/ui/Badge.jsx';
-import { eventAppearance, audienceForRoundType, roundTypeMeta } from '../../lib/interviewRounds.js';
+import { eventAppearance, audienceForRoundType, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
 import { formatTimeRange } from './monthGrid.js';
 
 const CARD_W = 380;
@@ -69,7 +69,9 @@ export default function EventHoverCard({
   const nowMs = new Date().getTime();
   const startMs = event.scheduled_at ? new Date(event.scheduled_at).getTime() : null;
   const live = !cancelled && event.result !== 'rescheduled';
-  const canFeedback = event.can_submit_feedback && live && startMs != null && startMs <= nowMs;
+  const feedbackDone = hasSubmittedFeedback(event);
+  const canFeedback =
+    event.can_submit_feedback && live && ((startMs != null && startMs <= nowMs) || feedbackDone);
   // Cancel / Reschedule shown to every role; server enforces who may act.
   const canCancel = live && startMs != null && startMs > nowMs;
   const canReschedule = live && event.status !== 'completed';
@@ -173,7 +175,7 @@ export default function EventHoverCard({
             className="btn-secondary px-2.5 py-1 text-xs"
             onClick={() => onFeedback?.(event)}
           >
-            Submit feedback
+            {feedbackDone ? 'Review feedback' : 'Submit feedback'}
           </button>
         )}
         {canReschedule && (

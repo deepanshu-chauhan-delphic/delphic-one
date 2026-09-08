@@ -39,7 +39,7 @@ export default function UnlockButton({ entityType, entityId, onUnlocked, label =
 
   return (
     <>
-      <Tooltip label="Admin only — reopens this locked record for editing (reason required)">
+      <Tooltip label="Admin only - reopens this locked record for editing (reason required)">
         <button
           type="button"
           onClick={() => setOpen(true)}

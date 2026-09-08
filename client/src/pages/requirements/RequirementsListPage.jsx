@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
@@ -50,7 +50,11 @@ function RequirementPeek({ row, onClose, onAssign }) {
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{reqKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/requirements/${detail.id}`} className="text-primary-700 hover:underline">
+            {reqKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Title">{detail.title}</PeekField>
         <PeekField label="Client">{detail.account?.name || '—'}</PeekField>
         <PeekField label="Status">
@@ -65,6 +69,7 @@ function RequirementPeek({ row, onClose, onAssign }) {
         </PeekField>
         <PeekField label="Priority"><Badge value={detail.priority} /></PeekField>
         <PeekField label="Type">{detail.req_type ? <Badge value={detail.req_type} /> : '—'}</PeekField>
+        <PeekField label="Work mode"><span className="capitalize">{detail.work_mode || '—'}</span></PeekField>
         <PeekField label="Seats">{`${detail.seats_closed ?? 0}/${detail.seats_total ?? 0}`}</PeekField>
         <PeekField label="Client submissions">{detail.client_submissions_count ?? 0}</PeekField>
         <PeekField label="Sales owner">{detail.sales_owner?.name || '—'}</PeekField>
@@ -83,9 +88,12 @@ function RequirementPeek({ row, onClose, onAssign }) {
         </div>
       </dl>
       <PeekActions>
-        <button type="button" className="btn-primary" onClick={() => navigate(`/requirements/${detail.id}/board`)}>
+        <Link to={`/requirements/${detail.id}`} className="btn-primary">
+          Job details
+        </Link>
+        <Link to={`/requirements/${detail.id}/board`} className="btn-secondary">
           Open board
-        </button>
+        </Link>
         <button
           type="button"
           className="btn-secondary"
@@ -123,6 +131,7 @@ export default function RequirementsListPage() {
   const [accountId, setAccountId] = useState(() => searchParams.get('account_id') || '');
   const [salesOwnerId, setSalesOwnerId] = useState(() => searchParams.get('sales_owner_id') || '');
   const [recruiterId, setRecruiterId] = useState(() => searchParams.get('recruiter_id') || '');
+  const [workMode, setWorkMode] = useState(() => searchParams.get('work_mode') || '');
   const [techStack, setTechStack] = useState(() => searchParams.get('tech_stack') || '');
   const [appliedTechStack, setAppliedTechStack] = useState(() => searchParams.get('tech_stack') || '');
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort_by') || 'created_at');
@@ -156,12 +165,58 @@ export default function RequirementsListPage() {
     sync('account_id', accountId);
     sync('sales_owner_id', salesOwnerId);
     sync('recruiter_id', recruiterId);
+    sync('work_mode', workMode);
     sync('tech_stack', appliedTechStack);
     sync('sort_by', sortBy, 'created_at');
     sync('sort_order', sortOrder, 'desc');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, priority, stuck, reqType, accountId, salesOwnerId, recruiterId, appliedTechStack, sortBy, sortOrder]);
+  }, [status, priority, stuck, reqType, accountId, salesOwnerId, recruiterId, workMode, appliedTechStack, sortBy, sortOrder]);
+
+  // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
+  // Guarded so it converges with the mirror effect above instead of looping.
+  useEffect(() => {
+    const g = (k, d = '') => searchParams.get(k) || d;
+    const set = (setter, value) => setter((prev) => (prev === value ? prev : value));
+    set(setStatus, g('status'));
+    set(setPriority, g('priority'));
+    set(setStuck, g('stuck'));
+    set(setReqType, g('req_type'));
+    set(setAccountId, g('account_id'));
+    set(setSalesOwnerId, g('sales_owner_id'));
+    set(setRecruiterId, g('recruiter_id'));
+    set(setWorkMode, g('work_mode'));
+    set(setAppliedTechStack, g('tech_stack'));
+    set(setTechStack, g('tech_stack'));
+    set(setSortBy, g('sort_by', 'created_at'));
+    set(setSortOrder, g('sort_order', 'desc'));
+  }, [searchParams]);
+
+  const hasActiveFilters = Boolean(
+    status || priority || stuck || reqType || accountId || salesOwnerId || recruiterId || workMode ||
+      appliedTechStack || appliedSearch || sortBy !== 'created_at' || sortOrder !== 'desc'
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setStatus('');
+    setPriority('');
+    setStuck('');
+    setReqType('');
+    setAccountId('');
+    setSalesOwnerId('');
+    setRecruiterId('');
+    setWorkMode('');
+    setTechStack('');
+    setAppliedTechStack('');
+    setSortBy('created_at');
+    setSortOrder('desc');
+    setSearch('');
+    setAppliedSearch('');
+    const kept = new URLSearchParams();
+    if (searchParams.get('create')) kept.set('create', searchParams.get('create'));
+    setSearchParams(kept, { replace: true });
+  }
 
   function reload() {
     setLoading(true);
@@ -173,6 +228,7 @@ export default function RequirementsListPage() {
     if (accountId) params.account_id = accountId;
     if (salesOwnerId) params.sales_owner_id = salesOwnerId;
     if (recruiterId) params.recruiter_id = recruiterId;
+    if (workMode) params.work_mode = workMode;
     if (appliedTechStack) params.tech_stack = appliedTechStack;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
@@ -189,7 +245,7 @@ export default function RequirementsListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     appliedSearch, page, priority, status, stuck, reqType, accountId,
-    salesOwnerId, recruiterId, appliedTechStack, sortBy, sortOrder,
+    salesOwnerId, recruiterId, workMode, appliedTechStack, sortBy, sortOrder,
   ]);
 
   useEffect(() => {
@@ -239,6 +295,13 @@ export default function RequirementsListPage() {
         ),
       },
       { key: 'priority', header: 'Priority', render: (row) => <Badge value={row.priority} /> },
+      {
+        key: 'work_mode',
+        header: 'Work mode',
+        render: (row) => (
+          <span className="capitalize text-tertiary-700">{row.work_mode || '—'}</span>
+        ),
+      },
       {
         key: 'client_submissions',
         header: 'Client Submissions',
@@ -339,6 +402,17 @@ export default function RequirementsListPage() {
               ))}
             </select>
             <select
+              value={workMode}
+              onChange={(event) => resetToFirstPage(setWorkMode)(event.target.value)}
+              className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
+              aria-label="Work mode"
+            >
+              <option value="">Work mode: All</option>
+              <option value="remote">Remote</option>
+              <option value="onsite">Onsite</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+            <select
               value={stuck}
               onChange={(event) => resetToFirstPage(setStuck)(event.target.value)}
               className="rounded-lg border border-tertiary-100 bg-white px-3 py-1.5 text-sm text-tertiary-700 shadow-soft"
@@ -348,6 +422,12 @@ export default function RequirementsListPage() {
               <option value="stuck">Stuck only</option>
               <option value="not_stuck">Not stuck</option>
             </select>
+            {hasActiveFilters && (
+              <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                Clear all filters
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

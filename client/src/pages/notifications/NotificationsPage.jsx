@@ -121,7 +121,7 @@ export default function NotificationsPage() {
         <EmptyState
           icon={BellOff}
           title={filter === 'unread' ? 'No unread notifications' : 'You’re all caught up'}
-          description="Lifecycle updates — assignments, interviews, stage changes — will show up here."
+          description="Lifecycle updates - assignments, interviews, stage changes - will show up here."
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-tertiary-100 bg-white shadow-card">

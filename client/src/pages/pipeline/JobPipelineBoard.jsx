@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -108,9 +108,6 @@ function JobCard({
   expanded,
   previews,
   loadingPreviews,
-  onOpenDetail,
-  onOpenBoard,
-  onOpenSubmission,
 }) {
   const canMove =
     canMutateRequirement(requirement, user) &&
@@ -119,8 +116,8 @@ function JobCard({
   const next = nextRequirementStatuses(requirement.status);
 
   const actions = [
-    { key: 'detail', label: 'Open requirement', onClick: () => onOpenDetail(requirement.id) },
-    { key: 'board', label: 'Open job board', onClick: () => onOpenBoard(requirement.id) },
+    { key: 'detail', label: 'Open requirement', to: `/requirements/${requirement.id}` },
+    { key: 'board', label: 'Open job board', to: `/requirements/${requirement.id}/board` },
     {
       key: 'candidates',
       label: expanded ? 'Hide candidates' : 'Show candidates',
@@ -143,14 +140,14 @@ function JobCard({
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpenDetail(requirement.id)}>
+        <Link to={`/requirements/${requirement.id}`} className="min-w-0 flex-1 text-left">
           <div className="font-mono text-[10px] text-primary-600">{shortKey('REQ', requirement.id)}</div>
           <div className="truncate text-sm font-semibold text-tertiary-900">{requirement.title}</div>
           <div className="mt-0.5 text-xs text-tertiary-500">
             {requirement.account?.name || '—'}
             {` · ${requirement.seats_closed ?? 0}/${requirement.seats_total ?? 0} seats`}
           </div>
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${requirement.title}`} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -167,13 +164,12 @@ function JobCard({
             <ul className="space-y-1">
               {(previews || []).slice(0, 8).map((sub) => (
                 <li key={sub.id} className="flex items-center justify-between gap-2 text-[11px]">
-                  <button
-                    type="button"
+                  <Link
+                    to={`/submissions/${sub.id}`}
                     className="truncate font-medium text-tertiary-800 hover:underline"
-                    onClick={() => onOpenSubmission(sub.id)}
                   >
                     {sub.profile?.name || 'Candidate'}
-                  </button>
+                  </Link>
                   <div className="flex items-center gap-1.5">
                     <Badge value={sub.stage} />
                     <ProgressRing percent={sub.progress?.percent ?? null} size="sm" />
@@ -194,7 +190,6 @@ function JobCard({
 export default function JobPipelineBoard() {
   const { user } = useAuth();
   const { pushError } = useAlerts();
-  const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
   const boardParams = useMemo(() => {
@@ -369,9 +364,6 @@ export default function JobPipelineBoard() {
                             expanded={expandedId === requirement.id}
                             previews={previewsByReq[requirement.id]}
                             loadingPreviews={loadingPreviews && expandedId === requirement.id}
-                            onOpenDetail={(reqId) => navigate(`/requirements/${reqId}`)}
-                            onOpenBoard={(reqId) => navigate(`/requirements/${reqId}/board`)}
-                            onOpenSubmission={(subId) => navigate(`/submissions/${subId}`)}
                           />
                         )}
                       </DraggableCard>

@@ -51,6 +51,18 @@ async function list({ role, active, search, department_id, page = 1, limit = 20 
   return { rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
+// Full lightweight roster for pickers/filters — no secrets, no pagination.
+async function listDirectory({ role, active } = {}) {
+  return prisma.user.findMany({
+    where: {
+      ...(role ? { role } : {}),
+      ...(active !== undefined ? { active } : {}),
+    },
+    select: { id: true, name: true, role: true, active: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
 async function create({ name, email, password, role, phone, department_id }) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: 'email_taken' };
@@ -164,4 +176,4 @@ async function listActivity(userId, { limit = 50 } = {}) {
   }));
 }
 
-module.exports = { getById, list, create, update, countActiveSuperadmins, listActivity };
+module.exports = { getById, list, listDirectory, create, update, countActiveSuperadmins, listActivity };

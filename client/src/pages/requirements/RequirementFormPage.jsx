@@ -154,7 +154,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
 
     if (isEdit && user?.role === 'admin') {
       apiClient
-        .get('/users', { params: { active: 'true', limit: 100 } })
+        .get('/users/directory')
         .then(({ data }) => setOwnerOptions((data.data || []).filter((u) => OWNER_ROLES.includes(u.role))))
         .catch(() => setOwnerOptions([]));
     }
@@ -372,7 +372,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
                 value={form.job_description}
                 onChange={(e) => updateField('job_description', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Full job description — responsibilities, requirements, etc."
+                placeholder="Full job description - responsibilities, requirements, etc."
               />
             </div>
 

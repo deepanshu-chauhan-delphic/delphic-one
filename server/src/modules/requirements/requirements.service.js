@@ -82,7 +82,7 @@ const DECORATE_INCLUDE = {
 };
 
 async function list(filters) {
-  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
+  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, work_mode, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
 
   const stuckClause = { status: { in: STUCK_STATUSES }, updated_at: { lte: stuckCutoff() } };
 
@@ -94,6 +94,7 @@ async function list(filters) {
     ...(account_id ? { account_id } : {}),
     ...(sales_owner_id ? { sales_owner_id } : {}),
     ...(priority ? { priority } : {}),
+    ...(work_mode ? { work_mode } : {}),
     ...(search
       ? {
           OR: [

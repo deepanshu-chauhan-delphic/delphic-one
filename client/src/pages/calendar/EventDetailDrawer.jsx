@@ -7,7 +7,7 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Drawer from '../../components/ui/Drawer.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import AvatarStack from '../../components/ui/AvatarStack.jsx';
-import { audienceForRoundType, roundTypeMeta } from '../../lib/interviewRounds.js';
+import { audienceForRoundType, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
 import { formatTimeRange } from './monthGrid.js';
 
 function Row({ label, children }) {
@@ -44,7 +44,10 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
   const nowMs = new Date().getTime();
   const isFuture = when && when.getTime() > nowMs;
   const isPastStart = when && when.getTime() <= nowMs;
-  const canFeedback = event.can_submit_feedback && !cancelled && isPastStart;
+  const feedbackDone = hasSubmittedFeedback(event);
+  // Once feedback exists the assigned interviewer / manager can still open it to
+  // review or amend — the CTA just changes label instead of disappearing.
+  const canFeedback = event.can_submit_feedback && !cancelled && (isPastStart || feedbackDone);
   // Cancel / Reschedule are offered to every role; the server enforces who may
   // actually perform them and 403s otherwise.
   const canCancel = !cancelled && isFuture;
@@ -187,10 +190,10 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
         <div className="flex flex-wrap gap-2 border-t border-tertiary-100 pt-3">
           {canFeedback && (
             <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => onFeedback(event)}>
-              Submit feedback
+              {feedbackDone ? 'Review feedback' : 'Submit feedback'}
             </button>
           )}
-          {canFeedback && event.result !== 'no_show' && (
+          {canFeedback && !feedbackDone && event.result !== 'no_show' && (
             <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={markDidNotJoin}>
               <UserX className="h-3.5 w-3.5" /> Candidate did not join
             </button>

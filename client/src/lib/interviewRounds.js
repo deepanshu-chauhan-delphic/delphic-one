@@ -37,6 +37,15 @@ export function resultLabel(result) {
   return RESULT_LABELS[result] || String(result || '').replace(/_/g, ' ');
 }
 
+/**
+ * Whether interview feedback has already been recorded for a calendar event /
+ * round — a decision (pass / fail / did-not-join) or free-text feedback exists.
+ * Used to switch the "Submit feedback" CTA to "Review feedback".
+ */
+export function hasSubmittedFeedback(event) {
+  return ['pass', 'fail', 'no_show'].includes(event?.result) || Boolean(event?.feedback);
+}
+
 // Left-border accent color per round-type group; used by calendar event pills.
 export const ROUND_GROUP_BORDER = {
   internal: 'border-l-sky-400',

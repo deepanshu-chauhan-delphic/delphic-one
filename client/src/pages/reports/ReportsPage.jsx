@@ -8,6 +8,7 @@ import {
   Cell,
   Legend,
   Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,7 +16,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Briefcase, Building2, CircleAlert, FileText, LayoutGrid } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  ClipboardCheck,
+  FileText,
+  LayoutGrid,
+  Send,
+  UserCheck,
+  UserPlus,
+} from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -36,9 +49,173 @@ import {
   chartTypeForReport,
   columnsForReport,
   defaultDateRange,
+  hrSections,
   reportsForRole,
   tableRowsForReport,
 } from './reportViews.js';
+
+const HR_SOURCE_OPTIONS = [
+  { value: 'direct', label: 'Direct' },
+  { value: 'vendor', label: 'Vendor' },
+  { value: 'linkedin', label: 'LinkedIn' },
+];
+
+const HR_TAB_META = {
+  sourcing: { hint: 'Profiles sourced per day (excludes on-bench)', Icon: UserPlus },
+  submissions: { hint: 'Submissions created per day (excludes on-bench)', Icon: Send },
+  round1_by_sourcer: { hint: 'Internal round 1 per day, grouped by the sourcer', Icon: ClipboardCheck },
+  round1_by_interviewer: { hint: 'Internal round 1 per day, grouped by the interviewer', Icon: UserCheck },
+};
+
+const HR_CHART_WINDOW = 14; // days per carousel page
+
+// Daily trend chart for the active HR tab, paged in windows of HR_CHART_WINDOW
+// days (carousel). Round tables → multi-line (scheduled / completed / shortlisted);
+// sourcing / submissions → streamgraph (stacked area, silhouette offset) by type.
+function HrChart({ section, page, onPageChange }) {
+  const { allData, series, isRound } = useMemo(() => {
+    const round = section?.key.startsWith('round1');
+    const byDate = new Map();
+    for (const r of section?.rows || []) {
+      const d = r.date || '—';
+      if (!byDate.has(d)) byDate.set(d, { date: d });
+      const bucket = byDate.get(d);
+      if (round) {
+        bucket.scheduled = (bucket.scheduled || 0) + (r.scheduled || 0);
+        bucket.completed = (bucket.completed || 0) + (r.completed || 0);
+        bucket.shortlisted = (bucket.shortlisted || 0) + (r.shortlisted || 0);
+      } else {
+        const key = r.type || 'Count';
+        bucket[key] = (bucket[key] || 0) + (r.count || 0);
+      }
+    }
+    const rows = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const s = round
+      ? [
+          { key: 'scheduled', name: 'Scheduled', color: CHART_COLORS.info },
+          { key: 'completed', name: 'Completed', color: CHART_COLORS.success },
+          { key: 'shortlisted', name: 'Shortlisted', color: CHART_COLORS.purple },
+        ]
+      : [...new Set((section?.rows || []).map((r) => r.type || 'Count'))].map((t, i) => ({
+          key: t,
+          name: t,
+          color: CHART_PALETTE[i % CHART_PALETTE.length],
+        }));
+    // Fill zero for every series so the stream/line is continuous.
+    for (const row of rows) for (const ser of s) row[ser.key] = row[ser.key] || 0;
+    return { allData: rows, series: s, isRound: round };
+  }, [section]);
+
+  if (!section || !allData.length) return null;
+
+  // Short range (a day, a week, or any range up to HR_CHART_WINDOW days): a
+  // grouped/stacked bar chart with every date visible, no carousel. Longer
+  // ranges: a paged line / streamgraph carousel.
+  const windowed = allData.length > HR_CHART_WINDOW;
+  const pageCount = windowed ? Math.ceil(allData.length / HR_CHART_WINDOW) : 1;
+  const safePage = Math.min(Math.max(page, 0), pageCount - 1);
+  const start = safePage * HR_CHART_WINDOW;
+  const data = windowed ? allData.slice(start, start + HR_CHART_WINDOW) : allData;
+  const rangeLabel =
+    data.length > 1 ? `${data[0].date} → ${data[data.length - 1].date}` : data[0]?.date || '';
+
+  const carousel = windowed ? (
+    <div className="flex items-center gap-1.5 text-xs text-tertiary-500">
+      <button
+        type="button"
+        className="rounded-lg border border-tertiary-200 p-1 disabled:opacity-40"
+        disabled={safePage === 0}
+        onClick={() => onPageChange(safePage - 1)}
+        aria-label="Earlier days"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="tabular-nums">
+        {rangeLabel} · {safePage + 1}/{pageCount}
+      </span>
+      <button
+        type="button"
+        className="rounded-lg border border-tertiary-200 p-1 disabled:opacity-40"
+        disabled={safePage === pageCount - 1}
+        onClick={() => onPageChange(safePage + 1)}
+        aria-label="Later days"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  ) : null;
+
+  return (
+    <ChartCard
+      title={section.title}
+      subtitle={isRound ? 'Scheduled / completed / shortlisted per day' : 'By day, by type'}
+      action={carousel}
+    >
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          {!windowed ? (
+            <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {series.map((s) => (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  name={s.name}
+                  fill={s.color}
+                  stackId={isRound ? undefined : 'stack'}
+                  radius={[3, 3, 0, 0]}
+                />
+              ))}
+            </BarChart>
+          ) : isRound ? (
+            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {series.map((s) => (
+                <Line
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                />
+              ))}
+            </LineChart>
+          ) : (
+            <AreaChart data={data} stackOffset="silhouette" margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={chartTooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {series.map((s) => (
+                <Area
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stackId="stream"
+                  stroke={s.color}
+                  fill={s.color}
+                  fillOpacity={0.65}
+                />
+              ))}
+            </AreaChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </ChartCard>
+  );
+}
 
 function ReportChart({ reportKey, chartRows, chartBars }) {
   const type = chartTypeForReport(reportKey);
@@ -191,6 +368,12 @@ export default function ReportsPage() {
   // RVG: active = every active-stage vendor; inactive = no live submission;
   // has_live = Active − Inactive (has a live candidate).
   const [rvgActivity, setRvgActivity] = useState('active');
+  const [hrSourcerId, setHrSourcerId] = useState('');
+  const [hrInterviewerId, setHrInterviewerId] = useState('');
+  const [hrSource, setHrSource] = useState('');
+  const [hrPeople, setHrPeople] = useState([]);
+  const [hrTab, setHrTab] = useState('sourcing');
+  const [hrChartPage, setHrChartPage] = useState(0);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -203,6 +386,7 @@ export default function ReportsPage() {
   const [drawerRow, setDrawerRow] = useState(null);
 
   const isExplorer = active === 'pipeline-explorer';
+  const isHr = active === 'hr';
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
   const isRvg = active === 'recruiter-vendor-gaps';
@@ -251,12 +435,32 @@ export default function ReportsPage() {
   }, [available, active]);
 
   useEffect(() => {
+    if (!isHr) return;
+    apiClient
+      .get('/users/directory')
+      .then(({ data }) =>
+        setHrPeople(
+          (data.data || []).map((u) => ({
+            value: u.id,
+            label: u.active === false ? `${u.name} (inactive)` : u.name,
+          }))
+        )
+      )
+      .catch(() => setHrPeople([]));
+  }, [isHr]);
+
+  // Reset the HR chart carousel to the newest window when the tab or data changes.
+  useEffect(() => {
+    setHrChartPage(0);
+  }, [hrTab, payload]);
+
+  useEffect(() => {
     if (datePreset === 'custom') return;
     const range = rangeForPreset(datePreset);
     setDateFrom(range.date_from);
     setDateTo(range.date_to);
     if (datePreset === 'this_quarter' || datePreset === 'last_quarter') setGroupBy('quarter');
-    else if (datePreset === 'this_month' || datePreset === 'last_month') setGroupBy('month');
+    else setGroupBy('month');
   }, [datePreset]);
 
   useEffect(() => {
@@ -275,7 +479,7 @@ export default function ReportsPage() {
     }
     const role = INDIVIDUAL_ROLE_BY_REPORT[active] || 'recruiter';
     apiClient
-      .get('/users', { params: { role, limit: 100 } })
+      .get('/users/directory', { params: { role } })
       .then(({ data }) => setIndividuals((data.data || []).map((u) => ({ id: u.id, name: u.name }))))
       .catch(() => setIndividuals([]));
     return undefined;
@@ -287,8 +491,9 @@ export default function ReportsPage() {
       return undefined;
     }
     apiClient
-      // No `active` filter — a "Brought by" / "POC" value can be an inactive user.
-      .get('/users', { params: { limit: 100 } })
+      // Directory: every role can read it, inactive users included (a "Brought by"
+      // / "POC" value can be an inactive user).
+      .get('/users/directory')
       .then(({ data }) =>
         setCoveragePeople(
           [...(data.data || [])]
@@ -337,6 +542,12 @@ export default function ReportsPage() {
       params.threshold_days = thresholdDays || 7;
     } else if (isCoverage) {
       // CWR / RVG are present-state only — no date range.
+    } else if (isHr) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+      if (hrSourcerId) params.sourcer_id = hrSourcerId;
+      if (hrInterviewerId) params.interviewer_id = hrInterviewerId;
+      if (hrSource) params.source = hrSource;
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -406,6 +617,9 @@ export default function ReportsPage() {
     explorerPastSlaOnly,
     explorerStatus,
     explorerSearch,
+    hrSourcerId,
+    hrInterviewerId,
+    hrSource,
   ]);
 
   async function exportReport(type) {
@@ -476,7 +690,9 @@ export default function ReportsPage() {
     : baseColumns;
   const chartRows = chartDataForReport(active, payload);
   const chartBars = chartBarsForReport(active);
-  const aging = active === 'aging' ? agingSections(payload) : [];
+  const sections =
+    active === 'aging' ? agingSections(payload) : active === 'hr' ? hrSections(payload) : [];
+  const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
 
   const drawerTitle =
     drawerRow?.requirement?.title ||
@@ -505,6 +721,10 @@ export default function ReportsPage() {
               setRvgPocId('');
               setRvgBroughtById('');
               setRvgActivity('active');
+              setHrSourcerId('');
+              setHrInterviewerId('');
+              setHrSource('');
+              setHrTab('sourcing');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -550,7 +770,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept && !isExplorer && !isCoverage}
+        showDepartment={showDept && !isExplorer && !isCoverage && !isHr}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -559,6 +779,40 @@ export default function ReportsPage() {
         individualId={individualId}
         onIndividualChange={setIndividualId}
       >
+        {isHr && (
+          <>
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Filter by sourcing type"
+              value={hrSource}
+              onChange={setHrSource}
+              placeholder="Type: All"
+              searchPlaceholder="Search type…"
+              options={HR_SOURCE_OPTIONS}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by sourcer"
+              value={hrSourcerId}
+              onChange={setHrSourcerId}
+              placeholder="Sourcer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by interviewer"
+              value={hrInterviewerId}
+              onChange={setHrInterviewerId}
+              placeholder="Interviewer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+          </>
+        )}
         {showCoveragePeople && (
           <>
             <SearchableSelect
@@ -732,7 +986,7 @@ export default function ReportsPage() {
               {
                 key: 'no_active',
                 label: 'No requirements',
-                hint: 'No active requirement — closed / dropped only, or never had one',
+                hint: 'No active requirement - closed / dropped only, or never had one',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {
@@ -854,9 +1108,74 @@ export default function ReportsPage() {
 
       {chartRows.length > 0 && <ReportChart reportKey={active} chartRows={chartRows} chartBars={chartBars} />}
 
-      {active === 'aging' ? (
+      {isHr ? (
         <div className="space-y-4">
-          {aging.map((section) => (
+          <div
+            className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+            role="tablist"
+            aria-label="HR report tables"
+          >
+            {sections.map((section) => {
+              const selected = hrSection?.key === section.key;
+              const { hint, Icon } = HR_TAB_META[section.key] || {};
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setHrTab(section.key)}
+                  className={`relative flex items-start gap-3 rounded-xl border px-3 py-3 pr-14 text-left transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {Icon && (
+                    <span
+                      className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                        selected ? 'bg-primary-600 text-white' : 'bg-white text-tertiary-500'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden />
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${selected ? 'text-primary-800' : 'text-tertiary-800'}`}
+                    >
+                      {section.title}
+                    </span>
+                    <span className={`mt-0.5 block text-xs ${selected ? 'text-primary-700/80' : 'text-tertiary-500'}`}>
+                      {hint}
+                    </span>
+                  </span>
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {section.rows.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {!loading && (
+            <HrChart section={hrSection} page={hrChartPage} onPageChange={setHrChartPage} />
+          )}
+
+          <DataTable
+            columns={hrSection?.columns || []}
+            rows={hrSection?.rows || []}
+            loading={loading}
+            emptyLabel="No rows for this range"
+          />
+        </div>
+      ) : active === 'aging' ? (
+        <div className="space-y-4">
+          {sections.map((section) => (
             <section key={section.key} className="space-y-2">
               <h2 className="font-heading text-sm font-semibold text-tertiary-800">
                 {section.title}

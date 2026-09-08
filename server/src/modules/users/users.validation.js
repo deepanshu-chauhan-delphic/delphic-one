@@ -15,6 +15,17 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+// Lightweight team directory — every authenticated user may read it, so filter
+// bars and owner / brought-by / POC pickers show the whole roster regardless of
+// the viewer's role. No pagination, no clamp; inactive users are included.
+const directoryQuerySchema = z.object({
+  role: roleEnum.optional(),
+  active: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+});
+
 const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
@@ -36,4 +47,4 @@ const updateSchema = z.object({
   is_superadmin: z.boolean().optional(),
 });
 
-module.exports = { listQuerySchema, createSchema, updateSchema };
+module.exports = { listQuerySchema, directoryQuerySchema, createSchema, updateSchema };

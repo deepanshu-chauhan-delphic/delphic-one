@@ -48,9 +48,29 @@ function useLookup(url, params, enabled) {
 
 const toOptions = (rows) => rows.map((row) => ({ value: row.id, label: row.name }));
 
+const toPeopleOptions = (rows) =>
+  rows.map((row) => ({
+    value: row.id,
+    label: row.active === false ? `${row.name} (inactive)` : row.name,
+    hint: row.role,
+  }));
+
+/**
+ * Team-directory options. `/users/directory` is readable by every authenticated
+ * user (unlike `/users`, which is admin/sales/bda-only and clamps sales to
+ * recruiters) and includes inactive users, so filter bars and owner / brought-by
+ * / POC pickers show the whole roster regardless of the viewer's role.
+ *
+ * Pass a `role` to narrow (e.g. an "Assigned recruiter" filter); omit it for
+ * cross-role pickers like account owner / brought-by.
+ */
 export function useUserOptions(role, enabled = true) {
-  const rows = useLookup('/users', { role, active: true, limit: 100 }, enabled);
-  return toOptions(rows);
+  const rows = useLookup('/users/directory', role ? { role } : {}, enabled);
+  return toPeopleOptions(rows);
+}
+
+export function useAllUserOptions(enabled = true) {
+  return useUserOptions(undefined, enabled);
 }
 
 export function useClientAccountOptions(enabled = true) {

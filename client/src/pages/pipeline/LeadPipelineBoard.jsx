@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -22,7 +22,7 @@ function needsAccountStageForm(toStage) {
   return toStage === 'meeting_scheduled' || toStage === 'dropped';
 }
 
-function LeadCard({ account, user, isDragging, onRequestMove, onOpenBoard, onOpenDetails }) {
+function LeadCard({ account, user, isDragging, onRequestMove }) {
   const canMove =
     canMutateAccount(account, user) &&
     !account.is_locked &&
@@ -31,8 +31,8 @@ function LeadCard({ account, user, isDragging, onRequestMove, onOpenBoard, onOpe
   const next = ACCOUNT_TRANSITIONS[account.stage] || [];
 
   const actions = [
-    { key: 'board', label: 'Open hiring board', onClick: () => onOpenBoard(account.id) },
-    { key: 'details', label: 'Account details', onClick: () => onOpenDetails(account.id) },
+    { key: 'board', label: 'Open hiring board', to: `/pipeline/${account.id}` },
+    { key: 'details', label: 'Account details', to: `/accounts/${account.id}` },
     ...(canMove
       ? next.map((stage) => ({
           key: `move-${stage}`,
@@ -50,7 +50,7 @@ function LeadCard({ account, user, isDragging, onRequestMove, onOpenBoard, onOpe
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpenBoard(account.id)}>
+        <Link to={`/pipeline/${account.id}`} className="min-w-0 flex-1 text-left">
           <div className="flex items-start gap-2">
             <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
             <div className="min-w-0">
@@ -62,7 +62,7 @@ function LeadCard({ account, user, isDragging, onRequestMove, onOpenBoard, onOpe
               </div>
             </div>
           </div>
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${account.name}`} />
       </div>
       <div className="mt-2">
@@ -244,8 +244,6 @@ export default function LeadPipelineBoard() {
                             user={user}
                             isDragging={isDragging}
                             onRequestMove={requestMove}
-                            onOpenBoard={(id) => navigate(`/pipeline/${id}`)}
-                            onOpenDetails={(id) => navigate(`/accounts/${id}`)}
                           />
                         )}
                       </DraggableCard>

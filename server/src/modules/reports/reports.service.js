@@ -935,6 +935,175 @@ async function recruiterVendorGaps({
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }
 
+// --- HR report -------------------------------------------------------------
+// Recruiter-ops throughput grouped per day. Four tables; on-bench profiles are
+// excluded everywhere. Date anchors: sourcing = Profile.created_at, submission =
+// Submission.created_at, round = InterviewRound.scheduled_at.
+
+const SOURCE_LABEL = { direct: 'Direct', vendor: 'Vendor', linkedin: 'LinkedIn' };
+
+function dayKey(value) {
+  return value ? new Date(value).toISOString().slice(0, 10) : null;
+}
+
+function bump(map, key, seed, mutate) {
+  if (!map.has(key)) map.set(key, seed());
+  mutate(map.get(key));
+}
+
+async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source }) {
+  const range = optionalDateRange(date_from, date_to);
+  const profileWhere = { on_bench: false, ...(source ? { source } : {}) };
+
+  // Table 1 - sourcing
+  const sourcedProfiles = await prisma.profile.findMany({
+    where: {
+      ...profileWhere,
+      ...(range ? { created_at: range } : {}),
+      ...(sourcer_id ? { added_by: sourcer_id } : {}),
+    },
+    select: { added_by: true, created_at: true, source: true, added_by_user: { select: { id: true, name: true } } },
+  });
+  const sourcingMap = new Map();
+  for (const p of sourcedProfiles) {
+    const key = `${p.added_by}|${dayKey(p.created_at)}|${p.source}`;
+    bump(
+      sourcingMap,
+      key,
+      () => ({
+        sourcer: p.added_by_user?.name || 'Unknown',
+        sourcer_id: p.added_by,
+        date: dayKey(p.created_at),
+        type: SOURCE_LABEL[p.source] || p.source,
+        count: 0,
+      }),
+      (row) => {
+        row.count += 1;
+      }
+    );
+  }
+
+  // Table 2 - submissions
+  const submissions = await prisma.submission.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      profile: { ...profileWhere, ...(sourcer_id ? { added_by: sourcer_id } : {}) },
+    },
+    select: {
+      created_at: true,
+      profile: { select: { added_by: true, source: true, added_by_user: { select: { id: true, name: true } } } },
+    },
+  });
+  const submissionMap = new Map();
+  for (const s of submissions) {
+    const p = s.profile;
+    const key = `${p.added_by}|${dayKey(s.created_at)}|${p.source}`;
+    bump(
+      submissionMap,
+      key,
+      () => ({
+        sourcer: p.added_by_user?.name || 'Unknown',
+        sourcer_id: p.added_by,
+        date: dayKey(s.created_at),
+        type: SOURCE_LABEL[p.source] || p.source,
+        count: 0,
+      }),
+      (row) => {
+        row.count += 1;
+      }
+    );
+  }
+
+  // Tables 3 & 4 - internal round 1
+  const rounds = await prisma.interviewRound.findMany({
+    where: {
+      round_type: 'internal_r1',
+      ...(range ? { scheduled_at: range } : {}),
+      submission: { profile: profileWhere },
+    },
+    select: {
+      scheduled_at: true,
+      status: true,
+      result: true,
+      interviewer_name: true,
+      submission: {
+        select: {
+          profile: {
+            select: { added_by: true, source: true, added_by_user: { select: { id: true, name: true } } },
+          },
+        },
+      },
+      interviewers: { select: { user: { select: { id: true, name: true } } } },
+    },
+  });
+
+  const metricSeed = (base) => () => ({ ...base, scheduled: 0, completed: 0, shortlisted: 0 });
+  const applyMetrics = (row, r) => {
+    row.scheduled += 1;
+    if (r.status === 'completed' && ['pass', 'fail'].includes(r.result)) row.completed += 1;
+    if (r.result === 'pass') row.shortlisted += 1;
+  };
+
+  const bySourcer = new Map();
+  const byInterviewer = new Map();
+  for (const r of rounds) {
+    const p = r.submission?.profile;
+    const day = dayKey(r.scheduled_at);
+
+    if (p && (!sourcer_id || p.added_by === sourcer_id)) {
+      const key = `${p.added_by}|${day}`;
+      bump(
+        bySourcer,
+        key,
+        metricSeed({ sourcer: p.added_by_user?.name || 'Unknown', sourcer_id: p.added_by, date: day }),
+        (row) => applyMetrics(row, r)
+      );
+    }
+
+    const people = r.interviewers.length
+      ? r.interviewers.map((i) => i.user)
+      : [{ id: null, name: r.interviewer_name || 'Unassigned' }];
+    for (const person of people) {
+      if (interviewer_id && person.id !== interviewer_id) continue;
+      const key = `${person.id || `name:${person.name}`}|${day}`;
+      bump(
+        byInterviewer,
+        key,
+        metricSeed({ interviewer: person.name || 'Unassigned', interviewer_id: person.id, date: day }),
+        (row) => applyMetrics(row, r)
+      );
+    }
+  }
+
+  const byDateThenName = (nameKey) => (a, b) =>
+    (b.date || '').localeCompare(a.date || '') || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+  return {
+    tables: [
+      {
+        key: 'sourcing',
+        title: 'Sourcing',
+        rows: [...sourcingMap.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'submissions',
+        title: 'Submissions',
+        rows: [...submissionMap.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'round1_by_sourcer',
+        title: 'Internal round 1 - by sourcer',
+        rows: [...bySourcer.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'round1_by_interviewer',
+        title: 'Internal round 1 - by interviewer',
+        rows: [...byInterviewer.values()].sort(byDateThenName('interviewer')),
+      },
+    ],
+  };
+}
+
 module.exports = {
   recruiterPerformance,
   salesPerformance,
@@ -945,4 +1114,5 @@ module.exports = {
   closure,
   clientsWithoutRequirements,
   recruiterVendorGaps,
+  hrReport,
 };

@@ -379,9 +379,9 @@ export default function UsersPage() {
 
       {createdCreds && (
         <div className="rounded-2xl border border-success-100 bg-success-50 px-4 py-3 text-sm text-success-700">
-          <p className="font-medium">User created — copy and share these credentials:</p>
+          <p className="font-medium">User created - copy and share these credentials:</p>
           <p className="mt-1">
-            {createdCreds.name} ({createdCreds.role}) — <span className="font-mono">{createdCreds.email}</span> /{' '}
+            {createdCreds.name} ({createdCreds.role}) - <span className="font-mono">{createdCreds.email}</span> /{' '}
             <span className="font-mono">{createdCreds.password}</span>
           </p>
         </div>

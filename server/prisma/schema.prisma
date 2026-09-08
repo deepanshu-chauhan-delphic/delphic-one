@@ -315,6 +315,11 @@ model Account {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @default(now()) @updatedAt
 
+  // Superadmin soft-delete (see AuditLog + the $use filter in config/db.js).
+  deleted_at    DateTime?
+  deleted_by    String?   @db.Uuid
+  delete_reason String?
+
   requirements      Requirement[]
   vendor_profiles   Profile[]                @relation("ProfileVendorAccount")
   meeting_attendees AccountMeetingAttendee[]
@@ -322,6 +327,7 @@ model Account {
   @@index([type, stage])
   @@index([owner_id])
   @@index([origin_owner_id])
+  @@index([deleted_at])
   @@map("accounts")
 }
 
@@ -384,12 +390,18 @@ model Requirement {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @default(now()) @updatedAt
 
+  // Superadmin soft-delete (see AuditLog + the $use filter in config/db.js).
+  deleted_at    DateTime?
+  deleted_by    String?   @db.Uuid
+  delete_reason String?
+
   seats       RequirementSeat[]
   assignments RequirementAssignment[]
 
   @@index([account_id])
   @@index([status, priority])
   @@index([sales_owner_id])
+  @@index([deleted_at])
   @@map("requirements")
 }
 
@@ -480,12 +492,18 @@ model Profile {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
+  // Superadmin soft-delete (see AuditLog + the $use filter in config/db.js).
+  deleted_at    DateTime?
+  deleted_by    String?   @db.Uuid
+  delete_reason String?
+
   submissions Submission[]
 
   @@index([source])
   @@index([added_by])
   @@index([is_active])
   @@index([source, on_bench])
+  @@index([deleted_at])
   @@map("profiles")
 }
 
@@ -534,11 +552,17 @@ model Submission {
   created_at        DateTime @default(now())
   updated_at        DateTime @default(now()) @updatedAt
 
+  // Superadmin soft-delete (see AuditLog + the $use filter in config/db.js).
+  deleted_at    DateTime?
+  deleted_by    String?   @db.Uuid
+  delete_reason String?
+
   interview_rounds InterviewRound[]
 
   @@index([requirement_seat_id])
   @@index([profile_id])
   @@index([stage])
+  @@index([deleted_at])
   @@map("submissions")
 }
 
@@ -570,11 +594,17 @@ model InterviewRound {
   scheduled_by String? @db.Uuid
   scheduler    User?   @relation("InterviewRoundScheduler", fields: [scheduled_by], references: [id], onDelete: SetNull)
 
+  // Superadmin soft-delete (see AuditLog + the $use filter in config/db.js).
+  deleted_at    DateTime?
+  deleted_by    String?   @db.Uuid
+  delete_reason String?
+
   interviewers InterviewRoundInterviewer[]
 
   @@index([submission_id])
   @@index([status, scheduled_at])
   @@index([scheduled_by])
+  @@index([deleted_at])
   @@map("interview_rounds")
 }
 
@@ -638,6 +668,23 @@ model StageHistory {
 
   @@index([entity_type, entity_id])
   @@map("stage_history")
+}
+
+// Append-only trail for superadmin record deletion / restore. `snapshot` holds the
+// full row pre-image so a delete can be reviewed or reversed even without a DB dump.
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String   @db.Uuid
+  action      String // 'soft_delete' | 'restore'
+  entity_type String
+  entity_id   String   @db.Uuid
+  reason      String
+  snapshot    Json
+  created_at  DateTime @default(now())
+
+  @@index([entity_type, entity_id])
+  @@index([actor_id])
+  @@map("audit_logs")
 }
 
 model Document {

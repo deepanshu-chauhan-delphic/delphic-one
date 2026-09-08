@@ -59,6 +59,17 @@ const closureSchema = dateRangeSchema.extend({
   group_by: z.enum(['month', 'quarter', 'client', 'recruiter']).optional(),
 });
 
+// HR report - recruiter-ops throughput, grouped per day. `sourcer_id` narrows
+// tables 1-3 (Profile.added_by), `interviewer_id` narrows table 4, `source`
+// narrows all four.
+const hrSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  sourcer_id: optionalUuid,
+  interviewer_id: optionalUuid,
+  source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
+});
+
 const boolFlag = z
   .enum(['true', 'false'])
   .optional()
@@ -85,4 +96,4 @@ const explorerSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema };
+module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema, hrSchema };

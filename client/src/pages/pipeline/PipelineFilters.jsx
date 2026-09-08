@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Filter } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
@@ -91,7 +91,7 @@ export default function PipelineFilters({
     }
     if (fieldSet.has('bda_id')) {
       apiClient
-        .get('/users', { params: { role: 'bda', active: true, limit: 100 } })
+        .get('/users/directory', { params: { role: 'bda' } })
         .then(({ data }) => {
           if (!cancelled) setBdas((data.data || []).map((row) => ({ id: row.id, label: row.name })));
         })
@@ -101,7 +101,7 @@ export default function PipelineFilters({
     }
     if (fieldSet.has('sales_id')) {
       apiClient
-        .get('/users', { params: { role: 'sales', active: true, limit: 100 } })
+        .get('/users/directory', { params: { role: 'sales' } })
         .then(({ data }) => {
           if (!cancelled) setSalesUsers((data.data || []).map((row) => ({ id: row.id, label: row.name })));
         })
@@ -111,7 +111,7 @@ export default function PipelineFilters({
     }
     if (fieldSet.has('admin_id')) {
       apiClient
-        .get('/users', { params: { role: 'admin', active: true, limit: 100 } })
+        .get('/users/directory', { params: { role: 'admin' } })
         .then(({ data }) => {
           if (!cancelled) setAdmins((data.data || []).map((row) => ({ id: row.id, label: row.name })));
         })
@@ -121,7 +121,7 @@ export default function PipelineFilters({
     }
     if (fieldSet.has('recruiter_id') || fieldSet.has('recruiter_ids') || fieldSet.has('submitted_by_ids')) {
       apiClient
-        .get('/users', { params: { role: 'recruiter', active: true, limit: 100 } })
+        .get('/users/directory', { params: { role: 'recruiter' } })
         .then(({ data }) => {
           if (!cancelled) setRecruiters((data.data || []).map((row) => ({ id: row.id, label: row.name })));
         })
@@ -143,6 +143,8 @@ export default function PipelineFilters({
     setDraftSearch('');
     setSearchParams(applyFiltersToSearchParams(searchParams, emptyPipelineFilters()), { replace: true });
   }
+
+  const hasActiveFilters = Object.keys(apiParams).length > 0 || Boolean(draftSearch.trim());
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -346,9 +348,12 @@ export default function PipelineFilters({
         </label>
       )}
 
-      <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={clearFilters}>
-        Clear
-      </button>
+      {hasActiveFilters && (
+        <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearFilters}>
+          <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+          Clear all filters
+        </button>
+      )}
     </div>
   );
 }

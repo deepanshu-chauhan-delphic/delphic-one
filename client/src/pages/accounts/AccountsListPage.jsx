@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -45,7 +45,11 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestSta
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{accountKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/accounts/${detail.id}`} className="text-primary-700 hover:underline">
+            {accountKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
         <PeekField label="Type"><span className="capitalize">{detail.type || 'Unclassified'}</span></PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
@@ -73,9 +77,9 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestSta
         </PeekField>
       </dl>
       <PeekActions>
-        <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}`)}>
+        <Link to={`/accounts/${detail.id}`} className="btn-secondary">
           Open details
-        </button>
+        </Link>
         {canEdit && (
           <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}?edit=1`)}>
             Edit account
@@ -154,13 +158,18 @@ export default function AccountsListPage() {
   }, [appliedSearch, page, stage, type, ownerId, broughtById, specialization]);
 
   useEffect(() => {
+    // /users/directory is readable by every role and includes inactive users, so
+    // the Owner / Brought-by filters show the whole roster (BDAs included) no
+    // matter who is signed in.
     apiClient
-      .get('/users', { params: { active: 'true', limit: 100 } })
+      .get('/users/directory')
       .then(({ data }) =>
         setPeople(
-          [...(data.data || [])]
-            .map((u) => ({ value: u.id, label: u.name, hint: u.role }))
-            .sort((a, b) => a.label.localeCompare(b.label))
+          (data.data || []).map((u) => ({
+            value: u.id,
+            label: u.active === false ? `${u.name} (inactive)` : u.name,
+            hint: u.role,
+          }))
         )
       )
       .catch(() => setPeople([]));
@@ -200,6 +209,24 @@ export default function AccountsListPage() {
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, stage, ownerId, broughtById, specialization]);
+
+  const hasActiveFilters = Boolean(
+    type || stage || ownerId || broughtById || specialization || appliedSearch
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setType('');
+    setStage('');
+    setOwnerId('');
+    setBroughtById('');
+    setSpecialization('');
+    setSearch('');
+    setAppliedSearch('');
+    const kept = new URLSearchParams();
+    if (searchParams.get('create')) kept.set('create', searchParams.get('create'));
+    setSearchParams(kept, { replace: true });
+  }
 
   function closeCreate() {
     setCreateOpen(false);
@@ -427,6 +454,12 @@ export default function AccountsListPage() {
                 searchPlaceholder="Search people…"
                 options={people}
               />
+              {hasActiveFilters && (
+                <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                  <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                  Clear all filters
+                </button>
+              )}
             </div>
           </div>
         </div>

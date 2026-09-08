@@ -78,6 +78,7 @@ const listQuerySchema = z.object({
   sales_owner_id: z.string().uuid().optional(),
   recruiter_id: z.string().uuid().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  work_mode: z.enum(['remote', 'onsite', 'hybrid']).optional(),
   stuck: z.enum(['stuck', 'not_stuck']).optional(),
   tech_stack: z.string().optional(),
   search: z.string().optional(),
