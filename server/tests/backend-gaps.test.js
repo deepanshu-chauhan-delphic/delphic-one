@@ -97,7 +97,7 @@ describe('dashboard summary', () => {
 });
 
 describe('ownership', () => {
-  test('bda cannot edit another bda account', async () => {
+  test('bda can edit another bda account and schedule a meeting', async () => {
     const bdaA = await createUser({ role: 'bda' });
     const bdaB = await createUser({ role: 'bda' });
     const { access_token: tokenA } = await loginAs(bdaA);
@@ -108,18 +108,29 @@ describe('ownership', () => {
       name: 'Owned by A',
     });
     expect(create.status).toBe(201);
+    const accountId = create.body.data.id;
 
-    const edit = await authed(request(app).patch(`/api/v1/accounts/${create.body.data.id}`), tokenB).send({
-      industry: 'Hacked',
+    const list = await authed(request(app).get('/api/v1/accounts'), tokenB);
+    expect(list.status).toBe(200);
+    expect(list.body.data.some((row) => row.id === accountId)).toBe(true);
+
+    const getOne = await authed(request(app).get(`/api/v1/accounts/${accountId}`), tokenB);
+    expect(getOne.status).toBe(200);
+    expect(getOne.body.data.id).toBe(accountId);
+
+    const edit = await authed(request(app).patch(`/api/v1/accounts/${accountId}`), tokenB).send({
+      industry: 'Shared edit',
     });
-    expect(edit.status).toBe(403);
+    expect(edit.status).toBe(200);
+    expect(edit.body.data.industry).toBe('Shared edit');
 
-    const stage = await authed(request(app).post(`/api/v1/accounts/${create.body.data.id}/stage`), tokenB).send({
+    const stage = await authed(request(app).post(`/api/v1/accounts/${accountId}/stage`), tokenB).send({
       to_stage: 'meeting_scheduled',
       meeting_mode: 'online',
       meeting_date: new Date().toISOString(),
     });
-    expect(stage.status).toBe(403);
+    expect(stage.status).toBe(200);
+    expect(stage.body.data.stage).toBe('meeting_scheduled');
   });
 
   test('sales cannot edit another sales requirement', async () => {
@@ -336,5 +347,50 @@ describe('report avg-day metrics', () => {
     expect(res.status).toBe(200);
     const row = res.body.data.find((r) => r.vendor.id === vendor.id);
     expect(row.avg_days_to_submit).toBe(3);
+  });
+});
+
+describe('account specialization filter', () => {
+  test('any role can list specialization tags and filter vendors by one', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const sales = await createUser({ role: 'sales' });
+    const bda = await createUser({ role: 'bda' });
+    const { access_token: salesToken } = await loginAs(sales);
+    const { access_token: bdaToken } = await loginAs(bda);
+
+    await prisma.account.create({
+      data: {
+        type: 'vendor',
+        name: 'React Shop',
+        stage: 'active',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+        vendor_specializations: ['React', 'Node.js'],
+      },
+    });
+    await prisma.account.create({
+      data: {
+        type: 'vendor',
+        name: 'Java Shop',
+        stage: 'active',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+        vendor_specializations: ['Java'],
+      },
+    });
+    await createActiveClientAccount(bda.id);
+
+    const tags = await authed(request(app).get('/api/v1/accounts/specializations'), salesToken);
+    expect(tags.status).toBe(200);
+    expect(tags.body.data).toEqual(expect.arrayContaining(['React', 'Node.js', 'Java']));
+
+    const filtered = await authed(request(app).get('/api/v1/accounts'), bdaToken).query({
+      specialization: 'React',
+    });
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.data.map((r) => r.name)).toEqual(['React Shop']);
+
+    const adminTags = await authed(request(app).get('/api/v1/accounts/specializations'), (await loginAs(admin)).access_token);
+    expect(adminTags.status).toBe(200);
   });
 });

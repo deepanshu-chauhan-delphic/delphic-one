@@ -13,10 +13,12 @@ const ROLE_CAPS = {
     'manageUsers',
     'manageDepartments',
     'editAccount',
+    'editBroughtBy',
     'editRequirement',
     'editProfile',
     'editSubmission',
     'unlockEntity',
+    'unlockAccount',
     'viewProfiles',
     'createProfile',
     'assignRecruiters',
@@ -52,7 +54,15 @@ const ROLE_CAPS = {
     'viewCandidatePipeline',
     'viewRequirementMatrix',
   ]),
-  bda: new Set(['editAccount', 'viewPipeline', 'viewLeadPipeline', 'viewRequirementMatrix', 'viewReports']),
+  bda: new Set([
+    'editAccount',
+    'editBroughtBy',
+    'unlockAccount',
+    'viewPipeline',
+    'viewLeadPipeline',
+    'viewRequirementMatrix',
+    'viewReports',
+  ]),
 };
 
 /**
@@ -71,7 +81,7 @@ export function can(role, capability) {
 }
 
 // Capabilities no ordinary role has — only a superadmin (is_superadmin flag).
-const SUPERADMIN_ONLY = new Set(['editBroughtBy', 'overrideStage', 'editAnyUser']);
+const SUPERADMIN_ONLY = new Set(['overrideStage', 'editAnyUser']);
 
 /**
  * Capability check against the full auth user (not just the role string).

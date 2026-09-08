@@ -20,8 +20,13 @@ async function list({ entity_type, entity_id }, user) {
     return { documents: rows.map(serialize) };
   }
 
-  const access = await assertCanAccessEntity(user, entity_type, entity_id);
-  if (access.error) return { error: access.error };
+  // Reading attachments (resumes, JDs, agreements, …) is open to any
+  // authenticated user once they know the entity — files must be visible and
+  // downloadable across roles (a sales rep needs a recruiter's attached CV,
+  // etc). Only the parent entity's `not_found` still applies. Uploading and
+  // deleting stay gated (see create / remove below).
+  const entity = await assertCanAccessEntity(user, entity_type, entity_id);
+  if (entity.error === 'not_found' || entity.error === 'bad_entity') return { error: entity.error };
 
   const rows = await prisma.document.findMany({
     where: { entity_type, entity_id },
@@ -34,7 +39,7 @@ async function list({ entity_type, entity_id }, user) {
 async function create({ entity_type, entity_id, label, file }, user) {
   if (!file) return { error: 'file_required' };
 
-  const access = await assertCanAccessEntity(user, entity_type, entity_id);
+  const access = await assertCanAccessEntity(user, entity_type, entity_id, { forWrite: true });
   if (access.error) return { error: access.error };
 
   const row = await prisma.document.create({

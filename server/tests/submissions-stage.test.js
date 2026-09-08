@@ -237,6 +237,62 @@ describe('submission stage machine', () => {
       'bgv',
       'closed',
     ]);
+    expect(history.body.data.every((h) => h.changed_by?.name)).toBe(true);
+  });
+
+  test('admin may step back with a reason; recruiter may not', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const sub = await createSubmission();
+    await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
+    const round = await authed(request(app).post(`/api/v1/submissions/${sub.id}/interview-rounds`), recruiterToken).send({
+      round_type: 'client_r1',
+      scheduled_at: new Date().toISOString(),
+    });
+    expect(round.status).toBe(201);
+
+    const denied = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'submitted_to_client',
+      reason: 'mis-click',
+    });
+    expect(denied.status).toBe(403);
+
+    const missingReason = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), adminToken).send({
+      to_stage: 'submitted_to_client',
+    });
+    expect(missingReason.status).toBe(400);
+
+    const ok = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), adminToken).send({
+      to_stage: 'submitted_to_client',
+      reason: 'accidental interview stage',
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.stage).toBe('submitted_to_client');
+
+    const history = await authed(request(app).get(`/api/v1/submissions/${sub.id}/history`), adminToken);
+    const last = history.body.data[history.body.data.length - 1];
+    expect(last.to_stage).toBe('submitted_to_client');
+    expect(last.reason).toBe('accidental interview stage');
+    expect(last.changed_by?.name).toBeTruthy();
+  });
+
+  test('admin can reactivate a rejected submission on the same ticket', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const sub = await createSubmission();
+    await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), recruiterToken).send({
+      to_stage: 'rejected',
+      rejection_reason: 'skills mismatch',
+    });
+
+    const reactivated = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), adminToken).send({
+      to_stage: 'sourced',
+      reason: 'retry after coaching',
+    });
+    expect(reactivated.status).toBe(200);
+    expect(reactivated.body.data.stage).toBe('sourced');
+    expect(reactivated.body.data.rejection_reason).toBeNull();
+    expect(reactivated.body.data.rejection_stage).toBeNull();
   });
 
   test('resolving all rounds does NOT auto-advance; interview_scheduled -> interview_result stays manual', async () => {

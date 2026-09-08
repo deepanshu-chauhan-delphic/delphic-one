@@ -97,13 +97,13 @@ describe('pipeline explorer access and shape', () => {
     expect(ids).not.toContain(otherRequirement.id);
   });
 
-  test('bda sees only requirements under accounts they own', async () => {
+  test('bda sees every requirement (team-wide, like admin)', async () => {
     const res = await authed(request(app).get('/api/v1/reports/pipeline-explorer'), bdaToken);
     expect(res.status).toBe(200);
     const ids = res.body.data.rows.map((r) => r.id);
-    expect(ids).toContain(ownRequirement.id);
-    expect(ids).toContain(bdaOwnedRequirement.id);
-    expect(ids).not.toContain(otherRequirement.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([ownRequirement.id, bdaOwnedRequirement.id, otherRequirement.id])
+    );
   });
 
   test('recruiter sees only assigned requirements', async () => {

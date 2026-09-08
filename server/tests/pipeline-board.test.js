@@ -80,7 +80,7 @@ describe('pipeline board role scoping', () => {
     expect(unassignedRes.body.data.requirements).toHaveLength(0);
   });
 
-  test('bda sees only requirements under accounts they own', async () => {
+  test('bda sees every requirement in the map (team-wide, not just owned accounts)', async () => {
     const bda = await createUser({ role: 'bda' });
     const { access_token: bdaToken } = await loginAs(bda);
     const bdaAccount = await createActiveClientAccount(bda.id);
@@ -89,9 +89,9 @@ describe('pipeline board role scoping', () => {
     const res = await authed(request(app).get('/api/v1/pipeline/board'), bdaToken);
     expect(res.status).toBe(200);
     const ids = res.body.data.requirements.map((r) => r.id);
-    expect(ids).toContain(bdaReq.id);
-    expect(ids).not.toContain(ownRequirement.id);
-    expect(ids).not.toContain(otherSalesRequirement.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([bdaReq.id, ownRequirement.id, otherSalesRequirement.id])
+    );
   });
 
   test('empty (zero-submission) requirements still appear as rows', async () => {

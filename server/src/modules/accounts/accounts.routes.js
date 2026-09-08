@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/', controller.list);
+router.get('/specializations', controller.listSpecializations);
 router.get('/:id', controller.getOne);
 router.get('/:id/history', controller.history);
 router.post('/', authorize('bda', 'admin'), controller.create);

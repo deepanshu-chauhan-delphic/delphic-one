@@ -565,6 +565,8 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
+require('./_guard').assertNonProdDestructive('prisma/seed-jira.js');
+
 main()
   .then(() => prisma.$disconnect())
   .catch(async (err) => {

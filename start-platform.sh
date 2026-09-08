@@ -55,6 +55,30 @@ fi
 
 PG_USER="${POSTGRES_USER:-postgres}"
 
+# start-platform.sh is a LOCAL DEV tool. --restore drops & recreates the database
+# and --fresh wipes the Docker volume — never acceptable against production. Refuse
+# both if the target looks non-local (NODE_ENV=production or a remote DATABASE_URL
+# host). Prod deploys go through start-delphic.sh, which backs up first.
+guard_local_db() {
+  local why="" url host
+  [ "${NODE_ENV:-}" = "production" ] && why="NODE_ENV=production"
+  url="${DATABASE_URL:-$(grep -E '^DATABASE_URL=' "$ROOT/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"')}"
+  host="$(printf '%s' "$url" | sed -nE 's#^[a-z]+://[^@/]*@?([^:/?]+).*#\1#p')"
+  case "$host" in
+    ""|localhost|127.0.0.1|::1|db|postgres|host.docker.internal) ;;
+    *) why="${why:+$why; }DATABASE_URL host '$host' is not local" ;;
+  esac
+  if [ -n "$why" ] && [ "${ALLOW_DESTRUCTIVE_SEED:-}" != "1" ]; then
+    echo "REFUSING destructive operation ($why)."
+    echo "This wipes data and is local-dev only. Prod deploys use ./start-delphic.sh (backs up first)."
+    echo "Override with ALLOW_DESTRUCTIVE_SEED=1 only if you have a fresh, verified backup."
+    exit 1
+  fi
+}
+if [ "$RESTORE" = 1 ] || [ "$FRESH" = 1 ]; then
+  guard_local_db
+fi
+
 log() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 
 kill_tree() {

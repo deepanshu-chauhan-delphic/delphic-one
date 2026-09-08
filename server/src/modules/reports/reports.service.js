@@ -6,6 +6,18 @@ function daysBetween(from, to) {
   return (new Date(to) - new Date(from)) / 86400000;
 }
 
+/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; end day inclusive. */
+function optionalDateRange(date_from, date_to) {
+  const range = {};
+  if (date_from) range.gte = new Date(date_from);
+  if (date_to) {
+    const to = new Date(date_to);
+    if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+    range.lte = to;
+  }
+  return Object.keys(range).length ? range : undefined;
+}
+
 function averageDays(values) {
   if (!values.length) return null;
   return Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
@@ -736,28 +748,66 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   });
 }
 
+// Requirement statuses that count as "active work" for the coverage buckets.
+const ACTIVE_REQUIREMENT_STATUSES = ['open', 'in_progress', 'on_hold'];
+
 /**
- * Client accounts that have no requirements at all — the BDA brought them in but
- * no sales requirement was ever opened. "Sales POC" is the account owner
- * (`owner_id`, the POC from our end); "Brought by" is the originator
- * (`origin_owner_id`). Filterable by either.
+ * Active client coverage report (UI: "Clients without requirements").
+ *
+ * With a `bucket` (the report UI) this is "active-stage clients":
+ * `type = 'client'`, `stage = 'active'`, split by their current requirement mix:
+ *   - `all` — every active-stage client, no requirement filter.
+ *   - `with_requirements` ("Has requirements") — ≥1 requirement open / in_progress
+ *     / on_hold (closed / dropped do not count).
+ *   - `no_active` ("No requirements") — no requirement open / in_progress /
+ *     on_hold: closed / dropped only, or never had one.
+ *   - `without_active_requirements` / `closed_only` — kept for the export route
+ *     and back-compat; not surfaced in the UI.
+ * Legacy callers with no bucket keep the old behaviour: no requirement rows, and
+ * unclassified (`type IS NULL`) accounts are included so `stage = 'lead'` works.
  */
-async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
+async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage, bucket, date_from, date_to }) {
+  const effectiveStage = bucket ? (stage || 'active') : stage;
+  const createdRange = optionalDateRange(date_from, date_to);
+  const baseWhere = {
+    // Report UI ("active-stage clients") is strictly `type = 'client'`. The
+    // legacy no-bucket path keeps unclassified accounts so `stage = 'lead'`
+    // still returns not-yet-classified leads.
+    ...(bucket ? { type: 'client' } : { OR: [{ type: 'client' }, { type: null }] }),
+    ...(bda_id ? { owner_id: bda_id } : {}),
+    ...(origin_owner_id ? { origin_owner_id } : {}),
+    ...(effectiveStage ? { stage: effectiveStage } : {}),
+    ...(createdRange ? { created_at: createdRange } : {}),
+  };
+
+  let requirementFilter;
+  if (bucket === 'all') {
+    requirementFilter = {};
+  } else if (bucket === 'with_requirements') {
+    requirementFilter = { requirements: { some: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } };
+  } else if (bucket === 'no_active') {
+    requirementFilter = { requirements: { none: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } };
+  } else if (bucket === 'closed_only') {
+    requirementFilter = {
+      AND: [
+        { requirements: { some: {} } },
+        { requirements: { none: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } },
+      ],
+    };
+  } else if (bucket === 'without_active_requirements') {
+    requirementFilter = { requirements: { none: {} } };
+  } else {
+    // Legacy default (no bucket): no requirements at all.
+    requirementFilter = { requirements: { none: {} } };
+  }
+
   const rows = await prisma.account.findMany({
-    where: {
-      // Include not-yet-classified accounts (type IS NULL) — every account still in
-      // the `lead` / `meeting_scheduled` stage sits there, so a `type: 'client'`-only
-      // filter made the Stage = Lead option return nothing. Mirrors the Accounts
-      // list "include unclassified" behaviour.
-      OR: [{ type: 'client' }, { type: null }],
-      requirements: { none: {} },
-      ...(bda_id ? { owner_id: bda_id } : {}),
-      ...(origin_owner_id ? { origin_owner_id } : {}),
-      ...(stage ? { stage } : {}),
-    },
+    where: { ...baseWhere, ...requirementFilter },
     include: {
       owner: { select: { id: true, name: true } },
       origin_owner: { select: { id: true, name: true } },
+      // Count only requirements that are currently active work.
+      _count: { select: { requirements: { where: { status: { in: ACTIVE_REQUIREMENT_STATUSES } } } } },
     },
     orderBy: { created_at: 'asc' },
   });
@@ -767,35 +817,57 @@ async function clientsWithoutRequirements({ bda_id, origin_owner_id, stage }) {
     stage: a.stage,
     brought_by: a.origin_owner ? { id: a.origin_owner.id, name: a.origin_owner.name } : null,
     sales_poc: a.owner ? { id: a.owner.id, name: a.owner.name } : null,
+    active_requirements_count: a._count.requirements,
     created_at: a.created_at,
     days_idle: Math.floor(daysBetween(a.created_at, new Date())),
   }));
 }
 
+// A candidate is "in a live submission" while its submission stage is anything
+// other than a terminal one — i.e. still in flight against some requirement.
+const LIVE_SUBMISSION_STAGES = [
+  'sourced',
+  'internal_screening',
+  'submitted_to_client',
+  'interview_scheduled',
+  'interview_result',
+  'offer_sent',
+  'bgv',
+];
+
 /**
- * One row per vendor account whose profiles have never been submitted to any
- * requirement — i.e. the vendor relationship has produced no pipeline. Each row
- * carries the vendor's POC from our end (`account.owner`), "brought by"
- * (`account.origin_owner`), and every recruiter who has sourced a profile from
- * that vendor. Vendors we've sourced nothing from at all are still listed
- * (vacuously "nothing submitted").
+ * One row per vendor account (`type = 'vendor'`, `stage = 'active'`), carrying
+ * the vendor's POC from our end (`account.owner`), "brought by"
+ * (`account.origin_owner`), every recruiter who has sourced a profile from it,
+ * `profiles_sourced` / `profiles_submitted`, and `has_live_submission` — whether
+ * any sourced candidate currently sits in a non-terminal submission stage.
  *
  * Filters:
- *   - `vendor_id`  — a single vendor account.
- *   - `owner_id`   — the vendor's POC from our end (`account.owner_id`).
- *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from.
- *     (The route also sets this to the caller's id for the recruiter role.)
- *
- * `any_submitted` is always computed from ALL of the vendor's profiles, never a
- * single recruiter's slice, so "never submitted anywhere" stays literally true
- * even when `recruiter_id` is applied.
+ *   - `vendor_id` — a single vendor account.
+ *   - `owner_id` — the vendor's POC from our end (`account.owner_id`).
+ *   - `origin_owner_id` — who brought the vendor in.
+ *   - `recruiter_id` — keep only vendors this user has sourced ≥1 profile from
+ *     (the route also forces this to the caller for the recruiter role).
+ *   - `date_from` / `date_to` — scope the sourced-profile counts by profile
+ *     created date.
+ *   - `vendor_activity`:
+ *       `active` (default) — every active-stage vendor.
+ *       `inactive` — no sourced candidate is currently in a live submission.
  */
-async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
+async function recruiterVendorGaps({
+  recruiter_id, vendor_id, owner_id, origin_owner_id, vendor_activity, date_from, date_to,
+}) {
+  const sourcedRange = optionalDateRange(date_from, date_to);
+
   const vendors = await prisma.account.findMany({
     where: {
-      type: 'vendor',
-      ...(vendor_id ? { id: vendor_id } : {}),
-      ...(owner_id ? { owner_id } : {}),
+      AND: [
+        { type: 'vendor' },
+        { stage: 'active' },
+        ...(vendor_id ? [{ id: vendor_id }] : []),
+        ...(owner_id ? [{ owner_id }] : []),
+        ...(origin_owner_id ? [{ origin_owner_id }] : []),
+      ],
     },
     include: {
       owner: { select: { id: true, name: true } },
@@ -807,16 +879,22 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
   const rows = await Promise.all(
     vendors.map(async (v) => {
       const profiles = await prisma.profile.findMany({
-        where: { vendor_account_id: v.id },
+        where: {
+          vendor_account_id: v.id,
+          ...(sourcedRange ? { created_at: sourcedRange } : {}),
+        },
         select: {
           id: true,
           created_at: true,
           added_by_user: { select: { id: true, name: true } },
-          _count: { select: { submissions: true } },
+          submissions: { select: { stage: true } },
         },
       });
 
-      const any_submitted = profiles.some((p) => p._count.submissions > 0);
+      const submittedCount = profiles.filter((p) => p.submissions.length > 0).length;
+      const has_live_submission = profiles.some((p) =>
+        p.submissions.some((s) => LIVE_SUBMISSION_STAGES.includes(s.stage))
+      );
       const recruiters = [
         ...new Map(
           profiles.filter((p) => p.added_by_user).map((p) => [p.added_by_user.id, p.added_by_user])
@@ -833,8 +911,8 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
         brought_by: v.origin_owner ? { id: v.origin_owner.id, name: v.origin_owner.name } : null,
         recruiters: recruiters.map((r) => ({ id: r.id, name: r.name })),
         profiles_sourced: profiles.length,
-        profiles_submitted: 0,
-        any_submitted,
+        profiles_submitted: submittedCount,
+        has_live_submission,
         last_sourced_at,
         days_since_sourced: last_sourced_at
           ? Math.floor(daysBetween(last_sourced_at, new Date()))
@@ -844,9 +922,9 @@ async function recruiterVendorGaps({ recruiter_id, vendor_id, owner_id }) {
   );
 
   return rows
-    .filter((r) => !r.any_submitted)
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
-    .map(({ any_submitted: _any_submitted, ...rest }) => rest)
+    // `active` (default) = every active-stage vendor; `inactive` = no live candidate.
+    .filter((r) => vendor_activity !== 'inactive' || !r.has_live_submission)
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
 }
 

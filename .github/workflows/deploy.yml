@@ -3,28 +3,38 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
+# Deploy runs on every push to main. To pause it, set the repository variable
+# DEPLOY_ENABLED=false (anything other than exactly "false" — including unset —
+# deploys).
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_ENABLED != 'false' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Deploy to EC2
-        if: ${{ vars.DEPLOY_ENABLED == 'true' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
           script: |
             set -euo pipefail
             cd /opt/delphic
-            git pull origin main
-            chmod +x start-delphic.sh setup-vm.sh
+            # The box is a mirror of main — discard any drift so the pull never
+            # aborts on "local changes would be overwritten". Real config lives in
+            # .env / ./backups/ which are git-ignored and untouched.
+            git fetch --prune origin
+            git reset --hard origin/main
+            git log --oneline -1
+            chmod +x start-delphic.sh setup-vm.sh scripts/db-backup.sh
+            # start-delphic.sh --prod takes its own verified pre-deploy backup first.
             ./start-delphic.sh --prod --no-boot
+            # client assets are baked into the image; force a fresh client layer
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache client
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d client
             curl -sf http://127.0.0.1:4000/api/v1/health | grep -q '"status":"ok"'
-
-      - name: Deploy disabled notice
-        if: ${{ vars.DEPLOY_ENABLED != 'true' }}
-        run: echo "Set repository variable DEPLOY_ENABLED=true and configure VPS_HOST/VPS_USER/VPS_SSH_KEY secrets to enable deployment."

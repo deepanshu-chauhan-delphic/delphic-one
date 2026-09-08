@@ -13,5 +13,6 @@ coverage/
 .vscode/
 *.local
 
-# Local database dumps / restore safety snapshots
+# Local database dumps / restore safety snapshots / pre-deploy backups
 *.dump
+backups/

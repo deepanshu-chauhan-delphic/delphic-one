@@ -97,6 +97,23 @@ describe('GET /reports/clients-without-requirements', () => {
     expect(leadIds).not.toContain(activeClient.id);
   });
 
+  test('filters by created-date range', async () => {
+    const recent = await createActiveClientAccount(bda.id);
+    const old = await createActiveClientAccount(bda.id);
+    await prisma.account.update({ where: { id: old.id }, data: { created_at: new Date('2020-01-01') } });
+
+    const res = await authed(
+      request(app)
+        .get('/api/v1/reports/clients-without-requirements')
+        .query({ stage: 'active', date_from: '2024-01-01' }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.client.id);
+    expect(ids).toContain(recent.id);
+    expect(ids).not.toContain(old.id);
+  });
+
   test('includes not-yet-classified (type IS NULL) lead accounts', async () => {
     // A real lead is created with no type; it only becomes type=client on classification.
     const unclassifiedLead = await prisma.account.create({
@@ -115,6 +132,81 @@ describe('GET /reports/clients-without-requirements', () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.data.map((r) => r.client.id)).toContain(unclassifiedLead.id);
+  });
+
+  test('buckets: with_requirements = has an open/in-progress/hold req; without = never had any', async () => {
+    const idle = await createActiveClientAccount(bda.id);
+
+    const withOpenReq = await createActiveClientAccount(bda.id);
+    await createRequirement(salesToken, withOpenReq.id, { title: 'Open req' });
+
+    const onlyHold = await createActiveClientAccount(bda.id);
+    const holdReq = await createRequirement(salesToken, onlyHold.id, { title: 'Hold req' });
+    await prisma.requirement.update({ where: { id: holdReq.id }, data: { status: 'on_hold' } });
+
+    // Only a closed requirement — worked in the past, nothing open now.
+    const onlyClosed = await createActiveClientAccount(bda.id);
+    const closedReq = await createRequirement(salesToken, onlyClosed.id, { title: 'Closed req' });
+    await prisma.requirement.update({ where: { id: closedReq.id }, data: { status: 'closed' } });
+
+    const get = (bucket) =>
+      authed(
+        request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'active', bucket }),
+        adminToken
+      );
+
+    const allIds = (await get('all')).body.data.map((r) => r.client.id);
+    const withIds = (await get('with_requirements')).body.data.map((r) => r.client.id);
+    const withoutIds = (await get('without_active_requirements')).body.data.map((r) => r.client.id);
+
+    // "Has requirements" = at least one open / in_progress / on_hold req.
+    expect(withIds).toEqual(expect.arrayContaining([withOpenReq.id, onlyHold.id]));
+    expect(withIds).not.toContain(idle.id);
+    expect(withIds).not.toContain(onlyClosed.id);
+
+    // "No requirements" = never had one at all.
+    expect(withoutIds).toContain(idle.id);
+    expect(withoutIds).not.toContain(onlyHold.id);
+    expect(withoutIds).not.toContain(withOpenReq.id);
+    expect(withoutIds).not.toContain(onlyClosed.id);
+
+    // Buckets are disjoint; `all` is the superset (closed-only sits in neither).
+    expect(allIds).toEqual(expect.arrayContaining([idle.id, withOpenReq.id, onlyHold.id, onlyClosed.id]));
+    expect(withIds.filter((id) => withoutIds.includes(id))).toEqual([]);
+  });
+
+  test('buckets: no_active = never + closed-only; closed_only = has history, nothing active', async () => {
+    const idle = await createActiveClientAccount(bda.id);
+
+    const withOpenReq = await createActiveClientAccount(bda.id);
+    await createRequirement(salesToken, withOpenReq.id, { title: 'Open req' });
+
+    const onlyClosed = await createActiveClientAccount(bda.id);
+    const closedReq = await createRequirement(salesToken, onlyClosed.id, { title: 'Closed req' });
+    await prisma.requirement.update({ where: { id: closedReq.id }, data: { status: 'closed' } });
+
+    const get = (bucket) =>
+      authed(
+        request(app).get('/api/v1/reports/clients-without-requirements').query({ stage: 'active', bucket }),
+        adminToken
+      );
+
+    const noActiveIds = (await get('no_active')).body.data.map((r) => r.client.id);
+    const closedOnlyIds = (await get('closed_only')).body.data.map((r) => r.client.id);
+    const withIds = (await get('with_requirements')).body.data.map((r) => r.client.id);
+
+    // "No open work" = never had one OR only closed/dropped.
+    expect(noActiveIds).toEqual(expect.arrayContaining([idle.id, onlyClosed.id]));
+    expect(noActiveIds).not.toContain(withOpenReq.id);
+
+    // "Only closed / dropped" = has requirement history, none active.
+    expect(closedOnlyIds).toContain(onlyClosed.id);
+    expect(closedOnlyIds).not.toContain(idle.id);
+    expect(closedOnlyIds).not.toContain(withOpenReq.id);
+
+    // Invariants: with_requirements + no_active partitions the set; closed_only ⊆ no_active.
+    expect(withIds.filter((id) => noActiveIds.includes(id))).toEqual([]);
+    expect(closedOnlyIds.every((id) => noActiveIds.includes(id))).toBe(true);
   });
 
   test('filters by Brought by (origin_owner_id)', async () => {
@@ -198,15 +290,14 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     });
   }
 
-  test('lists vendor accounts whose sourced profiles were never submitted', async () => {
+  test('default view lists every active-stage vendor with its sourcing counts', async () => {
     const gap = await seedVendorProfile(recruiterToken);
     const used = await seedVendorProfile(recruiterToken, { submitted: true });
 
     const res = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
     expect(res.status).toBe(200);
     const vendorIds = res.body.data.map((r) => r.vendor.id);
-    expect(vendorIds).toContain(gap.vendor.id);
-    expect(vendorIds).not.toContain(used.vendor.id);
+    expect(vendorIds).toEqual(expect.arrayContaining([gap.vendor.id, used.vendor.id]));
 
     const row = res.body.data.find((r) => r.vendor.id === gap.vendor.id);
     expect(row).toEqual(
@@ -216,36 +307,47 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
         recruiters: expect.arrayContaining([expect.objectContaining({ id: recruiter.id })]),
         profiles_sourced: 1,
         profiles_submitted: 0,
+        has_live_submission: false,
         days_since_sourced: expect.any(Number),
       })
     );
   });
 
-  test('recruiter_id filter still excludes a vendor that ANY recruiter got submitted', async () => {
-    // recruiter1 sources an un-submitted profile from the vendor…
-    const vendor = await createBareVendor();
-    await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: vendor.id });
-    // …recruiter2 sources another profile from the SAME vendor and it IS submitted.
-    const { access_token: r2Token } = await loginAs(recruiter2);
-    const p2 = await createProfile(r2Token, { source: 'vendor', vendor_account_id: vendor.id });
-    const account = await createActiveClientAccount(bda.id);
-    const req = await createRequirement(salesToken, account.id);
-    const seats = await authed(request(app).get(`/api/v1/requirements/${req.id}/seats`), salesToken);
-    await authed(request(app).post('/api/v1/submissions'), r2Token).send({
-      requirement_seat_id: seats.body.data[0].id,
-      profile_id: p2.id,
-      proposed_rate: 100,
-      proposed_rate_currency: 'INR',
-      vendor_rate: 80,
-      vendor_rate_currency: 'INR',
+  test('excludes vendors not in the active stage', async () => {
+    const active = await createBareVendor();
+    const dropped = await prisma.account.create({
+      data: {
+        type: 'vendor',
+        name: `Vendor ${Math.random().toString(36).slice(2, 8)}`,
+        stage: 'dropped',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+      },
     });
+    await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: dropped.id });
+
+    const res = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.vendor.id);
+    expect(ids).toContain(active.id);
+    expect(ids).not.toContain(dropped.id);
+  });
+
+  test('recruiter_id keeps only vendors that recruiter has sourced from', async () => {
+    const mine = await createBareVendor();
+    await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: mine.id });
+    const theirs = await createBareVendor();
+    const { access_token: r2Token } = await loginAs(recruiter2);
+    await createProfile(r2Token, { source: 'vendor', vendor_account_id: theirs.id });
 
     const res = await authed(
       request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ recruiter_id: recruiter.id }),
       adminToken
     );
     expect(res.status).toBe(200);
-    expect(res.body.data.map((r) => r.vendor.id)).not.toContain(vendor.id);
+    const ids = res.body.data.map((r) => r.vendor.id);
+    expect(ids).toContain(mine.id);
+    expect(ids).not.toContain(theirs.id);
   });
 
   test('includes a vendor with no sourced profiles at all (admin view)', async () => {
@@ -262,6 +364,75 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
         days_since_sourced: null,
       })
     );
+  });
+
+  test('vendor_activity: active = every active-stage vendor; inactive = no live candidate', async () => {
+    const live = await seedVendorProfile(recruiterToken, { submitted: true }); // fresh submission → `sourced` (a live stage)
+    const noLive = await seedVendorProfile(recruiterToken); // sourced, never submitted
+    const bare = await createBareVendor(); // nothing sourced
+
+    const get = (vendor_activity) =>
+      authed(
+        request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity }),
+        adminToken
+      );
+
+    const activeIds = (await get('active')).body.data.map((r) => r.vendor.id);
+    expect(activeIds).toEqual(expect.arrayContaining([live.vendor.id, noLive.vendor.id, bare.id]));
+
+    const inactiveRows = (await get('inactive')).body.data;
+    const inactiveIds = inactiveRows.map((r) => r.vendor.id);
+    expect(inactiveIds).toEqual(expect.arrayContaining([noLive.vendor.id, bare.id]));
+    expect(inactiveIds).not.toContain(live.vendor.id);
+    expect(inactiveRows.every((r) => r.has_live_submission === false)).toBe(true);
+  });
+
+  test('a vendor whose only submission is terminal (rejected) counts as inactive', async () => {
+    const v = await seedVendorProfile(recruiterToken, { submitted: true });
+    const sub = await prisma.submission.findFirst({
+      where: { profile: { vendor_account_id: v.vendor.id } },
+    });
+    await prisma.submission.update({ where: { id: sub.id }, data: { stage: 'rejected' } });
+
+    const inactive = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'inactive' }),
+      adminToken
+    );
+    const row = inactive.body.data.find((r) => r.vendor.id === v.vendor.id);
+    expect(row).toBeTruthy();
+    expect(row.has_live_submission).toBe(false);
+    expect(row.profiles_submitted).toBe(1);
+  });
+
+  test('filters by origin_owner_id (brought by)', async () => {
+    const mine = await createBareVendor(bda.id);
+    const other = await createBareVendor(bda2.id);
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ origin_owner_id: bda2.id }),
+      adminToken
+    );
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((r) => r.vendor.id);
+    expect(ids).toContain(other.id);
+    expect(ids).not.toContain(mine.id);
+  });
+
+  test('date_from / date_to scopes the sourced-profile count (vendor still listed)', async () => {
+    const v = await seedVendorProfile(recruiterToken); // 1 profile, created now
+    await prisma.profile.update({ where: { id: v.profile.id }, data: { created_at: new Date('2020-01-01') } });
+
+    const noRange = await authed(request(app).get('/api/v1/reports/recruiter-vendor-gaps'), adminToken);
+    expect(noRange.body.data.find((r) => r.vendor.id === v.vendor.id).profiles_sourced).toBe(1);
+
+    const afterCutoff = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ date_from: '2024-01-01' }),
+      adminToken
+    );
+    const row = afterCutoff.body.data.find((r) => r.vendor.id === v.vendor.id);
+    // The vendor is still an active-stage vendor, but nothing was sourced in-window.
+    expect(row).toBeTruthy();
+    expect(row.profiles_sourced).toBe(0);
   });
 
   test('filters by vendor_id and by owner_id (our POC)', async () => {

@@ -286,6 +286,8 @@ async function main() {
   }, null, 2));
 }
 
+require('./_guard').assertNonProdDestructive('prisma/seed-accounts.js');
+
 main()
   .then(() => prisma.$disconnect())
   .catch(async (err) => {

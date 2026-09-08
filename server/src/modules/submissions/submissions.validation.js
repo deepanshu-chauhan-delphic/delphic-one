@@ -42,7 +42,7 @@ const updateSchema = z.object({
 
 const stageSchema = z.object({
   to_stage: z.enum([
-    'internal_screening', 'submitted_to_client', 'interview_scheduled',
+    'sourced', 'internal_screening', 'submitted_to_client', 'interview_scheduled',
     'interview_result', 'offer_sent', 'bgv', 'closed', 'backout', 'rejected',
   ]),
   reason: z.string().optional(),

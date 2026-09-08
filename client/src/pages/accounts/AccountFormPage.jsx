@@ -47,8 +47,8 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
   const [ownerOptions, setOwnerOptions] = useState([]);
   // Anyone who can edit the account can also reassign its owner/POC to any active user.
   const canEditOwner = isEditing && canMutateAccount(account, user);
-  const canEditType = isEditing && user?.role === 'admin';
-  // "Brought by" is normally immutable — only a superadmin may correct it.
+  const canEditType = isEditing && (user?.role === 'admin' || user?.role === 'bda');
+  // "Brought by" is normally set once at creation — admin or BDA may correct it (not superadmin-only).
   const canEditOriginOwner = isEditing && canEditBroughtBy(user);
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                       : []),
                   ]}
                 />
-                <span className="mt-1 block text-xs text-tertiary-500">Superadmin only · normally immutable</span>
+                <span className="mt-1 block text-xs text-tertiary-500">Admin only · normally set at creation</span>
               </Field>
             )}
             <Field label="Company name" required>

@@ -210,6 +210,15 @@ function buildExportSheets(report, data) {
     return [{ name: 'pipeline-explorer', rows: data.rows.map((r) => flatten(r)) }];
   }
 
+  if (report === 'recruiter-vendor-gaps' && Array.isArray(data)) {
+    // Hide "Recruiters (our end)" from export — keep Our POC / Brought by only.
+    const rows = data.map((r) => {
+      const { recruiters: _recruiters, ...rest } = r;
+      return flatten(rest);
+    });
+    return [{ name: report, rows }];
+  }
+
   const rows = Array.isArray(data) ? data.map((r) => flatten(r)) : [flatten(data)];
   return [{ name: report, rows }];
 }

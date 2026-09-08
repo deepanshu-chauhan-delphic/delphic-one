@@ -22,6 +22,20 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [ ] **Tests** — `notifications.test.js`, `interviews-calendar.test.js`, `interview-reminders.test.js`.
 - [ ] **Docs finalize** — as-built notes in the feature spec; dated `PROGRESS.md` entry; note the bell in `ui/UI-UX-JIRA.md`; `ENABLE_JOBS` in `guides/DEPLOY-RUNBOOK.md`; flip the three v2 rows in `architecture/API-Spec-and-Build-Plan.md`.
 
+## List filters + report fixes (branch `feature/list-filters`)
+
+- [x] **2026-09-03** — Requirements "Tagged Profiles" → **"Client Submissions"**:
+  count only `submitted_to_client → bgv` stages (`client_submissions_count`).
+- [x] **2026-09-03** — Requirements / Profiles / Submissions list pages: full
+  filter sets (URL-synced) via shared `client/src/lib/lookups.js`; Submissions
+  gained a multi-stage picker + pagination.
+- [x] **2026-09-03** — recruiter-vendor-gaps: `vendor_activity=active|inactive`
+  toggle (sourced ≥1 vs sourced 0). clients-without-requirements: `with_requirements`
+  bucket now = has open/in_progress req, so the two toggles no longer overlap.
+- [ ] Manual click-through: each new filter narrows the list + round-trips through
+  the URL; RVG toggle + CWR toggle switch the row set with no overlap; "Client
+  Submissions" count matches the client-facing pipeline on a known requirement.
+
 ## Backend
 
 - [x] Install, migrate, seed, Docker end-to-end verified.
@@ -34,10 +48,11 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [x] Interview feedback API (create + PATCH) and extended interview/closure report metrics (RD-132).
 - [x] Structured backend logging (`logger` + request/error/lifecycle) — see [BACKEND-LOGGING.md](../guides/BACKEND-LOGGING.md).
 - [x] Comments `entity_type` includes `profile` (for Candidate Notes on RD-110).
-- [x] Superadmin tier (`User.is_superadmin`, `admin@delphic.in`): full user editing (`PATCH /users/:id` + `password`/`is_superadmin`, `GET /users/:id`), editable account `origin_owner_id`, locked-record edits, `POST /accounts/:id/stage/override`. Update-only, no deletes. Migration `20260901131738_add_is_superadmin`. See PROGRESS.md 2026-09-01.
-- [ ] Superadmin: manual browser click-through (edit a user's role/email/password; override a dropped account back to `lead`; change "Brought by"). Confirm an ordinary admin sees none of it.
-- [x] **2026-09-01** — `clients-without-requirements` report: "Sales POC" = account owner (renamed), "Brought by" kept, Department filter dropped, Brought-by + Sales-POC person filters added, superadmin can edit both people inline on the Reports page. `interview_scheduled → interview_result` is manual only (no round-result auto-advance). No schema change. See PROGRESS.md.
-- [ ] Manual click-through: superadmin edits Brought by / Sales POC inline on the Reports page; the two person filters narrow the list; ordinary admin sees plain read-only cells.
+- [x] Superadmin tier (`User.is_superadmin`, `admin@delphic.in`): full user editing (`PATCH /users/:id` + `password`/`is_superadmin`, `GET /users/:id`), locked-record edits, stage overrides. **Admin + superadmin** may edit account `origin_owner_id` ("Brought by"). Update-only, no deletes. Migration `20260901131738_add_is_superadmin`. See PROGRESS.md 2026-09-01 / 2026-09-03.
+- [ ] Superadmin: manual browser click-through (edit a user's role/email/password; override a dropped account back to `lead`). Confirm an ordinary admin can edit "Brought by" but not override stages.
+- [x] **2026-09-03** — Admin can undo/reactivate submission stages (reason required); ticket profile visibility fix (history fetch decoupled); actor name on requirement/submission history; CWR report bucket toggle; RVG hides Recruiters column. See PROGRESS.md.
+- [x] **2026-09-01** — `clients-without-requirements` report: "Sales POC" = account owner (renamed), "Brought by" kept, Department filter dropped, Brought-by + Sales-POC person filters added, admin/superadmin can edit both people inline on the Reports page. `interview_scheduled → interview_result` is manual only (no round-result auto-advance). No schema change. See PROGRESS.md.
+- [ ] Manual click-through: admin edits Brought by / Sales POC inline on the Reports page; the two person filters narrow the list; ordinary BDA sees plain read-only cells.
 - [x] **2026-09-02** — Reports dropdown shows only `clients-without-requirements` + `recruiter-vendor-gaps` (others `hidden: true`, still defined). `clients-without-requirements` gains a Stage filter defaulting to Active. `recruiter-vendor-gaps` reworked to one row per vendor account (our POC + recruiters + zero-submitted), filterable by vendor + our POC. Internal screening round chips (`ScreeningRoundChips`) on Candidate pipeline + Requirement map cards. Accounts list filterable by Owner + Brought by. See PROGRESS.md 2026-09-02.
 - [ ] **Run `cd server && npm test`** once the Docker test DB (`localhost:5434`) is back up — `reports-coverage-gaps.test.js` was rewritten but not executed this session (Docker Desktop was down).
 - [ ] Manual click-through: RVG vendor/POC filters + CWR stage filter; screening chips show `IS1/IS2` results on both boards; Accounts Owner/Brought-by filters narrow the list and round-trip through the URL.
@@ -104,6 +119,11 @@ Full design + build spec: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../feature
 - [x] **V2** test coverage: new `interview-rounds-scope.test.js`, `profiles-bench.test.js`, extended `accounts-stage.test.js`/`reports-ui.test.js`.
 - [x] Closure progress unit tests + `GET /pipeline/board` role-scope tests (`closure-progress.test.js`, `pipeline-board.test.js`). **23 suites / 135 tests** green (2026-08-29).
 - [x] Interviewer multiselect tests (`interview-round-interviewers.test.js`).
+- [x] **2026-09-03** — Prod data-loss safeguards: `start-delphic.sh --prod` takes a verified pre-deploy `pg_dump -Fc` into `./backups/` and aborts on failure (no `--restore` flag; restores are manual). `prisma/_guard.js` blocks the CSV seeds against non-local / `NODE_ENV=production` DBs (`ALLOW_DESTRUCTIVE_SEED=1` override). `start-platform.sh --restore`/`--fresh` guarded likewise. `scripts/db-backup.sh` for scheduled backups. Runbook rewritten. See PROGRESS.md 2026-09-03.
+- [ ] **VPS: schedule `scripts/db-backup.sh`** (cron `*/15` or systemd timer) and set `BACKUP_OFFSITE_CMD` to copy dumps off the box. Runbook §0.
+- [ ] **Enable Postgres PITR** (WAL archiving) or move to managed Postgres — recovery to the second, not the last dump. This is the real fix for "hours of data lost".
+- [ ] Confirm on the VPS: `./start-delphic.sh --prod` writes `./backups/predeploy-*.dump` and the systemd `ExecStart=... --prod --service` path still boots (backup_db brings `db` up first).
+- [ ] Wipe the stale `pre-restore-safety-*.dump` / `backup-*.dump` from the repo root (git-ignored but clutter); keep real backups under `./backups/` only.
 
 ## Docs
 

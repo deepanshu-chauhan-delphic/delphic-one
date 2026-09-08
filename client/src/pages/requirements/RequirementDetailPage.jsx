@@ -476,6 +476,7 @@ export default function RequirementDetailPage() {
               {' → '}
               <span className="capitalize font-medium">{h.to_stage?.replace(/_/g, ' ')}</span>
               <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
+              <span className="text-tertiary-500"> · {h.changed_by?.name || 'Unknown'}</span>
               {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
             </li>
           ))}
