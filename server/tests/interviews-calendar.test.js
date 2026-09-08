@@ -191,6 +191,58 @@ describe('GET /interviews', () => {
   });
 });
 
+describe('GET /interviews — client meetings in the feed', () => {
+  async function scheduleMeeting({ mode = 'online', when, attendee } = {}) {
+    return prisma.account.create({
+      data: {
+        name: `Acme ${mode} ${Date.now()}${Math.random()}`,
+        type: 'client',
+        stage: 'meeting_scheduled',
+        owner_id: bda.id,
+        origin_owner_id: bda.id,
+        meeting_mode: mode,
+        meeting_date: when || new Date(Date.now() + 2 * DAY),
+        meeting_location: mode === 'offline' ? 'Client HQ, 4th floor' : null,
+        ...(attendee ? { meeting_attendees: { create: { user_id: attendee } } } : {}),
+      },
+    });
+  }
+
+  test('online and offline meetings ride the feed with kind + meeting_mode', async () => {
+    const online = await scheduleMeeting({ mode: 'online' });
+    const offline = await scheduleMeeting({ mode: 'offline' });
+
+    const res = await calendar(recruiterAToken);
+    expect(res.status).toBe(200);
+    const rows = res.body.data;
+    const on = rows.find((e) => e.id === `meeting-${online.id}`);
+    const off = rows.find((e) => e.id === `meeting-${offline.id}`);
+    expect(on).toMatchObject({ kind: 'client_meeting', meeting_mode: 'online', audience: 'external' });
+    expect(off).toMatchObject({ kind: 'client_meeting', meeting_mode: 'offline', meeting_location: 'Client HQ, 4th floor' });
+    expect(on.candidate_name).toBeNull();
+  });
+
+  test('audience=internal drops client meetings; audience=external keeps them', async () => {
+    const m = await scheduleMeeting();
+    const internal = await calendar(recruiterAToken, { audience: 'internal' });
+    expect(internal.body.data.some((e) => e.id === `meeting-${m.id}`)).toBe(false);
+    const external = await calendar(recruiterAToken, { audience: 'external' });
+    expect(external.body.data.some((e) => e.id === `meeting-${m.id}`)).toBe(true);
+  });
+
+  test('mine=1 scopes meetings to owner / origin owner / attendee', async () => {
+    const mineByOwner = await scheduleMeeting();
+    const mineByAttendee = await scheduleMeeting({ attendee: recruiterB.id });
+
+    const bdaMine = await calendar(salesToken, { mine: '1' });
+    // sales user owns neither meeting nor attends → none of these two
+    expect(bdaMine.body.data.some((e) => e.id === `meeting-${mineByOwner.id}`)).toBe(false);
+
+    const attendeeMine = await calendar(recruiterBToken, { mine: '1' });
+    expect(attendeeMine.body.data.some((e) => e.id === `meeting-${mineByAttendee.id}`)).toBe(true);
+  });
+});
+
 describe('POST /interviews/:id/feedback', () => {
   test('an assigned interviewer may submit; result flips status to completed', async () => {
     const res = await authed(request(app).post(`/api/v1/interviews/${inRangeRoundId}/feedback`), interviewerToken).send({

@@ -1229,9 +1229,9 @@ async function joinings({ date_from, date_to }) {
   };
 }
 
-// App flow (one row per submission): profile sourced -> submission created for
-// this requirement -> first internal round 1 scheduled -> submitted to client.
-// The 3 columns are the 3 hops of that chain.
+// One row per submission. All three duration columns are measured from the
+// requirement's creation time: requirement created -> submission created,
+// -> first internal round 1 scheduled, -> submitted to client.
 async function timeToSubmit({ date_from, date_to, client_id, requirement_id, sourcer_id, search }) {
   const range = optionalDateRange(date_from, date_to);
   const profileWhere = {
@@ -1253,7 +1253,14 @@ async function timeToSubmit({ date_from, date_to, client_id, requirement_id, sou
       id: true,
       created_at: true,
       profile: {
-        select: { name: true, created_at: true, added_by: true, added_by_user: { select: { id: true, name: true } } },
+        select: {
+          name: true,
+          created_at: true,
+          source: true,
+          added_by: true,
+          added_by_user: { select: { id: true, name: true } },
+          vendor_account: { select: { name: true } },
+        },
       },
       seat: {
         select: {
@@ -1294,20 +1301,21 @@ async function timeToSubmit({ date_from, date_to, client_id, requirement_id, sou
       const req = s.seat?.requirement;
       const r1At = firstR1BySub.get(s.id) || null;
       const submittedAt = submittedAtBySub.get(s.id) || null;
+      const reqAt = req?.created_at || null;
       return {
         id: s.id,
-        requirement_created_at: req?.created_at || null,
+        requirement_created_at: reqAt,
         requirement: req?.title || '—',
         client: req?.account?.name || '—',
         candidate: s.profile?.name || '—',
         sourcer: s.profile?.added_by_user?.name || '—',
         sourcer_id: s.profile?.added_by || null,
-        // profile sourced -> submission created for this requirement
-        sourced_to_submission: dur(s.profile?.created_at, s.created_at),
-        // submission created -> first internal round 1 scheduled
-        submission_to_r1: dur(s.created_at, r1At),
-        // first internal round 1 scheduled -> submitted to client
-        r1_to_submitted: dur(r1At, submittedAt),
+        type: SOURCE_LABEL[s.profile?.source] || '—',
+        vendor_name: s.profile?.vendor_account?.name || '—',
+        // all three clocks start when the requirement was created
+        req_to_submission: dur(reqAt, s.created_at),
+        req_to_r1: dur(reqAt, r1At),
+        req_to_submitted: dur(reqAt, submittedAt),
       };
     }),
   };

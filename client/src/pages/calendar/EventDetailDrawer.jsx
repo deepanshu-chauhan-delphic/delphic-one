@@ -7,7 +7,12 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import Drawer from '../../components/ui/Drawer.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import AvatarStack from '../../components/ui/AvatarStack.jsx';
-import { audienceForRoundType, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
+import {
+  audienceForRoundType,
+  eventTypeLabel,
+  hasSubmittedFeedback,
+  isClientMeeting,
+} from '../../lib/interviewRounds.js';
 import { formatTimeRange } from './monthGrid.js';
 
 function Row({ label, children }) {
@@ -38,7 +43,8 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
 
   if (!event) return null;
   const cancelled = event.status === 'cancelled';
-  const meta = roundTypeMeta(event.round_type);
+  const meeting = isClientMeeting(event);
+  const typeLabel = eventTypeLabel(event);
   const audience = event.audience || audienceForRoundType(event.round_type);
   const when = event.scheduled_at ? new Date(event.scheduled_at) : null;
   const nowMs = new Date().getTime();
@@ -47,11 +53,12 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
   const feedbackDone = hasSubmittedFeedback(event);
   // Once feedback exists the assigned interviewer / manager can still open it to
   // review or amend — the CTA just changes label instead of disappearing.
-  const canFeedback = event.can_submit_feedback && !cancelled && (isPastStart || feedbackDone);
+  // Client meetings carry no interview actions (feedback / cancel / reschedule).
+  const canFeedback = !meeting && event.can_submit_feedback && !cancelled && (isPastStart || feedbackDone);
   // Cancel / Reschedule are offered to every role; the server enforces who may
   // actually perform them and 403s otherwise.
-  const canCancel = !cancelled && isFuture;
-  const canReschedule = !cancelled && event.status !== 'completed' && event.result !== 'rescheduled';
+  const canCancel = !meeting && !cancelled && isFuture;
+  const canReschedule = !meeting && !cancelled && event.status !== 'completed' && event.result !== 'rescheduled';
 
   async function doCancel() {
     if (!cancelReason.trim()) {
@@ -116,7 +123,7 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
       onClose={() => !busy && onClose()}
       tone={cancelled ? 'danger' : 'info'}
       size="md"
-      title={`${meta.label}${event.round_name ? `: ${event.round_name}` : ''}`}
+      title={`${typeLabel}${event.round_name ? `: ${event.round_name}` : ''}`}
     >
       <div className="space-y-4">
         {cancelled && (
@@ -137,32 +144,50 @@ export default function EventDetailDrawer({ event, open, onClose, onFeedback, on
             {when?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </Row>
           <Row label="Scheduled by">{event.scheduled_by?.name || 'Not recorded'}</Row>
-          <Row label="Candidate">
-            <Link to={`/submissions/${event.submission_id}`} className="text-primary-700 hover:underline" onClick={onClose}>
-              {event.candidate_name || 'Candidate'}
-            </Link>
-          </Row>
-          <Row label="Requirement">
-            {event.requirement_id ? (
-              <Link
-                to={`/requirements/${event.requirement_id}`}
-                className="text-primary-700 hover:underline"
-                onClick={onClose}
-              >
-                {event.requirement_title || 'View requirement'}
+          {meeting ? (
+            <>
+              <Row label="Mode">{event.meeting_mode === 'offline' ? 'In person' : 'Online'}</Row>
+              {event.meeting_location && <Row label="Location">{event.meeting_location}</Row>}
+            </>
+          ) : (
+            <>
+              <Row label="Candidate">
+                <Link to={`/submissions/${event.submission_id}`} className="text-primary-700 hover:underline" onClick={onClose}>
+                  {event.candidate_name || 'Candidate'}
+                </Link>
+              </Row>
+              <Row label="Requirement">
+                {event.requirement_id ? (
+                  <Link
+                    to={`/requirements/${event.requirement_id}`}
+                    className="text-primary-700 hover:underline"
+                    onClick={onClose}
+                  >
+                    {event.requirement_title || 'View requirement'}
+                  </Link>
+                ) : (
+                  event.requirement_title || 'Not set'
+                )}
+              </Row>
+            </>
+          )}
+          <Row label={meeting ? 'Client' : 'Account'}>
+            {meeting && event.account_id ? (
+              <Link to={`/accounts/${event.account_id}`} className="text-primary-700 hover:underline" onClick={onClose}>
+                {event.account_name || 'View client'}
               </Link>
             ) : (
-              event.requirement_title || 'Not set'
+              event.account_name || 'Not set'
             )}
           </Row>
-          <Row label="Account">{event.account_name || 'Not set'}</Row>
-          <Row label="Interviewers">
+          <Row label={meeting ? 'Attendees' : 'Interviewers'}>
             {event.interviewers?.length ? (
               <AvatarStack people={event.interviewers} max={6} />
             ) : (
               event.interviewer_name || 'Not set'
             )}
           </Row>
+          {meeting && event.meeting_notes && <Row label="Notes">{event.meeting_notes}</Row>}
         </div>
 
         {event.meeting_link && !cancelled && (

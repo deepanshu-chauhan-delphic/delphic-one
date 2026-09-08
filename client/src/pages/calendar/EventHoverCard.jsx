@@ -3,7 +3,13 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import Badge from '../../components/ui/Badge.jsx';
-import { eventAppearance, audienceForRoundType, hasSubmittedFeedback, roundTypeMeta } from '../../lib/interviewRounds.js';
+import {
+  eventAppearance,
+  audienceForRoundType,
+  eventTypeLabel,
+  hasSubmittedFeedback,
+  isClientMeeting,
+} from '../../lib/interviewRounds.js';
 import { formatTimeRange } from './monthGrid.js';
 
 const CARD_W = 380;
@@ -52,7 +58,7 @@ export default function EventHoverCard({
   }, [anchorRect, event]);
 
   const look = eventAppearance(event);
-  const meta = roundTypeMeta(event.round_type);
+  const meeting = isClientMeeting(event);
   const cancelled = event.status === 'cancelled';
   const when = event.scheduled_at ? new Date(event.scheduled_at) : null;
   const dateLabel = when
@@ -61,7 +67,8 @@ export default function EventHoverCard({
   const interviewerNames = event.interviewers?.length
     ? event.interviewers.map((p) => p.name).join(', ')
     : event.interviewer_name || null;
-  const title = event.round_name ? `${meta.label}: ${event.round_name}` : meta.label;
+  const typeLabel = eventTypeLabel(event);
+  const title = event.round_name ? `${typeLabel}: ${event.round_name}` : typeLabel;
   const audience = event.audience || audienceForRoundType(event.round_type);
 
   // Role/permission-gated actions; mirrors the agenda EventCard. `can_submit_feedback`
@@ -70,11 +77,12 @@ export default function EventHoverCard({
   const startMs = event.scheduled_at ? new Date(event.scheduled_at).getTime() : null;
   const live = !cancelled && event.result !== 'rescheduled';
   const feedbackDone = hasSubmittedFeedback(event);
+  // Client meetings have no interview actions.
   const canFeedback =
-    event.can_submit_feedback && live && ((startMs != null && startMs <= nowMs) || feedbackDone);
+    !meeting && event.can_submit_feedback && live && ((startMs != null && startMs <= nowMs) || feedbackDone);
   // Cancel / Reschedule shown to every role; server enforces who may act.
-  const canCancel = live && startMs != null && startMs > nowMs;
-  const canReschedule = live && event.status !== 'completed';
+  const canCancel = !meeting && live && startMs != null && startMs > nowMs;
+  const canReschedule = !meeting && live && event.status !== 'completed';
 
   return createPortal(
     <div
@@ -112,31 +120,46 @@ export default function EventHoverCard({
           <span className="capitalize">{audience}</span>
         </Field>
         <Field label="Scheduled by">{event.scheduled_by?.name || 'Not recorded'}</Field>
-        <Field label="Candidate">
-          {event.submission_id ? (
-            <Link
-              to={`/submissions/${event.submission_id}`}
-              className={`hover:underline ${look.isStruck ? 'text-tertiary-500 line-through' : 'text-primary-700'}`}
-            >
-              {event.candidate_name || 'View candidate'}
-            </Link>
-          ) : (
-            <span className={look.isStruck ? 'line-through text-tertiary-500' : ''}>{event.candidate_name || 'Not set'}</span>
-          )}
-        </Field>
-        <Field label="Requirement">
-          {event.requirement_id ? (
-            <Link to={`/requirements/${event.requirement_id}`} className="text-primary-700 hover:underline">
-              {event.requirement_title || 'View requirement'}
-            </Link>
-          ) : (
-            event.requirement_title || 'Not set'
-          )}
-        </Field>
-        <Field label="Account">{event.account_name || 'Not set'}</Field>
-        <Field label="Interviewers" className="col-span-2">
+        {meeting ? (
+          <Field label="Mode">
+            <span className="capitalize">{event.meeting_mode === 'offline' ? 'In person' : 'Online'}</span>
+          </Field>
+        ) : (
+          <Field label="Candidate">
+            {event.submission_id ? (
+              <Link
+                to={`/submissions/${event.submission_id}`}
+                className={`hover:underline ${look.isStruck ? 'text-tertiary-500 line-through' : 'text-primary-700'}`}
+              >
+                {event.candidate_name || 'View candidate'}
+              </Link>
+            ) : (
+              <span className={look.isStruck ? 'line-through text-tertiary-500' : ''}>{event.candidate_name || 'Not set'}</span>
+            )}
+          </Field>
+        )}
+        {meeting ? (
+          event.meeting_location ? <Field label="Location">{event.meeting_location}</Field> : null
+        ) : (
+          <Field label="Requirement">
+            {event.requirement_id ? (
+              <Link to={`/requirements/${event.requirement_id}`} className="text-primary-700 hover:underline">
+                {event.requirement_title || 'View requirement'}
+              </Link>
+            ) : (
+              event.requirement_title || 'Not set'
+            )}
+          </Field>
+        )}
+        <Field label={meeting ? 'Client' : 'Account'}>{event.account_name || 'Not set'}</Field>
+        <Field label={meeting ? 'Attendees' : 'Interviewers'} className="col-span-2">
           {interviewerNames || 'Not set'}
         </Field>
+        {meeting && event.meeting_notes ? (
+          <Field label="Notes" className="col-span-2">
+            {event.meeting_notes}
+          </Field>
+        ) : null}
         {cancelled && event.cancellation_reason ? (
           <Field label="Cancelled" className="col-span-2">
             {event.cancellation_reason}
