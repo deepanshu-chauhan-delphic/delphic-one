@@ -76,8 +76,8 @@ export const ROUND_GROUP_LEGEND = [
 export const STATUS_LEGEND = [
   { key: 'internal', label: 'Internal (scheduled)', dot: 'bg-sky-500' },
   { key: 'external', label: 'External (scheduled)', dot: 'bg-violet-500' },
-  { key: 'meeting_online', label: 'Client meeting · online', dot: 'bg-blue-500' },
-  { key: 'meeting_offline', label: 'Client meeting · in person', dot: 'bg-amber-500' },
+  { key: 'meeting_online', label: 'Client meeting · online', dot: 'bg-pink-500' },
+  { key: 'meeting_offline', label: 'Client meeting · in person', dot: 'bg-yellow-400' },
   { key: 'pass', label: 'Passed', dot: 'bg-emerald-500' },
   { key: 'fail', label: 'Rejected / failed', dot: 'bg-rose-500' },
   { key: 'no_show', label: 'Candidate did not join', dot: 'bg-orange-500' },
@@ -88,26 +88,27 @@ export const STATUS_LEGEND = [
 /**
  * Client meetings (an account's scheduled meeting) ride the same calendar feed
  * as interviews but get their own hues so a glance separates them: an online
- * meeting is blue, an in-person one amber.
+ * meeting is pink, an in-person one yellow. Full literal class strings so
+ * Tailwind's JIT keeps them.
  */
 const CLIENT_MEETING_LOOK = {
   online: {
     key: 'meeting_online',
-    pill: 'bg-blue-500/15 text-blue-900 border-blue-200',
-    pillBar: 'bg-blue-500',
-    block: 'bg-blue-500 text-white',
-    accent: 'border-l-blue-500',
-    card: 'border-blue-200 bg-blue-50/50',
+    pill: 'bg-pink-500/15 text-pink-900 border-pink-200',
+    pillBar: 'bg-pink-500',
+    block: 'bg-pink-500 text-white',
+    accent: 'border-l-pink-500',
+    card: 'border-pink-200 bg-pink-50/50',
     isMuted: false,
     isStruck: false,
   },
   offline: {
     key: 'meeting_offline',
-    pill: 'bg-amber-500/15 text-amber-900 border-amber-300',
-    pillBar: 'bg-amber-500',
-    block: 'bg-amber-500 text-white',
-    accent: 'border-l-amber-500',
-    card: 'border-amber-200 bg-amber-50/60',
+    pill: 'bg-yellow-400/20 text-yellow-900 border-yellow-300',
+    pillBar: 'bg-yellow-400',
+    block: 'bg-yellow-400 text-yellow-950',
+    accent: 'border-l-yellow-400',
+    card: 'border-yellow-300 bg-yellow-50/70',
     isMuted: false,
     isStruck: false,
   },
