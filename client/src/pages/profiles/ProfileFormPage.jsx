@@ -319,9 +319,9 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
             <Field label="Source" required>
               <select required value={form.source} onChange={(e) => updateField('source', e.target.value)} className={INPUT_CLASS}>
-                <option value="direct">Direct</option>
+                <option value="direct">Bench</option>
                 <option value="vendor">Vendor</option>
-                <option value="linkedin">LinkedIn</option>
+                <option value="linkedin">Market</option>
               </select>
             </Field>
             {form.source === 'vendor' && (

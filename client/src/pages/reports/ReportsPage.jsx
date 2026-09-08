@@ -49,15 +49,17 @@ import {
   chartTypeForReport,
   columnsForReport,
   defaultDateRange,
+  formatReportDate,
+  formatReportDateShort,
   hrSections,
   reportsForRole,
   tableRowsForReport,
 } from './reportViews.js';
 
 const HR_SOURCE_OPTIONS = [
-  { value: 'direct', label: 'Direct' },
+  { value: 'direct', label: 'Bench' },
   { value: 'vendor', label: 'Vendor' },
-  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'linkedin', label: 'Market' },
 ];
 
 const HR_TAB_META = {
@@ -117,7 +119,9 @@ function HrChart({ section, page, onPageChange }) {
   const start = safePage * HR_CHART_WINDOW;
   const data = windowed ? allData.slice(start, start + HR_CHART_WINDOW) : allData;
   const rangeLabel =
-    data.length > 1 ? `${data[0].date} → ${data[data.length - 1].date}` : data[0]?.date || '';
+    data.length > 1
+      ? `${formatReportDate(data[0].date)} → ${formatReportDate(data[data.length - 1].date)}`
+      : formatReportDate(data[0]?.date);
 
   const carousel = windowed ? (
     <div className="flex items-center gap-1.5 text-xs text-tertiary-500">
@@ -156,9 +160,9 @@ function HrChart({ section, page, onPageChange }) {
           {!windowed ? (
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} />
+              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {series.map((s) => (
                 <Bar
@@ -174,9 +178,9 @@ function HrChart({ section, page, onPageChange }) {
           ) : isRound ? (
             <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} />
+              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {series.map((s) => (
                 <Line
@@ -193,9 +197,9 @@ function HrChart({ section, page, onPageChange }) {
           ) : (
             <AreaChart data={data} stackOffset="silhouette" margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} minTickGap={12} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={chartTooltipStyle} />
+              <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {series.map((s) => (
                 <Area

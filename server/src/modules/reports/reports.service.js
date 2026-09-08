@@ -940,7 +940,8 @@ async function recruiterVendorGaps({
 // excluded everywhere. Date anchors: sourcing = Profile.created_at, submission =
 // Submission.created_at, round = InterviewRound.scheduled_at.
 
-const SOURCE_LABEL = { direct: 'Direct', vendor: 'Vendor', linkedin: 'LinkedIn' };
+// Display labels for the candidate-source enum; stored values stay direct/linkedin.
+const SOURCE_LABEL = { direct: 'Bench', vendor: 'Vendor', linkedin: 'Market' };
 
 function dayKey(value) {
   return value ? new Date(value).toISOString().slice(0, 10) : null;

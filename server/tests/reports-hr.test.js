@@ -114,7 +114,7 @@ describe('GET /reports/hr', () => {
   test('sourcing table: counts by sourcer/date/type, excludes on-bench', async () => {
     const res = await getHr(adminToken);
     const rows = table(res.body, 'sourcing').rows;
-    const direct = rows.find((r) => r.type === 'Direct');
+    const direct = rows.find((r) => r.type === 'Bench'); // `direct` enum -> "Bench" label
     const vendor = rows.find((r) => r.type === 'Vendor');
     expect(direct).toMatchObject({ sourcer: 'Prashant', date: today, count: 2 });
     expect(vendor).toMatchObject({ count: 1 });
