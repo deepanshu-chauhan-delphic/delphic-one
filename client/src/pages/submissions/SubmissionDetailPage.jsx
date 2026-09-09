@@ -22,6 +22,7 @@ import SubmissionStageOverrideDrawer from './SubmissionStageOverrideDrawer.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMoveSubmissionBackward,
+  canMoveSubmissionStage,
   canMutateSubmission,
   canOverrideSubmissionStage,
   computeMarginPreview,
@@ -115,14 +116,10 @@ export default function SubmissionDetailPage() {
 
   const canEdit = canMutateSubmission(user) && submission && !submission.is_locked;
 
-  // Sales owners can only mark their own candidate "submitted to client" — no other
-  // stage move and no field edits. Mirrors the server rule in submissions.service.js.
-  const canSalesSubmitToClient =
-    user?.role === 'sales'
-    && submission
-    && !submission.is_locked
-    && submission.stage === 'internal_screening'
-    && submission.requirement?.sales_owner_id === user.id;
+  // Stage moves: sales, recruiter and admin do forward transitions on any
+  // submission (backward moves stay admin-only via canMoveSubmissionBackward).
+  // Independent of canEdit, which gates the field fieldsets (recruiter/admin only).
+  const canMoveStage = canMoveSubmissionStage(user) && submission && !submission.is_locked;
 
   const liveMargin = useMemo(() => {
     if (!form) return { margin: null, margin_percentage: null };
@@ -353,19 +350,11 @@ export default function SubmissionDetailPage() {
         <div className="mt-3">
           <StageStepper stage={submission.stage} />
         </div>
-        {!canEdit && canSalesSubmitToClient ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Tooltip label="Mark this candidate as submitted to the client">
-              <button type="button" className="btn-secondary" onClick={() => openStage('submitted_to_client')}>
-                Move to submitted to client
-              </button>
-            </Tooltip>
-          </div>
-        ) : !canEdit ? (
+        {!canMoveStage ? (
           <p className="mt-3 text-sm text-tertiary-500">
             {submission.is_locked
               ? 'Submission is locked.'
-              : 'Only recruiters or admins can move stages.'}
+              : 'You do not have permission to move stages.'}
           </p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">

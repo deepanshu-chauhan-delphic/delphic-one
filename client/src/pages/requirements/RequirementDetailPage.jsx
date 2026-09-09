@@ -22,11 +22,13 @@ import { canAssignRecruiters } from '../profiles/profileUtils.js';
 import {
   canChangeSeatStage,
   canMutateRequirement,
+  canOverrideRequirementStatus,
   nextRequirementStatuses,
   nextSeatStatuses,
   requiresDropReason,
   requiresJoinedAt,
 } from '../../lib/requirementStages.js';
+import RequirementStatusOverrideDrawer from './RequirementStatusOverrideDrawer.jsx';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -49,6 +51,7 @@ export default function RequirementDetailPage() {
   const [busy, setBusy] = useState(false);
 
   const [statusModal, setStatusModal] = useState(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const [seatModal, setSeatModal] = useState(null);
   const [reason, setReason] = useState('');
   const [joinedAt, setJoinedAt] = useState('');
@@ -97,7 +100,21 @@ export default function RequirementDetailPage() {
 
   const canEdit = canMutateRequirement(requirement, user);
   const canSeat = canChangeSeatStage(user);
+  const canOverrideStatus = canOverrideRequirementStatus(user);
   const locked = Boolean(requirement?.is_locked);
+
+  async function applyStatusOverride(body) {
+    setBusy(true);
+    try {
+      await apiClient.post(`/requirements/${id}/status/override`, body);
+      setOverrideOpen(false);
+      await load();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Status override failed'), 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function confirmRequirementStatus() {
     if (!statusModal) return;
@@ -334,7 +351,14 @@ export default function RequirementDetailPage() {
 
       {/* Status controls */}
       <section className="rounded-lg border bg-white p-4">
-        <h2 className="text-sm font-semibold text-tertiary-800">Requirement status</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-sm font-semibold text-tertiary-800">Requirement status</h2>
+          {canOverrideStatus && (
+            <button type="button" className="btn-secondary text-xs" onClick={() => setOverrideOpen(true)}>
+              Override status…
+            </button>
+          )}
+        </div>
         {locked || !canEdit ? (
           <p className="mt-2 text-sm text-tertiary-500">
             {locked ? 'This requirement is locked. Admin unlock is required to change status.' : 'Only the sales owner or admin can change status.'}
@@ -366,6 +390,16 @@ export default function RequirementDetailPage() {
           </div>
         )}
       </section>
+
+      {canOverrideStatus && (
+        <RequirementStatusOverrideDrawer
+          requirement={requirement}
+          open={overrideOpen}
+          saving={busy}
+          onClose={() => setOverrideOpen(false)}
+          onMove={applyStatusOverride}
+        />
+      )}
 
       {/* Info panels */}
       <div className="grid gap-4 lg:grid-cols-2">

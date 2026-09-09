@@ -34,6 +34,8 @@ const REPORTS = {
   hr: (q) => service.hrReport(q),
   joinings: (q) => service.joinings(q),
   'time-to-submit': (q) => service.timeToSubmit(q),
+  'bda-reports': (q) => service.bdaReports(q),
+  'sales-reports': (q) => service.salesReports(q),
 };
 
 router.get(
@@ -136,6 +138,26 @@ router.get(
 );
 
 router.get(
+  '/bda-reports',
+  authorize('admin', 'bda'),
+  asyncHandler(async (req, res) => {
+    const query = dateRangeSchema.parse(req.query);
+    if (req.user.role === 'bda') query.bda_id = req.user.id;
+    return ok(res, await service.bdaReports(query));
+  })
+);
+
+router.get(
+  '/sales-reports',
+  authorize('admin', 'sales'),
+  asyncHandler(async (req, res) => {
+    const query = dateRangeSchema.parse(req.query);
+    if (req.user.role === 'sales') query.sales_id = req.user.id;
+    return ok(res, await service.salesReports(query));
+  })
+);
+
+router.get(
   '/pipeline-explorer',
   authorize('admin', 'sales', 'recruiter', 'bda'),
   asyncHandler(async (req, res) => {
@@ -188,6 +210,9 @@ router.get(
     else if (report === 'clients-without-requirements' || report === 'recruiter-vendor-gaps') {
       query = coverageSchema.parse(req.query);
     } else query = dateRangeSchema.parse(req.query);
+
+    if (report === 'bda-reports' && req.user.role === 'bda') query.bda_id = req.user.id;
+    if (report === 'sales-reports' && req.user.role === 'sales') query.sales_id = req.user.id;
 
     const data = await fn(query, req.user);
     const sheets = buildExportSheets(report, data);
@@ -255,7 +280,12 @@ function buildExportSheets(report, data) {
     return [{ name: 'pipeline-explorer', rows: data.rows.map((r) => flatten(r)) }];
   }
 
-  if ((report === 'hr' || report === 'joinings') && data && typeof data === 'object' && Array.isArray(data.tables)) {
+  if (
+    ['hr', 'joinings', 'bda-reports', 'sales-reports'].includes(report) &&
+    data &&
+    typeof data === 'object' &&
+    Array.isArray(data.tables)
+  ) {
     return data.tables.map((t) => ({ name: t.title, rows: (t.rows || []).map((r) => flatten(r)) }));
   }
 

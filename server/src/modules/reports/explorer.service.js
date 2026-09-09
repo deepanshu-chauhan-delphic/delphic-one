@@ -91,12 +91,17 @@ function buildRequirementWhere(scopeWhere, filters) {
   if (statuses.length) where.status = { in: statuses };
   if (priorities.length) where.priority = { in: priorities };
   if (filters.date_from || filters.date_to) {
+    // IST calendar day (fixed +05:30) — matches the aggregate reports.
     where.created_at = {};
-    if (filters.date_from) where.created_at.gte = new Date(filters.date_from);
+    if (filters.date_from) {
+      where.created_at.gte = String(filters.date_from).length <= 10
+        ? new Date(`${filters.date_from}T00:00:00.000+05:30`)
+        : new Date(filters.date_from);
+    }
     if (filters.date_to) {
-      const end = new Date(filters.date_to);
-      if (String(filters.date_to).length <= 10) end.setHours(23, 59, 59, 999);
-      where.created_at.lte = end;
+      where.created_at.lte = String(filters.date_to).length <= 10
+        ? new Date(`${filters.date_to}T23:59:59.999+05:30`)
+        : new Date(filters.date_to);
     }
   }
   if (filters.search) {

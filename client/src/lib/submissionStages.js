@@ -118,8 +118,17 @@ export function canCreateSubmission(user) {
   return user && ['recruiter', 'admin'].includes(user.role);
 }
 
+// Who can edit submission fields (rates, notes, files) — PATCH /submissions/:id.
 export function canMutateSubmission(user) {
   return user && ['recruiter', 'admin'].includes(user.role);
+}
+
+// Who can move a submission through the pipeline (POST /submissions/:id/stage).
+// Sales, recruiter and admin all do forward transitions on any submission;
+// backward moves / reactivations are gated separately by canMoveSubmissionBackward
+// (admin / superadmin only).
+export function canMoveSubmissionStage(user) {
+  return user && ['recruiter', 'sales', 'admin'].includes(user.role);
 }
 
 export function pipelineIndex(stage) {

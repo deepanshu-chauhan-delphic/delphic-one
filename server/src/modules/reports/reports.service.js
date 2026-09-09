@@ -6,15 +6,50 @@ function daysBetween(from, to) {
   return (new Date(to) - new Date(from)) / 86400000;
 }
 
-/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; end day inclusive. */
+// The business runs on IST (Asia/Kolkata — fixed +05:30, no DST). Every report
+// buckets rows and closes date ranges on the IST calendar day/month, regardless
+// of the server clock (UTC in prod). `date_from`/`date_to` from the UI are IST
+// `YYYY-MM-DD` strings.
+const IST_OFFSET_MS = 330 * 60 * 1000;
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A Date shifted so its UTC getters (`getUTCFullYear`, `toISOString`, …) read the IST wall clock. */
+function asIst(value) {
+  return new Date(new Date(value).getTime() + IST_OFFSET_MS);
+}
+
+/** IST calendar day of an instant, as `YYYY-MM-DD`. */
+function dayKey(value) {
+  return value ? asIst(value).toISOString().slice(0, 10) : null;
+}
+
+/** IST month of an instant: `{ label: 'Sep 2026', sort: '2026-09' }`. */
+function monthKey(value) {
+  const d = asIst(value);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  return { label: `${MONTHS_SHORT[m]} ${y}`, sort: `${y}-${String(m + 1).padStart(2, '0')}` };
+}
+
+/** Report `date_from` → instant: start of the IST day for `YYYY-MM-DD`, else pass-through. */
+function reportFrom(value) {
+  return typeof value === 'string' && value.length <= 10
+    ? new Date(`${value}T00:00:00.000+05:30`)
+    : new Date(value);
+}
+
+/** Report `date_to` → instant: end of the IST day for `YYYY-MM-DD`, else pass-through. */
+function reportTo(value) {
+  return typeof value === 'string' && value.length <= 10
+    ? new Date(`${value}T23:59:59.999+05:30`)
+    : new Date(value);
+}
+
+/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; IST, end day inclusive. */
 function optionalDateRange(date_from, date_to) {
   const range = {};
-  if (date_from) range.gte = new Date(date_from);
-  if (date_to) {
-    const to = new Date(date_to);
-    if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
-    range.lte = to;
-  }
+  if (date_from) range.gte = reportFrom(date_from);
+  if (date_to) range.lte = reportTo(date_to);
   return Object.keys(range).length ? range : undefined;
 }
 
@@ -141,10 +176,8 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id, departme
     },
   });
 
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  // Include full end day when date_to is YYYY-MM-DD
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     recruiters.map(async (r) => {
@@ -236,9 +269,8 @@ async function salesPerformance({ date_from, date_to, sales_id, department_id })
       ...(department_id ? { department_id } : {}),
     },
   });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     salesUsers.map(async (s) => {
@@ -359,9 +391,8 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
       ...(department_id ? { department_id } : {}),
     },
   });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
   const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
   return Promise.all(
@@ -429,8 +460,8 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
 
 async function vendorPerformance({ date_from, date_to, vendor_id }) {
   const vendors = await prisma.account.findMany({ where: { type: 'vendor', ...(vendor_id ? { id: vendor_id } : {}) } });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     vendors.map(async (v) => {
@@ -469,9 +500,8 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
 
 async function clientPerformance({ date_from, date_to, client_id }) {
   const clients = await prisma.account.findMany({ where: { type: 'client', ...(client_id ? { id: client_id } : {}) } });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
   const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
   return Promise.all(
@@ -698,7 +728,7 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   const rows = await prisma.submission.findMany({
     where: {
       stage: 'closed',
-      actual_joining_date: { gte: new Date(date_from), lte: new Date(date_to) },
+      actual_joining_date: { gte: reportFrom(date_from), lte: reportTo(date_to) },
       ...(department_id ? { submitted_by_user: { department_id } } : {}),
     },
     include: {
@@ -709,11 +739,11 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   });
 
   const groupKey = (row) => {
-    const d = new Date(row.actual_joining_date);
+    const d = asIst(row.actual_joining_date);
     if (group_by === 'client') return row.seat.requirement.account.name;
     if (group_by === 'recruiter') return row.submitted_by_user.name;
-    if (group_by === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
-    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    if (group_by === 'quarter') return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
+    return `${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   };
 
   const groups = new Map();
@@ -943,10 +973,6 @@ async function recruiterVendorGaps({
 // Display labels for the candidate-source enum; stored values stay direct/linkedin.
 const SOURCE_LABEL = { direct: 'Bench', vendor: 'Vendor', linkedin: 'Market' };
 
-function dayKey(value) {
-  return value ? new Date(value).toISOString().slice(0, 10) : null;
-}
-
 function bump(map, key, seed, mutate) {
   if (!map.has(key)) map.set(key, seed());
   mutate(map.get(key));
@@ -1096,14 +1122,6 @@ async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source
 
 // --- Joinings + time-to-submit -------------------------------------------------
 
-function monthKey(value) {
-  const d = new Date(value);
-  return {
-    label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
-    sort: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-  };
-}
-
 /** ms -> "1d 6h" / "4h 20m" / "12m" / "<1m"; null/negative -> null. */
 function formatDuration(ms) {
   if (ms == null || Number.isNaN(ms) || ms < 0) return null;
@@ -1131,6 +1149,16 @@ async function joinings({ date_from, date_to }) {
     where: { stage: 'closed', actual_joining_date: range },
     select: {
       actual_joining_date: true,
+      seat: {
+        select: {
+          requirement: {
+            select: {
+              sales_owner_id: true,
+              sales_owner: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
       profile: {
         select: {
           added_by: true,
@@ -1152,10 +1180,26 @@ async function joinings({ date_from, date_to }) {
   const bySourcer = new Map();
   const byInterviewer = new Map();
   const byVendor = new Map();
+  const bySalesPoc = new Map();
 
   for (const r of rows) {
     const mk = monthKey(r.actual_joining_date);
     const p = r.profile || {};
+
+    // by sales POC (the sales owner of the requirement this joining closed on)
+    const req = r.seat?.requirement;
+    const spId = req?.sales_owner_id || 'none';
+    const spKey = `${mk.sort}|${spId}`;
+    if (!bySalesPoc.has(spKey)) {
+      bySalesPoc.set(spKey, {
+        month: mk.label,
+        sort: mk.sort,
+        sales_poc: req?.sales_owner?.name || 'Unassigned',
+        sales_poc_id: req?.sales_owner_id || null,
+        joinings: 0,
+      });
+    }
+    bySalesPoc.get(spKey).joinings += 1;
 
     // by sourcer
     const sKey = `${mk.sort}|${p.added_by}`;
@@ -1225,6 +1269,280 @@ async function joinings({ date_from, date_to }) {
       { key: 'by_sourcer', title: 'By sourcer', rows: [...bySourcer.values()].sort(sortRows('sourcer')) },
       { key: 'by_interviewer', title: 'By interviewer (L1 / L2)', rows: [...byInterviewer.values()].sort(sortRows('interviewer')) },
       { key: 'by_vendor', title: 'By vendor', rows: [...byVendor.values()].sort(sortRows('vendor')) },
+      { key: 'by_sales_poc', title: 'By sales requirement', rows: [...bySalesPoc.values()].sort(sortRows('sales_poc')) },
+    ],
+  };
+}
+
+// --- BDA + Sales daily activity reports --------------------------------------
+
+const byDateThenNameDesc = (nameKey) => (a, b) =>
+  (b.date || '').localeCompare(a.date || '') || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+/**
+ * BDA reports — 5 tables, all keyed off `origin_owner_id` ("Brought by", the
+ * immutable account creator). `bda_id` scopes every table to one person.
+ *   1. accounts_created        - accounts brought per BDA per day (+ type split on hover)
+ *   2. meetings_scheduled      - account meetings scheduled per BDA per day, with how
+ *                                many of those accounts are active now
+ *   3. meetings_conversion     - the same, rolled up per BDA (no date)
+ *   4. requirements_brought    - one row per requirement on a BDA-brought *client*
+ *   5. requirements_brought_counts - those requirements counted per BDA per day
+ */
+async function bdaReports({ date_from, date_to, bda_id }) {
+  const range = optionalDateRange(date_from, date_to);
+  const ownerScope = bda_id ? { origin_owner_id: bda_id } : { origin_owner_id: { not: null } };
+
+  // 1. accounts created (brought)
+  const accounts = await prisma.account.findMany({
+    where: { ...ownerScope, ...(range ? { created_at: range } : {}) },
+    select: {
+      created_at: true,
+      type: true,
+      origin_owner_id: true,
+      origin_owner: { select: { id: true, name: true } },
+    },
+  });
+  const TYPE_LABEL = { client: 'Client', vendor: 'Vendor' };
+  const accountsCreated = new Map();
+  for (const a of accounts) {
+    const day = dayKey(a.created_at);
+    const key = `${a.origin_owner_id}|${day}`;
+    if (!accountsCreated.has(key)) {
+      accountsCreated.set(key, {
+        bda: a.origin_owner?.name || 'Unknown',
+        bda_id: a.origin_owner_id,
+        date: day,
+        count: 0,
+        by_type: {},
+      });
+    }
+    const row = accountsCreated.get(key);
+    row.count += 1;
+    const label = TYPE_LABEL[a.type] || 'Unclassified';
+    row.by_type[label] = (row.by_type[label] || 0) + 1;
+  }
+
+  // 2 & 3. meetings scheduled (stage_history: account -> meeting_scheduled)
+  const meetingEvents = await prisma.stageHistory.findMany({
+    where: {
+      entity_type: 'account',
+      to_stage: 'meeting_scheduled',
+      ...(range ? { changed_at: range } : {}),
+      ...(bda_id ? { changed_by: bda_id } : {}),
+    },
+    select: {
+      changed_at: true,
+      changed_by: true,
+      changed_by_user: { select: { id: true, name: true } },
+      entity_id: true,
+    },
+  });
+  const meetingAccountIds = [...new Set(meetingEvents.map((e) => e.entity_id))];
+  const activeNow = meetingAccountIds.length
+    ? new Set(
+        (
+          await prisma.account.findMany({
+            where: { id: { in: meetingAccountIds }, stage: 'active' },
+            select: { id: true },
+          })
+        ).map((a) => a.id)
+      )
+    : new Set();
+
+  const meetingsScheduled = new Map();
+  const meetingsConversion = new Map();
+  for (const e of meetingEvents) {
+    const day = dayKey(e.changed_at);
+    const converted = activeNow.has(e.entity_id) ? 1 : 0;
+    const dayKeyStr = `${e.changed_by}|${day}`;
+    if (!meetingsScheduled.has(dayKeyStr)) {
+      meetingsScheduled.set(dayKeyStr, {
+        bda: e.changed_by_user?.name || 'Unknown',
+        bda_id: e.changed_by,
+        date: day,
+        meetings_scheduled: 0,
+        converted_to_active: 0,
+      });
+    }
+    const dRow = meetingsScheduled.get(dayKeyStr);
+    dRow.meetings_scheduled += 1;
+    dRow.converted_to_active += converted;
+
+    if (!meetingsConversion.has(e.changed_by)) {
+      meetingsConversion.set(e.changed_by, {
+        bda: e.changed_by_user?.name || 'Unknown',
+        bda_id: e.changed_by,
+        meetings_scheduled: 0,
+        converted_to_active: 0,
+      });
+    }
+    const cRow = meetingsConversion.get(e.changed_by);
+    cRow.meetings_scheduled += 1;
+    cRow.converted_to_active += converted;
+  }
+
+  // 4 & 5. requirements on BDA-brought *client* accounts
+  const requirements = await prisma.requirement.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      account: { type: 'client', ...ownerScope },
+    },
+    select: {
+      title: true,
+      created_at: true,
+      account: {
+        select: {
+          id: true,
+          name: true,
+          origin_owner_id: true,
+          origin_owner: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  const requirementsBrought = requirements
+    .map((r) => ({
+      bda: r.account?.origin_owner?.name || 'Unknown',
+      bda_id: r.account?.origin_owner_id || null,
+      client: r.account?.name || '—',
+      client_id: r.account?.id || null,
+      requirement: r.title,
+      date: dayKey(r.created_at),
+    }))
+    .sort(byDateThenNameDesc('bda'));
+
+  const requirementsBroughtCounts = new Map();
+  for (const r of requirementsBrought) {
+    const key = `${r.bda_id}|${r.date}`;
+    if (!requirementsBroughtCounts.has(key)) {
+      requirementsBroughtCounts.set(key, {
+        bda: r.bda,
+        bda_id: r.bda_id,
+        date: r.date,
+        count: 0,
+        clients: {},
+      });
+    }
+    const row = requirementsBroughtCounts.get(key);
+    row.count += 1;
+    row.clients[r.client] = (row.clients[r.client] || 0) + 1;
+  }
+
+  return {
+    tables: [
+      {
+        key: 'accounts_created',
+        title: 'Accounts brought',
+        rows: [...accountsCreated.values()].sort(byDateThenNameDesc('bda')),
+      },
+      {
+        key: 'meetings_scheduled',
+        title: 'Meetings scheduled',
+        rows: [...meetingsScheduled.values()].sort(byDateThenNameDesc('bda')),
+      },
+      {
+        key: 'meetings_conversion',
+        title: 'Meetings → active (by BDA)',
+        rows: [...meetingsConversion.values()].sort((a, b) => (a.bda || '').localeCompare(b.bda || '')),
+      },
+      {
+        key: 'requirements_brought',
+        title: 'Requirements from BDA clients',
+        rows: requirementsBrought,
+      },
+      {
+        key: 'requirements_brought_counts',
+        title: 'Requirements from BDA clients (count)',
+        rows: [...requirementsBroughtCounts.values()].sort(byDateThenNameDesc('bda')),
+      },
+    ],
+  };
+}
+
+/**
+ * Sales reports — 2 tables. `sales_id` scopes both to one person.
+ *   1. requirements_created - requirements per Sales POC (`sales_owner_id`) per day,
+ *                             client names on hover
+ *   2. meetings_attended    - account meetings the Sales POC is an attendee of,
+ *                             per day (day = the account's meeting_date)
+ */
+async function salesReports({ date_from, date_to, sales_id }) {
+  const range = optionalDateRange(date_from, date_to);
+
+  // 1. requirements created, by sales owner
+  const requirements = await prisma.requirement.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      ...(sales_id ? { sales_owner_id: sales_id } : {}),
+    },
+    select: {
+      created_at: true,
+      sales_owner_id: true,
+      sales_owner: { select: { id: true, name: true } },
+      account: { select: { name: true } },
+    },
+  });
+  const requirementsCreated = new Map();
+  for (const r of requirements) {
+    const day = dayKey(r.created_at);
+    const key = `${r.sales_owner_id}|${day}`;
+    if (!requirementsCreated.has(key)) {
+      requirementsCreated.set(key, {
+        sales_poc: r.sales_owner?.name || 'Unknown',
+        sales_poc_id: r.sales_owner_id,
+        date: day,
+        count: 0,
+        clients: {},
+      });
+    }
+    const row = requirementsCreated.get(key);
+    row.count += 1;
+    const client = r.account?.name || '—';
+    row.clients[client] = (row.clients[client] || 0) + 1;
+  }
+
+  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date)
+  const attendedAccounts = await prisma.account.findMany({
+    where: {
+      meeting_date: range || { not: null },
+      meeting_attendees: sales_id ? { some: { user_id: sales_id } } : { some: {} },
+    },
+    select: {
+      meeting_date: true,
+      meeting_attendees: { select: { user: { select: { id: true, name: true } } } },
+    },
+  });
+  const meetingsAttended = new Map();
+  for (const a of attendedAccounts) {
+    const day = dayKey(a.meeting_date);
+    for (const att of a.meeting_attendees) {
+      if (sales_id && att.user?.id !== sales_id) continue;
+      const key = `${att.user?.id}|${day}`;
+      if (!meetingsAttended.has(key)) {
+        meetingsAttended.set(key, {
+          sales_poc: att.user?.name || 'Unknown',
+          sales_poc_id: att.user?.id || null,
+          date: day,
+          count: 0,
+        });
+      }
+      meetingsAttended.get(key).count += 1;
+    }
+  }
+
+  return {
+    tables: [
+      {
+        key: 'requirements_created',
+        title: 'Requirements created',
+        rows: [...requirementsCreated.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
+      {
+        key: 'meetings_attended',
+        title: 'Meetings attended',
+        rows: [...meetingsAttended.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
     ],
   };
 }
@@ -1334,4 +1652,6 @@ module.exports = {
   hrReport,
   joinings,
   timeToSubmit,
+  bdaReports,
+  salesReports,
 };

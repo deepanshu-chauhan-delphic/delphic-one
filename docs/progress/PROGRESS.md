@@ -2,6 +2,73 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-09 — Reports: all date bucketing + range filtering moved to IST — branch `dev-deep`
+
+- **Bug:** a custom "1 Sep – 1 Sep" range and "This month" disagreed on 1 Sep's counts. Root cause: reports bucketed rows by **UTC** day and `date_from` parsed as UTC midnight, while the `date_to` end-of-day was computed in the server's **local** tz. Two inconsistencies at once (UTC bucket vs local range; and neither is what an IST user means by "1 September").
+- **Fix — everything is IST now** (`Asia/Kolkata`, fixed +05:30, no DST), independent of the server clock:
+  - `reports.service.js`: new `asIst()` / `dayKey` / `monthKey` bucket on the IST wall clock; new `reportFrom`/`reportTo` turn a `YYYY-MM-DD` param into `T00:00:00+05:30` / `T23:59:59.999+05:30`. Used by `optionalDateRange` **and** the inline `from`/`to` in `recruiter/sales/bda/vendor/clientPerformance` + `closure` (whose month/quarter group labels now also read IST). Old UTC `dayKey`/`monthKey` deleted.
+  - `explorer.service.js`: pipeline-explorer `created_at` range inlines the same `+05:30` literals.
+- Effect: a meeting at `2026-09-09T19:30Z` (= 10 Sep 01:00 IST) now buckets on **Sep 10** everywhere, and a same-day custom range catches it — custom and monthly agree. Some day counts shift vs the old UTC behaviour (this is the correct IST answer).
+- Client `formatReportDate` unchanged — pure `YYYY-MM-DD` strings from the API render tz-safe; raw timestamps still render in the viewer's tz (IST in practice).
+- Test: `reports-bda-sales.test.js` — IST day-boundary test (same-day vs wide range agree, bucketed on the IST day not the UTC day). All 63 report tests green.
+
+## 2026-09-09 — Sales can move submission stages (forward, any submission) — branch `dev-deep`
+
+- **Problem:** the client only ever surfaced submission stage-move actions to `recruiter`/`admin` (`canMutateSubmission`), so a sales user saw nothing clickable — while the server allowed sales exactly one move (`internal_screening → submitted_to_client` on an owned requirement). Net effect: sales couldn't move stages at all in practice.
+- **Server** (`submissions.service.changeStage`): dropped the `if (user.role === 'sales')` restriction block. Sales now flows through the same path as recruiter — any **forward** transition on **any** submission. Backward moves / reactivations are still gated to admin/superadmin by the existing `backward` guard (`forbidden_backward`, reason required); `rejected`/`backout` reasons still enforced. `forbidden_stage_change` error is now unused but kept in the controller map.
+- **Client** (`lib/submissionStages.js`): new `canMoveSubmissionStage(user)` = `recruiter|sales|admin`, used for the move UI in `CandidatePipelineBoard`, `RequirementKanbanPage`, `AccountPipelineBoardPage`, and the `SubmissionDetailPage` Stage section (the old `canSalesSubmitToClient` special-case removed). `canMutateSubmission` stays `recruiter|admin` and still gates field-edit fieldsets + submission create.
+- Tests: `submissions-stage.test.js` +3 (`sales stage permissions` — forward on a non-owned requirement, reject/backout with reason, still-blocked backward). Full submissions + entity-access suites green; client lint/build clean.
+
+## 2026-09-09 — BDA reports + Sales reports + joinings "by sales requirement" — branch `dev-deep`
+
+- **New `GET /reports/bda-reports`** (`authorize('admin','bda')`, `bda` scoped to self via `bda_id`). `reports.service.bdaReports` → `{ tables: [...] }`, 5 per-day tables, all keyed off `Account.origin_owner_id` ("Brought by"):
+  1. `accounts_created` — accounts brought per BDA per day; Count hover shows the Client/Vendor/Unclassified split (`by_type`).
+  2. `meetings_scheduled` — `stage_history` rows `entity_type='account'`, `to_stage='meeting_scheduled'`, grouped by `changed_by` + day; plus `converted_to_active` = how many of those accounts are `stage='active'` right now.
+  3. `meetings_conversion` — the same rolled up per BDA (no date).
+  4. `requirements_brought` — one row per requirement on a BDA-brought **client** account (BDA / clickable Client → `/accounts/:id` / requirement / date).
+  5. `requirements_brought_counts` — #4 counted per BDA per day; Count hover lists client names.
+- **New `GET /reports/sales-reports`** (`authorize('admin','sales')`, `sales` scoped to self via `sales_id`). `reports.service.salesReports` → 2 per-day tables:
+  1. `requirements_created` — requirements per `sales_owner_id` per day; Count hover lists client names.
+  2. `meetings_attended` — accounts where the sales user is in `meeting_attendees`, counted by the account's `meeting_date` day. (One meeting per account in the data model — reschedules overwrite `meeting_date`.)
+- **Joinings report gains a 4th tab** `by_sales_poc` ("By sales requirement") — joinings grouped by month + the joining's requirement `sales_owner`. `joinings()` now selects `seat.requirement.sales_owner`.
+- Both new reports take only a date range, are `authorize('admin','sales')` for `/export` (BDA export not wired — view in-app), and produce one export sheet per table (same as HR / joinings).
+- Client: `ALL_REPORTS` gains `bda-reports` (admin, bda) + `sales-reports` (admin, sales); `bdaReportsSections()` / `salesReportsSections()` + column defs in `reportViews.js` (`hoverCount` for the breakdown cells, `clientLink` for the clickable client); `ReportsPage` renders them with the joinings-style tab cards (`bdaReportsTab` / `salesReportsTab` state, `isDateOnly` extended). Tab-card badge for these two reports is `sectionTabBadge()` — the **sum of the count column** (total meetings / requirements for the range), not the grouped-row count, since these are daily aggregate tables. Detail tables (`requirements_brought`) still badge row count.
+- Tests: `server/tests/reports-bda-sales.test.js` (8 — per-day counts, type split, meeting conversion, client-only filter, self-scoping for bda + sales, the joinings `by_sales_poc` tab). `reportViews.test.mjs` role lists updated. Server + client lint/build green.
+
+## 2026-09-09 — Superadmin requirement status override (reopen dropped/closed) — branch `dev-deep`
+
+- **Problem:** `REQUIREMENT_STATUS_TRANSITIONS` maps `closed` and `dropped` to `[]`
+  and dropping sets `is_locked = true`, so a dropped requirement had no way back —
+  `POST /requirements/:id/status` rejects it twice (`locked`, then
+  `invalid_transition`) and `updateSchema` has no `status` field. Submissions and
+  accounts already had `POST /:id/stage/override`; requirements never did.
+- **New:** `POST /requirements/:id/status/override` (`authorizeSuperadmin`) —
+  force a requirement to ANY status, bypassing the transition map, the lock, and
+  the seats-closed gate. `reason` required; audited in `stage_history` as
+  `[override] <reason>`. Clears `closed_at` unless the target is `closed`; may
+  flip the lock via optional `is_locked`. `statusOverrideSchema` +
+  `service.changeStatusOverride` + `controller.changeStatusOverride` + route.
+  Mirrors `POST /accounts/:id/stage/override`.
+- **Client:** `RequirementStatusOverrideDrawer` (status select over
+  `REQUIREMENT_ALL_STATUSES` + required reason + "keep record locked" checkbox).
+  `requirementStages.js` gains `REQUIREMENT_ALL_STATUSES` +
+  `canOverrideRequirementStatus`. Wired into:
+  - `JobPipelineBoard` — a superadmin dragging a card to a disallowed column (or
+    the new "Override status…" card action) opens the drawer preset to the drop
+    target; superadmins can now drag locked / terminal cards. Ordinary roles
+    still get the "Cannot move from X to Y" toast.
+  - `RequirementDetailPage` — "Override status…" button in the Requirement status
+    section (always shown for superadmins, even when locked / no transitions).
+- **Reports impact:** none historical. Every report/dashboard query reads
+  requirement `status` + `closed_at` live (no snapshots) and keys closure metrics
+  on `status: 'closed'` + `closed_at`, which a dropped req never had. Reopening a
+  dropped→open req just moves it out of the `dropped` count and back into the
+  `open`/active population everywhere; `updated_at` bumps so it is not
+  immediately "stuck". No report reads requirement `stage_history`.
+- **One-off:** `server/scripts/reopen-dropped-requirement.js` — dry-run by
+  default, `--commit` to apply; for the requirement already stuck before this
+  shipped. Run it in the target environment (not committed data).
+
 ## 2026-09-08 — Time to submit re-anchored + Type/Vendor cols + client meetings on the calendar — branch `dev-deep`
 
 - **Time to submit** — the three durations now all start at **requirement
