@@ -252,6 +252,43 @@ async function changeStatus(id, { to_status, reason }, user) {
   });
 }
 
+// Superadmin-only: move a requirement to any status — backward, or out of the
+// terminal `closed` / `dropped` states — ignoring ownership, the lock, the
+// transition map, and the seats-closed gate. Still audited in stage_history.
+async function changeStatusOverride(id, { to_status, reason, is_locked }, user) {
+  return prisma.$transaction(async (tx) => {
+    const requirement = await tx.requirement.findUnique({ where: { id } });
+    if (!requirement) return { error: 'not_found' };
+
+    const patch = { status: to_status };
+    if (is_locked !== undefined) patch.is_locked = is_locked;
+    if (to_status === 'closed') {
+      patch.closed_at = new Date();
+    } else {
+      patch.closed_at = null;
+    }
+
+    const updated = await tx.requirement.update({
+      where: { id },
+      data: patch,
+      include: DECORATE_INCLUDE,
+    });
+
+    await tx.stageHistory.create({
+      data: {
+        entity_type: 'requirement',
+        entity_id: id,
+        from_stage: requirement.status,
+        to_stage: to_status,
+        changed_by: user.id,
+        reason: `[override] ${reason}`,
+      },
+    });
+
+    return { requirement: serialize(updated) };
+  });
+}
+
 async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
   const requirement = await prisma.requirement.findUnique({ where: { id: requirementId } });
   if (!requirement) return { error: 'not_found' };
@@ -447,6 +484,7 @@ module.exports = {
   create,
   update,
   changeStatus,
+  changeStatusOverride,
   assign,
   unassign,
   getAssignments,

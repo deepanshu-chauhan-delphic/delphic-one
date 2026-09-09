@@ -13,7 +13,7 @@ import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMoveSubmissionBackward,
-  canMutateSubmission,
+  canMoveSubmissionStage,
   canOverrideSubmissionStage,
   isBackwardTransition,
   nextSubmissionStages,
@@ -160,7 +160,7 @@ export default function RequirementKanbanPage() {
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
 
-  const canMove = canMutateSubmission(user);
+  const canMove = canMoveSubmissionStage(user);
   const canMoveBackward = canMoveSubmissionBackward(user);
   const canOverride = canOverrideSubmissionStage(user);
 

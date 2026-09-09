@@ -11,10 +11,12 @@ import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   canCreateRequirement,
   canMutateRequirement,
+  canOverrideRequirementStatus,
   nextRequirementStatuses,
   requiresDropReason,
 } from '../../lib/requirementStages.js';
 import RequirementFormPage from '../requirements/RequirementFormPage.jsx';
+import RequirementStatusOverrideDrawer from '../requirements/RequirementStatusOverrideDrawer.jsx';
 import { JOB_COLUMNS, formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
@@ -102,8 +104,10 @@ function RequirementStatusDrawer({ requirement, open, saving, preferredToStatus,
 function JobCard({
   requirement,
   user,
+  canOverride,
   isDragging,
   onRequestMove,
+  onRequestOverride,
   onToggleExpand,
   expanded,
   previews,
@@ -130,6 +134,9 @@ function JobCard({
           danger: status === 'dropped',
           onClick: () => onRequestMove(requirement, status),
         }))
+      : []),
+    ...(canOverride
+      ? [{ key: 'override', label: 'Override status…', onClick: () => onRequestOverride(requirement) }]
       : []),
   ];
 
@@ -217,6 +224,8 @@ export default function JobPipelineBoard() {
   });
   const [statusTarget, setStatusTarget] = useState(null);
   const [preferredToStatus, setPreferredToStatus] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState(null);
+  const [preferredOverrideStatus, setPreferredOverrideStatus] = useState('');
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -225,6 +234,7 @@ export default function JobPipelineBoard() {
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const canCreate = canCreateRequirement(user);
+  const canOverride = canOverrideRequirementStatus(user);
 
   async function toggleExpand(requirement) {
     if (expandedId === requirement.id) {
@@ -258,9 +268,33 @@ export default function JobPipelineBoard() {
     }
   }
 
+  async function applyOverride(body) {
+    if (!overrideTarget) return;
+    setMoving(true);
+    try {
+      await apiClient.post(`/requirements/${overrideTarget.id}/status/override`, body);
+      setOverrideTarget(null);
+      setPreferredOverrideStatus('');
+      reload();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Status override failed'), 'Something went wrong');
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  function requestOverride(requirement, toStatus = '') {
+    setPreferredOverrideStatus(toStatus);
+    setOverrideTarget(requirement);
+  }
+
   function requestMove(requirement, toStatus) {
     const allowed = nextRequirementStatuses(requirement.status);
     if (!allowed.includes(toStatus)) {
+      if (canOverride) {
+        requestOverride(requirement, toStatus);
+        return;
+      }
       pushError(`Cannot move from ${formatStageLabel(requirement.status)} to ${formatStageLabel(toStatus)}`, 'Validation');
       return;
     }
@@ -346,7 +380,8 @@ export default function JobPipelineBoard() {
                 </header>
                 <DroppableColumn id={status} isOver={overId === status} className="max-h-[calc(100vh-16rem)]">
                   {cards.map((requirement) => {
-                    const canMove = canMutateRequirement(requirement, user) && !requirement.is_locked;
+                    const canMove =
+                      (canMutateRequirement(requirement, user) && !requirement.is_locked) || canOverride;
                     return (
                       <DraggableCard
                         key={requirement.id}
@@ -358,8 +393,10 @@ export default function JobPipelineBoard() {
                           <JobCard
                             requirement={requirement}
                             user={user}
+                            canOverride={canOverride}
                             isDragging={isDragging}
                             onRequestMove={requestMove}
+                            onRequestOverride={requestOverride}
                             onToggleExpand={toggleExpand}
                             expanded={expandedId === requirement.id}
                             previews={previewsByReq[requirement.id]}
@@ -397,6 +434,20 @@ export default function JobPipelineBoard() {
         }}
         onMove={moveStatus}
       />
+
+      {canOverride && (
+        <RequirementStatusOverrideDrawer
+          requirement={overrideTarget}
+          open={Boolean(overrideTarget)}
+          preferredToStatus={preferredOverrideStatus}
+          saving={moving}
+          onClose={() => {
+            setOverrideTarget(null);
+            setPreferredOverrideStatus('');
+          }}
+          onMove={applyOverride}
+        />
+      )}
 
       <Drawer open={createOpen} title="New requirement" onClose={() => setCreateOpen(false)} size="lg" tone="create">
         {createOpen && (

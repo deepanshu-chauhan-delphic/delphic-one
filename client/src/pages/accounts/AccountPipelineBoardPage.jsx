@@ -17,7 +17,7 @@ import { BOARD_COLUMNS, groupBoard, stageColumnStats } from '../../lib/accountBo
 import {
   canCreateSubmission,
   canMoveSubmissionBackward,
-  canMutateSubmission,
+  canMoveSubmissionStage,
   canOverrideSubmissionStage,
   isBackwardTransition,
   nextSubmissionStages,
@@ -176,7 +176,7 @@ export default function AccountPipelineBoardPage() {
   const [createProfileOpen, setCreateProfileOpen] = useState(false);
   const [submitForReqId, setSubmitForReqId] = useState(null);
 
-  const canMoveSubs = canMutateSubmission(user);
+  const canMoveSubs = canMoveSubmissionStage(user);
   const canMoveSubsBackward = canMoveSubmissionBackward(user);
   const canOverrideSubs = canOverrideSubmissionStage(user);
   const canSubmit = canCreateSubmission(user);

@@ -52,6 +52,15 @@ const statusSchema = z.object({
   reason: z.string().optional(),
 });
 
+// Superadmin-only free-form status move: any target status (incl. backward, or out
+// of the terminal `closed` / `dropped` states), reason required, may also flip the
+// lock. Bypasses REQUIREMENT_STATUS_TRANSITIONS and the seats-closed gate.
+const statusOverrideSchema = z.object({
+  to_status: z.enum(['open', 'in_progress', 'on_hold', 'closed', 'dropped']),
+  reason: z.string().min(1),
+  is_locked: z.boolean().optional(),
+});
+
 const assignSchema = z.object({
   user_id: z.string().uuid(),
   role_on_req: z.enum(['sales', 'recruiter']),
@@ -92,6 +101,7 @@ module.exports = {
   createSchema,
   updateSchema,
   statusSchema,
+  statusOverrideSchema,
   assignSchema,
   unassignSchema,
   seatCreateSchema,

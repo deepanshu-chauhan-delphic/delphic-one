@@ -191,15 +191,8 @@ async function changeStage(id, { to_stage, reason, backout_reason, rejection_rea
       if (!reason || !reason.trim()) return { error: 'reason_required' };
     }
 
-    // Sales users may only mark a candidate "submitted to client" on their own
-    // requirement; every other stage move stays recruiter/admin-only.
-    if (user.role === 'sales') {
-      if (submission.stage !== 'internal_screening' || to_stage !== 'submitted_to_client') {
-        return { error: 'forbidden_stage_change' };
-      }
-      const salesOwnerId = await loadRequirementSalesOwnerId(tx, submission);
-      if (salesOwnerId !== user.id) return { error: 'forbidden_stage_change' };
-    }
+    // Sales, recruiter and admin all do forward stage moves on any submission.
+    // Backward moves / reactivations stay admin-only via the `backward` guard above.
 
     if (to_stage === 'backout' && !(backout_reason || reason)) return { error: 'backout_reason_required' };
     if (to_stage === 'rejected' && !(rejection_reason || reason)) return { error: 'rejection_reason_required' };

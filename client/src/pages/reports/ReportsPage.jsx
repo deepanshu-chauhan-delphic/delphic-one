@@ -52,6 +52,9 @@ import {
   hrSections,
   hrTypeSummary,
   joiningsSections,
+  bdaReportsSections,
+  salesReportsSections,
+  sectionTabBadge,
   reportsForRole,
   tableRowsForReport,
   timeToSubmitColumns,
@@ -312,6 +315,8 @@ export default function ReportsPage() {
   const [hrPeople, setHrPeople] = useState([]);
   const [hrTab, setHrTab] = useState('sourcing');
   const [joiningsTab, setJoiningsTab] = useState('by_sourcer');
+  const [bdaReportsTab, setBdaReportsTab] = useState('accounts_created');
+  const [salesReportsTab, setSalesReportsTab] = useState('requirements_created');
   const [ttsClientId, setTtsClientId] = useState('');
   const [ttsRequirementId, setTtsRequirementId] = useState('');
   const [ttsSourcerId, setTtsSourcerId] = useState('');
@@ -334,7 +339,9 @@ export default function ReportsPage() {
   const isHr = active === 'hr';
   const isJoinings = active === 'joinings';
   const isTimeToSubmit = active === 'time-to-submit';
-  const isDateOnly = isHr || isJoinings || isTimeToSubmit; // reports that take only a date range
+  const isBdaReports = active === 'bda-reports';
+  const isSalesReports = active === 'sales-reports';
+  const isDateOnly = isHr || isJoinings || isTimeToSubmit || isBdaReports || isSalesReports; // reports that take only a date range
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
   const isRvg = active === 'recruiter-vendor-gaps';
@@ -670,9 +677,17 @@ export default function ReportsPage() {
         ? hrSections(payload)
         : active === 'joinings'
           ? joiningsSections(payload)
-          : [];
+          : active === 'bda-reports'
+            ? bdaReportsSections(payload)
+            : active === 'sales-reports'
+              ? salesReportsSections(payload)
+              : [];
   const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
   const joiningsSection = isJoinings ? sections.find((s) => s.key === joiningsTab) || sections[0] : null;
+  const bdaReportsSection = isBdaReports ? sections.find((s) => s.key === bdaReportsTab) || sections[0] : null;
+  const salesReportsSection = isSalesReports
+    ? sections.find((s) => s.key === salesReportsTab) || sections[0]
+    : null;
   // Count cell reveals the per-source split (Bench 3 · Vendor 2 · Market 1) on hover.
   const hrColumns = (hrSection?.columns || []).map((col) =>
     col.key === 'count'
@@ -1262,6 +1277,49 @@ export default function ReportsPage() {
             rows={joiningsSection?.rows || []}
             loading={loading}
             emptyLabel="No joinings in this range"
+          />
+        </div>
+      ) : isBdaReports || isSalesReports ? (
+        <div className="space-y-4">
+          <div
+            className="grid gap-2 grid-cols-1 sm:grid-cols-3 lg:grid-cols-5"
+            role="tablist"
+            aria-label={isBdaReports ? 'BDA report tables' : 'Sales report tables'}
+          >
+            {sections.map((section) => {
+              const activeSection = isBdaReports ? bdaReportsSection : salesReportsSection;
+              const selected = activeSection?.key === section.key;
+              const setTab = isBdaReports ? setBdaReportsTab : setSalesReportsTab;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(section.key)}
+                  className={`relative rounded-xl border px-3 py-2.5 pr-12 text-left text-sm font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 text-primary-800 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 text-tertiary-800 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {section.title}
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {sectionTabBadge(section)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DataTable
+            columns={(isBdaReports ? bdaReportsSection : salesReportsSection)?.columns || []}
+            rows={(isBdaReports ? bdaReportsSection : salesReportsSection)?.rows || []}
+            loading={loading}
+            emptyLabel="No rows for this range"
           />
         </div>
       ) : isTimeToSubmit ? (

@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { Link } from 'react-router-dom';
 import { rangeForPreset } from '../../lib/datePresets.js';
 
 /**
@@ -22,6 +23,8 @@ export const ALL_REPORTS = [
   { key: 'hr', label: 'HR reports', roles: ['admin'] },
   { key: 'joinings', label: 'Joinings', roles: ['admin', 'sales'] },
   { key: 'time-to-submit', label: 'Time to submit', roles: ['admin', 'sales'] },
+  { key: 'bda-reports', label: 'BDA reports', roles: ['admin', 'bda'] },
+  { key: 'sales-reports', label: 'Sales reports', roles: ['admin', 'sales'] },
 ];
 
 export function reportsForRole(role) {
@@ -370,6 +373,11 @@ const JOININGS_COLUMNS = {
     { key: 'vendor', header: 'Vendor' },
     { key: 'joinings', header: 'Joinings' },
   ],
+  by_sales_poc: [
+    { key: 'month', header: 'Month' },
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
 };
 
 export function joiningsSections(data) {
@@ -380,6 +388,114 @@ export function joiningsSections(data) {
     columns: JOININGS_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
     rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
   }));
+}
+
+// --- BDA + Sales daily activity reports ------------------------------------
+const reportDate = (header) => ({ key: 'date', header, render: (r) => formatReportDate(r.date) });
+
+/** "Client 3 · Vendor 1" from a { label: count } map; sorted desc. */
+export function countSummary(map) {
+  const parts = Object.entries(map || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => `${label} ${n}`);
+  return parts.join(' · ') || '—';
+}
+
+// A count cell that reveals a { label: count } breakdown on hover.
+// eslint-disable-next-line react/display-name
+const hoverCount = (mapKey) => (r) => {
+  const map = r[mapKey];
+  if (!map || !Object.keys(map).length) return r.count ?? 0;
+  return createElement(
+    'span',
+    { title: countSummary(map), className: 'cursor-help border-b border-dotted border-tertiary-300' },
+    r.count ?? 0
+  );
+};
+
+const clientLink = (r) =>
+  r.client_id
+    ? createElement(Link, { to: `/accounts/${r.client_id}`, className: 'text-primary-600 hover:underline' }, r.client)
+    : r.client || '—';
+
+const BDA_REPORTS_COLUMNS = {
+  accounts_created: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'count', header: 'Count', render: hoverCount('by_type') },
+    reportDate('Date'),
+  ],
+  meetings_scheduled: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'meetings_scheduled', header: 'Meetings scheduled' },
+    { key: 'converted_to_active', header: 'Converted to active' },
+    reportDate('Date'),
+  ],
+  meetings_conversion: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'meetings_scheduled', header: 'Meetings scheduled' },
+    { key: 'converted_to_active', header: 'Converted to active' },
+  ],
+  requirements_brought: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'client', header: 'Client', render: clientLink },
+    { key: 'requirement', header: 'Requirement' },
+    reportDate('Date'),
+  ],
+  requirements_brought_counts: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'count', header: 'Count', render: hoverCount('clients') },
+    reportDate('Date'),
+  ],
+};
+
+const SALES_REPORTS_COLUMNS = {
+  requirements_created: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count', render: hoverCount('clients') },
+    reportDate('Date'),
+  ],
+  meetings_attended: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count' },
+    reportDate('Date'),
+  ],
+};
+
+// Per-table tab badge: for the daily aggregate tables the useful headline number
+// is the SUM of the count column (e.g. total meetings this month), not the number
+// of grouped rows. Detail tables (one row = one record) fall back to row count.
+const TAB_BADGE_SUM_FIELD = {
+  accounts_created: 'count',
+  requirements_brought_counts: 'count',
+  requirements_created: 'count',
+  meetings_attended: 'count',
+  meetings_scheduled: 'meetings_scheduled',
+  meetings_conversion: 'meetings_scheduled',
+};
+
+export function sectionTabBadge(section) {
+  const field = TAB_BADGE_SUM_FIELD[section?.key];
+  if (!field) return section?.rows?.length ?? 0;
+  return (section.rows || []).reduce((sum, r) => sum + (Number(r[field]) || 0), 0);
+}
+
+function tablesToSections(columnsByKey, data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: columnsByKey[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
+}
+
+export function bdaReportsSections(data) {
+  return tablesToSections(BDA_REPORTS_COLUMNS, data);
+}
+
+export function salesReportsSections(data) {
+  return tablesToSections(SALES_REPORTS_COLUMNS, data);
 }
 
 const fmtStamp = (iso) => {
