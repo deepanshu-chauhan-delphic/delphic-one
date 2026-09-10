@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil, Plus } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -383,12 +384,12 @@ export default function AccountPipelineBoardPage() {
             <button type="button" className="btn-secondary" onClick={load}>Refresh</button>
             {canCreateReqHere && (
               <button type="button" className="btn-secondary" onClick={() => setCreateReqOpen(true)}>
-                New requirement
+                <Plus className="h-4 w-4" /> New requirement
               </button>
             )}
             {canAddProfile && (
               <button type="button" className="btn-secondary" onClick={() => setCreateProfileOpen(true)}>
-                New profile
+                <Plus className="h-4 w-4" /> New profile
               </button>
             )}
             {canSubmit && requirements.length > 0 && (
@@ -397,7 +398,9 @@ export default function AccountPipelineBoardPage() {
               </button>
             )}
             {canMutate && !account.is_locked && (
-              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit account</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit account
+              </button>
             )}
             {canMutate && !account.is_locked && nextAccountStages.length > 0 && (
               <button type="button" className="btn-primary" onClick={() => setIsAccountStageOpen(true)}>
@@ -419,7 +422,7 @@ export default function AccountPipelineBoardPage() {
           </p>
           {canAddProfile && (
             <button type="button" className="btn-primary mt-4 inline-flex" onClick={() => setCreateProfileOpen(true)}>
-              New profile
+              <Plus className="h-4 w-4" /> New profile
             </button>
           )}
         </div>
@@ -439,7 +442,7 @@ export default function AccountPipelineBoardPage() {
           </p>
           {canCreateReqHere && (
             <button type="button" className="btn-primary mt-4 inline-flex" onClick={() => setCreateReqOpen(true)}>
-              New requirement
+              <Plus className="h-4 w-4" /> New requirement
             </button>
           )}
         </div>

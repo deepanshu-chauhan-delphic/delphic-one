@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Check, Loader2, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -138,15 +139,23 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
               {isEditing ? 'Edit candidate' : 'Add candidate'}
             </h1>
           </div>
-          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+          <button type="button" className="btn-secondary" onClick={handleCancel}>
+            <X className="h-4 w-4" /> Cancel
+          </button>
         </div>
       )}
 
-      <form onSubmit={saveProfile} className="space-y-4">
+      <form id="profile-form" onSubmit={saveProfile} className="space-y-4">
         {asPanel && (
           <FormActionsBar>
-            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
+            <button type="submit" form="profile-form" disabled={saving} className="btn-primary">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEditing ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
             </button>
           </FormActionsBar>
@@ -381,8 +390,17 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
 
         {!asPanel && (
           <div className="flex justify-end gap-2 border-t pt-4">
-            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              <X className="h-4 w-4" /> Cancel
+            </button>
             <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEditing ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
             </button>
           </div>

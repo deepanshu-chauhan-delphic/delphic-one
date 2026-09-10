@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Check, Loader2, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -242,13 +243,17 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className={asPanel ? 'space-y-4' : 'space-y-4 rounded-lg border bg-white p-4'}>
+      <form id="requirement-form" onSubmit={handleSubmit} className={asPanel ? 'space-y-4' : 'space-y-4 rounded-lg border bg-white p-4'}>
         {asPanel && (
           <FormActionsBar>
-            <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button type="submit" disabled={blocked || saving} className="btn-primary">
+            <button type="submit" form="requirement-form" disabled={blocked || saving} className="btn-primary">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEdit ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
             </button>
           </FormActionsBar>
@@ -602,10 +607,17 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
         {!asPanel && (
           <div className="flex gap-2">
             <button type="submit" disabled={blocked || saving} className="btn-primary">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isEdit ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
             </button>
             <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
+              <X className="h-4 w-4" /> Cancel
             </button>
           </div>
         )}

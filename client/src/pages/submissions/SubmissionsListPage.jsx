@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical, X } from 'lucide-react';
+import { Filter, MoreVertical, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateSubmission } from '../../lib/submissionStages.js';
@@ -284,7 +284,7 @@ export default function SubmissionsListPage() {
       {canCreateSubmission(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Put forward
+            <Plus className="h-4 w-4" /> Put forward
           </button>
         </div>
       )}

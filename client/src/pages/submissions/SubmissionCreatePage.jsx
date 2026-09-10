@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, Send, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -174,11 +175,11 @@ export default function SubmissionCreatePage({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
+      <form id="submission-form" onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
         {asPanel && (
           <FormActionsBar>
-            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
+            <button type="submit" form="submission-form" disabled={saving} className="btn-primary">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {saving ? 'Submitting…' : 'Create submission'}
             </button>
           </FormActionsBar>
@@ -367,10 +368,11 @@ export default function SubmissionCreatePage({
         {!asPanel && (
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {saving ? 'Submitting…' : 'Create submission'}
             </button>
             <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
+              <X className="h-4 w-4" /> Cancel
             </button>
           </div>
         )}

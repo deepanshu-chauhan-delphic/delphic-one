@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -195,7 +196,7 @@ export default function LeadPipelineBoard() {
         </div>
         {canCreate && (
           <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-            New account
+            <Plus className="h-4 w-4" /> New account
           </button>
         )}
       </div>

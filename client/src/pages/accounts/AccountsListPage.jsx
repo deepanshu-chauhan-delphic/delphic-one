@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical, X } from 'lucide-react';
+import { Filter, MoreVertical, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -354,7 +354,7 @@ export default function AccountsListPage() {
       {canCreateAccount(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Create account
+            <Plus className="h-4 w-4" /> Create account
           </button>
         </div>
       )}

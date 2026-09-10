@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -345,7 +346,7 @@ export default function JobPipelineBoard() {
         </div>
         {canCreate && (
           <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-            New requirement
+            <Plus className="h-4 w-4" /> New requirement
           </button>
         )}
       </div>

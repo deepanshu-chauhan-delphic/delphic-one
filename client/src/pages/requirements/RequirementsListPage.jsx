@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, X } from 'lucide-react';
+import { Filter, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
@@ -340,7 +340,7 @@ export default function RequirementsListPage() {
       {canCreateRequirement(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Create
+            <Plus className="h-4 w-4" /> New requirement
           </button>
         </div>
       )}

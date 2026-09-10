@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -175,7 +176,9 @@ export default function AccountDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Link to={`/pipeline/${id}`} className="btn-secondary">Pipeline board</Link>
             {((canMutate && !account.is_locked) || canOverride) && (
-              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
             )}
             {canMutate && !account.is_locked && nextStages.length > 0 && (
               <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
