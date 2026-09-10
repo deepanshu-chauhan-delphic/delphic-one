@@ -2,6 +2,22 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-10 — Dashboard KPI drill-through: click a tile, land on the exact rows — branch `dev-deep`
+
+- **Problem:** KPI tiles linked to approximate views — a BDA's "Active leads" opened *everyone's* leads (accounts list has no role scope), "Stuck leads" just did `?stage=lead` (no staleness), "In meeting" dropped `rescheduled`, "Closed/Closures this month" showed *all* closed rows ever, sales's "Active submissions" showed the whole company.
+- **`dashboardWidgets.js`**: replaced the static `KPI_LINKS` map with `kpiHref(key, { role, userId, monthStartIso })` — role-scopes (`owner_id` for BDA account tiles, `sales_owner_id` for sales submission tiles) and date-scopes (`closed_from` / `joined_from` = IST month start) each link so it reproduces the tile's count. "Interviews this week" → `/calendar` (no list view exists for it).
+- **`dashboard.service.js`**: `startOfMonth` / `startOfWeek` now compute the **IST** calendar boundary (fixed +05:30), consistent with the reports; `DashboardPage` computes the matching `monthStartIso`.
+- **List-page params** (server validation + service + client URL passthrough, no new UI controls):
+  - accounts: `?stuck=stuck` (stale lead/meeting/rescheduled, 7d) and CSV `?stage=a,b`.
+  - submissions: `?sales_owner_id=` (seat→requirement), `?joined_from=` / `?joined_to=` (actual_joining_date window).
+  - requirements: `?closed_from=` / `?closed_to=` (closed_at window).
+  - New passthrough params are cleared by each list's "Clear all filters".
+- Tests: `dashboard-kpi-filters.test.js` (6). Full server suite + client build green.
+
+## 2026-09-10 — Add Delphic favicon — branch `dev-deep`
+
+- `client/index.html`: added `<link rel="icon">` + `<link rel="apple-touch-icon">` pointing at the existing `/Delphic_D-logo_transparent.png` (the blue "D" mark in `client/public/`). Site previously shipped no favicon.
+
 ## 2026-09-10 — BDA/Sales reports: column filters — branch `dev-deep`
 
 - **Server** (`reports.service.bdaReports` / `salesReports`, `reports.validation.dateRangeSchema` +`account_type`): every table now honours

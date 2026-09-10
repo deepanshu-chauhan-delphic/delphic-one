@@ -89,6 +89,9 @@ const listQuerySchema = z.object({
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   work_mode: z.enum(['remote', 'onsite', 'hybrid']).optional(),
   stuck: z.enum(['stuck', 'not_stuck']).optional(),
+  // closed_at window (ISO strings) — dashboard "Closed this month" tile drills in with these.
+  closed_from: z.string().optional(),
+  closed_to: z.string().optional(),
   tech_stack: z.string().optional(),
   search: z.string().optional(),
   sort_by: z.enum(['created_at', 'priority', 'budget_max', 'status']).default('created_at'),

@@ -67,8 +67,13 @@ const listQuerySchema = z.object({
   requirement_id: z.string().uuid().optional(),
   seat_id: z.string().uuid().optional(),
   profile_id: z.string().uuid().optional(),
+  // Submissions whose requirement is owned by this sales user (seat -> requirement).
+  sales_owner_id: z.string().uuid().optional(),
   stage: z.string().optional(),
   submitted_by: z.string().uuid().optional(),
+  // actual_joining_date window (ISO strings) — used by the dashboard "Closures this month" tile.
+  joined_from: z.string().optional(),
+  joined_to: z.string().optional(),
   search: z.string().optional(),
   sort_by: z.enum(['created_at', 'stage', 'margin']).default('created_at'),
   sort_order: z.enum(['asc', 'desc']).default('desc'),

@@ -127,6 +127,9 @@ export default function RequirementsListPage() {
   const [status, setStatus] = useState(() => searchParams.get('status') || '');
   const [priority, setPriority] = useState(() => searchParams.get('priority') || '');
   const [stuck, setStuck] = useState(() => searchParams.get('stuck') || '');
+  // URL-only passthrough (dashboard "Closed this month" tile); no dropdown.
+  const [closedFrom, setClosedFrom] = useState(() => searchParams.get('closed_from') || '');
+  const [closedTo, setClosedTo] = useState(() => searchParams.get('closed_to') || '');
   const [reqType, setReqType] = useState(() => searchParams.get('req_type') || '');
   const [accountId, setAccountId] = useState(() => searchParams.get('account_id') || '');
   const [salesOwnerId, setSalesOwnerId] = useState(() => searchParams.get('sales_owner_id') || '');
@@ -161,6 +164,8 @@ export default function RequirementsListPage() {
     sync('status', status);
     sync('priority', priority);
     sync('stuck', stuck);
+    sync('closed_from', closedFrom);
+    sync('closed_to', closedTo);
     sync('req_type', reqType);
     sync('account_id', accountId);
     sync('sales_owner_id', salesOwnerId);
@@ -171,7 +176,7 @@ export default function RequirementsListPage() {
     sync('sort_order', sortOrder, 'desc');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, priority, stuck, reqType, accountId, salesOwnerId, recruiterId, workMode, appliedTechStack, sortBy, sortOrder]);
+  }, [status, priority, stuck, closedFrom, closedTo, reqType, accountId, salesOwnerId, recruiterId, workMode, appliedTechStack, sortBy, sortOrder]);
 
   // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
   // Guarded so it converges with the mirror effect above instead of looping.
@@ -181,6 +186,8 @@ export default function RequirementsListPage() {
     set(setStatus, g('status'));
     set(setPriority, g('priority'));
     set(setStuck, g('stuck'));
+    set(setClosedFrom, g('closed_from'));
+    set(setClosedTo, g('closed_to'));
     set(setReqType, g('req_type'));
     set(setAccountId, g('account_id'));
     set(setSalesOwnerId, g('sales_owner_id'));
@@ -193,8 +200,8 @@ export default function RequirementsListPage() {
   }, [searchParams]);
 
   const hasActiveFilters = Boolean(
-    status || priority || stuck || reqType || accountId || salesOwnerId || recruiterId || workMode ||
-      appliedTechStack || appliedSearch || sortBy !== 'created_at' || sortOrder !== 'desc'
+    status || priority || stuck || closedFrom || closedTo || reqType || accountId || salesOwnerId ||
+      recruiterId || workMode || appliedTechStack || appliedSearch || sortBy !== 'created_at' || sortOrder !== 'desc'
   );
 
   function clearAllFilters() {
@@ -202,6 +209,8 @@ export default function RequirementsListPage() {
     setStatus('');
     setPriority('');
     setStuck('');
+    setClosedFrom('');
+    setClosedTo('');
     setReqType('');
     setAccountId('');
     setSalesOwnerId('');
@@ -224,6 +233,8 @@ export default function RequirementsListPage() {
     if (status) params.status = status;
     if (priority) params.priority = priority;
     if (stuck) params.stuck = stuck;
+    if (closedFrom) params.closed_from = closedFrom;
+    if (closedTo) params.closed_to = closedTo;
     if (reqType) params.req_type = reqType;
     if (accountId) params.account_id = accountId;
     if (salesOwnerId) params.sales_owner_id = salesOwnerId;
@@ -244,7 +255,7 @@ export default function RequirementsListPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    appliedSearch, page, priority, status, stuck, reqType, accountId,
+    appliedSearch, page, priority, status, stuck, closedFrom, closedTo, reqType, accountId,
     salesOwnerId, recruiterId, workMode, appliedTechStack, sortBy, sortOrder,
   ]);
 

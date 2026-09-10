@@ -1,5 +1,9 @@
 const prisma = require('../../config/db');
 const { notify, accountParticipants, admins } = require('../../lib/notifications');
+const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
+
+const STUCK_LEAD_STAGES = ['lead', 'meeting_scheduled', 'rescheduled'];
+const stuckLeadCutoff = () => new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
 const TRANSITIONS = {
   lead: ['meeting_scheduled'],
@@ -28,14 +32,20 @@ const ACCOUNT_INCLUDE = {
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
 
-async function list({ type, include_unclassified, stage, owner_id, origin_owner_id, industry, specialization, search, created_from, created_to, sort_by, sort_order, page, limit }) {
+async function list({ type, include_unclassified, stage, stuck, owner_id, origin_owner_id, industry, specialization, search, created_from, created_to, sort_by, sort_order, page, limit }) {
   // Accumulate into an AND array so multiple OR-bearing clauses (type scope +
   // search) can coexist without one clobbering the other in the object literal.
   const and = [];
   if (type === 'client' && include_unclassified) and.push({ OR: [{ type: 'client' }, { type: null }] });
   else if (type === 'unclassified') and.push({ type: null });
   else if (type) and.push({ type });
-  if (stage) and.push({ stage });
+  const stages = stage ? String(stage).split(',').map((s) => s.trim()).filter(Boolean) : [];
+  if (stages.length === 1) and.push({ stage: stages[0] });
+  else if (stages.length > 1) and.push({ stage: { in: stages } });
+  if (stuck === 'stuck') and.push({ stage: { in: STUCK_LEAD_STAGES }, updated_at: { lte: stuckLeadCutoff() } });
+  if (stuck === 'not_stuck') {
+    and.push({ NOT: { stage: { in: STUCK_LEAD_STAGES }, updated_at: { lte: stuckLeadCutoff() } } });
+  }
   if (owner_id) and.push({ owner_id });
   if (origin_owner_id) and.push({ origin_owner_id });
   if (industry) and.push({ industry: { contains: industry, mode: 'insensitive' } });

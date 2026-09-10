@@ -91,16 +91,22 @@ function serialize(row) {
 
 async function list(filters) {
   const {
-    account_id, requirement_id, seat_id, profile_id, stage, submitted_by, search, sort_by, sort_order, page, limit,
+    account_id, requirement_id, seat_id, profile_id, sales_owner_id, stage, submitted_by,
+    joined_from, joined_to, search, sort_by, sort_order, page, limit,
   } = filters;
 
   const seatFilter = {};
   if (requirement_id) seatFilter.requirement_id = requirement_id;
   if (account_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), account_id };
+  if (sales_owner_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), sales_owner_id };
 
   const stages = stage
     ? String(stage).split(',').map((s) => s.trim()).filter(Boolean)
     : [];
+
+  const joinedRange = {};
+  if (joined_from) joinedRange.gte = new Date(joined_from);
+  if (joined_to) joinedRange.lte = new Date(joined_to);
 
   const where = {
     ...(Object.keys(seatFilter).length ? { seat: seatFilter } : {}),
@@ -108,6 +114,7 @@ async function list(filters) {
     ...(profile_id ? { profile_id } : {}),
     ...(stages.length ? { stage: { in: stages } } : {}),
     ...(submitted_by ? { submitted_by } : {}),
+    ...(Object.keys(joinedRange).length ? { actual_joining_date: joinedRange } : {}),
     ...(search
       ? {
           OR: [

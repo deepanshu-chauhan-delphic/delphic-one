@@ -120,6 +120,8 @@ export default function AccountsListPage() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [type, setType] = useState(() => searchParams.get('type') || '');
   const [stage, setStage] = useState(() => searchParams.get('stage') || '');
+  // URL-only convenience filter (set by the dashboard "Stuck leads" tile); no dropdown.
+  const [stuck, setStuck] = useState(() => searchParams.get('stuck') || '');
   const [ownerId, setOwnerId] = useState(() => searchParams.get('owner_id') || '');
   const [broughtById, setBroughtById] = useState(() => searchParams.get('origin_owner_id') || '');
   const [specialization, setSpecialization] = useState(() => searchParams.get('specialization') || '');
@@ -138,6 +140,7 @@ export default function AccountsListPage() {
     const params = { page, limit: 20 };
     if (type) params.type = type;
     if (stage) params.stage = stage;
+    if (stuck) params.stuck = stuck;
     if (ownerId) params.owner_id = ownerId;
     if (broughtById) params.origin_owner_id = broughtById;
     if (specialization) params.specialization = specialization;
@@ -155,7 +158,7 @@ export default function AccountsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stage, type, ownerId, broughtById, specialization]);
+  }, [appliedSearch, page, stage, stuck, type, ownerId, broughtById, specialization]);
 
   useEffect(() => {
     // /users/directory is readable by every role and includes inactive users, so
@@ -187,6 +190,7 @@ export default function AccountsListPage() {
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStage(searchParams.get('stage') || '');
+    setStuck(searchParams.get('stuck') || '');
     setType(searchParams.get('type') || '');
     setOwnerId(searchParams.get('owner_id') || '');
     setBroughtById(searchParams.get('origin_owner_id') || '');
@@ -202,22 +206,24 @@ export default function AccountsListPage() {
     };
     sync('type', type);
     sync('stage', stage);
+    sync('stuck', stuck);
     sync('owner_id', ownerId);
     sync('origin_owner_id', broughtById);
     sync('specialization', specialization);
     if (searchParams.get('create') === '1') next.set('create', '1');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, stage, ownerId, broughtById, specialization]);
+  }, [type, stage, stuck, ownerId, broughtById, specialization]);
 
   const hasActiveFilters = Boolean(
-    type || stage || ownerId || broughtById || specialization || appliedSearch
+    type || stage || stuck || ownerId || broughtById || specialization || appliedSearch
   );
 
   function clearAllFilters() {
     setPage(1);
     setType('');
     setStage('');
+    setStuck('');
     setOwnerId('');
     setBroughtById('');
     setSpecialization('');

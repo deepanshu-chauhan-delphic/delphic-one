@@ -325,7 +325,14 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [departmentId, pushError]);
 
-  const stats = statsForRole(role, summary);
+  // IST (Asia/Kolkata, +05:30) start-of-month instant — matches the server
+  // `startOfMonth()` the "closed / closures this month" tiles are counted against.
+  const monthStartIso = useMemo(() => {
+    const IST = 330 * 60 * 1000;
+    const ist = new Date(new Date().getTime() + IST);
+    return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), 1) - IST).toISOString();
+  }, []);
+  const stats = statsForRole(role, summary, { userId: user?.id, monthStartIso });
   const showStuckLeads = role === 'admin' || role === 'bda';
   const showStuckRequirements = role === 'admin' || role === 'sales' || role === 'recruiter';
 

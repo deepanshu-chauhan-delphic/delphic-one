@@ -3,18 +3,20 @@ const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
 
 const STUCK_LIMIT = 5;
 
+// The business runs on IST (Asia/Kolkata, fixed +05:30). "This month" / "this week"
+// boundaries are the IST calendar ones, regardless of the server clock (UTC in
+// prod) — kept in sync with the reports (reports.service asIst/reportFrom).
+const IST_OFFSET_MS = 330 * 60 * 1000;
+
 function startOfMonth() {
-  const d = new Date();
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), 1) - IST_OFFSET_MS);
 }
 
 function startOfWeek() {
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  const day = ist.getUTCDate() - ist.getUTCDay(); // Sunday-start, in IST
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), day) - IST_OFFSET_MS);
 }
 
 function daysSince(date) {
