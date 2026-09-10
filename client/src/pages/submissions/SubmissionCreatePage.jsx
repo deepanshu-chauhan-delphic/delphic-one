@@ -6,6 +6,7 @@ import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
 
 const RATE_TYPES = ['monthly', 'hourly', 'annual'];
 const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
@@ -173,8 +174,16 @@ export default function SubmissionCreatePage({
       )}
 
       <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
-        <div className={asPanel ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
+        {asPanel && (
+          <FormActionsBar>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Submitting…' : 'Create submission'}
+            </button>
+          </FormActionsBar>
+        )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <div className="mb-1 flex items-center justify-between gap-2">
               <label className="block text-xs font-medium text-tertiary-500">Candidate *</label>
               <label className="flex items-center gap-1.5 text-xs text-tertiary-600">
@@ -200,7 +209,7 @@ export default function SubmissionCreatePage({
             )}
           </div>
 
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Job requirement *</label>
             <SearchableSelect
               required
@@ -219,7 +228,7 @@ export default function SubmissionCreatePage({
             )}
           </div>
 
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Seat *</label>
             <SearchableSelect
               required
@@ -321,7 +330,7 @@ export default function SubmissionCreatePage({
             </div>
           </div>
 
-          <div className={`${asPanel ? '' : 'sm:col-span-2 '}rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 text-sm`}>
+          <div className="sm:col-span-2 rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 text-sm">
             <p className="font-medium text-primary-900">Live margin</p>
             {liveMargin.margin == null ? (
               <p className="mt-1 text-primary-700">Enter matching proposed + vendor rates (same currency) to preview.</p>
@@ -343,7 +352,7 @@ export default function SubmissionCreatePage({
               className="w-full rounded-xl border px-3 py-2 text-sm"
             />
           </div>
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-medium text-tertiary-500">Notes</label>
             <textarea
               rows={3}
@@ -354,14 +363,16 @@ export default function SubmissionCreatePage({
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Submitting…' : 'Create submission'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={handleCancel}>
-            Cancel
-          </button>
-        </div>
+        {!asPanel && (
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Submitting…' : 'Create submission'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              Cancel
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

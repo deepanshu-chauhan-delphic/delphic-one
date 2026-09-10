@@ -609,6 +609,7 @@ export default function ProfilesListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -643,7 +644,7 @@ export default function ProfilesListPage() {
         {peek && <ProfilePeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
-      <Drawer open={createOpen} title="Add candidate" onClose={closeCreate} size="md" tone="create">
+      <Drawer open={createOpen} title="Add candidate" onClose={closeCreate} size="xl" tone="create">
         <ProfileFormPage
           asPanel
           onCancel={closeCreate}

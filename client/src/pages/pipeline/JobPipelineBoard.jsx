@@ -449,7 +449,7 @@ export default function JobPipelineBoard() {
         />
       )}
 
-      <Drawer open={createOpen} title="New requirement" onClose={() => setCreateOpen(false)} size="lg" tone="create">
+      <Drawer open={createOpen} title="New requirement" onClose={() => setCreateOpen(false)} size="xl" tone="create">
         {createOpen && (
           <RequirementFormPage
             asPanel

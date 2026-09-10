@@ -6,6 +6,7 @@ import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { required, runValidations, fieldErrorClass } from '../../lib/alerts/formValidation.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
 import { emptyProfileForm, formToProfileBody, profileToForm } from './profileForm.js';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
 
@@ -141,11 +142,19 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
       )}
 
       <form onSubmit={saveProfile} className="space-y-4">
+        {asPanel && (
+          <FormActionsBar>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
+            </button>
+          </FormActionsBar>
+        )}
         <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-sky-100 bg-sky-50/30' : 'bg-white'}`}>
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-sky-100 text-sky-900' : 'text-tertiary-800'}`}>
             Personal
           </h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Field label="Full name" required>
               <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className={fieldErrorClass(fieldErrors, 'name', INPUT_CLASS)} />
               {fieldErrors.name && <p className="text-xs text-danger-600 mt-1">{fieldErrors.name}</p>}
@@ -191,7 +200,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-violet-100 text-violet-900' : 'text-tertiary-800'}`}>
             Professional
           </h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Field label="Current company">
               <input value={form.current_company} onChange={(e) => updateField('current_company', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -204,12 +213,12 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             <Field label="Relevant experience (years)">
               <input type="number" min="0" step="0.1" value={form.relevant_experience_years} onChange={(e) => updateField('relevant_experience_years', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <Field label="Primary skills" required>
                 <SkillPicker value={form.primary_skills} onChange={(next) => updateField('primary_skills', next)} />
               </Field>
             </div>
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <Field label="Secondary skills">
                 <SkillPicker value={form.secondary_skills} onChange={(next) => updateField('secondary_skills', next)} />
               </Field>
@@ -227,7 +236,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-amber-100 text-amber-900' : 'text-tertiary-800'}`}>
             Compensation & availability
           </h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Field label="Current CTC">
               <input type="number" min="0" value={form.current_ctc} onChange={(e) => updateField('current_ctc', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -281,7 +290,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             <Field label="Earliest join date">
               <input type="date" value={form.earliest_join_date} onChange={(e) => updateField('earliest_join_date', e.target.value)} className={INPUT_CLASS} />
             </Field>
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <Field label="CTC notes">
                 <textarea rows={2} value={form.ctc_notes} onChange={(e) => updateField('ctc_notes', e.target.value)} className={INPUT_CLASS} />
               </Field>
@@ -293,7 +302,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-emerald-100 text-emerald-900' : 'text-tertiary-800'}`}>
             Education & links
           </h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Field label="Degree">
               <input value={form.education_degree} onChange={(e) => updateField('education_degree', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -316,7 +325,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-teal-100 text-teal-900' : 'text-tertiary-800'}`}>
             Sourcing
           </h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Field label="Source" required>
               <select required value={form.source} onChange={(e) => updateField('source', e.target.value)} className={INPUT_CLASS}>
                 <option value="direct">Bench</option>
@@ -361,7 +370,7 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
                 className="w-full text-sm"
               />
             </Field>
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <Field label="Recruiter notes">
                 <textarea rows={3} value={form.recruiter_notes} onChange={(e) => updateField('recruiter_notes', e.target.value)} className={INPUT_CLASS} />
               </Field>
@@ -369,12 +378,14 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </div>
         </section>
 
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
-          </button>
-        </div>
+        {!asPanel && (
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create candidate'}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

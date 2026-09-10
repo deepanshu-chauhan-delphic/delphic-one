@@ -479,6 +479,7 @@ export default function AccountsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -541,7 +542,7 @@ export default function AccountsListPage() {
         onMove={moveStageOverride}
       />
 
-      <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="lg" tone="create">
+      <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="xl" tone="create">
         {createOpen && (
           <AccountFormPage
             asPanel

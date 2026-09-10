@@ -236,7 +236,7 @@ export default function ProfileDetailPage() {
         </aside>
       </div>
 
-      <Drawer open={editOpen} title="Edit candidate" onClose={closeEdit} size="md" tone="edit">
+      <Drawer open={editOpen} title="Edit candidate" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <ProfileFormPage
             asPanel

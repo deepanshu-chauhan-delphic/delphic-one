@@ -703,7 +703,7 @@ export default function RequirementDetailPage() {
         />
       </Modal>
 
-      <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="md" tone="edit">
+      <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <RequirementFormPage
             asPanel

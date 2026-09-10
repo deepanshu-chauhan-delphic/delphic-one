@@ -292,7 +292,7 @@ export default function LeadPipelineBoard() {
         />
       )}
 
-      <Drawer open={createOpen} title="New account" onClose={() => setCreateOpen(false)} size="lg" tone="create">
+      <Drawer open={createOpen} title="New account" onClose={() => setCreateOpen(false)} size="xl" tone="create">
         {createOpen && (
           <AccountFormPage
             asPanel

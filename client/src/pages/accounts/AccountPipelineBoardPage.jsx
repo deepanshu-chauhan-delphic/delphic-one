@@ -642,7 +642,7 @@ export default function AccountPipelineBoardPage() {
         />
       )}
 
-      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="lg" tone="edit">
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <AccountFormPage
             asPanel
@@ -660,7 +660,7 @@ export default function AccountPipelineBoardPage() {
         open={createReqOpen}
         title="New requirement"
         onClose={() => setCreateReqOpen(false)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {createReqOpen && (
@@ -680,7 +680,7 @@ export default function AccountPipelineBoardPage() {
         open={createProfileOpen}
         title="New candidate profile"
         onClose={() => setCreateProfileOpen(false)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {createProfileOpen && (
@@ -699,7 +699,7 @@ export default function AccountPipelineBoardPage() {
         open={submitForReqId !== null}
         title="Submit candidate"
         onClose={() => setSubmitForReqId(null)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {submitForReqId !== null && (

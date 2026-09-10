@@ -527,6 +527,7 @@ export default function RequirementsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -569,7 +570,7 @@ export default function RequirementsListPage() {
         )}
       </Drawer>
 
-      <Drawer open={createOpen} title="Create requirement" onClose={closeCreate} size="lg" tone="create">
+      <Drawer open={createOpen} title="Create requirement" onClose={closeCreate} size="xl" tone="create">
         {createOpen && (
           <RequirementFormPage
             asPanel

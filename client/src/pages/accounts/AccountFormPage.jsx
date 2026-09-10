@@ -16,6 +16,7 @@ import {
   formFromAccount,
 } from './accountUtils.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
 
 const INPUT_CLASS = 'w-full rounded border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-900';
 
@@ -181,9 +182,17 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
       )}
 
       <form onSubmit={saveAccount} className="space-y-4">
+        {asPanel && (
+          <FormActionsBar>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create account'}
+            </button>
+          </FormActionsBar>
+        )}
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Company</h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+          <div className={`grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3`}>
             <Field label="Account type">
               <select
                 value={form.type}
@@ -276,7 +285,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
 
         <section className="rounded border bg-white">
           <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Primary contact</h2>
-          <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className={`grid gap-3 p-4 sm:grid-cols-2`}>
             <Field label="Name">
               <input value={form.poc_name} onChange={(event) => updateField('poc_name', event.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -299,7 +308,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           </div>
           <div className="space-y-3 p-4">
             {form.additional_contacts.map((contact, index) => (
-              <div key={index} className={`grid gap-2 rounded border bg-tertiary-50 p-3 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
+              <div key={index} className={`grid gap-2 rounded border bg-tertiary-50 p-3 sm:grid-cols-2 lg:grid-cols-5`}>
                 {Object.keys(EMPTY_CONTACT).map((name) => (
                   <Field key={name} label={name.replace(/_/g, ' ')}>
                     <input
@@ -326,7 +335,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
             {form.type} commercial details
           </h2>
           {form.type === 'client' ? (
-            <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+            <div className={`grid gap-3 p-4 sm:grid-cols-2`}>
               <Field label="Billing currency">
                 <SearchableSelect
                   value={form.client_billing_currency}
@@ -351,8 +360,8 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
               </Field>
             </div>
           ) : (
-            <div className={`grid gap-3 p-4 ${asPanel ? '' : 'sm:grid-cols-2 lg:grid-cols-4'}`}>
-              <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className={`grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4`}>
+              <div className="sm:col-span-2">
                 <Field label="Specializations (comma separated)">
                   <input
                     value={form.vendor_specializations}
@@ -389,7 +398,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                   options={['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP'].map((currency) => ({ value: currency, label: currency }))}
                 />
               </Field>
-              <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <div className="sm:col-span-2">
                 <Field label="Payment terms">
                   <input
                     value={form.vendor_payment_terms}
@@ -398,7 +407,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
                   />
                 </Field>
               </div>
-              <div className={asPanel ? '' : 'sm:col-span-2'}>
+              <div className="sm:col-span-2">
                 <Field label="Agreement URL">
                   <input
                     type="url"
@@ -413,12 +422,14 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
         </section>
         ) : null}
 
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create account'}
-          </button>
-        </div>
+        {!asPanel && (
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <button type="button" className="btn-secondary" onClick={handleCancel}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create account'}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

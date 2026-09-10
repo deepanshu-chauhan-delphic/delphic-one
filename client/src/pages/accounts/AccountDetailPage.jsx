@@ -377,7 +377,7 @@ export default function AccountDetailPage() {
         />
       )}
 
-      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="lg" tone="edit">
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <AccountFormPage
             asPanel

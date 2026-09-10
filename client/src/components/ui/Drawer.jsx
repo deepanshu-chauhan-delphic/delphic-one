@@ -7,6 +7,8 @@ const SIZE_CLASS = {
   sm: 'w-[min(100vw,22rem)]',
   md: 'w-[min(100vw,26rem)]',
   lg: 'w-[min(100vw,30rem)]',
+  // Two-column forms — wide enough to halve the vertical scroll.
+  xl: 'w-[min(100vw,46rem)]',
 };
 
 const TONE_HEADER = {

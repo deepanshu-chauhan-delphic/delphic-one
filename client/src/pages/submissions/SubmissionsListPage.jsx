@@ -399,6 +399,7 @@ export default function SubmissionsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -433,7 +434,7 @@ export default function SubmissionsListPage() {
         {peek && <SubmissionPeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
-      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="md" tone="create">
+      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="xl" tone="create">
         <SubmissionCreatePage
           asPanel
           initialProfileId={createProfileId}

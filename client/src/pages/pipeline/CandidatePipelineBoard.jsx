@@ -393,7 +393,7 @@ export default function CandidatePipelineBoard() {
         />
       )}
 
-      <Drawer open={createOpen} title="Put a candidate forward" onClose={() => setCreateOpen(false)} size="lg" tone="create">
+      <Drawer open={createOpen} title="Put a candidate forward" onClose={() => setCreateOpen(false)} size="xl" tone="create">
         {createOpen && (
           <SubmissionCreatePage
             asPanel

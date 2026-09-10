@@ -2,6 +2,12 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-10 — UX: sticky list headers + top form CTAs + wider two-column edit drawers — branch `dev-deep`
+
+- **Lists** — `DataTable` gains a `maxHeight` prop; the 4 list pages (accounts / requirements / submissions / profiles) pass `"calc(100dvh - 18rem)"`. The body scrolls inside that height while the filter bar and the `thead` (already `sticky top-0`) stay put. Embedded/preview tables (reports, dashboard, detail sub-tables) don't pass it → unchanged.
+- **Edit / create forms** — the four form components (`Requirement` / `Account` / `Profile` / `SubmissionCreate`) now render **two-column** in drawer (panel) mode too, hosted in `Drawer size="xl"` (new size, ~46rem) instead of `lg`/`md`. Save/Cancel moved into a new `FormActionsBar` (`sticky top-0` inside the drawer body) rendered as the first child of the `<form>` — CTAs stay visible while fields scroll; the old bottom button row now renders only on the standalone route (`!asPanel`). All 13 drawer call sites bumped to `size="xl"`.
+- Client build + lint clean. (Pre-existing failing test `accountBoard.test.mjs` unrelated.)
+
 ## 2026-09-10 — Dashboard KPI drill-through: click a tile, land on the exact rows — branch `dev-deep`
 
 - **Problem:** KPI tiles linked to approximate views — a BDA's "Active leads" opened *everyone's* leads (accounts list has no role scope), "Stuck leads" just did `?stage=lead` (no staleness), "In meeting" dropped `rescheduled`, "Closed/Closures this month" showed *all* closed rows ever, sales's "Active submissions" showed the whole company.

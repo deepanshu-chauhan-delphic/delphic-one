@@ -6,6 +6,7 @@ import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
 const OWNER_ROLES = ['sales', 'bda', 'admin'];
@@ -241,8 +242,18 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
       )}
 
       <form onSubmit={handleSubmit} className={asPanel ? 'space-y-4' : 'space-y-4 rounded-lg border bg-white p-4'}>
+        {asPanel && (
+          <FormActionsBar>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              Cancel
+            </button>
+            <button type="submit" disabled={blocked || saving} className="btn-primary">
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
+            </button>
+          </FormActionsBar>
+        )}
         <fieldset disabled={blocked || saving} className="space-y-4">
-          <div className={`grid grid-cols-1 gap-3 ${asPanel ? '' : 'sm:grid-cols-2'}`}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {!isEdit && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-medium text-tertiary-500">Client account *</label>
@@ -376,7 +387,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
 
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Primary tech stack</label>
               <SkillPicker
                 value={form.primary_tech_stack}
@@ -385,7 +396,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
 
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Secondary tech stack</label>
               <SkillPicker
                 value={form.secondary_tech_stack}
@@ -394,7 +405,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
 
-            <div className={asPanel ? '' : 'sm:col-span-2'}>
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-tertiary-500">Certifications required</label>
               <SkillPicker
                 value={form.certifications_required}
@@ -572,14 +583,16 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
           </div>
         </fieldset>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={blocked || saving} className="btn-primary">
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={handleCancel}>
-            Cancel
-          </button>
-        </div>
+        {!asPanel && (
+          <div className="flex gap-2">
+            <button type="submit" disabled={blocked || saving} className="btn-primary">
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create requirement'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              Cancel
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
