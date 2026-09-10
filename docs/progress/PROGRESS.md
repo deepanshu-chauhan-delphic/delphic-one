@@ -2,6 +2,15 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-10 — BDA/Sales reports: column filters — branch `dev-deep`
+
+- **Server** (`reports.service.bdaReports` / `salesReports`, `reports.validation.dateRangeSchema` +`account_type`): every table now honours
+  - `bda_id` / `sales_id` — already existed for self-scoping; unchanged.
+  - `client_id` — an account id (reused, generic across reports). For bda-reports it's client **or** vendor (accounts_created, meetings_scheduled, meetings_conversion, requirements_brought(_counts) all narrow to it); for sales-reports it's the client account (requirements_created, meetings_attended).
+  - `account_type` (`client`/`vendor`/`unclassified`) — bda-reports only, narrows `accounts_created`.
+- **Client**: new Account/Type selects (bda-reports) and Client select (sales-reports) in the report's filter bar, options from `GET /accounts`. The existing generic "Individual" filter is now wired up for both reports too (`bda_id`/`sales_id`) but hidden from the self-scoped role — admin only, since a bda/sales caller's own id always wins server-side.
+- Tests: `reports-bda-sales.test.js` +5 (`column filters` — bda_id/client_id/account_type narrow accounts_created, client_id narrows meetings + requirements_brought + requirements_created + meetings_attended). All 68 report tests green; client build/lint clean.
+
 ## 2026-09-09 — Reports: all date bucketing + range filtering moved to IST — branch `dev-deep`
 
 - **Bug:** a custom "1 Sep – 1 Sep" range and "This month" disagreed on 1 Sep's counts. Root cause: reports bucketed rows by **UTC** day and `date_from` parsed as UTC midnight, while the `date_to` end-of-day was computed in the server's **local** tz. Two inconsistencies at once (UTC bucket vs local range; and neither is what an IST user means by "1 September").

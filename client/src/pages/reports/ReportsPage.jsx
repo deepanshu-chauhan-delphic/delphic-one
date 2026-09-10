@@ -292,6 +292,13 @@ export default function ReportsPage() {
   const [groupBy, setGroupBy] = useState('month');
   const [departmentId, setDepartmentId] = useState('');
   const [individualId, setIndividualId] = useState('');
+  // bda-reports: Account (any type) + account-type filter for "Accounts brought".
+  const [bdaReportsAccountId, setBdaReportsAccountId] = useState('');
+  const [bdaReportsAccountType, setBdaReportsAccountType] = useState('');
+  const [bdaReportsAccounts, setBdaReportsAccounts] = useState([]);
+  // sales-reports: Client filter.
+  const [salesReportsAccountId, setSalesReportsAccountId] = useState('');
+  const [salesReportsAccounts, setSalesReportsAccounts] = useState([]);
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
@@ -351,8 +358,15 @@ export default function ReportsPage() {
     'sales-performance': 'sales',
     'bda-performance': 'bda',
     'recruiter-vendor-gaps': 'recruiter',
+    'bda-reports': 'bda',
+    'sales-reports': 'sales',
   };
-  const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
+  // bda-reports / sales-reports self-scope a bda/sales caller server-side regardless
+  // of this filter, so hide it for them — only useful to an admin looking across people.
+  const showIndividual =
+    can('filterByIndividual') &&
+    Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]) &&
+    !((active === 'bda-reports' && user?.role === 'bda') || (active === 'sales-reports' && user?.role === 'sales'));
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
@@ -419,6 +433,31 @@ export default function ReportsPage() {
       )
       .catch(() => setTtsRequirements([]));
   }, [isTimeToSubmit]);
+
+  useEffect(() => {
+    if (!isBdaReports) {
+      setBdaReportsAccounts([]);
+      return undefined;
+    }
+    // Accounts brought can be a client or a vendor, so this list is unrestricted by type.
+    apiClient
+      .get('/accounts', { params: { limit: 100, sort_by: 'name', sort_order: 'asc' } })
+      .then(({ data }) => setBdaReportsAccounts((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
+      .catch(() => setBdaReportsAccounts([]));
+    return undefined;
+  }, [isBdaReports]);
+
+  useEffect(() => {
+    if (!isSalesReports) {
+      setSalesReportsAccounts([]);
+      return undefined;
+    }
+    apiClient
+      .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
+      .then(({ data }) => setSalesReportsAccounts((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
+      .catch(() => setSalesReportsAccounts([]));
+    return undefined;
+  }, [isSalesReports]);
 
   useEffect(() => {
     if (datePreset === 'custom') return;
@@ -543,6 +582,11 @@ export default function ReportsPage() {
     if (individualId && active === 'sales-performance') params.sales_id = individualId;
     if (individualId && active === 'bda-performance') params.bda_id = individualId;
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
+    if (individualId && active === 'bda-reports') params.bda_id = individualId;
+    if (individualId && active === 'sales-reports') params.sales_id = individualId;
+    if (isBdaReports && bdaReportsAccountId) params.client_id = bdaReportsAccountId;
+    if (isBdaReports && bdaReportsAccountType) params.account_type = bdaReportsAccountType;
+    if (isSalesReports && salesReportsAccountId) params.client_id = salesReportsAccountId;
     if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
     if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
     // Both toggle buckets are active-client views — always send stage=active.
@@ -600,6 +644,9 @@ export default function ReportsPage() {
     ttsRequirementId,
     ttsSourcerId,
     ttsSearchApplied,
+    bdaReportsAccountId,
+    bdaReportsAccountType,
+    salesReportsAccountId,
   ]);
 
   async function exportReport(type) {
@@ -742,6 +789,9 @@ export default function ReportsPage() {
               setTtsSourcerId('');
               setTtsSearch('');
               setTtsSearchApplied('');
+              setBdaReportsAccountId('');
+              setBdaReportsAccountType('');
+              setSalesReportsAccountId('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -883,6 +933,46 @@ export default function ReportsPage() {
               options={hrPeople}
             />
           </>
+        )}
+        {isBdaReports && (
+          <>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by account"
+              value={bdaReportsAccountId}
+              onChange={setBdaReportsAccountId}
+              placeholder="Account: All"
+              searchPlaceholder="Search accounts…"
+              options={bdaReportsAccounts}
+            />
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Filter by account type"
+              value={bdaReportsAccountType}
+              onChange={setBdaReportsAccountType}
+              placeholder="Type: All"
+              searchPlaceholder="Search type…"
+              options={[
+                { value: 'client', label: 'Client' },
+                { value: 'vendor', label: 'Vendor' },
+                { value: 'unclassified', label: 'Unclassified' },
+              ]}
+            />
+          </>
+        )}
+        {isSalesReports && (
+          <SearchableSelect
+            className="w-48"
+            allowClear
+            ariaLabel="Filter by client"
+            value={salesReportsAccountId}
+            onChange={setSalesReportsAccountId}
+            placeholder="Client: All"
+            searchPlaceholder="Search clients…"
+            options={salesReportsAccounts}
+          />
         )}
         {showCoveragePeople && (
           <>
