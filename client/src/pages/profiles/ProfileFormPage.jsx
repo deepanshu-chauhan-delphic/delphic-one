@@ -7,10 +7,11 @@ import { required, runValidations, fieldErrorClass } from '../../lib/alerts/form
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
+import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
 import { emptyProfileForm, formToProfileBody, profileToForm } from './profileForm.js';
 import { apiErrorMessage, canCreateProfile, canEditProfile, profileKey } from './profileUtils.js';
 
-const INPUT_CLASS = 'w-full rounded border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-900';
+const INPUT_CLASS = FIELD_INPUT;
 const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
 
 function Field({ label, children, required = false }) {
@@ -150,11 +151,11 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
             </button>
           </FormActionsBar>
         )}
-        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-sky-100 bg-sky-50/30' : 'bg-white'}`}>
-          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-sky-100 text-sky-900' : 'text-tertiary-800'}`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">
             Personal
           </h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             <Field label="Full name" required>
               <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className={fieldErrorClass(fieldErrors, 'name', INPUT_CLASS)} />
               {fieldErrors.name && <p className="text-xs text-danger-600 mt-1">{fieldErrors.name}</p>}
@@ -196,11 +197,11 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </div>
         </section>
 
-        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-violet-100 bg-violet-50/30' : 'bg-white'}`}>
-          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-violet-100 text-violet-900' : 'text-tertiary-800'}`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">
             Professional
           </h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             <Field label="Current company">
               <input value={form.current_company} onChange={(e) => updateField('current_company', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -232,11 +233,11 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </div>
         </section>
 
-        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-amber-100 bg-amber-50/30' : 'bg-white'}`}>
-          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-amber-100 text-amber-900' : 'text-tertiary-800'}`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">
             Compensation & availability
           </h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             <Field label="Current CTC">
               <input type="number" min="0" value={form.current_ctc} onChange={(e) => updateField('current_ctc', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -298,11 +299,11 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </div>
         </section>
 
-        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-emerald-100 bg-emerald-50/30' : 'bg-white'}`}>
-          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-emerald-100 text-emerald-900' : 'text-tertiary-800'}`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">
             Education & links
           </h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             <Field label="Degree">
               <input value={form.education_degree} onChange={(e) => updateField('education_degree', e.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -321,11 +322,11 @@ export default function ProfileFormPage({ asPanel = false, onDone, onCancel }) {
           </div>
         </section>
 
-        <section className={`rounded-2xl border shadow-soft ${asPanel ? 'border-teal-100 bg-teal-50/30' : 'bg-white'}`}>
-          <h2 className={`border-b px-4 py-2.5 font-heading text-sm font-semibold ${asPanel ? 'border-teal-100 text-teal-900' : 'text-tertiary-800'}`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">
             Sourcing
           </h2>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             <Field label="Source" required>
               <select required value={form.source} onChange={(e) => updateField('source', e.target.value)} className={INPUT_CLASS}>
                 <option value="direct">Bench</option>

@@ -7,6 +7,7 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import SkillPicker from '../../components/ui/SkillPicker.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
+import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
 import { canCreateRequirement, canMutateRequirement } from '../../lib/requirementStages.js';
 
 const OWNER_ROLES = ['sales', 'bda', 'admin'];
@@ -253,10 +254,13 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
           </FormActionsBar>
         )}
         <fieldset disabled={blocked || saving} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <p className="sm:col-span-2 font-heading text-xs font-semibold uppercase tracking-wide text-tertiary-500">
+              Basics
+            </p>
             {!isEdit && (
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-tertiary-500">Client account *</label>
+                <label className="mb-1 block text-xs font-medium text-tertiary-600">Client account *</label>
                 <SearchableSelect
                   required
                   value={form.account_id}
@@ -276,18 +280,18 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             )}
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Title *</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Title *</label>
               <input
                 required
                 value={form.title}
                 onChange={(e) => updateField('title', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
 
             {canEditOwner && (
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-tertiary-500">Sales owner</label>
+                <label className="mb-1 block text-xs font-medium text-tertiary-600">Sales owner</label>
                 <SearchableSelect
                   value={form.sales_owner_id}
                   onChange={(v) => updateField('sales_owner_id', v)}
@@ -307,11 +311,11 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             )}
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Type *</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Type *</label>
               <select
                 value={form.req_type}
                 onChange={(e) => updateField('req_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 <option value="managed_services">Managed Services</option>
                 <option value="recruitment">Recruitment</option>
@@ -321,24 +325,24 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
 
             {!isEdit && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-tertiary-500">Seats *</label>
+                <label className="mb-1 block text-xs font-medium text-tertiary-600">Seats *</label>
                 <input
                   type="number"
                   min={1}
                   required
                   value={form.seats_total}
                   onChange={(e) => updateField('seats_total', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className={FIELD_INPUT}
                 />
               </div>
             )}
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Priority</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Priority</label>
               <select
                 value={form.priority}
                 onChange={(e) => updateField('priority', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -347,48 +351,54 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               </select>
             </div>
 
+            <p className="sm:col-span-2 mt-3 border-t border-tertiary-100 pt-3 font-heading text-xs font-semibold uppercase tracking-wide text-tertiary-500">
+              Role details
+            </p>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Designation</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Designation</label>
               <input
                 value={form.designation}
                 onChange={(e) => updateField('designation', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Department</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Department</label>
               <input
                 value={form.department}
                 onChange={(e) => updateField('department', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Short summary</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Short summary</label>
               <textarea
                 rows={2}
                 value={form.description}
                 onChange={(e) => updateField('description', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
                 placeholder="One or two lines shown on lists and cards"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Job description</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Job description</label>
               <textarea
                 rows={6}
                 value={form.job_description}
                 onChange={(e) => updateField('job_description', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
                 placeholder="Full job description - responsibilities, requirements, etc."
               />
             </div>
 
+            <p className="sm:col-span-2 mt-3 border-t border-tertiary-100 pt-3 font-heading text-xs font-semibold uppercase tracking-wide text-tertiary-500">
+              Skills &amp; experience
+            </p>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Primary tech stack</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Primary tech stack</label>
               <SkillPicker
                 value={form.primary_tech_stack}
                 onChange={(next) => updateField('primary_tech_stack', next)}
@@ -397,7 +407,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Secondary tech stack</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Secondary tech stack</label>
               <SkillPicker
                 value={form.secondary_tech_stack}
                 onChange={(next) => updateField('secondary_tech_stack', next)}
@@ -406,7 +416,7 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Certifications required</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Certifications required</label>
               <SkillPicker
                 value={form.certifications_required}
                 onChange={(next) => updateField('certifications_required', next)}
@@ -415,32 +425,35 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Experience min (years)</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Experience min (years)</label>
               <input
                 type="number"
                 min={0}
                 value={form.experience_min}
                 onChange={(e) => updateField('experience_min', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Experience max (years)</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Experience max (years)</label>
               <input
                 type="number"
                 min={0}
                 value={form.experience_max}
                 onChange={(e) => updateField('experience_max', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
 
+            <p className="sm:col-span-2 mt-3 border-t border-tertiary-100 pt-3 font-heading text-xs font-semibold uppercase tracking-wide text-tertiary-500">
+              Engagement
+            </p>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Work mode</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Work mode</label>
               <select
                 value={form.work_mode}
                 onChange={(e) => updateField('work_mode', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 <option value="">—</option>
                 <option value="remote">Remote</option>
@@ -449,29 +462,29 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Work location</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Work location</label>
               <input
                 value={form.work_location}
                 onChange={(e) => updateField('work_location', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Time zone preference</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Time zone preference</label>
               <input
                 value={form.time_zone_preference}
                 onChange={(e) => updateField('time_zone_preference', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
                 placeholder="e.g. IST ±2 hours"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Engagement</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Engagement</label>
               <select
                 value={form.engagement_type}
                 onChange={(e) => updateField('engagement_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 <option value="">—</option>
                 <option value="full_time">Full time</option>
@@ -480,49 +493,52 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Contract duration (months)</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Contract duration (months)</label>
               <input
                 type="number"
                 min={0}
                 value={form.contract_duration_months}
                 onChange={(e) => updateField('contract_duration_months', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Start date target</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Start date target</label>
               <input
                 type="date"
                 value={form.start_date_target}
                 onChange={(e) => updateField('start_date_target', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
 
+            <p className="sm:col-span-2 mt-3 border-t border-tertiary-100 pt-3 font-heading text-xs font-semibold uppercase tracking-wide text-tertiary-500">
+              Budget &amp; billing
+            </p>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Budget min</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Budget min</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 value={form.budget_min}
                 onChange={(e) => updateField('budget_min', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Budget max</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Budget max</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 value={form.budget_max}
                 onChange={(e) => updateField('budget_max', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Currency</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Currency</label>
               <SearchableSelect
                 value={form.budget_currency}
                 onChange={(v) => updateField('budget_currency', v)}
@@ -530,11 +546,11 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Budget type</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Budget type</label>
               <select
                 value={form.budget_type}
                 onChange={(e) => updateField('budget_type', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 <option value="">—</option>
                 <option value="monthly">Monthly</option>
@@ -544,40 +560,40 @@ export default function RequirementFormPage({ asPanel = false, onDone, onCancel,
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">SLA days</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">SLA days</label>
               <input
                 type="number"
                 min={0}
                 value={form.sla_days}
                 onChange={(e) => updateField('sla_days', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Notice period max (days)</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Notice period max (days)</label>
               <input
                 type="number"
                 min={0}
                 value={form.notice_period_max_days}
                 onChange={(e) => updateField('notice_period_max_days', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Domain experience</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Domain experience</label>
               <input
                 value={form.domain_experience}
                 onChange={(e) => updateField('domain_experience', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-tertiary-500">Billing notes</label>
+              <label className="mb-1 block text-xs font-medium text-tertiary-600">Billing notes</label>
               <textarea
                 rows={2}
                 value={form.billing_notes}
                 onChange={(e) => updateField('billing_notes', e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               />
             </div>
           </div>

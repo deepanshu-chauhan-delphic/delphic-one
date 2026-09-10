@@ -7,6 +7,7 @@ import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
 import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
+import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
 
 const RATE_TYPES = ['monthly', 'hourly', 'annual'];
 const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
@@ -182,10 +183,10 @@ export default function SubmissionCreatePage({
             </button>
           </FormActionsBar>
         )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <label className="block text-xs font-medium text-tertiary-500">Candidate *</label>
+              <label className="block text-xs font-medium text-tertiary-600">Candidate *</label>
               <label className="flex items-center gap-1.5 text-xs text-tertiary-600">
                 <input type="checkbox" checked={benchOnly} onChange={(e) => setBenchOnly(e.target.checked)} />
                 On bench only
@@ -210,7 +211,7 @@ export default function SubmissionCreatePage({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Job requirement *</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Job requirement *</label>
             <SearchableSelect
               required
               value={form.requirement_id}
@@ -229,7 +230,7 @@ export default function SubmissionCreatePage({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Seat *</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Seat *</label>
             <SearchableSelect
               required
               disabled={!form.requirement_id || loadingSeats}
@@ -250,23 +251,23 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Proposed rate</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Proposed rate</label>
             <input
               type="number"
               min={0}
               step="0.01"
               value={form.proposed_rate}
               onChange={(e) => updateField('proposed_rate', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Proposed type / currency</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Proposed type / currency</label>
             <div className="flex gap-2">
               <select
                 value={form.proposed_rate_type}
                 onChange={(e) => updateField('proposed_rate_type', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -277,7 +278,7 @@ export default function SubmissionCreatePage({
               <select
                 value={form.proposed_rate_currency}
                 onChange={(e) => updateField('proposed_rate_currency', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -289,7 +290,7 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">
               Vendor rate {vendorRequired ? '*' : ''}
             </label>
             <input
@@ -299,16 +300,16 @@ export default function SubmissionCreatePage({
               required={vendorRequired}
               value={form.vendor_rate}
               onChange={(e) => updateField('vendor_rate', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Vendor type / currency</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Vendor type / currency</label>
             <div className="flex gap-2">
               <select
                 value={form.vendor_rate_type}
                 onChange={(e) => updateField('vendor_rate_type', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -319,7 +320,7 @@ export default function SubmissionCreatePage({
               <select
                 value={form.vendor_rate_currency}
                 onChange={(e) => updateField('vendor_rate_currency', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -342,23 +343,23 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Relevancy (1–10)</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Relevancy (1–10)</label>
             <input
               type="number"
               min={1}
               max={10}
               value={form.relevancy_score}
               onChange={(e) => updateField('relevancy_score', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Notes</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Notes</label>
             <textarea
               rows={3}
               value={form.submission_notes}
               onChange={(e) => updateField('submission_notes', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
         </div>

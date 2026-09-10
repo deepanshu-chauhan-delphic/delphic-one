@@ -17,8 +17,9 @@ import {
 } from './accountUtils.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
+import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
 
-const INPUT_CLASS = 'w-full rounded border border-tertiary-200 bg-white px-2 py-1.5 text-sm text-tertiary-900';
+const INPUT_CLASS = FIELD_INPUT;
 
 function Field({ label, children, required = false }) {
   return (
@@ -190,9 +191,9 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
             </button>
           </FormActionsBar>
         )}
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Company</h2>
-          <div className={`grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">Company</h2>
+          <div className={`grid gap-4 p-4 sm:grid-cols-2`}>
             <Field label="Account type">
               <select
                 value={form.type}
@@ -283,9 +284,9 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           </div>
         </section>
 
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold text-tertiary-800">Primary contact</h2>
-          <div className={`grid gap-3 p-4 sm:grid-cols-2`}>
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold text-tertiary-800">Primary contact</h2>
+          <div className={`grid gap-4 p-4 sm:grid-cols-2`}>
             <Field label="Name">
               <input value={form.poc_name} onChange={(event) => updateField('poc_name', event.target.value)} className={INPUT_CLASS} />
             </Field>
@@ -301,14 +302,14 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
           </div>
         </section>
 
-        <section className="rounded border bg-white">
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
           <div className="flex items-center justify-between border-b bg-tertiary-50 px-4 py-2">
             <h2 className="text-sm font-semibold text-tertiary-800">Additional contacts</h2>
             <button type="button" onClick={addContact} className="text-xs font-medium text-primary-700 hover:underline">+ Add contact</button>
           </div>
           <div className="space-y-3 p-4">
             {form.additional_contacts.map((contact, index) => (
-              <div key={index} className={`grid gap-2 rounded border bg-tertiary-50 p-3 sm:grid-cols-2 lg:grid-cols-5`}>
+              <div key={index} className={`grid gap-3 rounded-lg border border-tertiary-200 bg-tertiary-50/60 p-3 sm:grid-cols-2`}>
                 {Object.keys(EMPTY_CONTACT).map((name) => (
                   <Field key={name} label={name.replace(/_/g, ' ')}>
                     <input
@@ -330,12 +331,12 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
         </section>
 
         {form.type ? (
-        <section className="rounded border bg-white">
-          <h2 className="border-b bg-tertiary-50 px-4 py-2 text-sm font-semibold capitalize text-tertiary-800">
+        <section className="overflow-hidden rounded-xl border border-tertiary-100 bg-white shadow-soft">
+          <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-4 py-2.5 font-heading text-sm font-semibold capitalize text-tertiary-800">
             {form.type} commercial details
           </h2>
           {form.type === 'client' ? (
-            <div className={`grid gap-3 p-4 sm:grid-cols-2`}>
+            <div className={`grid gap-4 p-4 sm:grid-cols-2`}>
               <Field label="Billing currency">
                 <SearchableSelect
                   value={form.client_billing_currency}
@@ -360,7 +361,7 @@ export default function AccountFormPage({ asPanel = false, onDone, onCancel, acc
               </Field>
             </div>
           ) : (
-            <div className={`grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4`}>
+            <div className={`grid gap-4 p-4 sm:grid-cols-2`}>
               <div className="sm:col-span-2">
                 <Field label="Specializations (comma separated)">
                   <input
