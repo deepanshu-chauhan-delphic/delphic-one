@@ -67,6 +67,22 @@ const HR_SOURCE_OPTIONS = [
   { value: 'linkedin', label: 'Market' },
 ];
 
+// `/accounts` caps `limit` at 100, so page through it to get EVERY account for a
+// picker (BDA/Sales report filters). Guarded against a runaway loop.
+async function fetchAllAccountOptions(extraParams = {}) {
+  const out = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const { data } = await apiClient.get('/accounts', {
+      params: { ...extraParams, limit: 100, page, sort_by: 'name', sort_order: 'asc' },
+    });
+    const rows = data.data || [];
+    out.push(...rows);
+    const totalPages = data.pagination?.totalPages ?? 1;
+    if (page >= totalPages || rows.length < 100) break;
+  }
+  return out.map((a) => ({ value: a.id, label: a.name }));
+}
+
 const HR_TAB_META = {
   sourcing: { hint: 'Profiles sourced per day (excludes on-bench)', Icon: UserPlus },
   submissions: { hint: 'Submissions created per day (excludes on-bench)', Icon: Send },
@@ -439,12 +455,14 @@ export default function ReportsPage() {
       setBdaReportsAccounts([]);
       return undefined;
     }
+    let cancelled = false;
     // Accounts brought can be a client or a vendor, so this list is unrestricted by type.
-    apiClient
-      .get('/accounts', { params: { limit: 100, sort_by: 'name', sort_order: 'asc' } })
-      .then(({ data }) => setBdaReportsAccounts((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
-      .catch(() => setBdaReportsAccounts([]));
-    return undefined;
+    fetchAllAccountOptions()
+      .then((opts) => !cancelled && setBdaReportsAccounts(opts))
+      .catch(() => !cancelled && setBdaReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
   }, [isBdaReports]);
 
   useEffect(() => {
@@ -452,11 +470,13 @@ export default function ReportsPage() {
       setSalesReportsAccounts([]);
       return undefined;
     }
-    apiClient
-      .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
-      .then(({ data }) => setSalesReportsAccounts((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
-      .catch(() => setSalesReportsAccounts([]));
-    return undefined;
+    let cancelled = false;
+    fetchAllAccountOptions({ type: 'client' })
+      .then((opts) => !cancelled && setSalesReportsAccounts(opts))
+      .catch(() => !cancelled && setSalesReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
   }, [isSalesReports]);
 
   useEffect(() => {
