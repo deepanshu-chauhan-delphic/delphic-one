@@ -482,9 +482,14 @@ export default function ReportsPage() {
       setIndividuals([]);
       return undefined;
     }
+    // *-performance / recruiter-vendor-gaps genuinely list one role. bda-reports /
+    // sales-reports filter by "brought by" / "sales POC", which can be ANY user
+    // (roles change, admins bring accounts) — so pull the whole roster, inactive
+    // included, rather than role=bda / role=sales.
+    const roleScoped = active !== 'bda-reports' && active !== 'sales-reports';
     const role = INDIVIDUAL_ROLE_BY_REPORT[active] || 'recruiter';
     apiClient
-      .get('/users/directory', { params: { role } })
+      .get('/users/directory', { params: roleScoped ? { role } : {} })
       .then(({ data }) => setIndividuals((data.data || []).map((u) => ({ id: u.id, name: u.name }))))
       .catch(() => setIndividuals([]));
     return undefined;
