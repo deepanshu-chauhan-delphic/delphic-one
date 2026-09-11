@@ -6,6 +6,7 @@ const {
   updateSchema,
   stageSchema,
   stageOverrideSchema,
+  meetingSchema,
   classifySchema,
   listQuerySchema,
 } = require('./accounts.validation');
@@ -77,6 +78,16 @@ const changeStageOverride = asyncHandler(async (req, res) => {
   return ok(res, result.account, { stage_history: result.history });
 });
 
+const updateMeeting = asyncHandler(async (req, res) => {
+  const body = meetingSchema.parse(req.body);
+  const result = await accountsService.updateMeeting(req.params.id, body, req.user);
+  if (result.error) {
+    const [status, message] = ERROR_STATUS[result.error];
+    return fail(res, status, message);
+  }
+  return ok(res, result.account, { stage_history: result.history });
+});
+
 const classify = asyncHandler(async (req, res) => {
   const body = classifySchema.parse(req.body);
   const result = await accountsService.classifyLead(req.params.id, body, req.user);
@@ -94,4 +105,15 @@ const history = asyncHandler(async (req, res) => {
   return ok(res, rows);
 });
 
-module.exports = { list, listSpecializations, getOne, create, update, changeStage, changeStageOverride, classify, history };
+module.exports = {
+  list,
+  listSpecializations,
+  getOne,
+  create,
+  update,
+  changeStage,
+  changeStageOverride,
+  updateMeeting,
+  classify,
+  history,
+};

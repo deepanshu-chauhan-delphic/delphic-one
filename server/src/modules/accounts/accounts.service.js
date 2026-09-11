@@ -1,5 +1,9 @@
 const prisma = require('../../config/db');
 const { notify, accountParticipants, admins } = require('../../lib/notifications');
+const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
+
+const STUCK_LEAD_STAGES = ['lead', 'meeting_scheduled', 'rescheduled'];
+const stuckLeadCutoff = () => new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
 const TRANSITIONS = {
   lead: ['meeting_scheduled'],
@@ -28,14 +32,20 @@ const ACCOUNT_INCLUDE = {
   meeting_attendees: { include: { user: { select: { id: true, name: true } } } },
 };
 
-async function list({ type, include_unclassified, stage, owner_id, origin_owner_id, industry, specialization, search, created_from, created_to, sort_by, sort_order, page, limit }) {
+async function list({ type, include_unclassified, stage, stuck, owner_id, origin_owner_id, industry, specialization, search, created_from, created_to, sort_by, sort_order, page, limit }) {
   // Accumulate into an AND array so multiple OR-bearing clauses (type scope +
   // search) can coexist without one clobbering the other in the object literal.
   const and = [];
   if (type === 'client' && include_unclassified) and.push({ OR: [{ type: 'client' }, { type: null }] });
   else if (type === 'unclassified') and.push({ type: null });
   else if (type) and.push({ type });
-  if (stage) and.push({ stage });
+  const stages = stage ? String(stage).split(',').map((s) => s.trim()).filter(Boolean) : [];
+  if (stages.length === 1) and.push({ stage: stages[0] });
+  else if (stages.length > 1) and.push({ stage: { in: stages } });
+  if (stuck === 'stuck') and.push({ stage: { in: STUCK_LEAD_STAGES }, updated_at: { lte: stuckLeadCutoff() } });
+  if (stuck === 'not_stuck') {
+    and.push({ NOT: { stage: { in: STUCK_LEAD_STAGES }, updated_at: { lte: stuckLeadCutoff() } } });
+  }
   if (owner_id) and.push({ owner_id });
   if (origin_owner_id) and.push({ origin_owner_id });
   if (industry) and.push({ industry: { contains: industry, mode: 'insensitive' } });
@@ -256,6 +266,54 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, m
   });
 }
 
+// Edit an account's meeting details in place — no stage change, so it works
+// whether the meeting is upcoming (`meeting_scheduled`) or already happened
+// (the account has since moved to `active`/`rescheduled`). Lets BDA/admin fix a
+// wrong attendee list or correct the date/location after the fact.
+async function updateMeeting(id, { meeting_mode, meeting_date, meeting_location, meeting_notes, meeting_attendee_ids }, user) {
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.account.findUnique({ where: { id } });
+    if (!account) return { error: 'not_found' };
+    if (!canMutateAccount(account, user)) return { error: 'forbidden' };
+    if (account.is_locked) return { error: 'locked' };
+    if (meeting_mode === 'offline' && !meeting_location) return { error: 'meeting_location_required' };
+
+    const patch = {
+      meeting_mode,
+      meeting_date: new Date(meeting_date),
+      meeting_location: meeting_mode === 'offline' ? meeting_location : null,
+    };
+    if (meeting_notes !== undefined) patch.meeting_notes = meeting_notes || null;
+
+    await tx.account.update({ where: { id }, data: patch });
+
+    if (meeting_attendee_ids) {
+      await tx.accountMeetingAttendee.deleteMany({ where: { account_id: id } });
+      if (meeting_attendee_ids.length > 0) {
+        await tx.accountMeetingAttendee.createMany({
+          data: meeting_attendee_ids.map((user_id) => ({ account_id: id, user_id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const updated = await tx.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE });
+
+    const historyRow = await tx.stageHistory.create({
+      data: {
+        entity_type: 'account',
+        entity_id: id,
+        from_stage: account.stage,
+        to_stage: account.stage,
+        changed_by: user.id,
+        reason: 'Meeting details updated',
+      },
+    });
+
+    return { account: serialize(updated), history: historyRow };
+  });
+}
+
 // Superadmin-only: move an account to any stage (backward, or straight to `lead`),
 // ignoring ownership, the lock, and the transition map. Still audited in stage_history.
 async function changeStageOverride(id, body, user) {
@@ -329,6 +387,7 @@ module.exports = {
   update,
   changeStage,
   changeStageOverride,
+  updateMeeting,
   classifyLead,
   getHistory,
   canTransition,

@@ -157,6 +157,19 @@ describe('GET /reports/sales-reports', () => {
     expect(row.date).toBe(iso(SEP));
   });
 
+  test('meetings attended excludes attendees who are not sales/admin (e.g. a BDA or recruiter tagged along)', async () => {
+    // The attendee picker isn't role-restricted, so a BDA/recruiter can be added
+    // to a meeting — but they shouldn't inflate a "Sales POC" report.
+    const recruiter = await createUser({ role: 'recruiter' });
+    const acct = await mkAccount();
+    await scheduleMeeting(acct.id, bdaToken, [sales.id, bda.id, recruiter.id]);
+
+    const res = await authed(request(app).get('/api/v1/reports/sales-reports').query(RANGE), adminToken);
+    const rows = res.body.data.tables.find((t) => t.key === 'meetings_attended').rows;
+    expect(rows.map((r) => r.sales_poc_id)).toEqual([sales.id]);
+    expect(rows.find((r) => r.sales_poc_id === sales.id).count).toBe(1);
+  });
+
   test('IST day bucketing: a same-day custom range agrees with a wider range at the day boundary', async () => {
     // 2026-09-09T19:30Z == 2026-09-10 01:00 IST -> IST day is Sep 10, UTC day is Sep 9.
     const acct = await mkAccount();
@@ -229,5 +242,105 @@ describe('GET /reports/joinings — by sales requirement tab', () => {
     const row = table.rows.find((r) => r.sales_poc_id === sales.id);
     expect(row.joinings).toBe(1);
     expect(row.month).toBe('Sep 2026');
+  });
+});
+
+describe('column filters', () => {
+  test('bda-reports: bda_id, client_id and account_type narrow the results (admin)', async () => {
+    const mine = await mkAccount({ created_at: SEP, name: 'Mine Client' });
+    await mkAccount({ created_at: SEP, name: 'Mine Vendor', type: 'vendor' });
+    await mkAccount({ created_at: SEP, origin_owner_id: otherBda.id, name: 'Other BDA Client' });
+
+    const byBda = await authed(
+      request(app).get('/api/v1/reports/bda-reports').query({ ...RANGE, bda_id: bda.id }),
+      adminToken
+    );
+    const byBdaCount = byBda.body.data.tables
+      .find((t) => t.key === 'accounts_created')
+      .rows.reduce((s, r) => s + r.count, 0);
+    expect(byBdaCount).toBe(2); // Mine Client + Mine Vendor, not Other BDA's
+
+    const byAccount = await authed(
+      request(app).get('/api/v1/reports/bda-reports').query({ ...RANGE, client_id: mine.id }),
+      adminToken
+    );
+    const byAccountRows = byAccount.body.data.tables.find((t) => t.key === 'accounts_created').rows;
+    expect(byAccountRows.reduce((s, r) => s + r.count, 0)).toBe(1);
+
+    const byType = await authed(
+      request(app).get('/api/v1/reports/bda-reports').query({ ...RANGE, bda_id: bda.id, account_type: 'vendor' }),
+      adminToken
+    );
+    const byTypeRows = byType.body.data.tables.find((t) => t.key === 'accounts_created').rows;
+    expect(byTypeRows.reduce((s, r) => s + r.count, 0)).toBe(1);
+    expect(byTypeRows[0].by_type).toEqual({ Vendor: 1 });
+  });
+
+  test('bda-reports: client_id narrows meetings tables to that account', async () => {
+    const target = await mkAccount();
+    const other = await mkAccount();
+    await scheduleMeeting(target.id, bdaToken);
+    await scheduleMeeting(other.id, bdaToken);
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/bda-reports').query({ ...RANGE, client_id: target.id }),
+      adminToken
+    );
+    const scheduled = res.body.data.tables.find((t) => t.key === 'meetings_scheduled').rows;
+    expect(scheduled.reduce((s, r) => s + r.meetings_scheduled, 0)).toBe(1);
+  });
+
+  test('bda-reports: client_id narrows requirements_brought to that client', async () => {
+    const client = await mkAccount({ stage: 'active', name: 'Filter Target' });
+    const otherClient = await mkAccount({ stage: 'active', name: 'Filter Other' });
+    await createRequirement(salesToken, client.id, { title: 'Req A' });
+    await createRequirement(salesToken, otherClient.id, { title: 'Req B' });
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/bda-reports').query({ ...RANGE, client_id: client.id }),
+      adminToken
+    );
+    const rows = res.body.data.tables.find((t) => t.key === 'requirements_brought').rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requirement).toBe('Req A');
+  });
+
+  test('sales-reports: sales_id and client_id narrow requirements_created (admin)', async () => {
+    const otherSales = await createUser({ role: 'sales' });
+    const { access_token: otherToken } = await loginAs(otherSales);
+    const c1 = await mkAccount({ stage: 'active', name: 'Sales Target Client' });
+    const c2 = await mkAccount({ stage: 'active', name: 'Sales Other Client' });
+    await createRequirement(salesToken, c1.id);
+    await createRequirement(otherToken, c2.id);
+
+    const bySales = await authed(
+      request(app).get('/api/v1/reports/sales-reports').query({ ...RANGE, sales_id: sales.id }),
+      adminToken
+    );
+    const bySalesRows = bySales.body.data.tables.find((t) => t.key === 'requirements_created').rows;
+    expect(bySalesRows.every((r) => r.sales_poc_id === sales.id)).toBe(true);
+    expect(bySalesRows.reduce((s, r) => s + r.count, 0)).toBe(1);
+
+    const byClient = await authed(
+      request(app).get('/api/v1/reports/sales-reports').query({ ...RANGE, client_id: c1.id }),
+      adminToken
+    );
+    const byClientRows = byClient.body.data.tables.find((t) => t.key === 'requirements_created').rows;
+    expect(byClientRows.reduce((s, r) => s + r.count, 0)).toBe(1);
+    expect(byClientRows[0].clients).toEqual({ 'Sales Target Client': 1 });
+  });
+
+  test('sales-reports: client_id narrows meetings_attended to that account', async () => {
+    const target = await mkAccount();
+    const other = await mkAccount();
+    await scheduleMeeting(target.id, bdaToken, [sales.id]);
+    await scheduleMeeting(other.id, bdaToken, [sales.id]);
+
+    const res = await authed(
+      request(app).get('/api/v1/reports/sales-reports').query({ ...RANGE, client_id: target.id }),
+      adminToken
+    );
+    const rows = res.body.data.tables.find((t) => t.key === 'meetings_attended').rows;
+    expect(rows.reduce((s, r) => s + r.count, 0)).toBe(1);
   });
 });

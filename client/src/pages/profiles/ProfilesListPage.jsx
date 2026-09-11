@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical, SlidersHorizontal, X } from 'lucide-react';
+import { Filter, MoreVertical, Plus, SlidersHorizontal, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -372,7 +372,7 @@ export default function ProfilesListPage() {
       {canCreateProfile(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Add candidate
+            <Plus className="h-4 w-4" /> Add candidate
           </button>
         </div>
       )}
@@ -609,6 +609,7 @@ export default function ProfilesListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -643,7 +644,7 @@ export default function ProfilesListPage() {
         {peek && <ProfilePeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
-      <Drawer open={createOpen} title="Add candidate" onClose={closeCreate} size="md" tone="create">
+      <Drawer open={createOpen} title="Add candidate" onClose={closeCreate} size="xl" tone="create">
         <ProfileFormPage
           asPanel
           onCancel={closeCreate}

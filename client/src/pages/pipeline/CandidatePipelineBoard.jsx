@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -298,7 +299,7 @@ export default function CandidatePipelineBoard() {
         </div>
         {canCreate && (
           <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-            Put forward
+            <Plus className="h-4 w-4" /> Put forward
           </button>
         )}
       </div>
@@ -393,7 +394,7 @@ export default function CandidatePipelineBoard() {
         />
       )}
 
-      <Drawer open={createOpen} title="Put a candidate forward" onClose={() => setCreateOpen(false)} size="lg" tone="create">
+      <Drawer open={createOpen} title="Put a candidate forward" onClose={() => setCreateOpen(false)} size="xl" tone="create">
         {createOpen && (
           <SubmissionCreatePage
             asPanel

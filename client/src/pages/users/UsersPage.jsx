@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -373,7 +374,7 @@ export default function UsersPage() {
     <div className="space-y-2">
       <div className="flex justify-end">
         <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-          + Create user
+          <Plus className="h-4 w-4" /> Create user
         </button>
       </div>
 

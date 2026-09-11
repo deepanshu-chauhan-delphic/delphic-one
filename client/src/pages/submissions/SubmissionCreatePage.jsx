@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, Send, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
+import { fetchAllPages } from '../../lib/fetchAllPages.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
-import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
+import { canCreateSubmission, canOnlyPutForwardBench, computeMarginPreview } from '../../lib/submissionStages.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
+import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
 
 const RATE_TYPES = ['monthly', 'hourly', 'annual'];
 const CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
@@ -32,7 +36,10 @@ export default function SubmissionCreatePage({
   const [seats, setSeats] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loadingSeats, setLoadingSeats] = useState(false);
+  // Sales is locked to bench candidates; recruiter/admin get the toggle.
+  const salesBenchOnly = canOnlyPutForwardBench(user);
   const [benchOnly, setBenchOnly] = useState(false);
+  const effectiveBenchOnly = salesBenchOnly || benchOnly;
 
   const [form, setForm] = useState({
     profile_id: initialProfileId || '',
@@ -51,7 +58,7 @@ export default function SubmissionCreatePage({
   const selectedProfile = profiles.find((p) => p.id === form.profile_id);
   const vendorRequired = selectedProfile?.source === 'vendor';
   const requirementLocked = Boolean(initialRequirementId);
-  const visibleProfiles = benchOnly ? profiles.filter((p) => p.source === 'direct' && p.on_bench) : profiles;
+  const visibleProfiles = effectiveBenchOnly ? profiles.filter((p) => p.source === 'direct' && p.on_bench) : profiles;
 
   const liveMargin = useMemo(
     () =>
@@ -66,21 +73,23 @@ export default function SubmissionCreatePage({
 
   useEffect(() => {
     if (!canCreateSubmission(user)) {
-      pushError('Only recruiters or admins can put a candidate forward.', 'Validation');
+      pushError('Only recruiters, sales, or admins can put a candidate forward.', 'Validation');
       return;
     }
-    const reqParams = { limit: 100 };
+    const reqParams = {};
     if (accountId) reqParams.account_id = accountId;
     // Only offer in-progress requirements in the picker — unless we were opened
     // locked to a specific requirement row, which shows regardless of status.
     if (!initialRequirementId) reqParams.status = 'in_progress';
+    // Page through both lists fully — a `limit`-capped first page silently hides
+    // candidates/requirements past the cap.
     Promise.all([
-      apiClient.get('/profiles', { params: { is_active: 'true', limit: 100 } }),
-      apiClient.get('/requirements', { params: reqParams }),
+      fetchAllPages('/profiles', { is_active: 'true' }),
+      fetchAllPages('/requirements', reqParams),
     ])
-      .then(([profilesRes, reqsRes]) => {
-        setProfiles(profilesRes.data.data || []);
-        setRequirements(reqsRes.data.data || []);
+      .then(([profileRows, reqRows]) => {
+        setProfiles(profileRows);
+        setRequirements(reqRows);
         if (initialRequirementId) {
           setForm((prev) => ({ ...prev, requirement_id: initialRequirementId }));
         }
@@ -145,7 +154,7 @@ export default function SubmissionCreatePage({
   if (!canCreateSubmission(user)) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-tertiary-600">Only recruiters or admins can put a candidate forward.</p>
+        <p className="text-sm text-tertiary-600">Only recruiters, sales, or admins can put a candidate forward.</p>
         {!asPanel && (
           <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
             ← Back to submissions
@@ -172,13 +181,29 @@ export default function SubmissionCreatePage({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
-        <div className={asPanel ? 'space-y-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2'}>
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
+      <form id="submission-form" onSubmit={handleSubmit} className={`space-y-4 ${asPanel ? '' : 'rounded-2xl border bg-white p-4 shadow-soft'}`}>
+        {asPanel && (
+          <FormActionsBar>
+            <button type="submit" form="submission-form" disabled={saving} className="btn-primary">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {saving ? 'Submitting…' : 'Create submission'}
+            </button>
+          </FormActionsBar>
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <label className="block text-xs font-medium text-tertiary-500">Candidate *</label>
-              <label className="flex items-center gap-1.5 text-xs text-tertiary-600">
-                <input type="checkbox" checked={benchOnly} onChange={(e) => setBenchOnly(e.target.checked)} />
+              <label className="block text-xs font-medium text-tertiary-600">Candidate *</label>
+              <label
+                className={`flex items-center gap-1.5 text-xs text-tertiary-600 ${salesBenchOnly ? 'opacity-70' : ''}`}
+                title={salesBenchOnly ? 'Sales can only put forward bench candidates' : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={effectiveBenchOnly}
+                  disabled={salesBenchOnly}
+                  onChange={(e) => setBenchOnly(e.target.checked)}
+                />
                 On bench only
               </label>
             </div>
@@ -200,8 +225,8 @@ export default function SubmissionCreatePage({
             )}
           </div>
 
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Job requirement *</label>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Job requirement *</label>
             <SearchableSelect
               required
               value={form.requirement_id}
@@ -219,8 +244,8 @@ export default function SubmissionCreatePage({
             )}
           </div>
 
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Seat *</label>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Seat *</label>
             <SearchableSelect
               required
               disabled={!form.requirement_id || loadingSeats}
@@ -241,23 +266,23 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Proposed rate</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Proposed rate</label>
             <input
               type="number"
               min={0}
               step="0.01"
               value={form.proposed_rate}
               onChange={(e) => updateField('proposed_rate', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Proposed type / currency</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Proposed type / currency</label>
             <div className="flex gap-2">
               <select
                 value={form.proposed_rate_type}
                 onChange={(e) => updateField('proposed_rate_type', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -268,7 +293,7 @@ export default function SubmissionCreatePage({
               <select
                 value={form.proposed_rate_currency}
                 onChange={(e) => updateField('proposed_rate_currency', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -280,7 +305,7 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">
               Vendor rate {vendorRequired ? '*' : ''}
             </label>
             <input
@@ -290,16 +315,16 @@ export default function SubmissionCreatePage({
               required={vendorRequired}
               value={form.vendor_rate}
               onChange={(e) => updateField('vendor_rate', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Vendor type / currency</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Vendor type / currency</label>
             <div className="flex gap-2">
               <select
                 value={form.vendor_rate_type}
                 onChange={(e) => updateField('vendor_rate_type', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {RATE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -310,7 +335,7 @@ export default function SubmissionCreatePage({
               <select
                 value={form.vendor_rate_currency}
                 onChange={(e) => updateField('vendor_rate_currency', e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                className={FIELD_INPUT}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -321,7 +346,7 @@ export default function SubmissionCreatePage({
             </div>
           </div>
 
-          <div className={`${asPanel ? '' : 'sm:col-span-2 '}rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 text-sm`}>
+          <div className="sm:col-span-2 rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 text-sm">
             <p className="font-medium text-primary-900">Live margin</p>
             {liveMargin.margin == null ? (
               <p className="mt-1 text-primary-700">Enter matching proposed + vendor rates (same currency) to preview.</p>
@@ -333,35 +358,38 @@ export default function SubmissionCreatePage({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Relevancy (1–10)</label>
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Relevancy (1–10)</label>
             <input
               type="number"
               min={1}
               max={10}
               value={form.relevancy_score}
               onChange={(e) => updateField('relevancy_score', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
-          <div className={asPanel ? '' : 'sm:col-span-2'}>
-            <label className="mb-1 block text-xs font-medium text-tertiary-500">Notes</label>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-medium text-tertiary-600">Notes</label>
             <textarea
               rows={3}
               value={form.submission_notes}
               onChange={(e) => updateField('submission_notes', e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm"
+              className={FIELD_INPUT}
             />
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Submitting…' : 'Create submission'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={handleCancel}>
-            Cancel
-          </button>
-        </div>
+        {!asPanel && (
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {saving ? 'Submitting…' : 'Create submission'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleCancel}>
+              <X className="h-4 w-4" /> Cancel
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

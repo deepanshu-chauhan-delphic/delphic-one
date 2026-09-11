@@ -1281,7 +1281,9 @@ const byDateThenNameDesc = (nameKey) => (a, b) =>
 
 /**
  * BDA reports — 5 tables, all keyed off `origin_owner_id` ("Brought by", the
- * immutable account creator). `bda_id` scopes every table to one person.
+ * immutable account creator). `bda_id` scopes every table to one person;
+ * `client_id` scopes every table to one account (client or vendor);
+ * `account_type` further narrows `accounts_created` to client/vendor/unclassified.
  *   1. accounts_created        - accounts brought per BDA per day (+ type split on hover)
  *   2. meetings_scheduled      - account meetings scheduled per BDA per day, with how
  *                                many of those accounts are active now
@@ -1289,13 +1291,17 @@ const byDateThenNameDesc = (nameKey) => (a, b) =>
  *   4. requirements_brought    - one row per requirement on a BDA-brought *client*
  *   5. requirements_brought_counts - those requirements counted per BDA per day
  */
-async function bdaReports({ date_from, date_to, bda_id }) {
+async function bdaReports({ date_from, date_to, bda_id, client_id, account_type }) {
   const range = optionalDateRange(date_from, date_to);
   const ownerScope = bda_id ? { origin_owner_id: bda_id } : { origin_owner_id: { not: null } };
+  // `client_id` here is really "account id" — accounts_created / meetings can be a
+  // client OR a vendor account, so the filter isn't restricted to type=client.
+  const accountScope = client_id ? { id: client_id } : {};
+  const typeScope = account_type ? { type: account_type === 'unclassified' ? null : account_type } : {};
 
   // 1. accounts created (brought)
   const accounts = await prisma.account.findMany({
-    where: { ...ownerScope, ...(range ? { created_at: range } : {}) },
+    where: { ...ownerScope, ...accountScope, ...typeScope, ...(range ? { created_at: range } : {}) },
     select: {
       created_at: true,
       type: true,
@@ -1330,6 +1336,7 @@ async function bdaReports({ date_from, date_to, bda_id }) {
       to_stage: 'meeting_scheduled',
       ...(range ? { changed_at: range } : {}),
       ...(bda_id ? { changed_by: bda_id } : {}),
+      ...(client_id ? { entity_id: client_id } : {}),
     },
     select: {
       changed_at: true,
@@ -1386,7 +1393,7 @@ async function bdaReports({ date_from, date_to, bda_id }) {
   const requirements = await prisma.requirement.findMany({
     where: {
       ...(range ? { created_at: range } : {}),
-      account: { type: 'client', ...ownerScope },
+      account: { type: 'client', ...ownerScope, ...accountScope },
     },
     select: {
       title: true,
@@ -1461,13 +1468,14 @@ async function bdaReports({ date_from, date_to, bda_id }) {
 }
 
 /**
- * Sales reports — 2 tables. `sales_id` scopes both to one person.
+ * Sales reports — 2 tables. `sales_id` scopes both to one person; `client_id`
+ * scopes both to one client account.
  *   1. requirements_created - requirements per Sales POC (`sales_owner_id`) per day,
  *                             client names on hover
  *   2. meetings_attended    - account meetings the Sales POC is an attendee of,
  *                             per day (day = the account's meeting_date)
  */
-async function salesReports({ date_from, date_to, sales_id }) {
+async function salesReports({ date_from, date_to, sales_id, client_id }) {
   const range = optionalDateRange(date_from, date_to);
 
   // 1. requirements created, by sales owner
@@ -1475,6 +1483,7 @@ async function salesReports({ date_from, date_to, sales_id }) {
     where: {
       ...(range ? { created_at: range } : {}),
       ...(sales_id ? { sales_owner_id: sales_id } : {}),
+      ...(client_id ? { account_id: client_id } : {}),
     },
     select: {
       created_at: true,
@@ -1502,21 +1511,28 @@ async function salesReports({ date_from, date_to, sales_id }) {
     row.clients[client] = (row.clients[client] || 0) + 1;
   }
 
-  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date)
+  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date).
+  // The attendee picker isn't role-restricted (anyone can be added to a meeting),
+  // so this "Sales POC" table only counts attendees who actually hold a sales-ish
+  // role — a BDA or recruiter tagged as an attendee shouldn't show up here.
   const attendedAccounts = await prisma.account.findMany({
     where: {
       meeting_date: range || { not: null },
-      meeting_attendees: sales_id ? { some: { user_id: sales_id } } : { some: {} },
+      meeting_attendees: {
+        some: { ...(sales_id ? { user_id: sales_id } : {}), user: { role: { in: ['sales', 'admin'] } } },
+      },
+      ...(client_id ? { id: client_id } : {}),
     },
     select: {
       meeting_date: true,
-      meeting_attendees: { select: { user: { select: { id: true, name: true } } } },
+      meeting_attendees: { select: { user: { select: { id: true, name: true, role: true } } } },
     },
   });
   const meetingsAttended = new Map();
   for (const a of attendedAccounts) {
     const day = dayKey(a.meeting_date);
     for (const att of a.meeting_attendees) {
+      if (!['sales', 'admin'].includes(att.user?.role)) continue;
       if (sales_id && att.user?.id !== sales_id) continue;
       const key = `${att.user?.id}|${day}`;
       if (!meetingsAttended.has(key)) {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical, X } from 'lucide-react';
+import { Filter, MoreVertical, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateSubmission } from '../../lib/submissionStages.js';
@@ -105,6 +105,10 @@ export default function SubmissionsListPage() {
   const [submittedBy, setSubmittedBy] = useState(() => searchParams.get('submitted_by') || '');
   const [accountId, setAccountId] = useState(() => searchParams.get('account_id') || '');
   const [requirementId, setRequirementId] = useState(() => searchParams.get('requirement_id') || '');
+  // URL-only passthrough filters (set by dashboard KPI tiles; no dropdown, cleared via "Clear all").
+  const [salesOwnerId, setSalesOwnerId] = useState(() => searchParams.get('sales_owner_id') || '');
+  const [joinedFrom, setJoinedFrom] = useState(() => searchParams.get('joined_from') || '');
+  const [joinedTo, setJoinedTo] = useState(() => searchParams.get('joined_to') || '');
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort_by') || 'created_at');
   const [sortOrder, setSortOrder] = useState(() => searchParams.get('sort_order') || 'desc');
   const [search, setSearch] = useState('');
@@ -129,11 +133,14 @@ export default function SubmissionsListPage() {
     sync('submitted_by', submittedBy);
     sync('account_id', accountId);
     sync('requirement_id', requirementId);
+    sync('sales_owner_id', salesOwnerId);
+    sync('joined_from', joinedFrom);
+    sync('joined_to', joinedTo);
     sync('sort_by', sortBy, 'created_at');
     sync('sort_order', sortOrder, 'desc');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageCsv, submittedBy, accountId, requirementId, sortBy, sortOrder]);
+  }, [stageCsv, submittedBy, accountId, requirementId, salesOwnerId, joinedFrom, joinedTo, sortBy, sortOrder]);
 
   // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
   useEffect(() => {
@@ -146,13 +153,16 @@ export default function SubmissionsListPage() {
     set(setSubmittedBy, g('submitted_by'));
     set(setAccountId, g('account_id'));
     set(setRequirementId, g('requirement_id'));
+    set(setSalesOwnerId, g('sales_owner_id'));
+    set(setJoinedFrom, g('joined_from'));
+    set(setJoinedTo, g('joined_to'));
     set(setSortBy, g('sort_by', 'created_at'));
     set(setSortOrder, g('sort_order', 'desc'));
   }, [searchParams]);
 
   const hasActiveFilters = Boolean(
-    stageCsv || submittedBy || accountId || requirementId || appliedSearch ||
-      sortBy !== 'created_at' || sortOrder !== 'desc'
+    stageCsv || submittedBy || accountId || requirementId || salesOwnerId || joinedFrom || joinedTo ||
+      appliedSearch || sortBy !== 'created_at' || sortOrder !== 'desc'
   );
 
   function clearAllFilters() {
@@ -161,6 +171,9 @@ export default function SubmissionsListPage() {
     setSubmittedBy('');
     setAccountId('');
     setRequirementId('');
+    setSalesOwnerId('');
+    setJoinedFrom('');
+    setJoinedTo('');
     setSortBy('created_at');
     setSortOrder('desc');
     setSearch('');
@@ -179,6 +192,9 @@ export default function SubmissionsListPage() {
     if (submittedBy) params.submitted_by = submittedBy;
     if (accountId) params.account_id = accountId;
     if (requirementId) params.requirement_id = requirementId;
+    if (salesOwnerId) params.sales_owner_id = salesOwnerId;
+    if (joinedFrom) params.joined_from = joinedFrom;
+    if (joinedTo) params.joined_to = joinedTo;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
       .get('/submissions', { params })
@@ -192,7 +208,7 @@ export default function SubmissionsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stageCsv, submittedBy, accountId, requirementId, sortBy, sortOrder]);
+  }, [appliedSearch, page, stageCsv, submittedBy, accountId, requirementId, salesOwnerId, joinedFrom, joinedTo, sortBy, sortOrder]);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
@@ -268,7 +284,7 @@ export default function SubmissionsListPage() {
       {canCreateSubmission(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Put forward
+            <Plus className="h-4 w-4" /> Put forward
           </button>
         </div>
       )}
@@ -383,6 +399,7 @@ export default function SubmissionsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -417,7 +434,7 @@ export default function SubmissionsListPage() {
         {peek && <SubmissionPeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
-      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="md" tone="create">
+      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="xl" tone="create">
         <SubmissionCreatePage
           asPanel
           initialProfileId={createProfileId}

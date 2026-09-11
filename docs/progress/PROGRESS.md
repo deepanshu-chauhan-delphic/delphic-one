@@ -2,6 +2,46 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-11 — Account meeting attendees widened + editable, put-forward pickers complete, sales bench-only submissions — branch `dev-deep`
+
+- **Meeting attendees are no longer sales-only.** `AccountStageMoveDrawer` / `AccountStageOverrideDrawer` used to fetch `/users/directory?role=sales` — a BDA, recruiter, or admin who attended a client meeting had no way to be recorded. New shared `AccountAttendeesPicker` (`pages/accounts/`) fetches the full active roster; both drawers now use it.
+- **Meeting details are editable after the fact.** New `POST /accounts/:id/meeting` (`authorize('bda','admin')`, `accounts.service.updateMeeting`) updates mode/date/location/notes/attendees **without a stage transition** — previously the only way in was `changeStage`, whose transition map has no `meeting_scheduled → meeting_scheduled` edge, so a wrong attendee list was stuck once scheduled. New `AccountMeetingEditDrawer` + an "Edit meeting" action on `AccountDetailPage`'s "Meeting information" card (shown whenever the caller can mutate the account, it's unlocked, and a meeting exists). Audited in `stage_history` as `"Meeting details updated"` (from_stage == to_stage).
+- **Reports stay correct despite the wider attendee pool**: `reports.service.salesReports.meetings_attended` now filters attendees to `role IN (sales, admin)` so a BDA/recruiter tagged onto a meeting doesn't inflate the "Sales POC" count.
+- **Put forward pickers now show everything.** `SubmissionCreatePage` fetched candidates/requirements with a bare `limit: 100` — anything past the first page was silently invisible. New `lib/fetchAllPages.js` pages a `{data, pagination}` endpoint to completion; used for both the candidate and (in-progress) requirement pickers, and reused to simplify `ReportsPage`'s `fetchAllAccountOptions`.
+- **Sales can now put forward candidates — bench only.** `POST /submissions` opens to `authorize('recruiter','sales','admin')`; `submissions.service.create` rejects a sales caller with `sales_bench_only` (403) unless the profile is `source: 'direct'` **and** `on_bench`. Client: `canCreateSubmission` includes sales; `canOnlyPutForwardBench(user)` locks the "On bench only" checkbox on and filters the picker for a sales caller (both `lib/submissionStages.js`).
+- Tests: `accounts-meeting.test.js` (new, 6), `submissions-stage.test.js` +4 (bench-only), `reports-bda-sales.test.js` +1 (non-sales attendee excluded). Full server suite (307) + client build/lint green.
+
+## 2026-09-10 — UX: sticky list headers + top form CTAs + wider two-column edit drawers — branch `dev-deep`
+
+- **Lists** — `DataTable` gains a `maxHeight` prop; the 4 list pages (accounts / requirements / submissions / profiles) pass `"calc(100dvh - 18rem)"`. The body scrolls inside that height while the filter bar and the `thead` (already `sticky top-0`) stay put. Embedded/preview tables (reports, dashboard, detail sub-tables) don't pass it → unchanged.
+- **Edit / create forms** — the four form components (`Requirement` / `Account` / `Profile` / `SubmissionCreate`) now render **two-column** in drawer (panel) mode too, hosted in `Drawer size="xl"` (new size, ~46rem) instead of `lg`/`md`. Save/Cancel moved into a new `FormActionsBar` (`sticky top-0` inside the drawer body) rendered as the first child of the `<form>` — CTAs stay visible while fields scroll; the old bottom button row now renders only on the standalone route (`!asPanel`). All 13 drawer call sites bumped to `size="xl"`.
+- Client build + lint clean. (Pre-existing failing test `accountBoard.test.mjs` unrelated.)
+
+## 2026-09-10 — Dashboard KPI drill-through: click a tile, land on the exact rows — branch `dev-deep`
+
+- **Problem:** KPI tiles linked to approximate views — a BDA's "Active leads" opened *everyone's* leads (accounts list has no role scope), "Stuck leads" just did `?stage=lead` (no staleness), "In meeting" dropped `rescheduled`, "Closed/Closures this month" showed *all* closed rows ever, sales's "Active submissions" showed the whole company.
+- **`dashboardWidgets.js`**: replaced the static `KPI_LINKS` map with `kpiHref(key, { role, userId, monthStartIso })` — role-scopes (`owner_id` for BDA account tiles, `sales_owner_id` for sales submission tiles) and date-scopes (`closed_from` / `joined_from` = IST month start) each link so it reproduces the tile's count. "Interviews this week" → `/calendar` (no list view exists for it).
+- **`dashboard.service.js`**: `startOfMonth` / `startOfWeek` now compute the **IST** calendar boundary (fixed +05:30), consistent with the reports; `DashboardPage` computes the matching `monthStartIso`.
+- **List-page params** (server validation + service + client URL passthrough, no new UI controls):
+  - accounts: `?stuck=stuck` (stale lead/meeting/rescheduled, 7d) and CSV `?stage=a,b`.
+  - submissions: `?sales_owner_id=` (seat→requirement), `?joined_from=` / `?joined_to=` (actual_joining_date window).
+  - requirements: `?closed_from=` / `?closed_to=` (closed_at window).
+  - New passthrough params are cleared by each list's "Clear all filters".
+- Tests: `dashboard-kpi-filters.test.js` (6). Full server suite + client build green.
+
+## 2026-09-10 — Add Delphic favicon — branch `dev-deep`
+
+- `client/index.html`: added `<link rel="icon">` + `<link rel="apple-touch-icon">` pointing at the existing `/Delphic_D-logo_transparent.png` (the blue "D" mark in `client/public/`). Site previously shipped no favicon.
+
+## 2026-09-10 — BDA/Sales reports: column filters — branch `dev-deep`
+
+- **Server** (`reports.service.bdaReports` / `salesReports`, `reports.validation.dateRangeSchema` +`account_type`): every table now honours
+  - `bda_id` / `sales_id` — already existed for self-scoping; unchanged.
+  - `client_id` — an account id (reused, generic across reports). For bda-reports it's client **or** vendor (accounts_created, meetings_scheduled, meetings_conversion, requirements_brought(_counts) all narrow to it); for sales-reports it's the client account (requirements_created, meetings_attended).
+  - `account_type` (`client`/`vendor`/`unclassified`) — bda-reports only, narrows `accounts_created`.
+- **Client**: new Account/Type selects (bda-reports) and Client select (sales-reports) in the report's filter bar, options from `GET /accounts`. The existing generic "Individual" filter is now wired up for both reports too (`bda_id`/`sales_id`) but hidden from the self-scoped role — admin only, since a bda/sales caller's own id always wins server-side.
+- Tests: `reports-bda-sales.test.js` +5 (`column filters` — bda_id/client_id/account_type narrow accounts_created, client_id narrows meetings + requirements_brought + requirements_created + meetings_attended). All 68 report tests green; client build/lint clean.
+
 ## 2026-09-09 — Reports: all date bucketing + range filtering moved to IST — branch `dev-deep`
 
 - **Bug:** a custom "1 Sep – 1 Sep" range and "This month" disagreed on 1 Sep's counts. Root cause: reports bucketed rows by **UTC** day and `date_from` parsed as UTC midnight, while the `date_to` end-of-day was computed in the server's **local** tz. Two inconsistencies at once (UTC bucket vs local range; and neither is what an IST user means by "1 September").

@@ -15,6 +15,8 @@ const dateRangeSchema = z.object({
   bda_id: optionalUuid,
   vendor_id: optionalUuid,
   client_id: optionalUuid,
+  // bda-reports only: narrows the "Accounts brought" table to one account type.
+  account_type: z.enum(['client', 'vendor', 'unclassified']).optional(),
 });
 
 const agingSchema = z.object({

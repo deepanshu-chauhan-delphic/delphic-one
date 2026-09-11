@@ -82,14 +82,19 @@ const DECORATE_INCLUDE = {
 };
 
 async function list(filters) {
-  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, work_mode, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
+  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, work_mode, stuck, closed_from, closed_to, tech_stack, search, sort_by, sort_order, page, limit } = filters;
 
   const stuckClause = { status: { in: STUCK_STATUSES }, updated_at: { lte: stuckCutoff() } };
+
+  const closedRange = {};
+  if (closed_from) closedRange.gte = new Date(closed_from);
+  if (closed_to) closedRange.lte = new Date(closed_to);
 
   const where = {
     ...(status ? { status } : {}),
     ...(stuck === 'stuck' ? { AND: [stuckClause] } : {}),
     ...(stuck === 'not_stuck' ? { NOT: [stuckClause] } : {}),
+    ...(Object.keys(closedRange).length ? { closed_at: closedRange } : {}),
     ...(req_type ? { req_type } : {}),
     ...(account_id ? { account_id } : {}),
     ...(sales_owner_id ? { sales_owner_id } : {}),

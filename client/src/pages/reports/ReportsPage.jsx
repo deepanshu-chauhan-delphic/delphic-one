@@ -28,6 +28,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
+import { fetchAllPages } from '../../lib/fetchAllPages.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
@@ -66,6 +67,13 @@ const HR_SOURCE_OPTIONS = [
   { value: 'vendor', label: 'Vendor' },
   { value: 'linkedin', label: 'Market' },
 ];
+
+// `/accounts` caps `limit` at 100, so page through it to get EVERY account for a
+// picker (BDA/Sales report filters).
+async function fetchAllAccountOptions(extraParams = {}) {
+  const rows = await fetchAllPages('/accounts', { ...extraParams, sort_by: 'name', sort_order: 'asc' });
+  return rows.map((a) => ({ value: a.id, label: a.name }));
+}
 
 const HR_TAB_META = {
   sourcing: { hint: 'Profiles sourced per day (excludes on-bench)', Icon: UserPlus },
@@ -292,6 +300,13 @@ export default function ReportsPage() {
   const [groupBy, setGroupBy] = useState('month');
   const [departmentId, setDepartmentId] = useState('');
   const [individualId, setIndividualId] = useState('');
+  // bda-reports: Account (any type) + account-type filter for "Accounts brought".
+  const [bdaReportsAccountId, setBdaReportsAccountId] = useState('');
+  const [bdaReportsAccountType, setBdaReportsAccountType] = useState('');
+  const [bdaReportsAccounts, setBdaReportsAccounts] = useState([]);
+  // sales-reports: Client filter.
+  const [salesReportsAccountId, setSalesReportsAccountId] = useState('');
+  const [salesReportsAccounts, setSalesReportsAccounts] = useState([]);
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
@@ -351,8 +366,15 @@ export default function ReportsPage() {
     'sales-performance': 'sales',
     'bda-performance': 'bda',
     'recruiter-vendor-gaps': 'recruiter',
+    'bda-reports': 'bda',
+    'sales-reports': 'sales',
   };
-  const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
+  // bda-reports / sales-reports self-scope a bda/sales caller server-side regardless
+  // of this filter, so hide it for them — only useful to an admin looking across people.
+  const showIndividual =
+    can('filterByIndividual') &&
+    Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]) &&
+    !((active === 'bda-reports' && user?.role === 'bda') || (active === 'sales-reports' && user?.role === 'sales'));
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
@@ -421,6 +443,35 @@ export default function ReportsPage() {
   }, [isTimeToSubmit]);
 
   useEffect(() => {
+    if (!isBdaReports) {
+      setBdaReportsAccounts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    // Accounts brought can be a client or a vendor, so this list is unrestricted by type.
+    fetchAllAccountOptions()
+      .then((opts) => !cancelled && setBdaReportsAccounts(opts))
+      .catch(() => !cancelled && setBdaReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isBdaReports]);
+
+  useEffect(() => {
+    if (!isSalesReports) {
+      setSalesReportsAccounts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchAllAccountOptions({ type: 'client' })
+      .then((opts) => !cancelled && setSalesReportsAccounts(opts))
+      .catch(() => !cancelled && setSalesReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isSalesReports]);
+
+  useEffect(() => {
     if (datePreset === 'custom') return;
     const range = rangeForPreset(datePreset);
     setDateFrom(range.date_from);
@@ -443,9 +494,14 @@ export default function ReportsPage() {
       setIndividuals([]);
       return undefined;
     }
+    // *-performance / recruiter-vendor-gaps genuinely list one role. bda-reports /
+    // sales-reports filter by "brought by" / "sales POC", which can be ANY user
+    // (roles change, admins bring accounts) — so pull the whole roster, inactive
+    // included, rather than role=bda / role=sales.
+    const roleScoped = active !== 'bda-reports' && active !== 'sales-reports';
     const role = INDIVIDUAL_ROLE_BY_REPORT[active] || 'recruiter';
     apiClient
-      .get('/users/directory', { params: { role } })
+      .get('/users/directory', { params: roleScoped ? { role } : {} })
       .then(({ data }) => setIndividuals((data.data || []).map((u) => ({ id: u.id, name: u.name }))))
       .catch(() => setIndividuals([]));
     return undefined;
@@ -543,6 +599,11 @@ export default function ReportsPage() {
     if (individualId && active === 'sales-performance') params.sales_id = individualId;
     if (individualId && active === 'bda-performance') params.bda_id = individualId;
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
+    if (individualId && active === 'bda-reports') params.bda_id = individualId;
+    if (individualId && active === 'sales-reports') params.sales_id = individualId;
+    if (isBdaReports && bdaReportsAccountId) params.client_id = bdaReportsAccountId;
+    if (isBdaReports && bdaReportsAccountType) params.account_type = bdaReportsAccountType;
+    if (isSalesReports && salesReportsAccountId) params.client_id = salesReportsAccountId;
     if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
     if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
     // Both toggle buckets are active-client views — always send stage=active.
@@ -600,6 +661,9 @@ export default function ReportsPage() {
     ttsRequirementId,
     ttsSourcerId,
     ttsSearchApplied,
+    bdaReportsAccountId,
+    bdaReportsAccountType,
+    salesReportsAccountId,
   ]);
 
   async function exportReport(type) {
@@ -742,6 +806,9 @@ export default function ReportsPage() {
               setTtsSourcerId('');
               setTtsSearch('');
               setTtsSearchApplied('');
+              setBdaReportsAccountId('');
+              setBdaReportsAccountType('');
+              setSalesReportsAccountId('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -883,6 +950,46 @@ export default function ReportsPage() {
               options={hrPeople}
             />
           </>
+        )}
+        {isBdaReports && (
+          <>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by account"
+              value={bdaReportsAccountId}
+              onChange={setBdaReportsAccountId}
+              placeholder="Account: All"
+              searchPlaceholder="Search accounts…"
+              options={bdaReportsAccounts}
+            />
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Filter by account type"
+              value={bdaReportsAccountType}
+              onChange={setBdaReportsAccountType}
+              placeholder="Type: All"
+              searchPlaceholder="Search type…"
+              options={[
+                { value: 'client', label: 'Client' },
+                { value: 'vendor', label: 'Vendor' },
+                { value: 'unclassified', label: 'Unclassified' },
+              ]}
+            />
+          </>
+        )}
+        {isSalesReports && (
+          <SearchableSelect
+            className="w-48"
+            allowClear
+            ariaLabel="Filter by client"
+            value={salesReportsAccountId}
+            onChange={setSalesReportsAccountId}
+            placeholder="Client: All"
+            searchPlaceholder="Search clients…"
+            options={salesReportsAccounts}
+          />
         )}
         {showCoveragePeople && (
           <>

@@ -91,16 +91,22 @@ function serialize(row) {
 
 async function list(filters) {
   const {
-    account_id, requirement_id, seat_id, profile_id, stage, submitted_by, search, sort_by, sort_order, page, limit,
+    account_id, requirement_id, seat_id, profile_id, sales_owner_id, stage, submitted_by,
+    joined_from, joined_to, search, sort_by, sort_order, page, limit,
   } = filters;
 
   const seatFilter = {};
   if (requirement_id) seatFilter.requirement_id = requirement_id;
   if (account_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), account_id };
+  if (sales_owner_id) seatFilter.requirement = { ...(seatFilter.requirement || {}), sales_owner_id };
 
   const stages = stage
     ? String(stage).split(',').map((s) => s.trim()).filter(Boolean)
     : [];
+
+  const joinedRange = {};
+  if (joined_from) joinedRange.gte = new Date(joined_from);
+  if (joined_to) joinedRange.lte = new Date(joined_to);
 
   const where = {
     ...(Object.keys(seatFilter).length ? { seat: seatFilter } : {}),
@@ -108,6 +114,7 @@ async function list(filters) {
     ...(profile_id ? { profile_id } : {}),
     ...(stages.length ? { stage: { in: stages } } : {}),
     ...(submitted_by ? { submitted_by } : {}),
+    ...(Object.keys(joinedRange).length ? { actual_joining_date: joinedRange } : {}),
     ...(search
       ? {
           OR: [
@@ -133,7 +140,7 @@ async function getById(id) {
   return serialize(row);
 }
 
-async function create(data, submittedBy) {
+async function create(data, user) {
   const seat = await prisma.requirementSeat.findUnique({ where: { id: data.requirement_seat_id } });
   if (!seat) return { error: 'seat_not_found' };
   if (seat.is_locked) return { error: 'seat_locked' };
@@ -141,6 +148,13 @@ async function create(data, submittedBy) {
   const profile = await prisma.profile.findUnique({ where: { id: data.profile_id } });
   if (!profile || !profile.is_active) return { error: 'profile_inactive' };
   if (profile.source === 'vendor' && data.vendor_rate == null) return { error: 'vendor_rate_required' };
+
+  // Sales may only put forward bench candidates (source = direct/"Bench" AND
+  // currently on_bench) — everything else (vendor-sourced, market, off-bench) stays
+  // recruiter/admin-only.
+  if (user.role === 'sales' && !(profile.source === 'direct' && profile.on_bench)) {
+    return { error: 'sales_bench_only' };
+  }
 
   const duplicate = await prisma.submission.findFirst({
     where: { requirement_seat_id: data.requirement_seat_id, profile_id: data.profile_id, stage: { notIn: ['rejected', 'backout'] } },
@@ -152,7 +166,7 @@ async function create(data, submittedBy) {
   );
 
   const row = await prisma.submission.create({
-    data: { ...data, submitted_by: submittedBy, margin, margin_percentage },
+    data: { ...data, submitted_by: user.id, margin, margin_percentage },
     include: INCLUDE,
   });
 

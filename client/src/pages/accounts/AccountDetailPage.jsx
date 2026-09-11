@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -14,6 +15,7 @@ import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
 import AccountFormPage from './AccountFormPage.jsx';
 import AccountStageMoveDrawer from './AccountStageMoveDrawer.jsx';
 import AccountStageOverrideDrawer from './AccountStageOverrideDrawer.jsx';
+import AccountMeetingEditDrawer from './AccountMeetingEditDrawer.jsx';
 import { accountAccent } from '../../lib/accountAccent.js';
 import { ACCOUNT_TRANSITIONS, accountKey, apiErrorMessage, canClassifyAccount, canMutateAccount, formatAccountValue } from './accountUtils.js';
 import { userCan } from '../../lib/permissions.js';
@@ -27,12 +29,13 @@ function DetailField({ label, value, children }) {
   );
 }
 
-function DetailSection({ title, children }) {
+function DetailSection({ title, actions, children }) {
   return (
     <section className="overflow-hidden rounded-xl border border-tertiary-200 bg-white">
-      <h2 className="border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5 font-heading text-sm font-semibold tracking-tight text-tertiary-900">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between gap-2 border-b border-tertiary-100 bg-tertiary-50/60 px-3.5 py-2.5">
+        <h2 className="font-heading text-sm font-semibold tracking-tight text-tertiary-900">{title}</h2>
+        {actions}
+      </div>
       <dl className="grid gap-x-5 gap-y-3 p-3.5 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
     </section>
   );
@@ -52,6 +55,8 @@ export default function AccountDetailPage() {
   const [movingStage, setMovingStage] = useState(false);
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [classifying, setClassifying] = useState(false);
+  const [meetingEditOpen, setMeetingEditOpen] = useState(false);
+  const [savingMeeting, setSavingMeeting] = useState(false);
 
   async function loadAccount() {
     setLoading(true);
@@ -108,6 +113,19 @@ export default function AccountDetailPage() {
       pushError(apiErrorMessage(requestError, 'Failed to override account stage'), 'Something went wrong');
     } finally {
       setMovingStage(false);
+    }
+  }
+
+  async function saveMeeting(body) {
+    setSavingMeeting(true);
+    try {
+      await apiClient.post(`/accounts/${id}/meeting`, body);
+      setMeetingEditOpen(false);
+      await loadAccount();
+    } catch (requestError) {
+      pushError(apiErrorMessage(requestError, 'Failed to update meeting'), 'Something went wrong');
+    } finally {
+      setSavingMeeting(false);
     }
   }
 
@@ -175,7 +193,9 @@ export default function AccountDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Link to={`/pipeline/${id}`} className="btn-secondary">Pipeline board</Link>
             {((canMutate && !account.is_locked) || canOverride) && (
-              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
             )}
             {canMutate && !account.is_locked && nextStages.length > 0 && (
               <button type="button" onClick={() => setIsStageModalOpen(true)} className="btn-primary">Move stage</button>
@@ -246,7 +266,18 @@ export default function AccountDetailPage() {
             <DetailField label="Phone" value={account.poc_phone} />
           </DetailSection>
 
-          <DetailSection title="Meeting information">
+          <DetailSection
+            title="Meeting information"
+            actions={
+              canMutate &&
+              !account.is_locked &&
+              account.meeting_date && (
+                <button type="button" className="btn-secondary" onClick={() => setMeetingEditOpen(true)}>
+                  <Pencil className="h-4 w-4" /> Edit meeting
+                </button>
+              )
+            }
+          >
             <DetailField label="Mode" value={account.meeting_mode} />
             <DetailField label="Date" value={account.meeting_date ? new Date(account.meeting_date).toLocaleString() : null} />
             <DetailField label="Location" value={account.meeting_location} />
@@ -377,7 +408,17 @@ export default function AccountDetailPage() {
         />
       )}
 
-      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="lg" tone="edit">
+      {account && (
+        <AccountMeetingEditDrawer
+          account={account}
+          open={meetingEditOpen}
+          saving={savingMeeting}
+          onClose={() => setMeetingEditOpen(false)}
+          onSave={saveMeeting}
+        />
+      )}
+
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <AccountFormPage
             asPanel
