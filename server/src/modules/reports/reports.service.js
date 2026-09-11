@@ -1511,22 +1511,28 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
     row.clients[client] = (row.clients[client] || 0) + 1;
   }
 
-  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date)
+  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date).
+  // The attendee picker isn't role-restricted (anyone can be added to a meeting),
+  // so this "Sales POC" table only counts attendees who actually hold a sales-ish
+  // role — a BDA or recruiter tagged as an attendee shouldn't show up here.
   const attendedAccounts = await prisma.account.findMany({
     where: {
       meeting_date: range || { not: null },
-      meeting_attendees: sales_id ? { some: { user_id: sales_id } } : { some: {} },
+      meeting_attendees: {
+        some: { ...(sales_id ? { user_id: sales_id } : {}), user: { role: { in: ['sales', 'admin'] } } },
+      },
       ...(client_id ? { id: client_id } : {}),
     },
     select: {
       meeting_date: true,
-      meeting_attendees: { select: { user: { select: { id: true, name: true } } } },
+      meeting_attendees: { select: { user: { select: { id: true, name: true, role: true } } } },
     },
   });
   const meetingsAttended = new Map();
   for (const a of attendedAccounts) {
     const day = dayKey(a.meeting_date);
     for (const att of a.meeting_attendees) {
+      if (!['sales', 'admin'].includes(att.user?.role)) continue;
       if (sales_id && att.user?.id !== sales_id) continue;
       const key = `${att.user?.id}|${day}`;
       if (!meetingsAttended.has(key)) {

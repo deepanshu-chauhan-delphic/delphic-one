@@ -114,8 +114,16 @@ export function computeMarginPreview(proposed_rate, proposed_rate_currency, vend
   return { margin, margin_percentage };
 }
 
+// Recruiter/admin can put forward any candidate; sales may also put candidates
+// forward, but only ones on the bench (see canOnlyPutForwardBench) — enforced
+// again server-side in submissions.service.create.
 export function canCreateSubmission(user) {
-  return user && ['recruiter', 'admin'].includes(user.role);
+  return user && ['recruiter', 'sales', 'admin'].includes(user.role);
+}
+
+// Sales is restricted to bench candidates (source = direct/"Bench" AND on_bench).
+export function canOnlyPutForwardBench(user) {
+  return user?.role === 'sales';
 }
 
 // Who can edit submission fields (rates, notes, files) — PATCH /submissions/:id.

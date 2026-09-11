@@ -28,6 +28,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
+import { fetchAllPages } from '../../lib/fetchAllPages.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
@@ -68,19 +69,10 @@ const HR_SOURCE_OPTIONS = [
 ];
 
 // `/accounts` caps `limit` at 100, so page through it to get EVERY account for a
-// picker (BDA/Sales report filters). Guarded against a runaway loop.
+// picker (BDA/Sales report filters).
 async function fetchAllAccountOptions(extraParams = {}) {
-  const out = [];
-  for (let page = 1; page <= 100; page += 1) {
-    const { data } = await apiClient.get('/accounts', {
-      params: { ...extraParams, limit: 100, page, sort_by: 'name', sort_order: 'asc' },
-    });
-    const rows = data.data || [];
-    out.push(...rows);
-    const totalPages = data.pagination?.totalPages ?? 1;
-    if (page >= totalPages || rows.length < 100) break;
-  }
-  return out.map((a) => ({ value: a.id, label: a.name }));
+  const rows = await fetchAllPages('/accounts', { ...extraParams, sort_by: 'name', sort_order: 'asc' });
+  return rows.map((a) => ({ value: a.id, label: a.name }));
 }
 
 const HR_TAB_META = {

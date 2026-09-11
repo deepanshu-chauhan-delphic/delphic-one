@@ -76,6 +76,18 @@ const stageSchema = z.object({
   meeting_attendee_ids: z.array(z.string().uuid()).optional(),
 });
 
+// Edit an account's meeting details (mode/date/location/notes/attendees) without
+// a stage transition — so a scheduled meeting stays editable after the fact
+// (reschedule details, fix attendees) instead of only being settable once while
+// moving into `meeting_scheduled`.
+const meetingSchema = z.object({
+  meeting_mode: z.enum(['online', 'offline']),
+  meeting_date: z.string().datetime(),
+  meeting_location: z.string().optional(),
+  meeting_notes: z.string().optional(),
+  meeting_attendee_ids: z.array(z.string().uuid()).optional(),
+});
+
 const classifySchema = z.object({
   type: z.enum(['client', 'vendor']),
 });
@@ -119,6 +131,7 @@ module.exports = {
   updateSchema,
   stageSchema,
   stageOverrideSchema,
+  meetingSchema,
   classifySchema,
   listQuerySchema,
 };

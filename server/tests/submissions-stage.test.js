@@ -111,6 +111,58 @@ describe('submission create + margin', () => {
   });
 });
 
+describe('sales may only put forward bench candidates', () => {
+  test('sales can create a submission for a bench candidate', async () => {
+    const benchProfile = await createProfile(recruiterToken, { on_bench: true });
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: benchProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  test('sales is blocked from an off-bench candidate', async () => {
+    // `profile` (from beforeEach) is source=direct with the on_bench default (false).
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test('sales is blocked from a vendor-sourced candidate', async () => {
+    const vendorAccount = await prisma.account.create({
+      data: { type: 'vendor', name: 'Vendor Co', stage: 'active', owner_id: (await createUser({ role: 'bda' })).id },
+    });
+    const vendorProfile = await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: vendorAccount.id });
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: vendorProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+      vendor_rate: 60,
+      vendor_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test('recruiter and admin are unaffected — off-bench candidates still work for them', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const asAdmin = await authed(request(app).post('/api/v1/submissions'), adminToken).send({
+      requirement_seat_id: seatId,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(asAdmin.status).toBe(201);
+  });
+});
+
 describe('submission stage machine', () => {
   test('cannot skip from sourced straight to offer', async () => {
     const sub = await createSubmission();

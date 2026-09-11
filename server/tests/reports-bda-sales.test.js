@@ -157,6 +157,19 @@ describe('GET /reports/sales-reports', () => {
     expect(row.date).toBe(iso(SEP));
   });
 
+  test('meetings attended excludes attendees who are not sales/admin (e.g. a BDA or recruiter tagged along)', async () => {
+    // The attendee picker isn't role-restricted, so a BDA/recruiter can be added
+    // to a meeting — but they shouldn't inflate a "Sales POC" report.
+    const recruiter = await createUser({ role: 'recruiter' });
+    const acct = await mkAccount();
+    await scheduleMeeting(acct.id, bdaToken, [sales.id, bda.id, recruiter.id]);
+
+    const res = await authed(request(app).get('/api/v1/reports/sales-reports').query(RANGE), adminToken);
+    const rows = res.body.data.tables.find((t) => t.key === 'meetings_attended').rows;
+    expect(rows.map((r) => r.sales_poc_id)).toEqual([sales.id]);
+    expect(rows.find((r) => r.sales_poc_id === sales.id).count).toBe(1);
+  });
+
   test('IST day bucketing: a same-day custom range agrees with a wider range at the day boundary', async () => {
     // 2026-09-09T19:30Z == 2026-09-10 01:00 IST -> IST day is Sep 10, UTC day is Sep 9.
     const acct = await mkAccount();

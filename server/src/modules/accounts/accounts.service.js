@@ -266,6 +266,54 @@ async function changeStage(id, { to_stage, reason, meeting_mode, meeting_date, m
   });
 }
 
+// Edit an account's meeting details in place — no stage change, so it works
+// whether the meeting is upcoming (`meeting_scheduled`) or already happened
+// (the account has since moved to `active`/`rescheduled`). Lets BDA/admin fix a
+// wrong attendee list or correct the date/location after the fact.
+async function updateMeeting(id, { meeting_mode, meeting_date, meeting_location, meeting_notes, meeting_attendee_ids }, user) {
+  return prisma.$transaction(async (tx) => {
+    const account = await tx.account.findUnique({ where: { id } });
+    if (!account) return { error: 'not_found' };
+    if (!canMutateAccount(account, user)) return { error: 'forbidden' };
+    if (account.is_locked) return { error: 'locked' };
+    if (meeting_mode === 'offline' && !meeting_location) return { error: 'meeting_location_required' };
+
+    const patch = {
+      meeting_mode,
+      meeting_date: new Date(meeting_date),
+      meeting_location: meeting_mode === 'offline' ? meeting_location : null,
+    };
+    if (meeting_notes !== undefined) patch.meeting_notes = meeting_notes || null;
+
+    await tx.account.update({ where: { id }, data: patch });
+
+    if (meeting_attendee_ids) {
+      await tx.accountMeetingAttendee.deleteMany({ where: { account_id: id } });
+      if (meeting_attendee_ids.length > 0) {
+        await tx.accountMeetingAttendee.createMany({
+          data: meeting_attendee_ids.map((user_id) => ({ account_id: id, user_id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const updated = await tx.account.findUnique({ where: { id }, include: ACCOUNT_INCLUDE });
+
+    const historyRow = await tx.stageHistory.create({
+      data: {
+        entity_type: 'account',
+        entity_id: id,
+        from_stage: account.stage,
+        to_stage: account.stage,
+        changed_by: user.id,
+        reason: 'Meeting details updated',
+      },
+    });
+
+    return { account: serialize(updated), history: historyRow };
+  });
+}
+
 // Superadmin-only: move an account to any stage (backward, or straight to `lead`),
 // ignoring ownership, the lock, and the transition map. Still audited in stage_history.
 async function changeStageOverride(id, body, user) {
@@ -339,6 +387,7 @@ module.exports = {
   update,
   changeStage,
   changeStageOverride,
+  updateMeeting,
   classifyLead,
   getHistory,
   canTransition,

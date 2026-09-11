@@ -2,6 +2,15 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-11 — Account meeting attendees widened + editable, put-forward pickers complete, sales bench-only submissions — branch `dev-deep`
+
+- **Meeting attendees are no longer sales-only.** `AccountStageMoveDrawer` / `AccountStageOverrideDrawer` used to fetch `/users/directory?role=sales` — a BDA, recruiter, or admin who attended a client meeting had no way to be recorded. New shared `AccountAttendeesPicker` (`pages/accounts/`) fetches the full active roster; both drawers now use it.
+- **Meeting details are editable after the fact.** New `POST /accounts/:id/meeting` (`authorize('bda','admin')`, `accounts.service.updateMeeting`) updates mode/date/location/notes/attendees **without a stage transition** — previously the only way in was `changeStage`, whose transition map has no `meeting_scheduled → meeting_scheduled` edge, so a wrong attendee list was stuck once scheduled. New `AccountMeetingEditDrawer` + an "Edit meeting" action on `AccountDetailPage`'s "Meeting information" card (shown whenever the caller can mutate the account, it's unlocked, and a meeting exists). Audited in `stage_history` as `"Meeting details updated"` (from_stage == to_stage).
+- **Reports stay correct despite the wider attendee pool**: `reports.service.salesReports.meetings_attended` now filters attendees to `role IN (sales, admin)` so a BDA/recruiter tagged onto a meeting doesn't inflate the "Sales POC" count.
+- **Put forward pickers now show everything.** `SubmissionCreatePage` fetched candidates/requirements with a bare `limit: 100` — anything past the first page was silently invisible. New `lib/fetchAllPages.js` pages a `{data, pagination}` endpoint to completion; used for both the candidate and (in-progress) requirement pickers, and reused to simplify `ReportsPage`'s `fetchAllAccountOptions`.
+- **Sales can now put forward candidates — bench only.** `POST /submissions` opens to `authorize('recruiter','sales','admin')`; `submissions.service.create` rejects a sales caller with `sales_bench_only` (403) unless the profile is `source: 'direct'` **and** `on_bench`. Client: `canCreateSubmission` includes sales; `canOnlyPutForwardBench(user)` locks the "On bench only" checkbox on and filters the picker for a sales caller (both `lib/submissionStages.js`).
+- Tests: `accounts-meeting.test.js` (new, 6), `submissions-stage.test.js` +4 (bench-only), `reports-bda-sales.test.js` +1 (non-sales attendee excluded). Full server suite (307) + client build/lint green.
+
 ## 2026-09-10 — UX: sticky list headers + top form CTAs + wider two-column edit drawers — branch `dev-deep`
 
 - **Lists** — `DataTable` gains a `maxHeight` prop; the 4 list pages (accounts / requirements / submissions / profiles) pass `"calc(100dvh - 18rem)"`. The body scrolls inside that height while the filter bar and the `thead` (already `sticky top-0`) stay put. Embedded/preview tables (reports, dashboard, detail sub-tables) don't pass it → unchanged.

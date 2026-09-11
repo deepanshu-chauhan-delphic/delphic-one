@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Send, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
+import { fetchAllPages } from '../../lib/fetchAllPages.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
-import { canCreateSubmission, computeMarginPreview } from '../../lib/submissionStages.js';
+import { canCreateSubmission, canOnlyPutForwardBench, computeMarginPreview } from '../../lib/submissionStages.js';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import FormActionsBar from '../../components/ui/FormActionsBar.jsx';
 import { FIELD_INPUT } from '../../components/ui/formLayout.jsx';
@@ -35,7 +36,10 @@ export default function SubmissionCreatePage({
   const [seats, setSeats] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loadingSeats, setLoadingSeats] = useState(false);
+  // Sales is locked to bench candidates; recruiter/admin get the toggle.
+  const salesBenchOnly = canOnlyPutForwardBench(user);
   const [benchOnly, setBenchOnly] = useState(false);
+  const effectiveBenchOnly = salesBenchOnly || benchOnly;
 
   const [form, setForm] = useState({
     profile_id: initialProfileId || '',
@@ -54,7 +58,7 @@ export default function SubmissionCreatePage({
   const selectedProfile = profiles.find((p) => p.id === form.profile_id);
   const vendorRequired = selectedProfile?.source === 'vendor';
   const requirementLocked = Boolean(initialRequirementId);
-  const visibleProfiles = benchOnly ? profiles.filter((p) => p.source === 'direct' && p.on_bench) : profiles;
+  const visibleProfiles = effectiveBenchOnly ? profiles.filter((p) => p.source === 'direct' && p.on_bench) : profiles;
 
   const liveMargin = useMemo(
     () =>
@@ -69,21 +73,23 @@ export default function SubmissionCreatePage({
 
   useEffect(() => {
     if (!canCreateSubmission(user)) {
-      pushError('Only recruiters or admins can put a candidate forward.', 'Validation');
+      pushError('Only recruiters, sales, or admins can put a candidate forward.', 'Validation');
       return;
     }
-    const reqParams = { limit: 100 };
+    const reqParams = {};
     if (accountId) reqParams.account_id = accountId;
     // Only offer in-progress requirements in the picker — unless we were opened
     // locked to a specific requirement row, which shows regardless of status.
     if (!initialRequirementId) reqParams.status = 'in_progress';
+    // Page through both lists fully — a `limit`-capped first page silently hides
+    // candidates/requirements past the cap.
     Promise.all([
-      apiClient.get('/profiles', { params: { is_active: 'true', limit: 100 } }),
-      apiClient.get('/requirements', { params: reqParams }),
+      fetchAllPages('/profiles', { is_active: 'true' }),
+      fetchAllPages('/requirements', reqParams),
     ])
-      .then(([profilesRes, reqsRes]) => {
-        setProfiles(profilesRes.data.data || []);
-        setRequirements(reqsRes.data.data || []);
+      .then(([profileRows, reqRows]) => {
+        setProfiles(profileRows);
+        setRequirements(reqRows);
         if (initialRequirementId) {
           setForm((prev) => ({ ...prev, requirement_id: initialRequirementId }));
         }
@@ -148,7 +154,7 @@ export default function SubmissionCreatePage({
   if (!canCreateSubmission(user)) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-tertiary-600">Only recruiters or admins can put a candidate forward.</p>
+        <p className="text-sm text-tertiary-600">Only recruiters, sales, or admins can put a candidate forward.</p>
         {!asPanel && (
           <Link to="/submissions" className="text-sm text-primary-600 hover:underline">
             ← Back to submissions
@@ -188,8 +194,16 @@ export default function SubmissionCreatePage({
           <div className="sm:col-span-2">
             <div className="mb-1 flex items-center justify-between gap-2">
               <label className="block text-xs font-medium text-tertiary-600">Candidate *</label>
-              <label className="flex items-center gap-1.5 text-xs text-tertiary-600">
-                <input type="checkbox" checked={benchOnly} onChange={(e) => setBenchOnly(e.target.checked)} />
+              <label
+                className={`flex items-center gap-1.5 text-xs text-tertiary-600 ${salesBenchOnly ? 'opacity-70' : ''}`}
+                title={salesBenchOnly ? 'Sales can only put forward bench candidates' : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={effectiveBenchOnly}
+                  disabled={salesBenchOnly}
+                  onChange={(e) => setBenchOnly(e.target.checked)}
+                />
                 On bench only
               </label>
             </div>

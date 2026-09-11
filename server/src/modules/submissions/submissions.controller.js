@@ -18,6 +18,7 @@ const ERROR_STATUS = {
   seat_locked: [403, 'Seat is locked'],
   profile_inactive: [400, 'Profile is not active'],
   vendor_rate_required: [400, 'vendor_rate is required for vendor-sourced profiles'],
+  sales_bench_only: [403, 'Sales can only put forward candidates on the bench'],
   duplicate_submission: [400, 'An active submission already exists for this profile and seat'],
   invalid_transition: [400, 'Invalid stage transition'],
   forbidden_backward: [403, 'Only an admin can move a submission backward'],
@@ -55,7 +56,7 @@ const getOne = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const body = createSchema.parse(req.body);
-  const result = await service.create(body, req.user.id);
+  const result = await service.create(body, req.user);
   if (result.error) return mapError(res, result.error);
   return created(res, result.submission);
 });

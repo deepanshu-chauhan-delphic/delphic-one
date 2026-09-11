@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Drawer from '../../components/ui/Drawer.jsx';
-import apiClient from '../../lib/apiClient.js';
+import AccountAttendeesPicker from './AccountAttendeesPicker.jsx';
 import { ACCOUNT_ALL_STAGES, formatAccountValue } from './accountUtils.js';
 
 const INPUT_CLASS =
@@ -26,7 +26,6 @@ export default function AccountStageOverrideDrawer({ account, preferredToStage =
   const [meetingLocation, setMeetingLocation] = useState('');
   const [meetingNotes, setMeetingNotes] = useState('');
   const [attendeeIds, setAttendeeIds] = useState([]);
-  const [salesUsers, setSalesUsers] = useState([]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,20 +38,6 @@ export default function AccountStageOverrideDrawer({ account, preferredToStage =
     setMeetingNotes(account?.meeting_notes || '');
     setAttendeeIds((account?.meeting_attendees || []).map((a) => a.id));
   }, [open, account?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!open) return;
-    apiClient
-      .get('/users/directory', { params: { role: 'sales', active: 'true' } })
-      .then(({ data }) => setSalesUsers(data.data || []))
-      .catch(() => setSalesUsers([]));
-  }, [open]);
-
-  function toggleAttendee(userId) {
-    setAttendeeIds((current) =>
-      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
-    );
-  }
 
   function submit(event) {
     event.preventDefault();
@@ -160,22 +145,7 @@ export default function AccountStageOverrideDrawer({ account, preferredToStage =
                 className={INPUT_CLASS}
               />
             </label>
-            <div className="block text-xs font-medium text-tertiary-600">
-              Sales attendees
-              <div className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-md border border-tertiary-200 p-2">
-                {salesUsers.length === 0 && <p className="text-xs text-tertiary-400">No sales users found.</p>}
-                {salesUsers.map((salesUser) => (
-                  <label key={salesUser.id} className="flex items-center gap-2 text-sm font-normal text-tertiary-700">
-                    <input
-                      type="checkbox"
-                      checked={attendeeIds.includes(salesUser.id)}
-                      onChange={() => toggleAttendee(salesUser.id)}
-                    />
-                    {salesUser.name}
-                  </label>
-                ))}
-              </div>
-            </div>
+            <AccountAttendeesPicker open={open} value={attendeeIds} onChange={setAttendeeIds} />
           </>
         )}
       </form>

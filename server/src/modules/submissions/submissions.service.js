@@ -140,7 +140,7 @@ async function getById(id) {
   return serialize(row);
 }
 
-async function create(data, submittedBy) {
+async function create(data, user) {
   const seat = await prisma.requirementSeat.findUnique({ where: { id: data.requirement_seat_id } });
   if (!seat) return { error: 'seat_not_found' };
   if (seat.is_locked) return { error: 'seat_locked' };
@@ -148,6 +148,13 @@ async function create(data, submittedBy) {
   const profile = await prisma.profile.findUnique({ where: { id: data.profile_id } });
   if (!profile || !profile.is_active) return { error: 'profile_inactive' };
   if (profile.source === 'vendor' && data.vendor_rate == null) return { error: 'vendor_rate_required' };
+
+  // Sales may only put forward bench candidates (source = direct/"Bench" AND
+  // currently on_bench) — everything else (vendor-sourced, market, off-bench) stays
+  // recruiter/admin-only.
+  if (user.role === 'sales' && !(profile.source === 'direct' && profile.on_bench)) {
+    return { error: 'sales_bench_only' };
+  }
 
   const duplicate = await prisma.submission.findFirst({
     where: { requirement_seat_id: data.requirement_seat_id, profile_id: data.profile_id, stage: { notIn: ['rejected', 'backout'] } },
@@ -159,7 +166,7 @@ async function create(data, submittedBy) {
   );
 
   const row = await prisma.submission.create({
-    data: { ...data, submitted_by: submittedBy, margin, margin_percentage },
+    data: { ...data, submitted_by: user.id, margin, margin_percentage },
     include: INCLUDE,
   });
 
