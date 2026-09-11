@@ -6,14 +6,41 @@ import Drawer from '../../components/ui/Drawer.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
 import { apiErrorMessage, canAssignRecruiters } from '../profiles/profileUtils.js';
 
-export default function AssignRecruiterDrawer({ requirement, onClose }) {
+// role='recruiter' picks from the recruiter roster (server enforces the role match).
+// role='vendor_team' picks from every active person — it's a cross-functional tag
+// for whoever is working the vendor-sourcing side of a requirement, not an account role.
+const ROLE_CONFIG = {
+  recruiter: {
+    title: 'Assign recruiters',
+    viewTitle: 'Recruiter assignments',
+    fieldLabel: 'Recruiter',
+    placeholder: 'Select recruiter',
+    searchPlaceholder: 'Search recruiters…',
+    directoryParams: { role: 'recruiter', active: 'true' },
+    saveLabel: 'Assign',
+    emptyLabel: 'No active assignments.',
+  },
+  vendor_team: {
+    title: 'Assign vendor team',
+    viewTitle: 'Vendor team assignments',
+    fieldLabel: 'Team member',
+    placeholder: 'Select person',
+    searchPlaceholder: 'Search people…',
+    directoryParams: { active: 'true' },
+    saveLabel: 'Assign',
+    emptyLabel: 'No active assignments.',
+  },
+};
+
+export default function AssignRecruiterDrawer({ requirement, role = 'recruiter', onClose }) {
   const { user } = useAuth();
   const { pushError } = useAlerts();
+  const config = ROLE_CONFIG[role];
   const canAssign = canAssignRecruiters(user, requirement);
   const isSalesButNotOwner = user?.role === 'sales' && !canAssign;
   const [assignments, setAssignments] = useState([]);
-  const [recruiters, setRecruiters] = useState([]);
-  const [selectedRecruiterId, setSelectedRecruiterId] = useState('');
+  const [people, setPeople] = useState([]);
+  const [selectedPersonId, setSelectedPersonId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -21,10 +48,10 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
     setLoading(true);
     try {
       const requests = [apiClient.get(`/requirements/${requirement.id}/assignments`)];
-      if (canAssign) requests.push(apiClient.get('/users/directory', { params: { role: 'recruiter', active: 'true' } }));
+      if (canAssign) requests.push(apiClient.get('/users/directory', { params: config.directoryParams }));
       const [assignmentsResponse, usersResponse] = await Promise.all(requests);
-      setAssignments(assignmentsResponse.data.data || []);
-      setRecruiters(usersResponse?.data?.data || []);
+      setAssignments((assignmentsResponse.data.data || []).filter((row) => row.role_on_req === role));
+      setPeople(usersResponse?.data?.data || []);
     } catch (requestError) {
       pushError(apiErrorMessage(requestError, 'Failed to load assignments'), 'Something went wrong');
     } finally {
@@ -35,42 +62,40 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requirement.id]);
+  }, [requirement.id, role]);
 
-  async function assignRecruiter(event) {
+  async function assignPerson(event) {
     event.preventDefault();
-    if (!selectedRecruiterId) return;
+    if (!selectedPersonId) return;
     setSaving(true);
     try {
       await apiClient.post(`/requirements/${requirement.id}/assign`, {
-        user_id: selectedRecruiterId,
-        role_on_req: 'recruiter',
+        user_id: selectedPersonId,
+        role_on_req: role,
       });
-      setSelectedRecruiterId('');
+      setSelectedPersonId('');
       await loadData();
     } catch (requestError) {
-      pushError(apiErrorMessage(requestError, 'Failed to assign recruiter'), 'Something went wrong');
+      pushError(apiErrorMessage(requestError, 'Failed to assign'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
   }
 
-  async function unassignRecruiter(assignmentId) {
+  async function unassignPerson(assignmentId) {
     setSaving(true);
     try {
       await apiClient.post(`/requirements/${requirement.id}/unassign`, { assignment_id: assignmentId });
       await loadData();
     } catch (requestError) {
-      pushError(apiErrorMessage(requestError, 'Failed to unassign recruiter'), 'Something went wrong');
+      pushError(apiErrorMessage(requestError, 'Failed to unassign'), 'Something went wrong');
     } finally {
       setSaving(false);
     }
   }
 
-  const activeRecruiterIds = new Set(
-    assignments.filter((row) => row.role_on_req === 'recruiter' && !row.unassigned_at).map((row) => row.user?.id)
-  );
-  const availableRecruiters = recruiters.filter((recruiter) => !activeRecruiterIds.has(recruiter.id));
+  const activePersonIds = new Set(assignments.filter((row) => !row.unassigned_at).map((row) => row.user?.id));
+  const availablePeople = people.filter((person) => !activePersonIds.has(person.id));
   const active = assignments.filter((row) => !row.unassigned_at);
   const ended = assignments.filter((row) => row.unassigned_at);
 
@@ -79,7 +104,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
       open
       size="md"
       tone={canAssign ? 'edit' : 'info'}
-      title={canAssign ? 'Assign recruiters' : 'Assignments'}
+      title={canAssign ? config.title : config.viewTitle}
       onClose={onClose}
       footer={
         <button type="button" className="btn-secondary" onClick={onClose}>
@@ -96,32 +121,32 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
 
       {isSalesButNotOwner && (
         <p className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Only the sales owner (or an admin) can change recruiter assignments on this requirement.
+          Only the sales owner (or an admin) can change assignments on this requirement.
         </p>
       )}
 
       {!canAssign && !isSalesButNotOwner && (
         <p className="mb-3 rounded-xl border border-tertiary-100 bg-tertiary-50 px-3 py-2 text-xs text-tertiary-600">
-          View only - sign in as Admin or the Sales owner to assign or unassign recruiters.
+          View only - sign in as Admin or the Sales owner to assign or unassign.
         </p>
       )}
 
       {canAssign && (
-        <form onSubmit={assignRecruiter} className="mb-4 space-y-2 rounded-xl border border-primary-100 bg-primary-50 p-3">
+        <form onSubmit={assignPerson} className="mb-4 space-y-2 rounded-xl border border-primary-100 bg-primary-50 p-3">
           <label className="block text-xs font-medium text-primary-900">
-            Recruiter
+            {config.fieldLabel}
             <SearchableSelect
               className="mt-1"
               required
-              value={selectedRecruiterId}
-              onChange={setSelectedRecruiterId}
-              placeholder="Select recruiter"
-              searchPlaceholder="Search recruiters…"
-              options={availableRecruiters.map((recruiter) => ({ value: recruiter.id, label: recruiter.name }))}
+              value={selectedPersonId}
+              onChange={setSelectedPersonId}
+              placeholder={config.placeholder}
+              searchPlaceholder={config.searchPlaceholder}
+              options={availablePeople.map((person) => ({ value: person.id, label: person.name }))}
             />
           </label>
-          <button type="submit" disabled={saving || !selectedRecruiterId} className="btn-primary w-full">
-            {saving ? 'Saving…' : 'Assign'}
+          <button type="submit" disabled={saving || !selectedPersonId} className="btn-primary w-full">
+            {saving ? 'Saving…' : config.saveLabel}
           </button>
         </form>
       )}
@@ -136,12 +161,11 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
               {active.map((row) => (
                 <li key={row.id} className="rounded-xl border border-success-100 bg-success-50/50 px-3 py-2 text-sm">
                   <div className="font-medium text-tertiary-900">{row.user?.name || '—'}</div>
-                  <div className="text-xs capitalize text-tertiary-500">{row.role_on_req}</div>
-                  {canAssign && row.role_on_req === 'recruiter' && (
+                  {canAssign && (
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={() => unassignRecruiter(row.id)}
+                      onClick={() => unassignPerson(row.id)}
                       className="mt-1 text-xs font-medium text-danger-700 hover:underline"
                     >
                       Unassign
@@ -149,7 +173,7 @@ export default function AssignRecruiterDrawer({ requirement, onClose }) {
                   )}
                 </li>
               ))}
-              {active.length === 0 && <li className="text-sm text-tertiary-400">No active assignments.</li>}
+              {active.length === 0 && <li className="text-sm text-tertiary-400">{config.emptyLabel}</li>}
             </ul>
           </div>
           {ended.length > 0 && (

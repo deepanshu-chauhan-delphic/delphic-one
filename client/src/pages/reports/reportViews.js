@@ -349,7 +349,7 @@ export function hrSections(data) {
   return data.tables.map((t) => ({
     key: t.key,
     title: t.title,
-    columns: HR_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    columns: HR_COLUMNS[t.key] || fallbackColumns(t.rows?.[0]),
     rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
   }));
 }
@@ -385,7 +385,7 @@ export function joiningsSections(data) {
   return data.tables.map((t) => ({
     key: t.key,
     title: t.title,
-    columns: JOININGS_COLUMNS[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    columns: JOININGS_COLUMNS[t.key] || fallbackColumns(t.rows?.[0]),
     rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
   }));
 }
@@ -460,6 +460,11 @@ const SALES_REPORTS_COLUMNS = {
     { key: 'count', header: 'Count' },
     reportDate('Date'),
   ],
+  profiles_put_forward: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count', render: hoverCount('profiles') },
+    reportDate('Date'),
+  ],
 };
 
 // Per-table tab badge: for the daily aggregate tables the useful headline number
@@ -470,6 +475,7 @@ const TAB_BADGE_SUM_FIELD = {
   requirements_brought_counts: 'count',
   requirements_created: 'count',
   meetings_attended: 'count',
+  profiles_put_forward: 'count',
   meetings_scheduled: 'meetings_scheduled',
   meetings_conversion: 'meetings_scheduled',
 };
@@ -480,12 +486,22 @@ export function sectionTabBadge(section) {
   return (section.rows || []).reduce((sum, r) => sum + (Number(r[field]) || 0), 0);
 }
 
+// A defined column set may not match the rows in hand — e.g. a stale response
+// for a previously active report landing after the tab switched. Never let an
+// object-valued field (a hover-breakdown map, a details array) reach a <td>
+// unrendered; React throws on that and takes the whole page down.
+function fallbackColumns(row) {
+  return Object.keys(row || {})
+    .filter((k) => k !== 'id' && typeof row[k] !== 'object')
+    .map((k) => ({ key: k, header: k }));
+}
+
 function tablesToSections(columnsByKey, data) {
   if (!data || !Array.isArray(data.tables)) return [];
   return data.tables.map((t) => ({
     key: t.key,
     title: t.title,
-    columns: columnsByKey[t.key] || Object.keys(t.rows?.[0] || {}).map((k) => ({ key: k, header: k })),
+    columns: columnsByKey[t.key] || fallbackColumns(t.rows?.[0]),
     rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
   }));
 }

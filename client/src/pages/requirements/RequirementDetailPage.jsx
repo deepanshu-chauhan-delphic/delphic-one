@@ -57,7 +57,7 @@ export default function RequirementDetailPage() {
   const [joinedAt, setJoinedAt] = useState('');
   const [addSeatOpen, setAddSeatOpen] = useState(false);
   const [seatLabel, setSeatLabel] = useState('');
-  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignRole, setAssignRole] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -317,8 +317,11 @@ export default function RequirementDetailPage() {
               Edit
             </button>
           )}
-          <button type="button" className="btn-secondary" onClick={() => setAssignOpen(true)}>
-            {canAssignRecruiters(user, requirement) ? 'Assign recruiters' : 'View assignments'}
+          <button type="button" className="btn-secondary" onClick={() => setAssignRole('recruiter')}>
+            {canAssignRecruiters(user, requirement) ? 'Assign recruiter team' : 'View recruiter team'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => setAssignRole('vendor_team')}>
+            {canAssignRecruiters(user, requirement) ? 'Assign vendor team' : 'View vendor team'}
           </button>
           <Link to={`/requirements/${id}/board`} className="btn-secondary">
             Pipeline board
@@ -406,6 +409,8 @@ export default function RequirementDetailPage() {
         <section className="rounded-lg border bg-white p-4">
           <h2 className="text-sm font-semibold text-tertiary-800">Job details</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <dt className="text-tertiary-500">Type</dt>
+            <dd className="capitalize">{requirement.req_type?.replace(/_/g, ' ') || '—'}</dd>
             <dt className="text-tertiary-500">Designation</dt>
             <dd>{requirement.designation || '—'}</dd>
             <dt className="text-tertiary-500">Department</dt>
@@ -489,12 +494,28 @@ export default function RequirementDetailPage() {
             <p className="mt-1 text-sm text-tertiary-700">{requirement.domain_experience || '—'}</p>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-medium text-tertiary-500">Assigned recruiters</p>
+            <p className="text-xs font-medium text-tertiary-500">Assigned recruiter team</p>
             <ul className="mt-1 space-y-1 text-sm">
               {(requirement.assigned_recruiters || []).length === 0 && (
-                <li className="text-tertiary-400">None yet - use Assign recruiters above</li>
+                <li className="text-tertiary-400">None yet - use Assign recruiter team above</li>
               )}
               {(requirement.assigned_recruiters || []).map((r) => (
+                <li key={r.id} className="flex items-center gap-2">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-tertiary-100 text-xs font-medium">
+                    {r.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  {r.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-tertiary-500">Assigned vendor team</p>
+            <ul className="mt-1 space-y-1 text-sm">
+              {(requirement.assigned_vendor_team || []).length === 0 && (
+                <li className="text-tertiary-400">None yet - use Assign vendor team above</li>
+              )}
+              {(requirement.assigned_vendor_team || []).map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-tertiary-100 text-xs font-medium">
                     {r.name.slice(0, 2).toUpperCase()}
@@ -510,7 +531,7 @@ export default function RequirementDetailPage() {
               {assignments.length === 0 && <li className="text-tertiary-400">No assignments</li>}
               {assignments.map((a) => (
                 <li key={a.id}>
-                  {a.user?.name} ({a.role_on_req}) - {formatDate(a.assigned_at)}
+                  {a.user?.name} ({a.role_on_req?.replace(/_/g, ' ')}) - {formatDate(a.assigned_at)}
                   {a.unassigned_at ? ` → ended ${formatDate(a.unassigned_at)}` : ' · active'}
                 </li>
               ))}
@@ -716,11 +737,12 @@ export default function RequirementDetailPage() {
         )}
       </Drawer>
 
-      {assignOpen && requirement && (
+      {assignRole && requirement && (
         <AssignRecruiterDrawer
           requirement={requirement}
+          role={assignRole}
           onClose={() => {
-            setAssignOpen(false);
+            setAssignRole(null);
             load();
           }}
         />

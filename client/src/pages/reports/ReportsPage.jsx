@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -347,6 +347,11 @@ export default function ReportsPage() {
   const [individuals, setIndividuals] = useState([]);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
+  // A stale response landing after `active` has moved on would otherwise get
+  // rendered with the wrong report's column config (raw hover-breakdown objects
+  // as cells -> React crash / blank screen). Only apply the response still
+  // matching the latest request.
+  const reportRequestId = useRef(0);
   const [exporting, setExporting] = useState(false);
   const [drawerRow, setDrawerRow] = useState(null);
 
@@ -619,15 +624,18 @@ export default function ReportsPage() {
   }
 
   async function runReport() {
+    const requestId = ++reportRequestId.current;
     setLoading(true);
     try {
       const { data } = await apiClient.get(`/reports/${active}`, { params: buildParams() });
+      if (requestId !== reportRequestId.current) return;
       setPayload(data.data);
     } catch (err) {
+      if (requestId !== reportRequestId.current) return;
       setPayload(null);
       pushError(apiErrorMessage(err, 'Failed to load report'), 'Something went wrong');
     } finally {
-      setLoading(false);
+      if (requestId === reportRequestId.current) setLoading(false);
     }
   }
 
@@ -776,6 +784,7 @@ export default function ReportsPage() {
     drawerRow?.vendor?.name ||
     drawerRow?.client?.name ||
     drawerRow?.bda?.name ||
+    drawerRow?.sales_poc ||
     drawerRow?.group_label ||
     'Row details';
 
@@ -788,6 +797,12 @@ export default function ReportsPage() {
             value={active}
             onChange={(v) => {
               setActive(v);
+              // Clear immediately: the next render (before the new report's fetch
+              // resolves) would otherwise build this report's columns from the
+              // previous report's still-in-state rows — mismatched shapes crash
+              // React the moment an object-valued field (a hover-breakdown map)
+              // lands in a plain cell.
+              setPayload(null);
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
@@ -1427,6 +1442,7 @@ export default function ReportsPage() {
             rows={(isBdaReports ? bdaReportsSection : salesReportsSection)?.rows || []}
             loading={loading}
             emptyLabel="No rows for this range"
+            onRowClick={setDrawerRow}
           />
         </div>
       ) : isTimeToSubmit ? (

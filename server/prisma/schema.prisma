@@ -107,6 +107,7 @@ enum SeatStatus {
 enum AssignmentRole {
   sales
   recruiter
+  vendor_team
 }
 
 enum Gender {

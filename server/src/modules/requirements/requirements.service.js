@@ -58,7 +58,14 @@ function serialize(row) {
     account: account ? { id: account.id, name: account.name, type: account.type } : undefined,
     sales_owner: sales_owner ? { id: sales_owner.id, name: sales_owner.name } : undefined,
     assigned_recruiters: assignments
-      ? assignments.map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
+      ? assignments
+          .filter((a) => a.role_on_req === 'recruiter')
+          .map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
+      : undefined,
+    assigned_vendor_team: assignments
+      ? assignments
+          .filter((a) => a.role_on_req === 'vendor_team')
+          .map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
       : undefined,
     seats_total,
     seats_closed,
@@ -70,7 +77,7 @@ const DECORATE_INCLUDE = {
   account: { select: { id: true, name: true, type: true } },
   sales_owner: { select: { id: true, name: true } },
   assignments: {
-    where: { role_on_req: 'recruiter', unassigned_at: null },
+    where: { role_on_req: { in: ['recruiter', 'vendor_team'] }, unassigned_at: null },
     include: { user: { select: { id: true, name: true } } },
   },
   seats: {
@@ -301,7 +308,9 @@ async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
 
   const target = await prisma.user.findUnique({ where: { id: user_id } });
   if (!target) return { error: 'user_not_found' };
-  if (target.role !== role_on_req) return { error: 'role_mismatch' };
+  // sales/recruiter assignments must match the user's actual account role; vendor_team
+  // is a cross-functional tag (anyone sourcing from vendors) so any user qualifies.
+  if (role_on_req !== 'vendor_team' && target.role !== role_on_req) return { error: 'role_mismatch' };
 
   const existing = await prisma.requirementAssignment.findFirst({
     where: { requirement_id: requirementId, user_id, role_on_req, unassigned_at: null },

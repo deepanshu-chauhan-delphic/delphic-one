@@ -63,7 +63,7 @@ const statusOverrideSchema = z.object({
 
 const assignSchema = z.object({
   user_id: z.string().uuid(),
-  role_on_req: z.enum(['sales', 'recruiter']),
+  role_on_req: z.enum(['sales', 'recruiter', 'vendor_team']),
 });
 
 const unassignSchema = z.object({

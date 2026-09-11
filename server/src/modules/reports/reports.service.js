@@ -1547,6 +1547,51 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
     }
   }
 
+  // 3. bench profiles put forward — submissions created by a sales/admin user
+  // (the "Put forward" flow) on a bench candidate (profile.source = 'direct' &&
+  // on_bench). Recruiter-created submissions don't belong on a sales report even
+  // when the candidate happens to be on the bench.
+  const putForwardSubmissions = await prisma.submission.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      ...(sales_id ? { submitted_by: sales_id } : {}),
+      submitted_by_user: { role: { in: ['sales', 'admin'] } },
+      profile: { source: 'direct', on_bench: true },
+      ...(client_id ? { seat: { requirement: { account_id: client_id } } } : {}),
+    },
+    select: {
+      created_at: true,
+      submitted_by: true,
+      submitted_by_user: { select: { id: true, name: true } },
+      profile: { select: { name: true } },
+      seat: { select: { requirement: { select: { title: true, account: { select: { id: true, name: true } } } } } },
+    },
+  });
+  const profilesPutForward = new Map();
+  for (const s of putForwardSubmissions) {
+    const day = dayKey(s.created_at);
+    const key = `${s.submitted_by}|${day}`;
+    if (!profilesPutForward.has(key)) {
+      profilesPutForward.set(key, {
+        sales_poc: s.submitted_by_user?.name || 'Unknown',
+        sales_poc_id: s.submitted_by,
+        date: day,
+        count: 0,
+        profiles: {},
+        details: [],
+      });
+    }
+    const row = profilesPutForward.get(key);
+    row.count += 1;
+    const profileName = s.profile?.name || '—';
+    row.profiles[profileName] = (row.profiles[profileName] || 0) + 1;
+    row.details.push({
+      profile: { name: profileName },
+      requirement: { title: s.seat?.requirement?.title || '—' },
+      client: { name: s.seat?.requirement?.account?.name || '—', id: s.seat?.requirement?.account?.id || null },
+    });
+  }
+
   return {
     tables: [
       {
@@ -1558,6 +1603,11 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
         key: 'meetings_attended',
         title: 'Meetings attended',
         rows: [...meetingsAttended.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
+      {
+        key: 'profiles_put_forward',
+        title: 'Profiles put forward',
+        rows: [...profilesPutForward.values()].sort(byDateThenNameDesc('sales_poc')),
       },
     ],
   };
