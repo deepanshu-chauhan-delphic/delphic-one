@@ -26,6 +26,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 - [V2-LEAD-PIPELINE-REQUIREMENTS.md](architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md) — lead classification, meeting attendees, candidate round taxonomy, requirement types, candidate bench flag, client-performance report
 - [API-Spec-and-Build-Plan.md](architecture/API-Spec-and-Build-Plan.md)
 - [MULTI-COMPANY-ERP-PLATFORM-HLD.md](architecture/MULTI-COMPANY-ERP-PLATFORM-HLD.md) — design (not yet built) for evolving to a multi-company group platform: `Org`/`OrgGroup`/`OrgMembership` tenancy, shared-DB row-level isolation, attendance/calendar/leave/timesheet/payroll/billing modules, daily-to-quarterly profitability pipeline, cross-org super dashboard. Phased, additive-only migration plan starting from the current single-tenant Delphic schema.
+- [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md) — **in progress**, branch `feature/multi-company-erp` (off `main`, never merged by an agent) against its own local DB `requirement_dashboard_erp` (`server/.env.erp.example`, current `requirement_dashboard`/`.env` untouched). Workstream split, day-by-day schedule, local demo script.
 
 ### Features
 
@@ -108,6 +109,7 @@ Domain modules follow a consistent 4-file pattern: `routes` → `controller` →
 - `main` — production; pushes trigger CI + deploy workflow
 - `staging` — pre-production integration
 - `dev` — trunk for feature work before promotion to `staging`
+- `feature/multi-company-erp` — long-lived branch for the [multi-company ERP build](architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md), isolated from `dev`/`staging`/`main` so its bugs/schema churn don't affect ongoing recruitment-dashboard work; runs against its own local DB (`requirement_dashboard_erp`), not the shared `requirement_dashboard`.
 
 ## Local setup
 

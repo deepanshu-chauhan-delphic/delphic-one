@@ -14,6 +14,24 @@ enum UserRole {
   admin
 }
 
+// --- Multi-company ERP platform (Phase 0 — tenancy scaffold) ---
+// See docs/architecture/MULTI-COMPANY-ERP-PLATFORM-HLD.md.
+// Additive-only: existing behavior is unchanged until Phase 1 wires org_id
+// into request context / authorize(). Every model below and every `org_id`
+// column added to existing models in this migration is currently unused by
+// app code.
+
+enum OrgStatus {
+  active
+  inactive
+}
+
+enum EmploymentStatus {
+  active
+  on_leave
+  terminated
+}
+
 enum AccountType {
   client
   vendor
@@ -219,17 +237,21 @@ enum CommentEntityType {
 }
 
 model User {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  email         String   @unique
-  password_hash String
-  role          UserRole
-  phone         String?
-  active        Boolean  @default(true)
-  is_superadmin Boolean  @default(false)
-  department_id String?  @db.Uuid
-  created_at    DateTime @default(now())
-  updated_at    DateTime @default(now()) @updatedAt
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String
+  email               String   @unique
+  password_hash       String
+  role                UserRole
+  phone               String?
+  active              Boolean  @default(true)
+  is_superadmin       Boolean  @default(false)
+  // Group-superadmin (multi-company ERP, Phase 1): read access to the
+  // cross-org super dashboard only — separate from any per-org admin power.
+  // Unused until Phase 1's authorizeGroupSuperadmin lands.
+  is_group_superadmin Boolean  @default(false)
+  department_id       String?  @db.Uuid
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
 
   department                  Department?                 @relation(fields: [department_id], references: [id])
   owned_accounts              Account[]                   @relation("AccountOwner")
@@ -246,9 +268,10 @@ model User {
   comments                    Comment[]
   interview_round_assignments InterviewRoundInterviewer[]
   interview_rounds_scheduled  InterviewRound[]            @relation("InterviewRoundScheduler")
-  notifications               Notification[]             @relation("NotificationUser")
-  notifications_authored      Notification[]             @relation("NotificationActor")
+  notifications               Notification[]              @relation("NotificationUser")
+  notifications_authored      Notification[]              @relation("NotificationActor")
   notification_preferences    NotificationPreference[]
+  org_memberships             OrgMembership[]             @relation("OrgMembershipPerson")
 
   @@index([department_id])
   @@map("users")
@@ -260,9 +283,80 @@ model Department {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  users User[]
+  users           User[]
+  org_memberships OrgMembership[]
 
   @@map("departments")
+}
+
+// --- Multi-company ERP platform (Phase 0) ---
+
+model OrgGroup {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  orgs Org[]
+
+  @@map("org_groups")
+}
+
+model Org {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_group_id     String    @db.Uuid
+  org_group        OrgGroup  @relation(fields: [org_group_id], references: [id])
+  name             String
+  slug             String    @unique
+  timezone         String    @default("Asia/Kolkata")
+  default_currency Currency  @default(INR)
+  status           OrgStatus @default(active)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @default(now()) @updatedAt
+
+  memberships OrgMembership[]
+
+  // Backfilled onto every existing tenant-scoped table in this same
+  // migration (nullable — Phase 1 flips these to NOT NULL once app code
+  // always supplies org_id on write).
+  accounts                 Account[]
+  requirements             Requirement[]
+  profiles                 Profile[]
+  submissions              Submission[]
+  interview_rounds         InterviewRound[]
+  stage_history_entries    StageHistory[]
+  documents                Document[]
+  comments                 Comment[]
+  notifications            Notification[]
+  notification_preferences NotificationPreference[]
+  audit_logs               AuditLog[]
+
+  @@index([org_group_id])
+  @@map("orgs")
+}
+
+// Person (User) <-> Org join. "Different roles in different companies" lives
+// here: one User row, one OrgMembership row per company they work at.
+model OrgMembership {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  person_id         String           @db.Uuid
+  person            User             @relation("OrgMembershipPerson", fields: [person_id], references: [id])
+  org_id            String           @db.Uuid
+  org               Org              @relation(fields: [org_id], references: [id])
+  role              UserRole
+  employee_code     String?
+  department_id     String?          @db.Uuid
+  department        Department?      @relation(fields: [department_id], references: [id])
+  employment_status EmploymentStatus @default(active)
+  joined_at         DateTime         @default(now()) @db.Date
+  left_at           DateTime?        @db.Date
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @default(now()) @updatedAt
+
+  @@unique([person_id, org_id])
+  @@index([org_id])
+  @@index([person_id])
+  @@map("org_memberships")
 }
 
 model Account {
@@ -278,8 +372,8 @@ model Account {
   location_country String?
   gst_or_tax_id    String?
 
-  location            String?
-  linkedin_url        String?
+  location     String?
+  linkedin_url String?
 
   poc_name        String?
   poc_email       String?
@@ -321,6 +415,10 @@ model Account {
   deleted_by    String?   @db.Uuid
   delete_reason String?
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   requirements      Requirement[]
   vendor_profiles   Profile[]                @relation("ProfileVendorAccount")
   meeting_attendees AccountMeetingAttendee[]
@@ -329,6 +427,7 @@ model Account {
   @@index([owner_id])
   @@index([origin_owner_id])
   @@index([deleted_at])
+  @@index([org_id])
   @@map("accounts")
 }
 
@@ -396,6 +495,10 @@ model Requirement {
   deleted_by    String?   @db.Uuid
   delete_reason String?
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   seats       RequirementSeat[]
   assignments RequirementAssignment[]
 
@@ -403,6 +506,7 @@ model Requirement {
   @@index([status, priority])
   @@index([sales_owner_id])
   @@index([deleted_at])
+  @@index([org_id])
   @@map("requirements")
 }
 
@@ -498,6 +602,10 @@ model Profile {
   deleted_by    String?   @db.Uuid
   delete_reason String?
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   submissions Submission[]
 
   @@index([source])
@@ -505,6 +613,7 @@ model Profile {
   @@index([is_active])
   @@index([source, on_bench])
   @@index([deleted_at])
+  @@index([org_id])
   @@map("profiles")
 }
 
@@ -558,12 +667,17 @@ model Submission {
   deleted_by    String?   @db.Uuid
   delete_reason String?
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   interview_rounds InterviewRound[]
 
   @@index([requirement_seat_id])
   @@index([profile_id])
   @@index([stage])
   @@index([deleted_at])
+  @@index([org_id])
   @@map("submissions")
 }
 
@@ -600,12 +714,17 @@ model InterviewRound {
   deleted_by    String?   @db.Uuid
   delete_reason String?
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   interviewers InterviewRoundInterviewer[]
 
   @@index([submission_id])
   @@index([status, scheduled_at])
   @@index([scheduled_by])
   @@index([deleted_at])
+  @@index([org_id])
   @@map("interview_rounds")
 }
 
@@ -637,8 +756,13 @@ model Notification {
   read_at     DateTime?
   created_at  DateTime                @default(now())
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@index([user_id, read_at])
   @@index([user_id, created_at])
+  @@index([org_id])
   @@map("notifications")
 }
 
@@ -652,7 +776,12 @@ model NotificationPreference {
   created_at DateTime         @default(now())
   updated_at DateTime         @default(now()) @updatedAt
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@unique([user_id, type])
+  @@index([org_id])
   @@map("notification_preferences")
 }
 
@@ -667,7 +796,15 @@ model StageHistory {
   reason          String?
   changed_at      DateTime          @default(now())
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  // entity_id is polymorphic (no FK), so org_id is set directly here rather
+  // than derived by a join — lets profitability/reporting filter by org
+  // without resolving entity_type first.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@index([entity_type, entity_id])
+  @@index([org_id])
   @@map("stage_history")
 }
 
@@ -683,8 +820,13 @@ model AuditLog {
   snapshot    Json
   created_at  DateTime @default(now())
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@index([entity_type, entity_id])
   @@index([actor_id])
+  @@index([org_id])
   @@map("audit_logs")
 }
 
@@ -700,7 +842,12 @@ model Document {
   uploaded_by_user User               @relation(fields: [uploaded_by], references: [id])
   uploaded_at      DateTime           @default(now())
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@index([entity_type, entity_id])
+  @@index([org_id])
   @@map("documents")
 }
 
@@ -713,6 +860,11 @@ model Comment {
   body        String
   created_at  DateTime          @default(now())
 
+  // Multi-company ERP (Phase 0) — nullable until Phase 1, see Org model comment.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   @@index([entity_type, entity_id])
+  @@index([org_id])
   @@map("comments")
 }

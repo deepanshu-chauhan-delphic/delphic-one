@@ -15,6 +15,7 @@
     "seed:jira": "node prisma/seed-jira.js",
     "seed:vendors": "node prisma/seed-vendors.js",
     "seed:admin": "node prisma/seed-admin.js",
+    "erp:phase0:backfill": "node prisma/erp/phase0-backfill.js",
     "studio": "prisma studio",
     "test": "jest --runInBand"
   },

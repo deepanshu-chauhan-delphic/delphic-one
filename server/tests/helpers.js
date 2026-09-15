@@ -7,7 +7,7 @@ const PASSWORD = 'Password123!';
 
 async function cleanDatabase() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE audit_logs, notifications, notification_preferences, stage_history, documents, comments, interview_round_interviewers, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, account_meeting_attendees, accounts, users RESTART IDENTITY CASCADE'
+    'TRUNCATE TABLE audit_logs, notifications, notification_preferences, stage_history, documents, comments, interview_round_interviewers, interview_rounds, submissions, requirement_assignments, requirement_seats, requirements, profiles, account_meeting_attendees, accounts, org_memberships, orgs, org_groups, users RESTART IDENTITY CASCADE'
   );
 }
 
@@ -95,6 +95,36 @@ async function createInterviewRound(submissionId, overrides = {}) {
   return round;
 }
 
+// Multi-company ERP (Phase 1) test scaffolding.
+async function createOrg(overrides = {}) {
+  const orgGroup = overrides.org_group_id
+    ? { id: overrides.org_group_id }
+    : await prisma.orgGroup.create({ data: { name: unique('Group ') } });
+  return prisma.org.create({
+    data: {
+      org_group_id: orgGroup.id,
+      name: overrides.name || unique('Org '),
+      slug: overrides.slug || unique('org-'),
+      timezone: overrides.timezone || 'Asia/Kolkata',
+      default_currency: overrides.default_currency || 'INR',
+      status: overrides.status || 'active',
+    },
+  });
+}
+
+async function createOrgMembership(userId, orgId, overrides = {}) {
+  return prisma.orgMembership.create({
+    data: {
+      person_id: userId,
+      org_id: orgId,
+      role: overrides.role || 'admin',
+      employment_status: overrides.employment_status || 'active',
+      employee_code: overrides.employee_code,
+      department_id: overrides.department_id,
+    },
+  });
+}
+
 module.exports = {
   app,
   prisma,
@@ -106,6 +136,8 @@ module.exports = {
   createRequirement,
   createProfile,
   createInterviewRound,
+  createOrg,
+  createOrgMembership,
   authed,
   PASSWORD,
   unique,

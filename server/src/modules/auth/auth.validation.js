@@ -14,4 +14,8 @@ const changePasswordSchema = z.object({
   new_password: z.string().min(8),
 });
 
-module.exports = { loginSchema, refreshSchema, changePasswordSchema };
+const switchOrgSchema = z.object({
+  org_id: z.string().uuid(),
+});
+
+module.exports = { loginSchema, refreshSchema, changePasswordSchema, switchOrgSchema };

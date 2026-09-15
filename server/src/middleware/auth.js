@@ -3,6 +3,28 @@ const env = require('../config/env');
 const prisma = require('../config/db');
 const { fail } = require('../utils/response');
 
+// Multi-company ERP (Phase 1): the JWT carries an `org_id` for users who have
+// an OrgMembership (everyone, post Phase-0 backfill). Tokens issued before
+// this shipped simply have no `org_id` claim — `payload.org_id` is undefined
+// and everything below no-ops back to today's global-role behavior, so old
+// tokens keep working until they expire/refresh.
+//
+// Role is then resolved *for that org*, live from the DB, mirroring the
+// existing authorizeSuperadmin/loadSuperadminFlag pattern (re-read, never
+// trust a JWT claim) — HLD §2. If the membership is missing or has since
+// ended, this falls back to the JWT's role claim rather than failing the
+// request: no route reads req.user.org_id / org_membership_id yet, so this
+// is inert plumbing, not an access-control change.
+async function resolveOrgContext(user, orgId) {
+  if (!orgId) return user;
+  const membership = await prisma.orgMembership.findUnique({
+    where: { person_id_org_id: { person_id: user.id, org_id: orgId } },
+    select: { id: true, role: true, employment_status: true },
+  });
+  if (!membership || membership.employment_status !== 'active') return user;
+  return { ...user, role: membership.role, org_id: orgId, org_membership_id: membership.id };
+}
+
 function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -10,8 +32,13 @@ function authenticate(req, res, next) {
 
   try {
     const payload = jwt.verify(token, env.jwt.accessSecret);
-    req.user = { id: payload.sub, role: payload.role, name: payload.name, email: payload.email };
-    return next();
+    const base = { id: payload.sub, role: payload.role, name: payload.name, email: payload.email };
+    resolveOrgContext(base, payload.org_id)
+      .then((user) => {
+        req.user = user;
+        next();
+      })
+      .catch(next);
   } catch (err) {
     return fail(res, 401, 'Invalid or expired access token');
   }
@@ -59,4 +86,29 @@ async function loadSuperadminFlag(req, res, next) {
   }
 }
 
-module.exports = { authenticate, authorize, authorizeSuperadmin, loadSuperadminFlag };
+// Multi-company ERP (Phase 1): read access to the cross-org super dashboard
+// only — a flag separate from any per-org `authorize('admin')` /
+// `authorizeSuperadmin`, per HLD §2. Same re-read-from-DB pattern, never a
+// JWT claim.
+async function authorizeGroupSuperadmin(req, res, next) {
+  try {
+    if (!req.user) return fail(res, 401, 'Not authenticated');
+    const u = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { is_group_superadmin: true, active: true },
+    });
+    if (!u || !u.active || !u.is_group_superadmin) return fail(res, 403, 'Group superadmin only');
+    req.user.is_group_superadmin = true;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = {
+  authenticate,
+  authorize,
+  authorizeSuperadmin,
+  loadSuperadminFlag,
+  authorizeGroupSuperadmin,
+};

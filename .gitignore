@@ -4,6 +4,7 @@ build/
 .env
 .env.*
 !.env.example
+!server/.env.erp.example
 *.log
 npm-debug.log*
 .DS_Store

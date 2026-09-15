@@ -3,16 +3,40 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../../config/db');
 const env = require('../../config/env');
 
-function signAccessToken(user) {
+// Multi-company ERP (Phase 1): membership select shared by login/refresh so
+// the token payload and the switcher list agree on shape.
+const MEMBERSHIP_SELECT = {
+  id: true,
+  org_id: true,
+  role: true,
+  employment_status: true,
+  org: { select: { id: true, name: true, slug: true, status: true } },
+};
+
+// A user with no OrgMembership yet (any token issued before Phase 0/1, or a
+// test-created user with no membership) gets `org_id: null` — everything
+// downstream (authenticate's resolveOrgContext) treats that as "no org
+// context" and falls back to today's global-role behavior.
+async function defaultMembershipFor(userId) {
+  return prisma.orgMembership.findFirst({
+    where: { person_id: userId, employment_status: 'active' },
+    orderBy: { joined_at: 'asc' },
+    select: MEMBERSHIP_SELECT,
+  });
+}
+
+function signAccessToken(user, orgId, role) {
   return jwt.sign(
-    { sub: user.id, role: user.role, name: user.name, email: user.email },
+    { sub: user.id, role: role || user.role, name: user.name, email: user.email, org_id: orgId || null },
     env.jwt.accessSecret,
     { expiresIn: env.jwt.accessExpires }
   );
 }
 
-function signRefreshToken(user) {
-  return jwt.sign({ sub: user.id }, env.jwt.refreshSecret, { expiresIn: env.jwt.refreshExpires });
+function signRefreshToken(user, orgId) {
+  return jwt.sign({ sub: user.id, org_id: orgId || null }, env.jwt.refreshSecret, {
+    expiresIn: env.jwt.refreshExpires,
+  });
 }
 
 async function login(email, password) {
@@ -22,9 +46,18 @@ async function login(email, password) {
   const matches = await bcrypt.compare(password, user.password_hash);
   if (!matches) return null;
 
+  const [memberships, activeMembership] = await Promise.all([
+    prisma.orgMembership.findMany({
+      where: { person_id: user.id, employment_status: 'active' },
+      orderBy: { joined_at: 'asc' },
+      select: MEMBERSHIP_SELECT,
+    }),
+    defaultMembershipFor(user.id),
+  ]);
+
   return {
-    access_token: signAccessToken(user),
-    refresh_token: signRefreshToken(user),
+    access_token: signAccessToken(user, activeMembership?.org_id, activeMembership?.role),
+    refresh_token: signRefreshToken(user, activeMembership?.org_id),
     user: {
       id: user.id,
       name: user.name,
@@ -32,7 +65,10 @@ async function login(email, password) {
       role: user.role,
       active: user.active,
       is_superadmin: user.is_superadmin,
+      is_group_superadmin: user.is_group_superadmin,
     },
+    memberships,
+    active_org: activeMembership?.org || null,
   };
 }
 
@@ -47,9 +83,50 @@ async function refresh(refreshToken) {
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
   if (!user || !user.active) return null;
 
+  // Re-verify the membership carried on the refresh token is still active
+  // (offboarding takes effect on next refresh, not just next login) — if
+  // it's gone, fall back to whatever the user's current default org is.
+  let orgId = null;
+  let role = user.role;
+  if (payload.org_id) {
+    const membership = await prisma.orgMembership.findUnique({
+      where: { person_id_org_id: { person_id: user.id, org_id: payload.org_id } },
+      select: { org_id: true, role: true, employment_status: true },
+    });
+    if (membership && membership.employment_status === 'active') {
+      orgId = membership.org_id;
+      role = membership.role;
+    }
+  }
+  if (!orgId) {
+    const fallback = await defaultMembershipFor(user.id);
+    orgId = fallback?.org_id || null;
+    role = fallback?.role || user.role;
+  }
+
   return {
-    access_token: signAccessToken(user),
-    refresh_token: signRefreshToken(user),
+    access_token: signAccessToken(user, orgId, role),
+    refresh_token: signRefreshToken(user, orgId),
+  };
+}
+
+// Multi-company ERP (Phase 1) — the org switcher's backend half. Re-issues
+// tokens scoped to `orgId`, the way `login`/`refresh` do, once the caller is
+// confirmed to hold an active membership there.
+async function switchOrg(userId, orgId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.active) return { error: 'not_found' };
+
+  const membership = await prisma.orgMembership.findUnique({
+    where: { person_id_org_id: { person_id: userId, org_id: orgId } },
+    select: MEMBERSHIP_SELECT,
+  });
+  if (!membership || membership.employment_status !== 'active') return { error: 'not_a_member' };
+
+  return {
+    access_token: signAccessToken(user, membership.org_id, membership.role),
+    refresh_token: signRefreshToken(user, membership.org_id),
+    active_org: membership.org,
   };
 }
 
@@ -65,4 +142,4 @@ async function changePassword(userId, currentPassword, newPassword) {
   return { ok: true };
 }
 
-module.exports = { login, refresh, changePassword };
+module.exports = { login, refresh, changePassword, switchOrg };

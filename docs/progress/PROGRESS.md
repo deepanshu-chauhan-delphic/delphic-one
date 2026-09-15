@@ -2,6 +2,66 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-15 — Multi-company ERP Phase 0 (tenancy scaffold) — branch `feature/multi-company-erp`
+
+Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md) (full log there). Design: [MULTI-COMPANY-ERP-PLATFORM-HLD.md](../architecture/MULTI-COMPANY-ERP-PLATFORM-HLD.md).
+
+- Branch cut from `main` (`d7068cc`); isolated local DB
+  `requirement_dashboard_erp` created in the existing Docker Postgres
+  container (`localhost:5434`) — the day-to-day `requirement_dashboard` DB
+  and whatever `server/.env` points at are untouched. `server/.env.erp.example`
+  (+ `.gitignore` carve-out) lets any dev point at it without disturbing
+  their own `.env`.
+- **Schema**: new `OrgGroup`/`Org`/`OrgMembership` models + `OrgStatus`/
+  `EmploymentStatus` enums + `User.is_group_superadmin`; nullable `org_id` +
+  `Org?` relation added to `Account`, `Requirement`, `Profile`, `Submission`,
+  `InterviewRound`, `StageHistory`, `Document`, `Comment`, `Notification`,
+  `NotificationPreference`, `AuditLog`. Migration
+  `20260915103201_phase0_org_tenancy_scaffold` — additive only, no `DROP`/
+  `NOT NULL`. `Department`/`Designation`/join tables deliberately deferred to
+  Phase 2 (inherit tenancy transitively via their parent's `org_id`).
+- **Backfill**: `server/prisma/erp/phase0-backfill.js` (`npm run
+  erp:phase0:backfill`), idempotent — one `OrgGroup`/`Org("Delphic")`, one
+  `OrgMembership` per `User`, `org_id` stamped on every row of the 11 models
+  above. Verified against the full CSV-seeded ERP DB (13 users → 13
+  memberships; 111 accounts / 34 requirements / 213 comments stamped;
+  re-run is a clean no-op).
+- **App behavior unchanged** — migration applied to the shared
+  `requirement_dashboard_test` DB too; full server suite **41 suites / 307
+  tests green**, `eslint` 0 errors (pre-existing warnings only). `org_id`
+  stays `NULL` everywhere until Phase 1 starts writing it.
+- Windows note: `prisma generate` hit `EPERM` (query-engine `.dll` locked by
+  the running dev server/vite — shared `node_modules` across branches);
+  resolved by stopping the project's node processes before regenerating.
+  Restart `dev:server`/`dev:client` after pulling this branch.
+
+## 2026-09-15 — Multi-company ERP Phase 1 (JWT org context, switcher backend, group superadmin) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). No schema change — app-code only, on top of Phase 0.
+
+- `auth.service.js`: `login`/`refresh` now carry an `org_id` claim end to
+  end; `login()` picks the caller's earliest-joined active `OrgMembership`
+  as the default org and returns `memberships` + `active_org`; `refresh()`
+  re-verifies the membership is still active on every refresh. New
+  `switchOrg(userId, orgId)` — the org switcher's backend half.
+- `middleware/auth.js`: `authenticate` re-resolves role live from
+  `OrgMembership` when the token carries `org_id` (never trusts the JWT
+  claim — same pattern as `authorizeSuperadmin`); a token with no `org_id`
+  is a complete no-op, so every pre-Phase-1 token / membership-less user
+  behaves exactly as before. New `authorizeGroupSuperadmin`.
+- New `orgs` module: `GET /orgs/me/memberships` (any user), `GET /orgs`
+  (group-superadmin only). New route `POST /auth/switch-org`.
+- Tests: `orgs-phase1.test.js` (11 — backward compat, default-org pick, live
+  role resolution vs a lying JWT, ended-membership fallback, switcher happy
+  path + 403, group-superadmin gate + live demotion). Full suite **42
+  suites / 318 tests green**, eslint clean.
+- Local: `admin@delphic.in` set `is_group_superadmin: true` in
+  `requirement_dashboard_erp`.
+- **Deferred** (tracked in TODO.md): the Prisma-middleware `org_id`
+  auto-injection on write + the `org_id` → `NOT NULL` migration (order
+  matters — flipping `NOT NULL` first would break every existing create
+  call), and the org-switcher frontend (no second org to switch to yet).
+
 ## 2026-09-11 — Account meeting attendees widened + editable, put-forward pickers complete, sales bench-only submissions — branch `dev-deep`
 
 - **Meeting attendees are no longer sales-only.** `AccountStageMoveDrawer` / `AccountStageOverrideDrawer` used to fetch `/users/directory?role=sales` — a BDA, recruiter, or admin who attended a client meeting had no way to be recorded. New shared `AccountAttendeesPicker` (`pages/accounts/`) fetches the full active roster; both drawers now use it.
