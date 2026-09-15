@@ -18,7 +18,11 @@ services:
   server:
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-requirement_dashboard}
+      # connection_limit is explicit rather than Prisma's default guess. This
+      # is sized for a single server instance; if/when this ever runs more
+      # than one app instance (or PgBouncer sits in front), see
+      # docs/guides/DATABASE-CONNECTION-POOLING.md before raising it.
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-requirement_dashboard}?connection_limit=${DB_POOL_SIZE:-20}&pool_timeout=${DB_POOL_TIMEOUT:-20}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN}

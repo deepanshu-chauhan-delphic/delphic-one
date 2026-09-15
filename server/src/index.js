@@ -1,6 +1,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const logger = require('./config/logger');
+const prisma = require('./config/db');
 const { startJobs } = require('./jobs');
 
 const server = app.listen(env.port, () => {
@@ -31,7 +32,9 @@ const server = app.listen(env.port, () => {
 
 function shutdown(signal) {
   logger.info('server_shutdown', { signal });
-  server.close(() => process.exit(0));
+  server.close(() => {
+    prisma.$disconnect().finally(() => process.exit(0));
+  });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
 

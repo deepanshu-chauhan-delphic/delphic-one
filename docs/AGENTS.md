@@ -53,6 +53,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 
 ### Guides
 
+- [DATABASE-CONNECTION-POOLING.md](guides/DATABASE-CONNECTION-POOLING.md) — Prisma pool sizing (`DB_POOL_SIZE`/`DB_POOL_TIMEOUT`), why every `DATABASE_URL` now has `connection_limit`/`pool_timeout`, and the concrete triggers (+ gotchas) for PgBouncer / a read replica later
 - [BACKEND-LOGGING.md](guides/BACKEND-LOGGING.md)
 - [PRODUCTION-SEED.md](guides/PRODUCTION-SEED.md) — VPS / post-pull seed commands (`seed` → `seed:accounts` → `seed:jira` → `seed:vendors`; `seed-admin` = safe prod bootstrap)
 - [DEPLOY-RUNBOOK.md](guides/DEPLOY-RUNBOOK.md) — VPS manual deploy: backup → `git pull` → `./start-delphic.sh --prod` → verify → rollback

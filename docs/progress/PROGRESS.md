@@ -62,6 +62,31 @@ Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPA
   matters — flipping `NOT NULL` first would break every existing create
   call), and the org-switcher frontend (no second org to switch to yet).
 
+## 2026-09-15 — DB connection pooling & latency architecture (repo-wide, done from `feature/multi-company-erp`)
+
+New guide: [DATABASE-CONNECTION-POOLING.md](../guides/DATABASE-CONNECTION-POOLING.md). Triggered by the ERP branch adding a second local DB + dev-server instance sharing one Postgres with the existing dev server and jest — three uncoordinated, unbounded connection pools against one `max_connections=100` box was a real, repo-wide gap, not specific to multi-tenancy.
+
+- Every `DATABASE_URL` (`server/.env.example`, `server/.env.erp.example`,
+  `tests/env.setup.js`, `docker-compose.yml`, `docker-compose.prod.yml`) now
+  carries explicit `connection_limit`/`pool_timeout` (new `DB_POOL_SIZE`/
+  `DB_POOL_TIMEOUT` knobs for compose) instead of Prisma's default
+  `num_physical_cpus*2+1` guess, which is unreliable under Docker Desktop's
+  cgroup CPU reporting.
+- Local Postgres (`docker-compose.yml`) bumped to `max_connections=200`
+  (verified live: `SHOW max_connections` → 200; all three databases —
+  `requirement_dashboard`, `_erp`, `_test` — survived the container
+  recreate, only the container was recreated, not the volume).
+- `src/index.js` graceful shutdown now calls `prisma.$disconnect()`.
+- Confirmed `PrismaClient` is a genuine singleton (`grep -rn "new
+  PrismaClient"` → one hit, `config/db.js`) — the actually-correct baseline
+  already existed, this was purely about pool sizing on top of it.
+- Full suite re-run with the pooled URLs: **43 suites / 328 tests green**.
+- **Deferred, with concrete triggers documented**: PgBouncer (once total
+  connections approach the ceiling or there's more than one app instance —
+  with the `?pgbouncer=true` prepared-statement gotcha spelled out) and a
+  read replica (once real write contention shows up on reports/
+  profitability queries). Neither is needed at current scale.
+
 ## 2026-09-15 — Multi-company ERP Phase 2 (calendar, attendance, leave, backend) — branch `feature/multi-company-erp`
 
 Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration `20260915110152_phase2_directory_calendar_attendance_leave` — additive only.

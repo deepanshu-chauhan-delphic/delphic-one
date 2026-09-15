@@ -136,6 +136,17 @@ regardless of headcount — budget it fully before fanning out.
 - Whether the second `Org` ("Acconcy") gets realistic seeded data or is just a
   throwaway isolation-test org.
 
+## Database connection pooling & latency
+
+See [guides/DATABASE-CONNECTION-POOLING.md](../guides/DATABASE-CONNECTION-POOLING.md)
+for the full writeup (this was a repo-wide gap, not ERP-specific, fixed while
+working this branch since three DB consumers now share one Postgres
+instance). Summary: every `DATABASE_URL` now carries explicit
+`connection_limit`/`pool_timeout` instead of Prisma's default guess; local
+Postgres bumped to `max_connections=200`; graceful `$disconnect()` on
+shutdown; PgBouncer and a read replica stay deferred with concrete triggers
+documented (not needed at current scale).
+
 ## Log
 
 - **2026-09-15** — Branch `feature/multi-company-erp` cut from `main`
