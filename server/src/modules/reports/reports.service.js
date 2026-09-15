@@ -1547,32 +1547,50 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
     }
   }
 
-  // 3. bench profiles put forward — submissions created by a sales/admin user
-  // (the "Put forward" flow) on a bench candidate (profile.source = 'direct' &&
-  // on_bench). Recruiter-created submissions don't belong on a sales report even
-  // when the candidate happens to be on the bench.
-  const putForwardSubmissions = await prisma.submission.findMany({
+  // 3. profiles submitted to client — bench submissions put forward by a
+  // sales/admin user (profile.source = 'direct' && on_bench; recruiter-created
+  // submissions don't belong on a sales report even when the candidate happens
+  // to be on the bench) that actually reached the submitted_to_client stage.
+  // Counted/dated by that stage transition, not by when the put-forward was
+  // created, so a candidate still sitting in internal_screening doesn't count.
+  const putForwardCandidates = await prisma.submission.findMany({
     where: {
-      ...(range ? { created_at: range } : {}),
       ...(sales_id ? { submitted_by: sales_id } : {}),
       submitted_by_user: { role: { in: ['sales', 'admin'] } },
       profile: { source: 'direct', on_bench: true },
       ...(client_id ? { seat: { requirement: { account_id: client_id } } } : {}),
     },
     select: {
-      created_at: true,
+      id: true,
       submitted_by: true,
       submitted_by_user: { select: { id: true, name: true } },
       profile: { select: { name: true } },
       seat: { select: { requirement: { select: { title: true, account: { select: { id: true, name: true } } } } } },
     },
   });
-  const profilesPutForward = new Map();
-  for (const s of putForwardSubmissions) {
-    const day = dayKey(s.created_at);
+  const submittedToClientHistory = putForwardCandidates.length
+    ? await prisma.stageHistory.findMany({
+        where: {
+          entity_type: 'submission',
+          entity_id: { in: putForwardCandidates.map((s) => s.id) },
+          to_stage: 'submitted_to_client',
+          ...(range ? { changed_at: range } : {}),
+        },
+        orderBy: { changed_at: 'asc' },
+      })
+    : [];
+  const submittedAtBySubmission = new Map();
+  for (const h of submittedToClientHistory) {
+    if (!submittedAtBySubmission.has(h.entity_id)) submittedAtBySubmission.set(h.entity_id, h.changed_at);
+  }
+  const profilesSubmittedToClient = new Map();
+  for (const s of putForwardCandidates) {
+    const submittedAt = submittedAtBySubmission.get(s.id);
+    if (!submittedAt) continue;
+    const day = dayKey(submittedAt);
     const key = `${s.submitted_by}|${day}`;
-    if (!profilesPutForward.has(key)) {
-      profilesPutForward.set(key, {
+    if (!profilesSubmittedToClient.has(key)) {
+      profilesSubmittedToClient.set(key, {
         sales_poc: s.submitted_by_user?.name || 'Unknown',
         sales_poc_id: s.submitted_by,
         date: day,
@@ -1581,7 +1599,7 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
         details: [],
       });
     }
-    const row = profilesPutForward.get(key);
+    const row = profilesSubmittedToClient.get(key);
     row.count += 1;
     const profileName = s.profile?.name || '—';
     row.profiles[profileName] = (row.profiles[profileName] || 0) + 1;
@@ -1605,9 +1623,9 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
         rows: [...meetingsAttended.values()].sort(byDateThenNameDesc('sales_poc')),
       },
       {
-        key: 'profiles_put_forward',
-        title: 'Profiles put forward',
-        rows: [...profilesPutForward.values()].sort(byDateThenNameDesc('sales_poc')),
+        key: 'profiles_submitted_to_client',
+        title: 'Profiles submitted to client',
+        rows: [...profilesSubmittedToClient.values()].sort(byDateThenNameDesc('sales_poc')),
       },
     ],
   };

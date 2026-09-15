@@ -25,6 +25,7 @@ Internal requirement/recruitment pipeline dashboard for Delphic. Tracks client a
 - [Requirement-Dashboard-System-Design-v2.md](architecture/Requirement-Dashboard-System-Design-v2.md) — historical, an earlier already-shipped milestone despite the name
 - [V2-LEAD-PIPELINE-REQUIREMENTS.md](architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md) — lead classification, meeting attendees, candidate round taxonomy, requirement types, candidate bench flag, client-performance report
 - [API-Spec-and-Build-Plan.md](architecture/API-Spec-and-Build-Plan.md)
+- [MULTI-COMPANY-ERP-PLATFORM-HLD.md](architecture/MULTI-COMPANY-ERP-PLATFORM-HLD.md) — design (not yet built) for evolving to a multi-company group platform: `Org`/`OrgGroup`/`OrgMembership` tenancy, shared-DB row-level isolation, attendance/calendar/leave/timesheet/payroll/billing modules, daily-to-quarterly profitability pipeline, cross-org super dashboard. Phased, additive-only migration plan starting from the current single-tenant Delphic schema.
 
 ### Features
 

@@ -460,7 +460,7 @@ const SALES_REPORTS_COLUMNS = {
     { key: 'count', header: 'Count' },
     reportDate('Date'),
   ],
-  profiles_put_forward: [
+  profiles_submitted_to_client: [
     { key: 'sales_poc', header: 'Sales POC' },
     { key: 'count', header: 'Count', render: hoverCount('profiles') },
     reportDate('Date'),
@@ -475,7 +475,7 @@ const TAB_BADGE_SUM_FIELD = {
   requirements_brought_counts: 'count',
   requirements_created: 'count',
   meetings_attended: 'count',
-  profiles_put_forward: 'count',
+  profiles_submitted_to_client: 'count',
   meetings_scheduled: 'meetings_scheduled',
   meetings_conversion: 'meetings_scheduled',
 };
