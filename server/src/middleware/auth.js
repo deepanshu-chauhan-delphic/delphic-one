@@ -105,10 +105,22 @@ async function authorizeGroupSuperadmin(req, res, next) {
   }
 }
 
+// Multi-company ERP (Phase 2): the new ERP modules (calendars, attendance,
+// leave, ...) are meaningless without an active org context, unlike the
+// existing recruitment routes (which stay oblivious to org_id for now — see
+// resolveOrgContext above). Gate them on req.user.org_membership_id instead
+// of silently no-op'ing.
+function requireOrgMembership(req, res, next) {
+  if (!req.user) return fail(res, 401, 'Not authenticated');
+  if (!req.user.org_membership_id) return fail(res, 403, 'No active org membership');
+  return next();
+}
+
 module.exports = {
   authenticate,
   authorize,
   authorizeSuperadmin,
   loadSuperadminFlag,
   authorizeGroupSuperadmin,
+  requireOrgMembership,
 };

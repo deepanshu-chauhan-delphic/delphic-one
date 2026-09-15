@@ -62,6 +62,37 @@ Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPA
   matters — flipping `NOT NULL` first would break every existing create
   call), and the org-switcher frontend (no second org to switch to yet).
 
+## 2026-09-15 — Multi-company ERP Phase 2 (calendar, attendance, leave, backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration `20260915110152_phase2_directory_calendar_attendance_leave` — additive only.
+
+- **Schema**: `Designation`, `Calendar`/`CalendarHoliday`/`EmployeeCalendar`,
+  `AttendanceRecord`, `LeaveType`/`LeaveBalance`/`LeaveRequest` (all new
+  tables, `org_id` `NOT NULL` from creation — no legacy rows to backfill,
+  unlike Phase 0's existing tables). `OrgMembership.designation_id` added.
+  `Department.org_id` added (nullable; the global `name` unique is
+  deliberately left as-is for now — a known, documented gap, not an
+  oversight).
+- **New modules**: `calendars` (create calendar, add/list holidays, assign
+  to an `OrgMembership`), `attendance` (check-in/out on the IST calendar
+  day, own history, admin team view + regularize), `leave` (leave types,
+  request/approve/reject/cancel, approval increments `LeaveBalance.used`).
+  All gated by new `requireOrgMembership` (403, not a silent no-op, for a
+  caller with no active org membership) — unlike existing recruitment
+  routes, which stay oblivious to org context.
+- New `src/lib/istDate.js` (shared IST "today", mirrors reports' `asIst`)
+  and `zodDate.requiredDate`.
+- Tests: `erp-phase2.test.js` (10 — org-membership gate, calendar CRUD +
+  duplicate-holiday + assignment, check-in/out + double-action rejections,
+  team listing + regularize, leave request → approve → balance → re-decide
+  rejected, cancel flow, date-range validation). Full suite **43 suites /
+  328 tests green**, eslint clean.
+- Local: seeded a default calendar (2 holidays, assigned to all 13
+  memberships) + 3 leave types in `requirement_dashboard_erp`; verified
+  check-in end-to-end against `admin@delphic.in`.
+- **Not built this phase**: Department/Designation CRUD endpoints (schema
+  only), any frontend, leave accrual seeding.
+
 ## 2026-09-11 — Account meeting attendees widened + editable, put-forward pickers complete, sales bench-only submissions — branch `dev-deep`
 
 - **Meeting attendees are no longer sales-only.** `AccountStageMoveDrawer` / `AccountStageOverrideDrawer` used to fetch `/users/directory?role=sales` — a BDA, recruiter, or admin who attended a client meeting had no way to be recorded. New shared `AccountAttendeesPicker` (`pages/accounts/`) fetches the full active roster; both drawers now use it.

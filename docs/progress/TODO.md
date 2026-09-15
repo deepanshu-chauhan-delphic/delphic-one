@@ -30,7 +30,18 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       **frontend** (header dropdown, `authContext` storing
       `memberships`/`active_org`) — deferred until there's a second org to
       switch to.
-- [ ] Phase 2 — Department/Designation/Calendar/Attendance/Leave.
+- [x] Phase 2 (backend) — `Designation`, `Calendar`/`CalendarHoliday`/
+      `EmployeeCalendar`, `AttendanceRecord`, `LeaveType`/`LeaveBalance`/
+      `LeaveRequest` schema + migration
+      (`20260915110152_phase2_directory_calendar_attendance_leave`). New
+      `calendars`/`attendance`/`leave` modules (check-in/out, leave
+      request/approve/cancel, holiday calendars). New `requireOrgMembership`
+      middleware. 10 new tests, full suite 43/328 green. See PROGRESS.md /
+      plan doc log for detail.
+- [ ] Phase 2 (remaining) — Department/Designation CRUD API (schema exists,
+      no endpoints yet); frontend (attendance widget, leave request form,
+      calendar admin screen); leave accrual (balances only move on approval
+      today, nothing seeds `accrued`).
 - [ ] Phase 3 — Timesheet/Overtime.
 - [ ] Phase 4 — Payroll (synchronous local run, seeded synthetic history).
 - [ ] Phase 5 — Billing (client + intra-group).

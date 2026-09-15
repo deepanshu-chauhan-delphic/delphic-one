@@ -18,4 +18,15 @@ const optionalDate = z
     return d;
   });
 
-module.exports = { optionalDate };
+// Same coercion, but required — missing/invalid fails validation instead of
+// silently becoming undefined.
+const requiredDate = z.string().min(1).transform((v, ctx) => {
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid date' });
+    return z.NEVER;
+  }
+  return d;
+});
+
+module.exports = { optionalDate, requiredDate };

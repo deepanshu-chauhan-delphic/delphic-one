@@ -225,3 +225,58 @@ regardless of headcount — budget it fully before fanning out.
     `memberships`/`active_org`) — meaningless to build further until there's
     a second org to switch to, and the backend contract above is what it'll
     be built against.
+- **2026-09-15 — Phase 2 shipped (directory + calendar + attendance + leave,
+  backend).** Migration `20260915110152_phase2_directory_calendar_attendance_leave`
+  — additive only, applied to `requirement_dashboard_erp` and the shared test
+  DB.
+  - **Schema**: new `Designation`, `Calendar`/`CalendarHoliday`/
+    `EmployeeCalendar`, `AttendanceRecord`, `LeaveType`/`LeaveBalance`/
+    `LeaveRequest` + `CalendarKind`/`AttendanceStatus`/`AttendanceSource`/
+    `LeaveRequestStatus` enums. `OrgMembership` gains `designation_id`
+    (nullable). `Department` gains a nullable `org_id` — **its global
+    `name` unique is deliberately left alone** (not tightened to
+    `@@unique([org_id, name])` yet); today's single-org data has no
+    collisions, and enforcing per-org uniqueness is a follow-up once
+    `org_id` is actually enforced app-side. `AttendanceRecord`/`LeaveRequest`
+    denormalize `org_id` directly (not just reachable via
+    `org_membership_id`) so the HLD §8 `(org_id, date)` composite index is a
+    real index, not a join. All new tables are brand new (no legacy rows),
+    so their `org_id` is `NOT NULL` from creation — unlike Phase 0/1's
+    nullable-until-enforced columns on existing tables.
+  - **New modules** (`server/src/modules/{calendars,attendance,leave}/`),
+    all gated by new `requireOrgMembership` middleware (403 if the caller
+    has no active `OrgMembership` for the token's org — unlike the existing
+    recruitment routes, which stay oblivious to org context per Phase 1):
+    - `calendars`: `GET/POST /calendars`, `GET/POST /calendars/:id/holidays`,
+      `POST /calendars/:id/assign` (assigns a calendar to an
+      `OrgMembership`, one active calendar per membership).
+    - `attendance`: `POST /attendance/check-in` / `check-out` (today, IST
+      calendar day via new `src/lib/istDate.js`, shared with reports'
+      existing `asIst` logic), `GET /attendance/me`, `GET /attendance`
+      (admin, team-wide), `POST /attendance/:id/regularize` (admin,
+      reason required).
+    - `leave`: `GET/POST /leave/types`, `POST /leave/requests`, `GET
+      /leave/requests/me`, `GET /leave/requests` (admin), `POST
+      /leave/requests/:id/decision` (approve/reject — approving increments
+      `LeaveBalance.used`), `POST /leave/requests/:id/cancel` (owner,
+      pending only).
+  - New `src/lib/zodDate.requiredDate` (sibling to the existing
+    `optionalDate`) for required date fields (holiday date, leave
+    from/to_date).
+  - **Tests**: `server/tests/erp-phase2.test.js` (10 cases — org-membership
+    gate returns 403 not a crash for every new module, calendar create +
+    holiday + duplicate-holiday rejection + assignment, admin-only gates,
+    check-in/check-out happy path + both double-action rejections, team
+    listing + regularization, leave request → approve → balance increments
+    → re-decide rejected, cancel-then-cancel-again rejected, from>to
+    validation). Full suite **43 suites / 328 tests green**; eslint clean.
+  - Local: seeded a default "Delphic Standard" calendar (2 holidays) assigned
+    to all 13 memberships, plus 3 leave types, in
+    `requirement_dashboard_erp`. Verified `checkIn()` end-to-end against
+    `admin@delphic.in`'s real membership.
+  - **Not built this phase** (by design, per the plan's day-by-day split):
+    Department/Designation CRUD endpoints (schema only — `OrgMembership` can
+    reference them, but nothing creates/lists them via API yet; the real
+    Phase 2 deliverables are calendar/attendance/leave, not directory admin
+    screens); any frontend; leave accrual (balances only move via approved
+    requests, nothing seeds `accrued` yet).

@@ -32,6 +32,36 @@ enum EmploymentStatus {
   terminated
 }
 
+// --- Multi-company ERP platform (Phase 2 — directory + calendar + attendance + leave) ---
+
+enum CalendarKind {
+  internal
+  client
+  custom
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  half_day
+  leave
+  holiday
+  wfh
+}
+
+enum AttendanceSource {
+  web
+  mobile
+  manual
+}
+
+enum LeaveRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
 enum AccountType {
   client
   vendor
@@ -272,6 +302,7 @@ model User {
   notifications_authored      Notification[]              @relation("NotificationActor")
   notification_preferences    NotificationPreference[]
   org_memberships             OrgMembership[]             @relation("OrgMembershipPerson")
+  attendance_regularizations  AttendanceRecord[]          @relation("AttendanceRegularizedBy")
 
   @@index([department_id])
   @@map("users")
@@ -283,10 +314,170 @@ model Department {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
+  // Multi-company ERP (Phase 2) — nullable, unused by app code today. The
+  // global `name` unique is intentionally left as-is (not yet
+  // `@@unique([org_id, name])`): today's single-org data has no collisions,
+  // and tightening it is a follow-up once org_id is actually enforced —
+  // see the plan doc's Phase 2 log for why this is a known, accepted gap.
+  org_id String? @db.Uuid
+  org    Org?    @relation(fields: [org_id], references: [id])
+
   users           User[]
   org_memberships OrgMembership[]
+  designations    Designation[]
 
+  @@index([org_id])
   @@map("departments")
+}
+
+// New in Phase 2 — no legacy rows, so org_id is required from the start.
+model Designation {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id        String      @db.Uuid
+  org           Org         @relation(fields: [org_id], references: [id])
+  name          String
+  department_id String?     @db.Uuid
+  department    Department? @relation(fields: [department_id], references: [id])
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @default(now()) @updatedAt
+
+  org_memberships OrgMembership[]
+
+  @@unique([org_id, name])
+  @@index([org_id])
+  @@map("designations")
+}
+
+// Company holiday/working-day calendars for attendance + leave — distinct
+// from the existing interview/client-meeting calendar (modules/interviews),
+// which this does not replace (HLD §3).
+model Calendar {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id     String       @db.Uuid
+  org        Org          @relation(fields: [org_id], references: [id])
+  name       String
+  kind       CalendarKind @default(internal)
+  is_default Boolean      @default(false)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @default(now()) @updatedAt
+
+  holidays  CalendarHoliday[]
+  employees EmployeeCalendar[]
+
+  @@index([org_id])
+  @@map("calendars")
+}
+
+model CalendarHoliday {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  calendar_id String   @db.Uuid
+  calendar    Calendar @relation(fields: [calendar_id], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  label       String
+
+  @@unique([calendar_id, date])
+  @@index([calendar_id])
+  @@map("calendar_holidays")
+}
+
+// Which calendar an employee's attendance/leave working-days follow.
+// One active calendar per membership (per-employee customizable per HLD §3).
+model EmployeeCalendar {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_membership_id String        @unique @db.Uuid
+  org_membership    OrgMembership @relation(fields: [org_membership_id], references: [id], onDelete: Cascade)
+  calendar_id       String        @db.Uuid
+  calendar          Calendar      @relation(fields: [calendar_id], references: [id])
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @default(now()) @updatedAt
+
+  @@index([calendar_id])
+  @@map("employee_calendars")
+}
+
+// org_id is denormalized here (also reachable via org_membership_id ->
+// OrgMembership.org_id) so the (org_id, date) composite index the HLD calls
+// for on every time-series table (§8) is a real index, not a join.
+model AttendanceRecord {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id              String           @db.Uuid
+  org                 Org              @relation(fields: [org_id], references: [id])
+  org_membership_id   String           @db.Uuid
+  org_membership      OrgMembership    @relation(fields: [org_membership_id], references: [id])
+  date                DateTime         @db.Date
+  check_in_at         DateTime?
+  check_out_at        DateTime?
+  status              AttendanceStatus @default(present)
+  source              AttendanceSource @default(web)
+  regularized_by      String?          @db.Uuid
+  regularized_by_user User?            @relation("AttendanceRegularizedBy", fields: [regularized_by], references: [id])
+  regularized_reason  String?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @default(now()) @updatedAt
+
+  @@unique([org_membership_id, date])
+  @@index([org_id, date])
+  @@index([org_membership_id, date])
+  @@map("attendance_records")
+}
+
+model LeaveType {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id       String   @db.Uuid
+  org          Org      @relation(fields: [org_id], references: [id])
+  name         String
+  paid         Boolean  @default(true)
+  annual_quota Int?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  balances LeaveBalance[]
+  requests LeaveRequest[]
+
+  @@unique([org_id, name])
+  @@index([org_id])
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_membership_id String        @db.Uuid
+  org_membership    OrgMembership @relation(fields: [org_membership_id], references: [id])
+  leave_type_id     String        @db.Uuid
+  leave_type        LeaveType     @relation(fields: [leave_type_id], references: [id])
+  year              Int
+  accrued           Decimal       @default(0) @db.Decimal(5, 1)
+  used              Decimal       @default(0) @db.Decimal(5, 1)
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @default(now()) @updatedAt
+
+  @@unique([org_membership_id, leave_type_id, year])
+  @@index([org_membership_id])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id            String             @db.Uuid
+  org               Org                @relation(fields: [org_id], references: [id])
+  org_membership_id String             @db.Uuid
+  org_membership    OrgMembership      @relation("LeaveRequestOwner", fields: [org_membership_id], references: [id])
+  leave_type_id     String             @db.Uuid
+  leave_type        LeaveType          @relation(fields: [leave_type_id], references: [id])
+  from_date         DateTime           @db.Date
+  to_date           DateTime           @db.Date
+  status            LeaveRequestStatus @default(pending)
+  reason            String?
+  approver_id       String?            @db.Uuid
+  approver          OrgMembership?     @relation("LeaveRequestApprover", fields: [approver_id], references: [id])
+  decided_at        DateTime?
+  decision_reason   String?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @default(now()) @updatedAt
+
+  @@index([org_id, from_date])
+  @@index([org_membership_id])
+  @@map("leave_requests")
 }
 
 // --- Multi-company ERP platform (Phase 0) ---
@@ -331,6 +522,14 @@ model Org {
   notification_preferences NotificationPreference[]
   audit_logs               AuditLog[]
 
+  // Multi-company ERP (Phase 2) — new tables, org_id required from creation.
+  designations       Designation[]
+  calendars          Calendar[]
+  attendance_records AttendanceRecord[]
+  leave_types        LeaveType[]
+  leave_requests     LeaveRequest[]
+  Department         Department[]
+
   @@index([org_group_id])
   @@map("orgs")
 }
@@ -347,11 +546,20 @@ model OrgMembership {
   employee_code     String?
   department_id     String?          @db.Uuid
   department        Department?      @relation(fields: [department_id], references: [id])
+  // Multi-company ERP (Phase 2) — nullable, unused until a designation is set.
+  designation_id    String?          @db.Uuid
+  designation       Designation?     @relation(fields: [designation_id], references: [id])
   employment_status EmploymentStatus @default(active)
   joined_at         DateTime         @default(now()) @db.Date
   left_at           DateTime?        @db.Date
   created_at        DateTime         @default(now())
   updated_at        DateTime         @default(now()) @updatedAt
+
+  employee_calendar       EmployeeCalendar?
+  attendance_records      AttendanceRecord[]
+  leave_balances          LeaveBalance[]
+  leave_requests          LeaveRequest[]     @relation("LeaveRequestOwner")
+  leave_requests_approved LeaveRequest[]     @relation("LeaveRequestApprover")
 
   @@unique([person_id, org_id])
   @@index([org_id])
