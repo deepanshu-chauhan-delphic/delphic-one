@@ -76,6 +76,18 @@ const stageSchema = z.object({
   meeting_attendee_ids: z.array(z.string().uuid()).optional(),
 });
 
+// Edit an account's meeting details (mode/date/location/notes/attendees) without
+// a stage transition — so a scheduled meeting stays editable after the fact
+// (reschedule details, fix attendees) instead of only being settable once while
+// moving into `meeting_scheduled`.
+const meetingSchema = z.object({
+  meeting_mode: z.enum(['online', 'offline']),
+  meeting_date: z.string().datetime(),
+  meeting_location: z.string().optional(),
+  meeting_notes: z.string().optional(),
+  meeting_attendee_ids: z.array(z.string().uuid()).optional(),
+});
+
 const classifySchema = z.object({
   type: z.enum(['client', 'vendor']),
 });
@@ -85,9 +97,23 @@ const listQuerySchema = z.object({
   // Lead pipeline: pair with type=client to also surface not-yet-classified leads
   // (type IS NULL), which is where every account still in the `lead` stage sits.
   include_unclassified: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
-  stage: z.enum(['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped']).optional(),
+  // Single stage, or a CSV of stages (e.g. `meeting_scheduled,rescheduled`).
+  stage: z
+    .string()
+    .optional()
+    .refine(
+      (v) =>
+        !v ||
+        v
+          .split(',')
+          .every((s) => ['lead', 'meeting_scheduled', 'active', 'rescheduled', 'dropped'].includes(s.trim())),
+      { message: 'stage must be one or more of lead, meeting_scheduled, active, rescheduled, dropped' }
+    ),
   owner_id: z.string().uuid().optional(),
   origin_owner_id: z.string().uuid().optional(),
+  // "stuck" = a lead/meeting/rescheduled account with no update for STUCK_THRESHOLD_DAYS
+  // (mirrors the dashboard "Stuck leads" tile so its click-through is exact).
+  stuck: z.enum(['stuck', 'not_stuck']).optional(),
   industry: z.string().optional(),
   /** Exact vendor specialization tag (matches `vendor_specializations` array element). */
   specialization: z.string().min(1).max(120).optional(),
@@ -105,6 +131,7 @@ module.exports = {
   updateSchema,
   stageSchema,
   stageOverrideSchema,
+  meetingSchema,
   classifySchema,
   listQuerySchema,
 };

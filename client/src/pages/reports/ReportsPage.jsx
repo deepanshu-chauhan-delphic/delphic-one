@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -8,6 +8,7 @@ import {
   Cell,
   Legend,
   Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,8 +16,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Briefcase, Building2, CircleAlert, LayoutGrid } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  CircleAlert,
+  ClipboardCheck,
+  FileText,
+  LayoutGrid,
+  Send,
+  UserCheck,
+  UserPlus,
+} from 'lucide-react';
 import apiClient from '../../lib/apiClient';
+import { fetchAllPages } from '../../lib/fetchAllPages.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { apiErrorMessage } from '../../lib/alerts/apiErrorMessage.js';
@@ -36,9 +48,123 @@ import {
   chartTypeForReport,
   columnsForReport,
   defaultDateRange,
+  formatReportDate,
+  formatReportDateShort,
+  hrSections,
+  hrTypeSummary,
+  joiningsSections,
+  bdaReportsSections,
+  salesReportsSections,
+  sectionTabBadge,
   reportsForRole,
   tableRowsForReport,
+  timeToSubmitColumns,
+  timeToSubmitRows,
 } from './reportViews.js';
+
+const HR_SOURCE_OPTIONS = [
+  { value: 'direct', label: 'Bench' },
+  { value: 'vendor', label: 'Vendor' },
+  { value: 'linkedin', label: 'Market' },
+];
+
+// `/accounts` caps `limit` at 100, so page through it to get EVERY account for a
+// picker (BDA/Sales report filters).
+async function fetchAllAccountOptions(extraParams = {}) {
+  const rows = await fetchAllPages('/accounts', { ...extraParams, sort_by: 'name', sort_order: 'asc' });
+  return rows.map((a) => ({ value: a.id, label: a.name }));
+}
+
+const HR_TAB_META = {
+  sourcing: { hint: 'Profiles sourced per day (excludes on-bench)', Icon: UserPlus },
+  submissions: { hint: 'Submissions created per day (excludes on-bench)', Icon: Send },
+  round1_by_sourcer: { hint: 'Internal round 1 per day, grouped by the sourcer', Icon: ClipboardCheck },
+  round1_by_interviewer: { hint: 'Internal round 1 per day, grouped by the interviewer', Icon: UserCheck },
+};
+
+const HR_DAY_PX = 46; // horizontal space per day; the chart scrolls when it overflows
+
+// Daily HR trend chart. One point per day across the whole selected range; the
+// plot area scrolls horizontally so every day is reachable. Round tables ->
+// multi-line (scheduled / completed / shortlisted); sourcing / submissions ->
+// stacked bars by source (Bench / Vendor / Market).
+function HrChart({ section }) {
+  const { data, series, isRound } = useMemo(() => {
+    const round = section?.key.startsWith('round1');
+    const byDate = new Map();
+    for (const r of section?.rows || []) {
+      const d = r.date || '—';
+      if (!byDate.has(d)) byDate.set(d, { date: d });
+      const bucket = byDate.get(d);
+      if (round) {
+        bucket.scheduled = (bucket.scheduled || 0) + (r.scheduled || 0);
+        bucket.completed = (bucket.completed || 0) + (r.completed || 0);
+        bucket.shortlisted = (bucket.shortlisted || 0) + (r.shortlisted || 0);
+      } else {
+        for (const [label, n] of Object.entries(r.by_type || {})) {
+          bucket[label] = (bucket[label] || 0) + n;
+        }
+      }
+    }
+    const rows = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const typeKeys = round
+      ? []
+      : [...new Set((section?.rows || []).flatMap((r) => Object.keys(r.by_type || {})))].sort();
+    const s = round
+      ? [
+          { key: 'scheduled', name: 'Scheduled', color: CHART_COLORS.info },
+          { key: 'completed', name: 'Completed', color: CHART_COLORS.success },
+          { key: 'shortlisted', name: 'Shortlisted', color: CHART_COLORS.purple },
+        ]
+      : typeKeys.map((t, i) => ({ key: t, name: t, color: CHART_PALETTE[i % CHART_PALETTE.length] }));
+    for (const row of rows) for (const ser of s) row[ser.key] = row[ser.key] || 0;
+    return { data: rows, series: s, isRound: round };
+  }, [section]);
+
+  if (!section || !data.length) return null;
+
+  const minWidth = Math.max(560, data.length * HR_DAY_PX);
+  const axis = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+      <XAxis dataKey="date" tickFormatter={formatReportDateShort} tick={{ fontSize: 11 }} interval={0} />
+      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+      <Tooltip contentStyle={chartTooltipStyle} labelFormatter={formatReportDate} />
+      <Legend wrapperStyle={{ fontSize: 12 }} />
+    </>
+  );
+
+  return (
+    <ChartCard
+      title={section.title}
+      subtitle={
+        isRound ? 'Scheduled / completed / shortlisted per day — scroll for more' : 'By day, by source — scroll for more'
+      }
+    >
+      <div className="overflow-x-auto">
+        <div style={{ minWidth, height: 256 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            {isRound ? (
+              <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                {axis}
+                {series.map((s) => (
+                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} dot={{ r: 2 }} />
+                ))}
+              </LineChart>
+            ) : (
+              <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                {axis}
+                {series.map((s) => (
+                  <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} stackId="src" radius={[2, 2, 0, 0]} />
+                ))}
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </ChartCard>
+  );
+}
 
 function ReportChart({ reportKey, chartRows, chartBars }) {
   const type = chartTypeForReport(reportKey);
@@ -174,6 +300,13 @@ export default function ReportsPage() {
   const [groupBy, setGroupBy] = useState('month');
   const [departmentId, setDepartmentId] = useState('');
   const [individualId, setIndividualId] = useState('');
+  // bda-reports: Account (any type) + account-type filter for "Accounts brought".
+  const [bdaReportsAccountId, setBdaReportsAccountId] = useState('');
+  const [bdaReportsAccountType, setBdaReportsAccountType] = useState('');
+  const [bdaReportsAccounts, setBdaReportsAccounts] = useState([]);
+  // sales-reports: Client filter.
+  const [salesReportsAccountId, setSalesReportsAccountId] = useState('');
+  const [salesReportsAccounts, setSalesReportsAccounts] = useState([]);
   // clients-without-requirements: Sales POC = account owner (bda_id), Brought by = origin_owner_id.
   const [coveragePocId, setCoveragePocId] = useState('');
   const [coverageBroughtById, setCoverageBroughtById] = useState('');
@@ -188,8 +321,24 @@ export default function ReportsPage() {
   const [rvgPocId, setRvgPocId] = useState('');
   const [rvgBroughtById, setRvgBroughtById] = useState('');
   const [rvgVendors, setRvgVendors] = useState([]);
-  // RVG tab: active (every active-stage vendor) | inactive (no live candidate submission).
+  // RVG: active = every active-stage vendor; inactive = no live submission;
+  // has_live = Active − Inactive (has a live candidate).
   const [rvgActivity, setRvgActivity] = useState('active');
+  const [hrSourcerId, setHrSourcerId] = useState('');
+  const [hrInterviewerId, setHrInterviewerId] = useState('');
+  const [hrSource, setHrSource] = useState('');
+  const [hrPeople, setHrPeople] = useState([]);
+  const [hrTab, setHrTab] = useState('sourcing');
+  const [joiningsTab, setJoiningsTab] = useState('by_sourcer');
+  const [bdaReportsTab, setBdaReportsTab] = useState('accounts_created');
+  const [salesReportsTab, setSalesReportsTab] = useState('requirements_created');
+  const [ttsClientId, setTtsClientId] = useState('');
+  const [ttsRequirementId, setTtsRequirementId] = useState('');
+  const [ttsSourcerId, setTtsSourcerId] = useState('');
+  const [ttsSearch, setTtsSearch] = useState('');
+  const [ttsSearchApplied, setTtsSearchApplied] = useState('');
+  const [ttsClients, setTtsClients] = useState([]);
+  const [ttsRequirements, setTtsRequirements] = useState([]);
   const [explorerStuckOnly, setExplorerStuckOnly] = useState(false);
   const [explorerPastSlaOnly, setExplorerPastSlaOnly] = useState(false);
   const [explorerSearch, setExplorerSearch] = useState('');
@@ -198,10 +347,21 @@ export default function ReportsPage() {
   const [individuals, setIndividuals] = useState([]);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
+  // A stale response landing after `active` has moved on would otherwise get
+  // rendered with the wrong report's column config (raw hover-breakdown objects
+  // as cells -> React crash / blank screen). Only apply the response still
+  // matching the latest request.
+  const reportRequestId = useRef(0);
   const [exporting, setExporting] = useState(false);
   const [drawerRow, setDrawerRow] = useState(null);
 
   const isExplorer = active === 'pipeline-explorer';
+  const isHr = active === 'hr';
+  const isJoinings = active === 'joinings';
+  const isTimeToSubmit = active === 'time-to-submit';
+  const isBdaReports = active === 'bda-reports';
+  const isSalesReports = active === 'sales-reports';
+  const isDateOnly = isHr || isJoinings || isTimeToSubmit || isBdaReports || isSalesReports; // reports that take only a date range
   const isCoverage = active === 'clients-without-requirements' || active === 'recruiter-vendor-gaps';
   const isClientsWithoutReqs = active === 'clients-without-requirements';
   const isRvg = active === 'recruiter-vendor-gaps';
@@ -211,8 +371,15 @@ export default function ReportsPage() {
     'sales-performance': 'sales',
     'bda-performance': 'bda',
     'recruiter-vendor-gaps': 'recruiter',
+    'bda-reports': 'bda',
+    'sales-reports': 'sales',
   };
-  const showIndividual = can('filterByIndividual') && Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]);
+  // bda-reports / sales-reports self-scope a bda/sales caller server-side regardless
+  // of this filter, so hide it for them — only useful to an admin looking across people.
+  const showIndividual =
+    can('filterByIndividual') &&
+    Boolean(INDIVIDUAL_ROLE_BY_REPORT[active]) &&
+    !((active === 'bda-reports' && user?.role === 'bda') || (active === 'sales-reports' && user?.role === 'sales'));
   const showCoveragePeople = can('filterByIndividual') && isClientsWithoutReqs;
   const canEditCoverage = (isClientsWithoutReqs || isRvg) && userCan(user, 'editBroughtBy');
 
@@ -250,12 +417,72 @@ export default function ReportsPage() {
   }, [available, active]);
 
   useEffect(() => {
+    if (!isHr && !isTimeToSubmit) return;
+    apiClient
+      .get('/users/directory')
+      .then(({ data }) =>
+        setHrPeople(
+          (data.data || []).map((u) => ({
+            value: u.id,
+            label: u.active === false ? `${u.name} (inactive)` : u.name,
+          }))
+        )
+      )
+      .catch(() => setHrPeople([]));
+  }, [isHr, isTimeToSubmit]);
+
+  useEffect(() => {
+    if (!isTimeToSubmit) return;
+    apiClient
+      .get('/accounts', { params: { type: 'client', limit: 100, sort_by: 'name', sort_order: 'asc' } })
+      .then(({ data }) => setTtsClients((data.data || []).map((a) => ({ value: a.id, label: a.name }))))
+      .catch(() => setTtsClients([]));
+    apiClient
+      .get('/requirements', { params: { limit: 100, sort_by: 'created_at', sort_order: 'desc' } })
+      .then(({ data }) =>
+        setTtsRequirements(
+          (data.data || []).map((r) => ({ value: r.id, label: `${r.title}${r.account?.name ? ` · ${r.account.name}` : ''}` }))
+        )
+      )
+      .catch(() => setTtsRequirements([]));
+  }, [isTimeToSubmit]);
+
+  useEffect(() => {
+    if (!isBdaReports) {
+      setBdaReportsAccounts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    // Accounts brought can be a client or a vendor, so this list is unrestricted by type.
+    fetchAllAccountOptions()
+      .then((opts) => !cancelled && setBdaReportsAccounts(opts))
+      .catch(() => !cancelled && setBdaReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isBdaReports]);
+
+  useEffect(() => {
+    if (!isSalesReports) {
+      setSalesReportsAccounts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchAllAccountOptions({ type: 'client' })
+      .then((opts) => !cancelled && setSalesReportsAccounts(opts))
+      .catch(() => !cancelled && setSalesReportsAccounts([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isSalesReports]);
+
+  useEffect(() => {
     if (datePreset === 'custom') return;
     const range = rangeForPreset(datePreset);
     setDateFrom(range.date_from);
     setDateTo(range.date_to);
     if (datePreset === 'this_quarter' || datePreset === 'last_quarter') setGroupBy('quarter');
-    else if (datePreset === 'this_month' || datePreset === 'last_month') setGroupBy('month');
+    else setGroupBy('month');
   }, [datePreset]);
 
   useEffect(() => {
@@ -272,9 +499,14 @@ export default function ReportsPage() {
       setIndividuals([]);
       return undefined;
     }
+    // *-performance / recruiter-vendor-gaps genuinely list one role. bda-reports /
+    // sales-reports filter by "brought by" / "sales POC", which can be ANY user
+    // (roles change, admins bring accounts) — so pull the whole roster, inactive
+    // included, rather than role=bda / role=sales.
+    const roleScoped = active !== 'bda-reports' && active !== 'sales-reports';
     const role = INDIVIDUAL_ROLE_BY_REPORT[active] || 'recruiter';
     apiClient
-      .get('/users', { params: { role, limit: 100 } })
+      .get('/users/directory', { params: roleScoped ? { role } : {} })
       .then(({ data }) => setIndividuals((data.data || []).map((u) => ({ id: u.id, name: u.name }))))
       .catch(() => setIndividuals([]));
     return undefined;
@@ -286,8 +518,9 @@ export default function ReportsPage() {
       return undefined;
     }
     apiClient
-      // No `active` filter — a "Brought by" / "POC" value can be an inactive user.
-      .get('/users', { params: { limit: 100 } })
+      // Directory: every role can read it, inactive users included (a "Brought by"
+      // / "POC" value can be an inactive user).
+      .get('/users/directory')
       .then(({ data }) =>
         setCoveragePeople(
           [...(data.data || [])]
@@ -336,6 +569,22 @@ export default function ReportsPage() {
       params.threshold_days = thresholdDays || 7;
     } else if (isCoverage) {
       // CWR / RVG are present-state only — no date range.
+    } else if (isHr) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+      if (hrSourcerId) params.sourcer_id = hrSourcerId;
+      if (hrInterviewerId) params.interviewer_id = hrInterviewerId;
+      if (hrSource) params.source = hrSource;
+    } else if (isJoinings) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+    } else if (isTimeToSubmit) {
+      params.date_from = dateFrom;
+      params.date_to = dateTo;
+      if (ttsClientId) params.client_id = ttsClientId;
+      if (ttsRequirementId) params.requirement_id = ttsRequirementId;
+      if (ttsSourcerId) params.sourcer_id = ttsSourcerId;
+      if (ttsSearchApplied.trim()) params.search = ttsSearchApplied.trim();
     } else if (isExplorer) {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -355,6 +604,11 @@ export default function ReportsPage() {
     if (individualId && active === 'sales-performance') params.sales_id = individualId;
     if (individualId && active === 'bda-performance') params.bda_id = individualId;
     if (individualId && active === 'recruiter-vendor-gaps') params.recruiter_id = individualId;
+    if (individualId && active === 'bda-reports') params.bda_id = individualId;
+    if (individualId && active === 'sales-reports') params.sales_id = individualId;
+    if (isBdaReports && bdaReportsAccountId) params.client_id = bdaReportsAccountId;
+    if (isBdaReports && bdaReportsAccountType) params.account_type = bdaReportsAccountType;
+    if (isSalesReports && salesReportsAccountId) params.client_id = salesReportsAccountId;
     if (isClientsWithoutReqs && coveragePocId) params.bda_id = coveragePocId;
     if (isClientsWithoutReqs && coverageBroughtById) params.origin_owner_id = coverageBroughtById;
     // Both toggle buckets are active-client views — always send stage=active.
@@ -370,15 +624,18 @@ export default function ReportsPage() {
   }
 
   async function runReport() {
+    const requestId = ++reportRequestId.current;
     setLoading(true);
     try {
       const { data } = await apiClient.get(`/reports/${active}`, { params: buildParams() });
+      if (requestId !== reportRequestId.current) return;
       setPayload(data.data);
     } catch (err) {
+      if (requestId !== reportRequestId.current) return;
       setPayload(null);
       pushError(apiErrorMessage(err, 'Failed to load report'), 'Something went wrong');
     } finally {
-      setLoading(false);
+      if (requestId === reportRequestId.current) setLoading(false);
     }
   }
 
@@ -405,6 +662,16 @@ export default function ReportsPage() {
     explorerPastSlaOnly,
     explorerStatus,
     explorerSearch,
+    hrSourcerId,
+    hrInterviewerId,
+    hrSource,
+    ttsClientId,
+    ttsRequirementId,
+    ttsSourcerId,
+    ttsSearchApplied,
+    bdaReportsAccountId,
+    bdaReportsAccountType,
+    salesReportsAccountId,
   ]);
 
   async function exportReport(type) {
@@ -475,7 +742,40 @@ export default function ReportsPage() {
     : baseColumns;
   const chartRows = chartDataForReport(active, payload);
   const chartBars = chartBarsForReport(active);
-  const aging = active === 'aging' ? agingSections(payload) : [];
+  const sections =
+    active === 'aging'
+      ? agingSections(payload)
+      : active === 'hr'
+        ? hrSections(payload)
+        : active === 'joinings'
+          ? joiningsSections(payload)
+          : active === 'bda-reports'
+            ? bdaReportsSections(payload)
+            : active === 'sales-reports'
+              ? salesReportsSections(payload)
+              : [];
+  const hrSection = isHr ? sections.find((s) => s.key === hrTab) || sections[0] : null;
+  const joiningsSection = isJoinings ? sections.find((s) => s.key === joiningsTab) || sections[0] : null;
+  const bdaReportsSection = isBdaReports ? sections.find((s) => s.key === bdaReportsTab) || sections[0] : null;
+  const salesReportsSection = isSalesReports
+    ? sections.find((s) => s.key === salesReportsTab) || sections[0]
+    : null;
+  // Count cell reveals the per-source split (Bench 3 · Vendor 2 · Market 1) on hover.
+  const hrColumns = (hrSection?.columns || []).map((col) =>
+    col.key === 'count'
+      ? {
+          ...col,
+          render: (r) => (
+            <span
+              className="cursor-help underline decoration-dotted decoration-tertiary-300 underline-offset-2"
+              title={hrTypeSummary(r.by_type)}
+            >
+              {r.count}
+            </span>
+          ),
+        }
+      : col
+  );
 
   const drawerTitle =
     drawerRow?.requirement?.title ||
@@ -484,6 +784,7 @@ export default function ReportsPage() {
     drawerRow?.vendor?.name ||
     drawerRow?.client?.name ||
     drawerRow?.bda?.name ||
+    drawerRow?.sales_poc ||
     drawerRow?.group_label ||
     'Row details';
 
@@ -496,6 +797,12 @@ export default function ReportsPage() {
             value={active}
             onChange={(v) => {
               setActive(v);
+              // Clear immediately: the next render (before the new report's fetch
+              // resolves) would otherwise build this report's columns from the
+              // previous report's still-in-state rows — mismatched shapes crash
+              // React the moment an object-valued field (a hover-breakdown map)
+              // lands in a plain cell.
+              setPayload(null);
               setIndividualId('');
               setCoveragePocId('');
               setCoverageBroughtById('');
@@ -504,6 +811,19 @@ export default function ReportsPage() {
               setRvgPocId('');
               setRvgBroughtById('');
               setRvgActivity('active');
+              setHrSourcerId('');
+              setHrInterviewerId('');
+              setHrSource('');
+              setHrTab('sourcing');
+              setJoiningsTab('by_sourcer');
+              setTtsClientId('');
+              setTtsRequirementId('');
+              setTtsSourcerId('');
+              setTtsSearch('');
+              setTtsSearchApplied('');
+              setBdaReportsAccountId('');
+              setBdaReportsAccountType('');
+              setSalesReportsAccountId('');
               setDrawerRow(null);
             }}
             searchPlaceholder="Search reports…"
@@ -549,7 +869,7 @@ export default function ReportsPage() {
           setDatePreset('custom');
           setDateTo(v);
         }}
-        showDepartment={showDept && !isExplorer && !isCoverage}
+        showDepartment={showDept && !isExplorer && !isCoverage && !isDateOnly}
         departments={departments}
         departmentId={departmentId}
         onDepartmentChange={setDepartmentId}
@@ -558,6 +878,134 @@ export default function ReportsPage() {
         individualId={individualId}
         onIndividualChange={setIndividualId}
       >
+        {isHr && (
+          <>
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Filter by sourcing type"
+              value={hrSource}
+              onChange={setHrSource}
+              placeholder="Type: All"
+              searchPlaceholder="Search type…"
+              options={HR_SOURCE_OPTIONS}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by sourcer"
+              value={hrSourcerId}
+              onChange={setHrSourcerId}
+              placeholder="Sourcer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by interviewer"
+              value={hrInterviewerId}
+              onChange={setHrInterviewerId}
+              placeholder="Interviewer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+          </>
+        )}
+        {isTimeToSubmit && (
+          <>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTtsSearchApplied(ttsSearch.trim());
+              }}
+              className="flex"
+            >
+              <input
+                value={ttsSearch}
+                onChange={(e) => setTtsSearch(e.target.value)}
+                placeholder="Candidate name…"
+                className="w-44 rounded-l-lg border border-tertiary-100 bg-canvas-muted px-3 py-1.5 text-sm text-tertiary-800 placeholder:text-tertiary-400 focus:border-primary-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              <button
+                type="submit"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
+              >
+                Search
+              </button>
+            </form>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by client"
+              value={ttsClientId}
+              onChange={setTtsClientId}
+              placeholder="Client: All"
+              searchPlaceholder="Search clients…"
+              options={ttsClients}
+            />
+            <SearchableSelect
+              className="w-56"
+              allowClear
+              ariaLabel="Filter by requirement"
+              value={ttsRequirementId}
+              onChange={setTtsRequirementId}
+              placeholder="Requirement: All"
+              searchPlaceholder="Search requirements…"
+              options={ttsRequirements}
+            />
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by sourcer"
+              value={ttsSourcerId}
+              onChange={setTtsSourcerId}
+              placeholder="Sourcer: All"
+              searchPlaceholder="Search people…"
+              options={hrPeople}
+            />
+          </>
+        )}
+        {isBdaReports && (
+          <>
+            <SearchableSelect
+              className="w-48"
+              allowClear
+              ariaLabel="Filter by account"
+              value={bdaReportsAccountId}
+              onChange={setBdaReportsAccountId}
+              placeholder="Account: All"
+              searchPlaceholder="Search accounts…"
+              options={bdaReportsAccounts}
+            />
+            <SearchableSelect
+              className="w-40"
+              allowClear
+              ariaLabel="Filter by account type"
+              value={bdaReportsAccountType}
+              onChange={setBdaReportsAccountType}
+              placeholder="Type: All"
+              searchPlaceholder="Search type…"
+              options={[
+                { value: 'client', label: 'Client' },
+                { value: 'vendor', label: 'Vendor' },
+                { value: 'unclassified', label: 'Unclassified' },
+              ]}
+            />
+          </>
+        )}
+        {isSalesReports && (
+          <SearchableSelect
+            className="w-48"
+            allowClear
+            ariaLabel="Filter by client"
+            value={salesReportsAccountId}
+            onChange={setSalesReportsAccountId}
+            placeholder="Client: All"
+            searchPlaceholder="Search clients…"
+            options={salesReportsAccounts}
+          />
+        )}
         {showCoveragePeople && (
           <>
             <SearchableSelect
@@ -731,7 +1179,7 @@ export default function ReportsPage() {
               {
                 key: 'no_active',
                 label: 'No requirements',
-                hint: 'No active requirement — closed / dropped only, or never had one',
+                hint: 'No active requirement - closed / dropped only, or never had one',
                 Icon: CircleAlert,
               },
             ].map(({ key, label, hint, Icon }) => {
@@ -790,7 +1238,7 @@ export default function ReportsPage() {
               </span>
             )}
           </div>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2" role="tablist" aria-label="Vendor gap activity">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Vendor gap activity">
             {[
               {
                 key: 'active',
@@ -803,6 +1251,12 @@ export default function ReportsPage() {
                 label: 'Inactive vendors',
                 hint: 'No candidate currently in an open submission (sourced → BGV)',
                 Icon: CircleAlert,
+              },
+              {
+                key: 'has_live',
+                label: 'With live submissions',
+                hint: 'Difference: active-stage vendors that currently have a live candidate',
+                Icon: FileText,
               },
             ].map(({ key, label, hint, Icon }) => {
               const selected = rvgActivity === key;
@@ -847,9 +1301,160 @@ export default function ReportsPage() {
 
       {chartRows.length > 0 && <ReportChart reportKey={active} chartRows={chartRows} chartBars={chartBars} />}
 
-      {active === 'aging' ? (
+      {isHr ? (
         <div className="space-y-4">
-          {aging.map((section) => (
+          <div
+            className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+            role="tablist"
+            aria-label="HR report tables"
+          >
+            {sections.map((section) => {
+              const selected = hrSection?.key === section.key;
+              const { hint, Icon } = HR_TAB_META[section.key] || {};
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setHrTab(section.key)}
+                  className={`relative flex items-start gap-3 rounded-xl border px-3 py-3 pr-14 text-left transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {Icon && (
+                    <span
+                      className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                        selected ? 'bg-primary-600 text-white' : 'bg-white text-tertiary-500'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden />
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${selected ? 'text-primary-800' : 'text-tertiary-800'}`}
+                    >
+                      {section.title}
+                    </span>
+                    <span className={`mt-0.5 block text-xs ${selected ? 'text-primary-700/80' : 'text-tertiary-500'}`}>
+                      {hint}
+                    </span>
+                  </span>
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {section.rows.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {!loading && <HrChart section={hrSection} />}
+
+          <DataTable
+            columns={hrColumns}
+            rows={hrSection?.rows || []}
+            loading={loading}
+            emptyLabel="No rows for this range"
+          />
+        </div>
+      ) : isJoinings ? (
+        <div className="space-y-4">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-3" role="tablist" aria-label="Joinings tables">
+            {sections.map((section) => {
+              const selected = joiningsSection?.key === section.key;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setJoiningsTab(section.key)}
+                  className={`relative rounded-xl border px-3 py-2.5 pr-12 text-left text-sm font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 text-primary-800 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 text-tertiary-800 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {section.title}
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {section.rows.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DataTable
+            columns={joiningsSection?.columns || []}
+            rows={joiningsSection?.rows || []}
+            loading={loading}
+            emptyLabel="No joinings in this range"
+          />
+        </div>
+      ) : isBdaReports || isSalesReports ? (
+        <div className="space-y-4">
+          <div
+            className="grid gap-2 grid-cols-1 sm:grid-cols-3 lg:grid-cols-5"
+            role="tablist"
+            aria-label={isBdaReports ? 'BDA report tables' : 'Sales report tables'}
+          >
+            {sections.map((section) => {
+              const activeSection = isBdaReports ? bdaReportsSection : salesReportsSection;
+              const selected = activeSection?.key === section.key;
+              const setTab = isBdaReports ? setBdaReportsTab : setSalesReportsTab;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(section.key)}
+                  className={`relative rounded-xl border px-3 py-2.5 pr-12 text-left text-sm font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-300 bg-primary-50 text-primary-800 shadow-soft ring-1 ring-primary-200'
+                      : 'border-tertiary-100 bg-canvas-muted/40 text-tertiary-800 hover:border-tertiary-200 hover:bg-white'
+                  }`}
+                >
+                  {section.title}
+                  <span
+                    className={`absolute right-2 top-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold tabular-nums ${
+                      selected ? 'bg-primary-600 text-white' : 'bg-tertiary-100 text-tertiary-700'
+                    }`}
+                  >
+                    {sectionTabBadge(section)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <DataTable
+            columns={(isBdaReports ? bdaReportsSection : salesReportsSection)?.columns || []}
+            rows={(isBdaReports ? bdaReportsSection : salesReportsSection)?.rows || []}
+            loading={loading}
+            emptyLabel="No rows for this range"
+            onRowClick={setDrawerRow}
+          />
+        </div>
+      ) : isTimeToSubmit ? (
+        <DataTable
+          columns={timeToSubmitColumns()}
+          rows={timeToSubmitRows(payload)}
+          loading={loading}
+          emptyLabel="No candidates sourced in this range"
+        />
+      ) : active === 'aging' ? (
+        <div className="space-y-4">
+          {sections.map((section) => (
             <section key={section.key} className="space-y-2">
               <h2 className="font-heading text-sm font-semibold text-tertiary-800">
                 {section.title}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -45,7 +45,11 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestSta
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{accountKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/accounts/${detail.id}`} className="text-primary-700 hover:underline">
+            {accountKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Name">{detail.name}</PeekField>
         <PeekField label="Type"><span className="capitalize">{detail.type || 'Unclassified'}</span></PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
@@ -73,9 +77,9 @@ function AccountPeek({ row, onClose, onChanged, onRequestStageMove, onRequestSta
         </PeekField>
       </dl>
       <PeekActions>
-        <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}`)}>
+        <Link to={`/accounts/${detail.id}`} className="btn-secondary">
           Open details
-        </button>
+        </Link>
         {canEdit && (
           <button type="button" className="btn-secondary" onClick={() => navigate(`/accounts/${detail.id}?edit=1`)}>
             Edit account
@@ -116,6 +120,8 @@ export default function AccountsListPage() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [type, setType] = useState(() => searchParams.get('type') || '');
   const [stage, setStage] = useState(() => searchParams.get('stage') || '');
+  // URL-only convenience filter (set by the dashboard "Stuck leads" tile); no dropdown.
+  const [stuck, setStuck] = useState(() => searchParams.get('stuck') || '');
   const [ownerId, setOwnerId] = useState(() => searchParams.get('owner_id') || '');
   const [broughtById, setBroughtById] = useState(() => searchParams.get('origin_owner_id') || '');
   const [specialization, setSpecialization] = useState(() => searchParams.get('specialization') || '');
@@ -134,6 +140,7 @@ export default function AccountsListPage() {
     const params = { page, limit: 20 };
     if (type) params.type = type;
     if (stage) params.stage = stage;
+    if (stuck) params.stuck = stuck;
     if (ownerId) params.owner_id = ownerId;
     if (broughtById) params.origin_owner_id = broughtById;
     if (specialization) params.specialization = specialization;
@@ -151,16 +158,21 @@ export default function AccountsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stage, type, ownerId, broughtById, specialization]);
+  }, [appliedSearch, page, stage, stuck, type, ownerId, broughtById, specialization]);
 
   useEffect(() => {
+    // /users/directory is readable by every role and includes inactive users, so
+    // the Owner / Brought-by filters show the whole roster (BDAs included) no
+    // matter who is signed in.
     apiClient
-      .get('/users', { params: { active: 'true', limit: 100 } })
+      .get('/users/directory')
       .then(({ data }) =>
         setPeople(
-          [...(data.data || [])]
-            .map((u) => ({ value: u.id, label: u.name, hint: u.role }))
-            .sort((a, b) => a.label.localeCompare(b.label))
+          (data.data || []).map((u) => ({
+            value: u.id,
+            label: u.active === false ? `${u.name} (inactive)` : u.name,
+            hint: u.role,
+          }))
         )
       )
       .catch(() => setPeople([]));
@@ -178,6 +190,7 @@ export default function AccountsListPage() {
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
     setStage(searchParams.get('stage') || '');
+    setStuck(searchParams.get('stuck') || '');
     setType(searchParams.get('type') || '');
     setOwnerId(searchParams.get('owner_id') || '');
     setBroughtById(searchParams.get('origin_owner_id') || '');
@@ -193,13 +206,33 @@ export default function AccountsListPage() {
     };
     sync('type', type);
     sync('stage', stage);
+    sync('stuck', stuck);
     sync('owner_id', ownerId);
     sync('origin_owner_id', broughtById);
     sync('specialization', specialization);
     if (searchParams.get('create') === '1') next.set('create', '1');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, stage, ownerId, broughtById, specialization]);
+  }, [type, stage, stuck, ownerId, broughtById, specialization]);
+
+  const hasActiveFilters = Boolean(
+    type || stage || stuck || ownerId || broughtById || specialization || appliedSearch
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setType('');
+    setStage('');
+    setStuck('');
+    setOwnerId('');
+    setBroughtById('');
+    setSpecialization('');
+    setSearch('');
+    setAppliedSearch('');
+    const kept = new URLSearchParams();
+    if (searchParams.get('create')) kept.set('create', searchParams.get('create'));
+    setSearchParams(kept, { replace: true });
+  }
 
   function closeCreate() {
     setCreateOpen(false);
@@ -321,7 +354,7 @@ export default function AccountsListPage() {
       {canCreateAccount(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Create account
+            <Plus className="h-4 w-4" /> Create account
           </button>
         </div>
       )}
@@ -350,7 +383,7 @@ export default function AccountsListPage() {
                 />
                 <button
                   type="submit"
-                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                  className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
                 >
                   Search
                 </button>
@@ -427,6 +460,12 @@ export default function AccountsListPage() {
                 searchPlaceholder="Search people…"
                 options={people}
               />
+              {hasActiveFilters && (
+                <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                  <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                  Clear all filters
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -440,6 +479,7 @@ export default function AccountsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -502,7 +542,7 @@ export default function AccountsListPage() {
         onMove={moveStageOverride}
       />
 
-      <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="lg" tone="create">
+      <Drawer open={createOpen} title="Create client or vendor" onClose={closeCreate} size="xl" tone="create">
         {createOpen && (
           <AccountFormPage
             asPanel

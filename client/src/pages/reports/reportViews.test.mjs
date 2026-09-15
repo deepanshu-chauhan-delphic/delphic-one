@@ -12,14 +12,17 @@ assert.ok(!reportsForRole('bda').some((r) => r.key === 'pipeline-explorer'));
 assert.ok(!reportsForRole('admin').some((r) => r.key === 'pipeline-explorer'));
 assert.ok(!reportsForRole('recruiter').some((r) => r.key === 'pipeline-explorer'));
 
-// Only the two coverage-gap reports remain visible in the dropdown.
+// Visible dropdown reports per role.
 assert.deepEqual(
   reportsForRole('admin').map((r) => r.key).sort(),
-  ['clients-without-requirements', 'recruiter-vendor-gaps']
+  ['bda-reports', 'clients-without-requirements', 'hr', 'joinings', 'recruiter-vendor-gaps', 'sales-reports', 'time-to-submit']
 );
-assert.deepEqual(reportsForRole('bda').map((r) => r.key), ['clients-without-requirements']);
+assert.deepEqual(reportsForRole('bda').map((r) => r.key).sort(), ['bda-reports', 'clients-without-requirements']);
 assert.deepEqual(reportsForRole('recruiter').map((r) => r.key), ['recruiter-vendor-gaps']);
-assert.deepEqual(reportsForRole('sales').map((r) => r.key), ['clients-without-requirements']);
+assert.deepEqual(
+  reportsForRole('sales').map((r) => r.key).sort(),
+  ['clients-without-requirements', 'joinings', 'sales-reports', 'time-to-submit']
+);
 
 const columns = columnsForReport('pipeline-explorer');
 assert.ok(columns.some((c) => c.key === 'client'));

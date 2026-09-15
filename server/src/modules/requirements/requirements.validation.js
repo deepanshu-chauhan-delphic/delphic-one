@@ -52,9 +52,18 @@ const statusSchema = z.object({
   reason: z.string().optional(),
 });
 
+// Superadmin-only free-form status move: any target status (incl. backward, or out
+// of the terminal `closed` / `dropped` states), reason required, may also flip the
+// lock. Bypasses REQUIREMENT_STATUS_TRANSITIONS and the seats-closed gate.
+const statusOverrideSchema = z.object({
+  to_status: z.enum(['open', 'in_progress', 'on_hold', 'closed', 'dropped']),
+  reason: z.string().min(1),
+  is_locked: z.boolean().optional(),
+});
+
 const assignSchema = z.object({
   user_id: z.string().uuid(),
-  role_on_req: z.enum(['sales', 'recruiter']),
+  role_on_req: z.enum(['sales', 'recruiter', 'vendor_team']),
 });
 
 const unassignSchema = z.object({
@@ -78,7 +87,11 @@ const listQuerySchema = z.object({
   sales_owner_id: z.string().uuid().optional(),
   recruiter_id: z.string().uuid().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  work_mode: z.enum(['remote', 'onsite', 'hybrid']).optional(),
   stuck: z.enum(['stuck', 'not_stuck']).optional(),
+  // closed_at window (ISO strings) — dashboard "Closed this month" tile drills in with these.
+  closed_from: z.string().optional(),
+  closed_to: z.string().optional(),
   tech_stack: z.string().optional(),
   search: z.string().optional(),
   sort_by: z.enum(['created_at', 'priority', 'budget_max', 'status']).default('created_at'),
@@ -91,6 +104,7 @@ module.exports = {
   createSchema,
   updateSchema,
   statusSchema,
+  statusOverrideSchema,
   assignSchema,
   unassignSchema,
   seatCreateSchema,

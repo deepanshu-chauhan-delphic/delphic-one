@@ -8,6 +8,9 @@ export function headerTitleForPath(pathname, user) {
   if (pathname.startsWith('/requirements')) return 'Requirements';
   if (pathname.startsWith('/profiles')) return 'Candidates';
   if (pathname.startsWith('/submissions')) return 'Submissions';
+  if (pathname.startsWith('/calendar')) return 'Calendar';
+  if (pathname.startsWith('/notifications')) return 'Notifications';
+  if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/reports')) return 'Reports';
   if (pathname.startsWith('/users')) return 'Users';
   return 'Delphic';
@@ -20,12 +23,15 @@ export function headerSubtitleForPath(pathname, user) {
     return 'Requirements as rows, candidates by stage. Drag or use stage buttons.';
   }
   if (pathname.startsWith('/pipeline')) {
-    return 'Your role pipeline — leads, jobs, or candidates by stage.';
+    return 'Your role pipeline - leads, jobs, or candidates by stage.';
   }
   if (pathname.startsWith('/accounts')) return 'Track lead ownership, meetings, and account stage.';
   if (pathname.startsWith('/requirements')) return 'Open jobs, seats, and recruiter assignments.';
   if (pathname.startsWith('/profiles')) return 'Profiles with skills, CTC, and resume attachments.';
   if (pathname.startsWith('/submissions')) return 'Candidates put forward for jobs, by pipeline stage.';
+  if (pathname.startsWith('/calendar')) return 'Your scheduled and upcoming interviews - month grid or agenda.';
+  if (pathname.startsWith('/notifications')) return 'Assignments, interviews, and stage changes across your work.';
+  if (pathname.startsWith('/settings')) return 'Your profile, password, notifications, and account history.';
   if (pathname.startsWith('/reports')) return 'Pick filters and export Excel or PDF.';
   if (pathname.startsWith('/users')) {
     return 'Only admins can create accounts. Assign a department so reports can filter by team.';

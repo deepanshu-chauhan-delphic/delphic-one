@@ -47,8 +47,29 @@ const env = {
     refreshExpires: process.env.JWT_REFRESH_EXPIRES || '7d',
   },
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  // Business timezone for human-readable dates in notifications / emails. The
+  // server clock is UTC; without this, notification times render in UTC.
+  timezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
   uploadDir: process.env.UPLOAD_DIR || './uploads',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 10,
+  // In-process background jobs (interview reminder cron). Off in tests; opt out in
+  // any single environment with ENABLE_JOBS=false. See docs/guides/DEPLOY-RUNBOOK.md.
+  jobs: {
+    enabled: process.env.NODE_ENV !== 'test' && process.env.ENABLE_JOBS !== 'false',
+  },
+  // Reserved for the future email + MS Teams channels — see
+  // docs/features/RD-NOTIFICATIONS-AND-CALENDAR.md §6. Nothing reads these yet.
+  notifications: {
+    email: {
+      from: process.env.NOTIFICATIONS_EMAIL_FROM || null,
+      smtpUrl: process.env.NOTIFICATIONS_SMTP_URL || null,
+    },
+    msGraph: {
+      tenantId: process.env.MS_GRAPH_TENANT_ID || null,
+      clientId: process.env.MS_GRAPH_CLIENT_ID || null,
+      clientSecret: process.env.MS_GRAPH_CLIENT_SECRET || null,
+    },
+  },
 };
 
 assertProductionConfig(env);

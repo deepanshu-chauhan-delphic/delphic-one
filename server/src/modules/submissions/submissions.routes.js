@@ -11,7 +11,7 @@ router.get('/', controller.list);
 router.get('/:id', controller.getOne);
 router.get('/:id/history', controller.history);
 
-router.post('/', authorize('recruiter', 'admin'), controller.create);
+router.post('/', authorize('recruiter', 'sales', 'admin'), controller.create);
 router.patch('/:id', authorize('recruiter', 'admin'), lockCheck('submissions'), controller.update);
 router.post('/:id/stage', authorize('recruiter', 'sales', 'admin'), loadSuperadminFlag, lockCheck('submissions'), controller.changeStage);
 router.post('/:id/stage/override', authorizeSuperadmin, controller.changeStageOverride);

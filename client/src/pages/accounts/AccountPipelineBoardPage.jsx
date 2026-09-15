@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil, Plus } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -17,7 +18,7 @@ import { BOARD_COLUMNS, groupBoard, stageColumnStats } from '../../lib/accountBo
 import {
   canCreateSubmission,
   canMoveSubmissionBackward,
-  canMutateSubmission,
+  canMoveSubmissionStage,
   canOverrideSubmissionStage,
   isBackwardTransition,
   nextSubmissionStages,
@@ -29,6 +30,7 @@ import SubmissionStageOverrideDrawer from '../submissions/SubmissionStageOverrid
 import { canCreateRequirement } from '../../lib/requirementStages.js';
 import Badge from '../../components/ui/Badge.jsx';
 import Breadcrumbs from '../../components/ui/Breadcrumbs.jsx';
+import OpenInNewTabButton from '../../components/OpenInNewTabButton.jsx';
 import CardActionsMenu from '../../components/ui/CardActionsMenu.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import ProgressRing from '../../components/ui/ProgressRing.jsx';
@@ -61,12 +63,12 @@ const STAGE_HEADER_COLORS = {
   rejected: 'bg-red-50 text-red-700',
 };
 
-function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStage, isDragging, onOpen }) {
+function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStage, isDragging }) {
   const next = nextSubmissionStages(submission.stage).filter(
     (to) => canMoveBackward || !isBackwardTransition(submission.stage, to)
   );
   const actions = [
-    { key: 'open', label: 'Open submission', onClick: () => onOpen(submission.id) },
+    { key: 'open', label: 'Open submission', to: `/submissions/${submission.id}` },
     ...(canMove && !submission.is_locked
       ? next.map((to) => ({
           key: `move-${to}`,
@@ -89,13 +91,12 @@ function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStag
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button
-          type="button"
+        <Link
+          to={`/submissions/${submission.id}`}
           className="min-w-0 flex-1 text-left text-sm font-medium text-primary-700 hover:underline"
-          onClick={() => onOpen(submission.id)}
         >
           {submission.profile?.name || 'Candidate'}
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${submission.profile?.name || 'candidate'}`} />
       </div>
       <p className="mt-0.5 text-[11px] text-tertiary-500">
@@ -110,7 +111,7 @@ function SubmissionCard({ submission, canMove, canMoveBackward, busy, onMoveStag
   );
 }
 
-function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage, onOpen }) {
+function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: submission.id,
     disabled: !canMove || submission.is_locked,
@@ -130,7 +131,6 @@ function DraggableCard({ submission, canMove, canMoveBackward, busy, onMoveStage
         busy={busy}
         onMoveStage={onMoveStage}
         isDragging={isDragging}
-        onOpen={onOpen}
       />
     </div>
   );
@@ -157,7 +157,6 @@ function DroppableCell({ requirementId, stage, children, isOver }) {
 export default function AccountPipelineBoardPage() {
   const { id, accountId: accountIdParam } = useParams();
   const accountId = accountIdParam || id;
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -178,7 +177,7 @@ export default function AccountPipelineBoardPage() {
   const [createProfileOpen, setCreateProfileOpen] = useState(false);
   const [submitForReqId, setSubmitForReqId] = useState(null);
 
-  const canMoveSubs = canMutateSubmission(user);
+  const canMoveSubs = canMoveSubmissionStage(user);
   const canMoveSubsBackward = canMoveSubmissionBackward(user);
   const canOverrideSubs = canOverrideSubmissionStage(user);
   const canSubmit = canCreateSubmission(user);
@@ -381,15 +380,16 @@ export default function AccountPipelineBoardPage() {
           <div className="flex flex-wrap gap-2">
             <Link to="/pipeline" className="btn-secondary">All accounts</Link>
             <Link to={`/accounts/${accountId}`} className="btn-secondary">Account detail</Link>
+            <OpenInNewTabButton />
             <button type="button" className="btn-secondary" onClick={load}>Refresh</button>
             {canCreateReqHere && (
               <button type="button" className="btn-secondary" onClick={() => setCreateReqOpen(true)}>
-                New requirement
+                <Plus className="h-4 w-4" /> New requirement
               </button>
             )}
             {canAddProfile && (
               <button type="button" className="btn-secondary" onClick={() => setCreateProfileOpen(true)}>
-                New profile
+                <Plus className="h-4 w-4" /> New profile
               </button>
             )}
             {canSubmit && requirements.length > 0 && (
@@ -398,7 +398,9 @@ export default function AccountPipelineBoardPage() {
               </button>
             )}
             {canMutate && !account.is_locked && (
-              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit account</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit account
+              </button>
             )}
             {canMutate && !account.is_locked && nextAccountStages.length > 0 && (
               <button type="button" className="btn-primary" onClick={() => setIsAccountStageOpen(true)}>
@@ -420,7 +422,7 @@ export default function AccountPipelineBoardPage() {
           </p>
           {canAddProfile && (
             <button type="button" className="btn-primary mt-4 inline-flex" onClick={() => setCreateProfileOpen(true)}>
-              New profile
+              <Plus className="h-4 w-4" /> New profile
             </button>
           )}
         </div>
@@ -440,7 +442,7 @@ export default function AccountPipelineBoardPage() {
           </p>
           {canCreateReqHere && (
             <button type="button" className="btn-primary mt-4 inline-flex" onClick={() => setCreateReqOpen(true)}>
-              New requirement
+              <Plus className="h-4 w-4" /> New requirement
             </button>
           )}
         </div>
@@ -531,7 +533,6 @@ export default function AccountPipelineBoardPage() {
                               canMoveBackward={canMoveSubsBackward}
                               busy={busyId === sub.id}
                               onMoveStage={requestStageMove}
-                              onOpen={(subId) => navigate(`/submissions/${subId}`)}
                             />
                           ))}
                           {cards.length === 0 && (
@@ -554,7 +555,6 @@ export default function AccountPipelineBoardPage() {
                   canMove={false}
                   busy={false}
                   onMoveStage={() => {}}
-                  onOpen={() => {}}
                   isDragging
                 />
               </div>
@@ -645,7 +645,7 @@ export default function AccountPipelineBoardPage() {
         />
       )}
 
-      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="lg" tone="edit">
+      <Drawer open={editOpen} title="Edit account" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <AccountFormPage
             asPanel
@@ -663,7 +663,7 @@ export default function AccountPipelineBoardPage() {
         open={createReqOpen}
         title="New requirement"
         onClose={() => setCreateReqOpen(false)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {createReqOpen && (
@@ -683,7 +683,7 @@ export default function AccountPipelineBoardPage() {
         open={createProfileOpen}
         title="New candidate profile"
         onClose={() => setCreateProfileOpen(false)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {createProfileOpen && (
@@ -702,7 +702,7 @@ export default function AccountPipelineBoardPage() {
         open={submitForReqId !== null}
         title="Submit candidate"
         onClose={() => setSubmitForReqId(null)}
-        size="md"
+        size="xl"
         tone="create"
       >
         {submitForReqId !== null && (

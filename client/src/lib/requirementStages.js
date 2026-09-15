@@ -21,6 +21,14 @@ export function nextRequirementStatuses(status) {
   return REQUIREMENT_STATUS_TRANSITIONS[status] || [];
 }
 
+// Every status, for the superadmin override drawer (backward moves, out of the
+// terminal `closed` / `dropped` states). Keep in sync with statusOverrideSchema.
+export const REQUIREMENT_ALL_STATUSES = ['open', 'in_progress', 'on_hold', 'closed', 'dropped'];
+
+export function canOverrideRequirementStatus(user) {
+  return Boolean(user?.is_superadmin);
+}
+
 export function nextSeatStatuses(status) {
   return SEAT_STATUS_TRANSITIONS[status] || [];
 }

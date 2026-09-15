@@ -15,6 +15,7 @@ router.post('/', authorize('bda', 'admin'), controller.create);
 router.patch('/:id', authorize('bda', 'admin'), loadSuperadminFlag, lockCheck('accounts'), controller.update);
 router.post('/:id/stage', authorize('bda', 'admin'), controller.changeStage);
 router.post('/:id/stage/override', authorizeSuperadmin, controller.changeStageOverride);
+router.post('/:id/meeting', authorize('bda', 'admin'), controller.updateMeeting);
 router.post('/:id/classify', authorize('bda', 'admin'), controller.classify);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MoreVertical } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Filter, MoreVertical, Plus, X } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { canCreateSubmission } from '../../lib/submissionStages.js';
@@ -42,7 +42,6 @@ function csvToList(value) {
 }
 
 function SubmissionPeek({ row, onClose }) {
-  const navigate = useNavigate();
   const [detail, setDetail] = useState(row);
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +58,11 @@ function SubmissionPeek({ row, onClose }) {
     <div className="space-y-4">
       {loading && <p className="text-xs text-tertiary-400">Loading details…</p>}
       <dl className="grid gap-4 sm:grid-cols-2">
-        <PeekField label="Key">{subKey(detail.id)}</PeekField>
+        <PeekField label="Key">
+          <Link to={`/submissions/${detail.id}`} className="text-primary-700 hover:underline">
+            {subKey(detail.id)}
+          </Link>
+        </PeekField>
         <PeekField label="Candidate">{detail.profile?.name || '—'}</PeekField>
         <PeekField label="Job">{detail.requirement?.title || '—'}</PeekField>
         <PeekField label="Stage"><Badge value={detail.stage} /></PeekField>
@@ -77,9 +80,9 @@ function SubmissionPeek({ row, onClose }) {
         <PeekField label="Notes">{detail.submission_notes}</PeekField>
       )}
       <PeekActions>
-        <button type="button" className="btn-primary" onClick={() => navigate(`/submissions/${detail.id}`)}>
+        <Link to={`/submissions/${detail.id}`} className="btn-primary">
           Manage interviews
-        </button>
+        </Link>
         <button type="button" className="btn-secondary" onClick={onClose}>
           Close
         </button>
@@ -102,6 +105,10 @@ export default function SubmissionsListPage() {
   const [submittedBy, setSubmittedBy] = useState(() => searchParams.get('submitted_by') || '');
   const [accountId, setAccountId] = useState(() => searchParams.get('account_id') || '');
   const [requirementId, setRequirementId] = useState(() => searchParams.get('requirement_id') || '');
+  // URL-only passthrough filters (set by dashboard KPI tiles; no dropdown, cleared via "Clear all").
+  const [salesOwnerId, setSalesOwnerId] = useState(() => searchParams.get('sales_owner_id') || '');
+  const [joinedFrom, setJoinedFrom] = useState(() => searchParams.get('joined_from') || '');
+  const [joinedTo, setJoinedTo] = useState(() => searchParams.get('joined_to') || '');
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort_by') || 'created_at');
   const [sortOrder, setSortOrder] = useState(() => searchParams.get('sort_order') || 'desc');
   const [search, setSearch] = useState('');
@@ -126,11 +133,57 @@ export default function SubmissionsListPage() {
     sync('submitted_by', submittedBy);
     sync('account_id', accountId);
     sync('requirement_id', requirementId);
+    sync('sales_owner_id', salesOwnerId);
+    sync('joined_from', joinedFrom);
+    sync('joined_to', joinedTo);
     sync('sort_by', sortBy, 'created_at');
     sync('sort_order', sortOrder, 'desc');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageCsv, submittedBy, accountId, requirementId, sortBy, sortOrder]);
+  }, [stageCsv, submittedBy, accountId, requirementId, salesOwnerId, joinedFrom, joinedTo, sortBy, sortOrder]);
+
+  // Re-hydrate filter state FROM the URL (browser Back, shared link, new tab).
+  useEffect(() => {
+    const g = (k, d = '') => searchParams.get(k) || d;
+    const set = (setter, value) => setter((prev) => (prev === value ? prev : value));
+    setStages((prev) => {
+      const nextCsv = g('stage');
+      return prev.join(',') === nextCsv ? prev : csvToList(nextCsv);
+    });
+    set(setSubmittedBy, g('submitted_by'));
+    set(setAccountId, g('account_id'));
+    set(setRequirementId, g('requirement_id'));
+    set(setSalesOwnerId, g('sales_owner_id'));
+    set(setJoinedFrom, g('joined_from'));
+    set(setJoinedTo, g('joined_to'));
+    set(setSortBy, g('sort_by', 'created_at'));
+    set(setSortOrder, g('sort_order', 'desc'));
+  }, [searchParams]);
+
+  const hasActiveFilters = Boolean(
+    stageCsv || submittedBy || accountId || requirementId || salesOwnerId || joinedFrom || joinedTo ||
+      appliedSearch || sortBy !== 'created_at' || sortOrder !== 'desc'
+  );
+
+  function clearAllFilters() {
+    setPage(1);
+    setStages([]);
+    setSubmittedBy('');
+    setAccountId('');
+    setRequirementId('');
+    setSalesOwnerId('');
+    setJoinedFrom('');
+    setJoinedTo('');
+    setSortBy('created_at');
+    setSortOrder('desc');
+    setSearch('');
+    setAppliedSearch('');
+    const kept = new URLSearchParams();
+    ['create', 'profile_id'].forEach((k) => {
+      if (searchParams.get(k)) kept.set(k, searchParams.get(k));
+    });
+    setSearchParams(kept, { replace: true });
+  }
 
   function reload() {
     setLoading(true);
@@ -139,6 +192,9 @@ export default function SubmissionsListPage() {
     if (submittedBy) params.submitted_by = submittedBy;
     if (accountId) params.account_id = accountId;
     if (requirementId) params.requirement_id = requirementId;
+    if (salesOwnerId) params.sales_owner_id = salesOwnerId;
+    if (joinedFrom) params.joined_from = joinedFrom;
+    if (joinedTo) params.joined_to = joinedTo;
     if (appliedSearch) params.search = appliedSearch;
     apiClient
       .get('/submissions', { params })
@@ -152,7 +208,7 @@ export default function SubmissionsListPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch, page, stageCsv, submittedBy, accountId, requirementId, sortBy, sortOrder]);
+  }, [appliedSearch, page, stageCsv, submittedBy, accountId, requirementId, salesOwnerId, joinedFrom, joinedTo, sortBy, sortOrder]);
 
   useEffect(() => {
     if (searchParams.get('create') === '1') setCreateOpen(true);
@@ -228,7 +284,7 @@ export default function SubmissionsListPage() {
       {canCreateSubmission(user) && (
         <div className="flex justify-end">
           <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-            + Put forward
+            <Plus className="h-4 w-4" /> Put forward
           </button>
         </div>
       )}
@@ -256,7 +312,7 @@ export default function SubmissionsListPage() {
               />
               <button
                 type="submit"
-                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF4FF] px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#DBE6FE]"
+                className="rounded-r-lg border border-l-0 border-tertiary-100 bg-[#EEF5FC] px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#D8E8F6]"
               >
                 Search
               </button>
@@ -270,6 +326,12 @@ export default function SubmissionsListPage() {
                 searchPlaceholder="Search stage…"
               />
             </div>
+            {hasActiveFilters && (
+              <button type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={clearAllFilters}>
+                <X className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                Clear all filters
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -337,6 +399,7 @@ export default function SubmissionsListPage() {
           headerClassName="bg-[#F9FAFB]"
           striped
           embedded
+          maxHeight="calc(100dvh - 18rem)"
         />
       </section>
 
@@ -371,7 +434,7 @@ export default function SubmissionsListPage() {
         {peek && <SubmissionPeek row={peek} onClose={() => setPeek(null)} />}
       </Drawer>
 
-      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="md" tone="create">
+      <Drawer open={createOpen} title="Put a candidate forward" onClose={closeCreate} size="xl" tone="create">
         <SubmissionCreatePage
           asPanel
           initialProfileId={createProfileId}

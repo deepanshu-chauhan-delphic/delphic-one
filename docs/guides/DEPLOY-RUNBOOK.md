@@ -213,5 +213,6 @@ This is the only path that drops the database, and it is a deliberate, manual re
 
 - Frontend-only commits still need `--build` (assets are baked into the `client` image); no migration step.
 - Required prod env vars (no defaults): `POSTGRES_PASSWORD`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN`. Generate secrets: `openssl rand -hex 32`.
+- **`ENABLE_JOBS`** (default `true`): the API runs an in-process `node-cron` job every 15 min for interview reminders (T-24h / T-1h in-app notifications). Leave it on for the single prod container. **If the API is ever scaled to more than one instance, set `ENABLE_JOBS=false` on every instance but one** — otherwise each instance sends duplicate reminders. Always off under `NODE_ENV=test`. Reserved (unused) `NOTIFICATIONS_*` / `MS_GRAPH_*` vars are placeholders for the future email + MS Teams channels.
 - Loopback binds in prod: API `127.0.0.1:4000`, client `127.0.0.1:8081` (nginx fronts them).
 - Rehearse risky migrations first: restore the latest `auto-*.dump` into a scratch DB, run `prisma migrate deploy`, smoke-test.

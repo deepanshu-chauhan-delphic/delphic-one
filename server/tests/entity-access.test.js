@@ -102,6 +102,43 @@ describe('document entity access', () => {
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
+  test('a BDA can open a profile and see its attached CV', async () => {
+    const recruiter = await createUser({ role: 'recruiter' });
+    const bda = await createUser({ role: 'bda' });
+    const { access_token: recruiterToken } = await loginAs(recruiter);
+    const { access_token: bdaToken } = await loginAs(bda);
+
+    const created = await authed(request(app).post('/api/v1/profiles'), recruiterToken).send({
+      name: 'Candidate X',
+      total_experience_years: 4,
+      primary_skills: ['Node.js'],
+      source: 'direct',
+    });
+    expect(created.status).toBe(201);
+    const profileId = created.body.data.id;
+
+    const tmp = path.join(__dirname, 'tmp-cv.pdf');
+    fs.writeFileSync(tmp, 'x');
+    await authed(request(app).post('/api/v1/documents'), recruiterToken)
+      .field('entity_type', 'profile')
+      .field('entity_id', profileId)
+      .field('label', 'Resume')
+      .attach('file', tmp, 'cv.pdf');
+    fs.unlinkSync(tmp);
+
+    // BDA can load the profile itself...
+    const profile = await authed(request(app).get(`/api/v1/profiles/${profileId}`), bdaToken);
+    expect(profile.status).toBe(200);
+
+    // ...and list its documents (the CV).
+    const docs = await authed(request(app).get('/api/v1/documents'), bdaToken).query({
+      entity_type: 'profile',
+      entity_id: profileId,
+    });
+    expect(docs.status).toBe(200);
+    expect(docs.body.data.some((d) => d.label === 'Resume')).toBe(true);
+  });
+
   test('listing documents for a missing entity still 404s', async () => {
     const recruiter = await createUser({ role: 'recruiter' });
     const { access_token: recruiterToken } = await loginAs(recruiter);

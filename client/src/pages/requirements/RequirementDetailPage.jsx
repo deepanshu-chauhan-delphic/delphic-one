@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -14,17 +14,21 @@ import Tooltip from '../../components/ui/Tooltip.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import RequirementFormPage from './RequirementFormPage.jsx';
 import AssignRecruiterDrawer from './AssignRecruiterDrawer.jsx';
 import { canAssignRecruiters } from '../profiles/profileUtils.js';
 import {
   canChangeSeatStage,
   canMutateRequirement,
+  canOverrideRequirementStatus,
   nextRequirementStatuses,
   nextSeatStatuses,
   requiresDropReason,
   requiresJoinedAt,
 } from '../../lib/requirementStages.js';
+import RequirementStatusOverrideDrawer from './RequirementStatusOverrideDrawer.jsx';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -33,6 +37,7 @@ function formatDate(value) {
 
 export default function RequirementDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,31 +45,35 @@ export default function RequirementDetailPage() {
   const [requirement, setRequirement] = useState(null);
   const [seats, setSeats] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [taggedProfiles, setTaggedProfiles] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const [statusModal, setStatusModal] = useState(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const [seatModal, setSeatModal] = useState(null);
   const [reason, setReason] = useState('');
   const [joinedAt, setJoinedAt] = useState('');
   const [addSeatOpen, setAddSeatOpen] = useState(false);
   const [seatLabel, setSeatLabel] = useState('');
-  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignRole, setAssignRole] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [reqRes, seatsRes, assignRes, histRes] = await Promise.all([
+      const [reqRes, seatsRes, assignRes, histRes, subsRes] = await Promise.all([
         apiClient.get(`/requirements/${id}`),
         apiClient.get(`/requirements/${id}/seats`),
         apiClient.get(`/requirements/${id}/assignments`),
         apiClient.get(`/requirements/${id}/history`),
+        apiClient.get('/submissions', { params: { requirement_id: id, limit: 100, sort_by: 'created_at', sort_order: 'desc' } }),
       ]);
       setRequirement(reqRes.data.data);
       setSeats(seatsRes.data.data || []);
       setAssignments(assignRes.data.data || []);
       setHistory(histRes.data.data || []);
+      setTaggedProfiles(subsRes.data.data || []);
     } catch (err) {
       pushError(apiErrorMessage(err, 'Failed to load requirement'), 'Something went wrong');
       setRequirement(null);
@@ -91,7 +100,21 @@ export default function RequirementDetailPage() {
 
   const canEdit = canMutateRequirement(requirement, user);
   const canSeat = canChangeSeatStage(user);
+  const canOverrideStatus = canOverrideRequirementStatus(user);
   const locked = Boolean(requirement?.is_locked);
+
+  async function applyStatusOverride(body) {
+    setBusy(true);
+    try {
+      await apiClient.post(`/requirements/${id}/status/override`, body);
+      setOverrideOpen(false);
+      await load();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Status override failed'), 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function confirmRequirementStatus() {
     if (!statusModal) return;
@@ -239,6 +262,34 @@ export default function RequirementDetailPage() {
     },
   ];
 
+  const taggedColumns = [
+    {
+      key: 'profile',
+      header: 'Candidate',
+      render: (row) =>
+        row.profile?.id ? (
+          <Link to={`/profiles/${row.profile.id}`} className="font-medium text-primary-700 hover:underline">
+            {row.profile.name}
+          </Link>
+        ) : (
+          row.profile?.name || '—'
+        ),
+    },
+    { key: 'stage', header: 'Stage', render: (row) => <Badge value={row.stage} /> },
+    { key: 'seat', header: 'Seat', render: (row) => row.seat?.seat_label || '—' },
+    { key: 'submitted_by', header: 'Recruiter', render: (row) => row.submitted_by?.name || '—' },
+    { key: 'created_at', header: 'Tagged on', render: (row) => formatDate(row.created_at) },
+    {
+      key: 'open',
+      header: '',
+      render: (row) => (
+        <Link to={`/submissions/${row.id}`} className="text-xs font-medium text-primary-700 hover:underline">
+          Open submission
+        </Link>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -266,8 +317,11 @@ export default function RequirementDetailPage() {
               Edit
             </button>
           )}
-          <button type="button" className="btn-secondary" onClick={() => setAssignOpen(true)}>
-            {canAssignRecruiters(user, requirement) ? 'Assign recruiters' : 'View assignments'}
+          <button type="button" className="btn-secondary" onClick={() => setAssignRole('recruiter')}>
+            {canAssignRecruiters(user, requirement) ? 'Assign recruiter team' : 'View recruiter team'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => setAssignRole('vendor_team')}>
+            {canAssignRecruiters(user, requirement) ? 'Assign vendor team' : 'View vendor team'}
           </button>
           <Link to={`/requirements/${id}/board`} className="btn-secondary">
             Pipeline board
@@ -279,6 +333,14 @@ export default function RequirementDetailPage() {
           )}
           {user?.role === 'admin' && locked && (
             <UnlockButton entityType="requirement" entityId={requirement.id} onUnlocked={load} />
+          )}
+          {userCan(user, 'deleteRecords') && (
+            <DeleteRecordButton
+              entityType="requirement"
+              entityId={requirement.id}
+              entityLabel={`Requirement - ${requirement.title}`}
+              onDeleted={() => navigate('/requirements')}
+            />
           )}
         </div>
       </div>
@@ -292,7 +354,14 @@ export default function RequirementDetailPage() {
 
       {/* Status controls */}
       <section className="rounded-lg border bg-white p-4">
-        <h2 className="text-sm font-semibold text-tertiary-800">Requirement status</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-sm font-semibold text-tertiary-800">Requirement status</h2>
+          {canOverrideStatus && (
+            <button type="button" className="btn-secondary text-xs" onClick={() => setOverrideOpen(true)}>
+              Override status…
+            </button>
+          )}
+        </div>
         {locked || !canEdit ? (
           <p className="mt-2 text-sm text-tertiary-500">
             {locked ? 'This requirement is locked. Admin unlock is required to change status.' : 'Only the sales owner or admin can change status.'}
@@ -325,11 +394,23 @@ export default function RequirementDetailPage() {
         )}
       </section>
 
+      {canOverrideStatus && (
+        <RequirementStatusOverrideDrawer
+          requirement={requirement}
+          open={overrideOpen}
+          saving={busy}
+          onClose={() => setOverrideOpen(false)}
+          onMove={applyStatusOverride}
+        />
+      )}
+
       {/* Info panels */}
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border bg-white p-4">
           <h2 className="text-sm font-semibold text-tertiary-800">Job details</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <dt className="text-tertiary-500">Type</dt>
+            <dd className="capitalize">{requirement.req_type?.replace(/_/g, ' ') || '—'}</dd>
             <dt className="text-tertiary-500">Designation</dt>
             <dd>{requirement.designation || '—'}</dd>
             <dt className="text-tertiary-500">Department</dt>
@@ -413,12 +494,28 @@ export default function RequirementDetailPage() {
             <p className="mt-1 text-sm text-tertiary-700">{requirement.domain_experience || '—'}</p>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-medium text-tertiary-500">Assigned recruiters</p>
+            <p className="text-xs font-medium text-tertiary-500">Assigned recruiter team</p>
             <ul className="mt-1 space-y-1 text-sm">
               {(requirement.assigned_recruiters || []).length === 0 && (
-                <li className="text-tertiary-400">None yet — use Assign recruiters above</li>
+                <li className="text-tertiary-400">None yet - use Assign recruiter team above</li>
               )}
               {(requirement.assigned_recruiters || []).map((r) => (
+                <li key={r.id} className="flex items-center gap-2">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-tertiary-100 text-xs font-medium">
+                    {r.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  {r.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-tertiary-500">Assigned vendor team</p>
+            <ul className="mt-1 space-y-1 text-sm">
+              {(requirement.assigned_vendor_team || []).length === 0 && (
+                <li className="text-tertiary-400">None yet - use Assign vendor team above</li>
+              )}
+              {(requirement.assigned_vendor_team || []).map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-tertiary-100 text-xs font-medium">
                     {r.name.slice(0, 2).toUpperCase()}
@@ -434,7 +531,7 @@ export default function RequirementDetailPage() {
               {assignments.length === 0 && <li className="text-tertiary-400">No assignments</li>}
               {assignments.map((a) => (
                 <li key={a.id}>
-                  {a.user?.name} ({a.role_on_req}) — {formatDate(a.assigned_at)}
+                  {a.user?.name} ({a.role_on_req?.replace(/_/g, ' ')}) - {formatDate(a.assigned_at)}
                   {a.unassigned_at ? ` → ended ${formatDate(a.unassigned_at)}` : ' · active'}
                 </li>
               ))}
@@ -465,6 +562,22 @@ export default function RequirementDetailPage() {
         </p>
       </section>
 
+      {/* Tagged profiles */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-tertiary-800">Tagged profiles</h2>
+          <span className="text-xs text-tertiary-500">{taggedProfiles.length} candidate(s)</span>
+        </div>
+        <DataTable
+          columns={taggedColumns}
+          rows={taggedProfiles}
+          emptyLabel="No candidates tagged to this requirement yet"
+        />
+        {user?.role === 'recruiter' && (
+          <p className="text-xs text-tertiary-400">You only see candidates you submitted.</p>
+        )}
+      </section>
+
       {/* History */}
       <section className="rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold text-tertiary-800">Status history</h2>
@@ -477,7 +590,7 @@ export default function RequirementDetailPage() {
               <span className="capitalize font-medium">{h.to_stage?.replace(/_/g, ' ')}</span>
               <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
               <span className="text-tertiary-500"> · {h.changed_by?.name || 'Unknown'}</span>
-              {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
+              {h.reason && <span className="text-tertiary-500"> - {h.reason}</span>}
             </li>
           ))}
         </ul>
@@ -607,11 +720,11 @@ export default function RequirementDetailPage() {
           value={seatLabel}
           onChange={(e) => setSeatLabel(e.target.value)}
           className="w-full rounded-md border px-3 py-2 text-sm"
-          placeholder="e.g. Seat 3 — Backend"
+          placeholder="e.g. Seat 3 - Backend"
         />
       </Modal>
 
-      <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="md" tone="edit">
+      <Drawer open={editOpen} title="Edit requirement" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <RequirementFormPage
             asPanel
@@ -624,11 +737,12 @@ export default function RequirementDetailPage() {
         )}
       </Drawer>
 
-      {assignOpen && requirement && (
+      {assignRole && requirement && (
         <AssignRecruiterDrawer
           requirement={requirement}
+          role={assignRole}
           onClose={() => {
-            setAssignOpen(false);
+            setAssignRole(null);
             load();
           }}
         />

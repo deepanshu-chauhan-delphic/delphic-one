@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
@@ -15,11 +15,14 @@ import ClosureStepsBreakdown from '../../components/ui/ClosureStepsBreakdown.jsx
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
 import UnlockButton from '../../components/UnlockButton.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import InterviewRoundsPanel from './InterviewRoundsPanel.jsx';
 import SubmissionStageOverrideDrawer from './SubmissionStageOverrideDrawer.jsx';
 import {
   SUBMISSION_PIPELINE,
   canMoveSubmissionBackward,
+  canMoveSubmissionStage,
   canMutateSubmission,
   canOverrideSubmissionStage,
   computeMarginPreview,
@@ -96,6 +99,7 @@ function StageStepper({ stage }) {
 
 export default function SubmissionDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [submission, setSubmission] = useState(null);
@@ -112,14 +116,10 @@ export default function SubmissionDetailPage() {
 
   const canEdit = canMutateSubmission(user) && submission && !submission.is_locked;
 
-  // Sales owners can only mark their own candidate "submitted to client" — no other
-  // stage move and no field edits. Mirrors the server rule in submissions.service.js.
-  const canSalesSubmitToClient =
-    user?.role === 'sales'
-    && submission
-    && !submission.is_locked
-    && submission.stage === 'internal_screening'
-    && submission.requirement?.sales_owner_id === user.id;
+  // Stage moves: sales, recruiter and admin do forward transitions on any
+  // submission (backward moves stay admin-only via canMoveSubmissionBackward).
+  // Independent of canEdit, which gates the field fieldsets (recruiter/admin only).
+  const canMoveStage = canMoveSubmissionStage(user) && submission && !submission.is_locked;
 
   const liveMargin = useMemo(() => {
     if (!form) return { margin: null, margin_percentage: null };
@@ -326,6 +326,14 @@ export default function SubmissionDetailPage() {
           {user?.role === 'admin' && submission.is_locked && (
             <UnlockButton entityType="submission" entityId={submission.id} onUnlocked={load} />
           )}
+          {userCan(user, 'deleteRecords') && (
+            <DeleteRecordButton
+              entityType="submission"
+              entityId={submission.id}
+              entityLabel={`Submission - ${submission.profile?.name || submission.id}`}
+              onDeleted={() => navigate('/submissions')}
+            />
+          )}
           </div>
         </div>
       </div>
@@ -342,19 +350,11 @@ export default function SubmissionDetailPage() {
         <div className="mt-3">
           <StageStepper stage={submission.stage} />
         </div>
-        {!canEdit && canSalesSubmitToClient ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Tooltip label="Mark this candidate as submitted to the client">
-              <button type="button" className="btn-secondary" onClick={() => openStage('submitted_to_client')}>
-                Move to submitted to client
-              </button>
-            </Tooltip>
-          </div>
-        ) : !canEdit ? (
+        {!canMoveStage ? (
           <p className="mt-3 text-sm text-tertiary-500">
             {submission.is_locked
               ? 'Submission is locked.'
-              : 'Only recruiters or admins can move stages.'}
+              : 'You do not have permission to move stages.'}
           </p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -408,7 +408,7 @@ export default function SubmissionDetailPage() {
             <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setOverrideOpen(true)}>
               Override stage…
             </button>
-            <span className="ml-2 text-xs text-tertiary-400">Superadmin — bypasses the transition rules.</span>
+            <span className="ml-2 text-xs text-tertiary-400">Superadmin - bypasses the transition rules.</span>
           </div>
         )}
       </section>
@@ -418,7 +418,7 @@ export default function SubmissionDetailPage() {
           <div className="flex items-center gap-3">
             <ProgressRing percent={submission.progress.percent} size="md" />
             <div>
-              <h2 className="text-sm font-semibold text-tertiary-800">Closure probability — {submission.progress.percent}%</h2>
+              <h2 className="text-sm font-semibold text-tertiary-800">Closure probability - {submission.progress.percent}%</h2>
               <p className="text-xs text-tertiary-500">
                 {submission.progress.completed} of {submission.progress.total} pipeline steps complete.
               </p>
@@ -776,7 +776,7 @@ export default function SubmissionDetailPage() {
               <span className="font-medium capitalize">{h.to_stage?.replace(/_/g, ' ')}</span>
               <span className="text-tertiary-400"> · {formatDate(h.changed_at)}</span>
               <span className="text-tertiary-500"> · {h.changed_by?.name || 'Unknown'}</span>
-              {h.reason && <span className="text-tertiary-500"> — {h.reason}</span>}
+              {h.reason && <span className="text-tertiary-500"> - {h.reason}</span>}
             </li>
           ))}
         </ul>

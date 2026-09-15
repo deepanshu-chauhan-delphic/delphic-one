@@ -64,6 +64,8 @@ Reference image (stakeholder-provided target look):
 
 ![Jira-like Delphic dashboard reference](references/jira-like-dashboard-reference.png)
 
+**Notification bell** (🔔 in the top chrome): a right-aligned actions cluster in the page `<header>` (`AppLayout.jsx`) holds `NotificationBell` — unread badge capped at `9+`, a `framer-motion` popover reusing the account-menu pattern (`role="menu"`, outside-click, Esc), latest 20 items, "Mark all read", and footer links to `/notifications` and `/notifications/preferences`. Under `sm` the popover is a full-width sheet. Notification fetches are non-critical: failures are swallowed, never a red banner. Room is left in the cluster for future help / settings icons. See [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md) §5.3.
+
 ---
 
 ## 4. Apply by page type

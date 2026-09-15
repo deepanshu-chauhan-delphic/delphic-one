@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -11,10 +12,12 @@ import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import {
   canCreateRequirement,
   canMutateRequirement,
+  canOverrideRequirementStatus,
   nextRequirementStatuses,
   requiresDropReason,
 } from '../../lib/requirementStages.js';
 import RequirementFormPage from '../requirements/RequirementFormPage.jsx';
+import RequirementStatusOverrideDrawer from '../requirements/RequirementStatusOverrideDrawer.jsx';
 import { JOB_COLUMNS, formatStageLabel, shortKey } from './pipelineBoardUtils.js';
 import { DndContext, DragOverlay, DroppableColumn, DraggableCard, usePipelineSensors } from './pipelineDnd.jsx';
 import { usePipelineBoard } from './usePipelineBoard.js';
@@ -102,15 +105,14 @@ function RequirementStatusDrawer({ requirement, open, saving, preferredToStatus,
 function JobCard({
   requirement,
   user,
+  canOverride,
   isDragging,
   onRequestMove,
+  onRequestOverride,
   onToggleExpand,
   expanded,
   previews,
   loadingPreviews,
-  onOpenDetail,
-  onOpenBoard,
-  onOpenSubmission,
 }) {
   const canMove =
     canMutateRequirement(requirement, user) &&
@@ -119,8 +121,8 @@ function JobCard({
   const next = nextRequirementStatuses(requirement.status);
 
   const actions = [
-    { key: 'detail', label: 'Open requirement', onClick: () => onOpenDetail(requirement.id) },
-    { key: 'board', label: 'Open job board', onClick: () => onOpenBoard(requirement.id) },
+    { key: 'detail', label: 'Open requirement', to: `/requirements/${requirement.id}` },
+    { key: 'board', label: 'Open job board', to: `/requirements/${requirement.id}/board` },
     {
       key: 'candidates',
       label: expanded ? 'Hide candidates' : 'Show candidates',
@@ -134,6 +136,9 @@ function JobCard({
           onClick: () => onRequestMove(requirement, status),
         }))
       : []),
+    ...(canOverride
+      ? [{ key: 'override', label: 'Override status…', onClick: () => onRequestOverride(requirement) }]
+      : []),
   ];
 
   return (
@@ -143,14 +148,14 @@ function JobCard({
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpenDetail(requirement.id)}>
+        <Link to={`/requirements/${requirement.id}`} className="min-w-0 flex-1 text-left">
           <div className="font-mono text-[10px] text-primary-600">{shortKey('REQ', requirement.id)}</div>
           <div className="truncate text-sm font-semibold text-tertiary-900">{requirement.title}</div>
           <div className="mt-0.5 text-xs text-tertiary-500">
             {requirement.account?.name || '—'}
             {` · ${requirement.seats_closed ?? 0}/${requirement.seats_total ?? 0} seats`}
           </div>
-        </button>
+        </Link>
         <CardActionsMenu items={actions} label={`Actions for ${requirement.title}`} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -167,13 +172,12 @@ function JobCard({
             <ul className="space-y-1">
               {(previews || []).slice(0, 8).map((sub) => (
                 <li key={sub.id} className="flex items-center justify-between gap-2 text-[11px]">
-                  <button
-                    type="button"
+                  <Link
+                    to={`/submissions/${sub.id}`}
                     className="truncate font-medium text-tertiary-800 hover:underline"
-                    onClick={() => onOpenSubmission(sub.id)}
                   >
                     {sub.profile?.name || 'Candidate'}
-                  </button>
+                  </Link>
                   <div className="flex items-center gap-1.5">
                     <Badge value={sub.stage} />
                     <ProgressRing percent={sub.progress?.percent ?? null} size="sm" />
@@ -194,7 +198,6 @@ function JobCard({
 export default function JobPipelineBoard() {
   const { user } = useAuth();
   const { pushError } = useAlerts();
-  const navigate = useNavigate();
   const sensors = usePipelineSensors();
   const [filterParams, setFilterParams] = useState({});
   const boardParams = useMemo(() => {
@@ -222,6 +225,8 @@ export default function JobPipelineBoard() {
   });
   const [statusTarget, setStatusTarget] = useState(null);
   const [preferredToStatus, setPreferredToStatus] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState(null);
+  const [preferredOverrideStatus, setPreferredOverrideStatus] = useState('');
   const [moving, setMoving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -230,6 +235,7 @@ export default function JobPipelineBoard() {
   const [activeDrag, setActiveDrag] = useState(null);
   const [overId, setOverId] = useState(null);
   const canCreate = canCreateRequirement(user);
+  const canOverride = canOverrideRequirementStatus(user);
 
   async function toggleExpand(requirement) {
     if (expandedId === requirement.id) {
@@ -263,9 +269,33 @@ export default function JobPipelineBoard() {
     }
   }
 
+  async function applyOverride(body) {
+    if (!overrideTarget) return;
+    setMoving(true);
+    try {
+      await apiClient.post(`/requirements/${overrideTarget.id}/status/override`, body);
+      setOverrideTarget(null);
+      setPreferredOverrideStatus('');
+      reload();
+    } catch (err) {
+      pushError(apiErrorMessage(err, 'Status override failed'), 'Something went wrong');
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  function requestOverride(requirement, toStatus = '') {
+    setPreferredOverrideStatus(toStatus);
+    setOverrideTarget(requirement);
+  }
+
   function requestMove(requirement, toStatus) {
     const allowed = nextRequirementStatuses(requirement.status);
     if (!allowed.includes(toStatus)) {
+      if (canOverride) {
+        requestOverride(requirement, toStatus);
+        return;
+      }
       pushError(`Cannot move from ${formatStageLabel(requirement.status)} to ${formatStageLabel(toStatus)}`, 'Validation');
       return;
     }
@@ -316,7 +346,7 @@ export default function JobPipelineBoard() {
         </div>
         {canCreate && (
           <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-            New requirement
+            <Plus className="h-4 w-4" /> New requirement
           </button>
         )}
       </div>
@@ -351,7 +381,8 @@ export default function JobPipelineBoard() {
                 </header>
                 <DroppableColumn id={status} isOver={overId === status} className="max-h-[calc(100vh-16rem)]">
                   {cards.map((requirement) => {
-                    const canMove = canMutateRequirement(requirement, user) && !requirement.is_locked;
+                    const canMove =
+                      (canMutateRequirement(requirement, user) && !requirement.is_locked) || canOverride;
                     return (
                       <DraggableCard
                         key={requirement.id}
@@ -363,15 +394,14 @@ export default function JobPipelineBoard() {
                           <JobCard
                             requirement={requirement}
                             user={user}
+                            canOverride={canOverride}
                             isDragging={isDragging}
                             onRequestMove={requestMove}
+                            onRequestOverride={requestOverride}
                             onToggleExpand={toggleExpand}
                             expanded={expandedId === requirement.id}
                             previews={previewsByReq[requirement.id]}
                             loadingPreviews={loadingPreviews && expandedId === requirement.id}
-                            onOpenDetail={(reqId) => navigate(`/requirements/${reqId}`)}
-                            onOpenBoard={(reqId) => navigate(`/requirements/${reqId}/board`)}
-                            onOpenSubmission={(subId) => navigate(`/submissions/${subId}`)}
                           />
                         )}
                       </DraggableCard>
@@ -406,7 +436,21 @@ export default function JobPipelineBoard() {
         onMove={moveStatus}
       />
 
-      <Drawer open={createOpen} title="New requirement" onClose={() => setCreateOpen(false)} size="lg" tone="create">
+      {canOverride && (
+        <RequirementStatusOverrideDrawer
+          requirement={overrideTarget}
+          open={Boolean(overrideTarget)}
+          preferredToStatus={preferredOverrideStatus}
+          saving={moving}
+          onClose={() => {
+            setOverrideTarget(null);
+            setPreferredOverrideStatus('');
+          }}
+          onMove={applyOverride}
+        />
+      )}
+
+      <Drawer open={createOpen} title="New requirement" onClose={() => setCreateOpen(false)} size="xl" tone="create">
         {createOpen && (
           <RequirementFormPage
             asPanel

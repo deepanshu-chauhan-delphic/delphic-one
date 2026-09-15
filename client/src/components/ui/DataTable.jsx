@@ -28,6 +28,9 @@ export default function DataTable({
   headerClassName = 'bg-white',
   striped = false,
   embedded = false,
+  // When set, the table body scrolls inside this height while the header row
+  // (`thead` is `sticky top-0`) and everything above the table stay put.
+  maxHeight,
 }) {
   const selected = new Set(selectedIds);
   const allIds = rows.map((r) => r.id);
@@ -53,9 +56,10 @@ export default function DataTable({
   return (
     <>
       <div
-        className={`overflow-x-auto bg-white ${
+        className={`overflow-x-auto bg-white ${maxHeight ? 'overflow-y-auto overscroll-contain' : ''} ${
           embedded ? '' : 'rounded-2xl border border-tertiary-100 shadow-card'
         }`}
+        style={maxHeight ? { maxHeight } : undefined}
       >
         <table className="min-w-full divide-y divide-tertiary-100">
           <thead className={`sticky top-0 z-10 border-b border-tertiary-100 ${headerClassName}`}>

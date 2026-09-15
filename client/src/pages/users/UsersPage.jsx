@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -343,7 +344,7 @@ export default function UsersPage() {
             {isSuperadmin && (
               <button
                 type="button"
-                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                className="rounded-lg border border-[#105AA9] bg-white px-3 py-1 text-xs font-medium text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
                 onClick={() => setEditRow(row)}
               >
                 Edit
@@ -352,7 +353,7 @@ export default function UsersPage() {
             {row.id !== user.id ? (
               <button
                 type="button"
-                className="rounded-lg border border-[#0052FF] bg-white px-3 py-1 text-xs font-medium text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+                className="rounded-lg border border-[#105AA9] bg-white px-3 py-1 text-xs font-medium text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
                 onClick={() => toggleActive(row)}
               >
                 {row.active ? 'Deactivate' : 'Activate'}
@@ -373,15 +374,15 @@ export default function UsersPage() {
     <div className="space-y-2">
       <div className="flex justify-end">
         <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
-          + Create user
+          <Plus className="h-4 w-4" /> Create user
         </button>
       </div>
 
       {createdCreds && (
         <div className="rounded-2xl border border-success-100 bg-success-50 px-4 py-3 text-sm text-success-700">
-          <p className="font-medium">User created — copy and share these credentials:</p>
+          <p className="font-medium">User created - copy and share these credentials:</p>
           <p className="mt-1">
-            {createdCreds.name} ({createdCreds.role}) — <span className="font-mono">{createdCreds.email}</span> /{' '}
+            {createdCreds.name} ({createdCreds.role}) - <span className="font-mono">{createdCreds.email}</span> /{' '}
             <span className="font-mono">{createdCreds.password}</span>
           </p>
         </div>
@@ -400,7 +401,7 @@ export default function UsersPage() {
           <h2 className="font-heading text-sm font-semibold text-tertiary-900">Departments</h2>
           <button
             type="button"
-            className="rounded-lg border border-[#0052FF] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052FF] transition-colors hover:bg-[#EEF4FF]"
+            className="rounded-lg border border-[#105AA9] bg-white px-3 py-1.5 text-xs font-semibold text-[#105AA9] transition-colors hover:bg-[#EEF5FC]"
             onClick={() => setDeptDrawer({})}
           >
             + Add department

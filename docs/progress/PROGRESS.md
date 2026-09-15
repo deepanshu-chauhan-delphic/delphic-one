@@ -2,6 +2,650 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-11 — Account meeting attendees widened + editable, put-forward pickers complete, sales bench-only submissions — branch `dev-deep`
+
+- **Meeting attendees are no longer sales-only.** `AccountStageMoveDrawer` / `AccountStageOverrideDrawer` used to fetch `/users/directory?role=sales` — a BDA, recruiter, or admin who attended a client meeting had no way to be recorded. New shared `AccountAttendeesPicker` (`pages/accounts/`) fetches the full active roster; both drawers now use it.
+- **Meeting details are editable after the fact.** New `POST /accounts/:id/meeting` (`authorize('bda','admin')`, `accounts.service.updateMeeting`) updates mode/date/location/notes/attendees **without a stage transition** — previously the only way in was `changeStage`, whose transition map has no `meeting_scheduled → meeting_scheduled` edge, so a wrong attendee list was stuck once scheduled. New `AccountMeetingEditDrawer` + an "Edit meeting" action on `AccountDetailPage`'s "Meeting information" card (shown whenever the caller can mutate the account, it's unlocked, and a meeting exists). Audited in `stage_history` as `"Meeting details updated"` (from_stage == to_stage).
+- **Reports stay correct despite the wider attendee pool**: `reports.service.salesReports.meetings_attended` now filters attendees to `role IN (sales, admin)` so a BDA/recruiter tagged onto a meeting doesn't inflate the "Sales POC" count.
+- **Put forward pickers now show everything.** `SubmissionCreatePage` fetched candidates/requirements with a bare `limit: 100` — anything past the first page was silently invisible. New `lib/fetchAllPages.js` pages a `{data, pagination}` endpoint to completion; used for both the candidate and (in-progress) requirement pickers, and reused to simplify `ReportsPage`'s `fetchAllAccountOptions`.
+- **Sales can now put forward candidates — bench only.** `POST /submissions` opens to `authorize('recruiter','sales','admin')`; `submissions.service.create` rejects a sales caller with `sales_bench_only` (403) unless the profile is `source: 'direct'` **and** `on_bench`. Client: `canCreateSubmission` includes sales; `canOnlyPutForwardBench(user)` locks the "On bench only" checkbox on and filters the picker for a sales caller (both `lib/submissionStages.js`).
+- Tests: `accounts-meeting.test.js` (new, 6), `submissions-stage.test.js` +4 (bench-only), `reports-bda-sales.test.js` +1 (non-sales attendee excluded). Full server suite (307) + client build/lint green.
+
+## 2026-09-10 — UX: sticky list headers + top form CTAs + wider two-column edit drawers — branch `dev-deep`
+
+- **Lists** — `DataTable` gains a `maxHeight` prop; the 4 list pages (accounts / requirements / submissions / profiles) pass `"calc(100dvh - 18rem)"`. The body scrolls inside that height while the filter bar and the `thead` (already `sticky top-0`) stay put. Embedded/preview tables (reports, dashboard, detail sub-tables) don't pass it → unchanged.
+- **Edit / create forms** — the four form components (`Requirement` / `Account` / `Profile` / `SubmissionCreate`) now render **two-column** in drawer (panel) mode too, hosted in `Drawer size="xl"` (new size, ~46rem) instead of `lg`/`md`. Save/Cancel moved into a new `FormActionsBar` (`sticky top-0` inside the drawer body) rendered as the first child of the `<form>` — CTAs stay visible while fields scroll; the old bottom button row now renders only on the standalone route (`!asPanel`). All 13 drawer call sites bumped to `size="xl"`.
+- Client build + lint clean. (Pre-existing failing test `accountBoard.test.mjs` unrelated.)
+
+## 2026-09-10 — Dashboard KPI drill-through: click a tile, land on the exact rows — branch `dev-deep`
+
+- **Problem:** KPI tiles linked to approximate views — a BDA's "Active leads" opened *everyone's* leads (accounts list has no role scope), "Stuck leads" just did `?stage=lead` (no staleness), "In meeting" dropped `rescheduled`, "Closed/Closures this month" showed *all* closed rows ever, sales's "Active submissions" showed the whole company.
+- **`dashboardWidgets.js`**: replaced the static `KPI_LINKS` map with `kpiHref(key, { role, userId, monthStartIso })` — role-scopes (`owner_id` for BDA account tiles, `sales_owner_id` for sales submission tiles) and date-scopes (`closed_from` / `joined_from` = IST month start) each link so it reproduces the tile's count. "Interviews this week" → `/calendar` (no list view exists for it).
+- **`dashboard.service.js`**: `startOfMonth` / `startOfWeek` now compute the **IST** calendar boundary (fixed +05:30), consistent with the reports; `DashboardPage` computes the matching `monthStartIso`.
+- **List-page params** (server validation + service + client URL passthrough, no new UI controls):
+  - accounts: `?stuck=stuck` (stale lead/meeting/rescheduled, 7d) and CSV `?stage=a,b`.
+  - submissions: `?sales_owner_id=` (seat→requirement), `?joined_from=` / `?joined_to=` (actual_joining_date window).
+  - requirements: `?closed_from=` / `?closed_to=` (closed_at window).
+  - New passthrough params are cleared by each list's "Clear all filters".
+- Tests: `dashboard-kpi-filters.test.js` (6). Full server suite + client build green.
+
+## 2026-09-10 — Add Delphic favicon — branch `dev-deep`
+
+- `client/index.html`: added `<link rel="icon">` + `<link rel="apple-touch-icon">` pointing at the existing `/Delphic_D-logo_transparent.png` (the blue "D" mark in `client/public/`). Site previously shipped no favicon.
+
+## 2026-09-10 — BDA/Sales reports: column filters — branch `dev-deep`
+
+- **Server** (`reports.service.bdaReports` / `salesReports`, `reports.validation.dateRangeSchema` +`account_type`): every table now honours
+  - `bda_id` / `sales_id` — already existed for self-scoping; unchanged.
+  - `client_id` — an account id (reused, generic across reports). For bda-reports it's client **or** vendor (accounts_created, meetings_scheduled, meetings_conversion, requirements_brought(_counts) all narrow to it); for sales-reports it's the client account (requirements_created, meetings_attended).
+  - `account_type` (`client`/`vendor`/`unclassified`) — bda-reports only, narrows `accounts_created`.
+- **Client**: new Account/Type selects (bda-reports) and Client select (sales-reports) in the report's filter bar, options from `GET /accounts`. The existing generic "Individual" filter is now wired up for both reports too (`bda_id`/`sales_id`) but hidden from the self-scoped role — admin only, since a bda/sales caller's own id always wins server-side.
+- Tests: `reports-bda-sales.test.js` +5 (`column filters` — bda_id/client_id/account_type narrow accounts_created, client_id narrows meetings + requirements_brought + requirements_created + meetings_attended). All 68 report tests green; client build/lint clean.
+
+## 2026-09-09 — Reports: all date bucketing + range filtering moved to IST — branch `dev-deep`
+
+- **Bug:** a custom "1 Sep – 1 Sep" range and "This month" disagreed on 1 Sep's counts. Root cause: reports bucketed rows by **UTC** day and `date_from` parsed as UTC midnight, while the `date_to` end-of-day was computed in the server's **local** tz. Two inconsistencies at once (UTC bucket vs local range; and neither is what an IST user means by "1 September").
+- **Fix — everything is IST now** (`Asia/Kolkata`, fixed +05:30, no DST), independent of the server clock:
+  - `reports.service.js`: new `asIst()` / `dayKey` / `monthKey` bucket on the IST wall clock; new `reportFrom`/`reportTo` turn a `YYYY-MM-DD` param into `T00:00:00+05:30` / `T23:59:59.999+05:30`. Used by `optionalDateRange` **and** the inline `from`/`to` in `recruiter/sales/bda/vendor/clientPerformance` + `closure` (whose month/quarter group labels now also read IST). Old UTC `dayKey`/`monthKey` deleted.
+  - `explorer.service.js`: pipeline-explorer `created_at` range inlines the same `+05:30` literals.
+- Effect: a meeting at `2026-09-09T19:30Z` (= 10 Sep 01:00 IST) now buckets on **Sep 10** everywhere, and a same-day custom range catches it — custom and monthly agree. Some day counts shift vs the old UTC behaviour (this is the correct IST answer).
+- Client `formatReportDate` unchanged — pure `YYYY-MM-DD` strings from the API render tz-safe; raw timestamps still render in the viewer's tz (IST in practice).
+- Test: `reports-bda-sales.test.js` — IST day-boundary test (same-day vs wide range agree, bucketed on the IST day not the UTC day). All 63 report tests green.
+
+## 2026-09-09 — Sales can move submission stages (forward, any submission) — branch `dev-deep`
+
+- **Problem:** the client only ever surfaced submission stage-move actions to `recruiter`/`admin` (`canMutateSubmission`), so a sales user saw nothing clickable — while the server allowed sales exactly one move (`internal_screening → submitted_to_client` on an owned requirement). Net effect: sales couldn't move stages at all in practice.
+- **Server** (`submissions.service.changeStage`): dropped the `if (user.role === 'sales')` restriction block. Sales now flows through the same path as recruiter — any **forward** transition on **any** submission. Backward moves / reactivations are still gated to admin/superadmin by the existing `backward` guard (`forbidden_backward`, reason required); `rejected`/`backout` reasons still enforced. `forbidden_stage_change` error is now unused but kept in the controller map.
+- **Client** (`lib/submissionStages.js`): new `canMoveSubmissionStage(user)` = `recruiter|sales|admin`, used for the move UI in `CandidatePipelineBoard`, `RequirementKanbanPage`, `AccountPipelineBoardPage`, and the `SubmissionDetailPage` Stage section (the old `canSalesSubmitToClient` special-case removed). `canMutateSubmission` stays `recruiter|admin` and still gates field-edit fieldsets + submission create.
+- Tests: `submissions-stage.test.js` +3 (`sales stage permissions` — forward on a non-owned requirement, reject/backout with reason, still-blocked backward). Full submissions + entity-access suites green; client lint/build clean.
+
+## 2026-09-09 — BDA reports + Sales reports + joinings "by sales requirement" — branch `dev-deep`
+
+- **New `GET /reports/bda-reports`** (`authorize('admin','bda')`, `bda` scoped to self via `bda_id`). `reports.service.bdaReports` → `{ tables: [...] }`, 5 per-day tables, all keyed off `Account.origin_owner_id` ("Brought by"):
+  1. `accounts_created` — accounts brought per BDA per day; Count hover shows the Client/Vendor/Unclassified split (`by_type`).
+  2. `meetings_scheduled` — `stage_history` rows `entity_type='account'`, `to_stage='meeting_scheduled'`, grouped by `changed_by` + day; plus `converted_to_active` = how many of those accounts are `stage='active'` right now.
+  3. `meetings_conversion` — the same rolled up per BDA (no date).
+  4. `requirements_brought` — one row per requirement on a BDA-brought **client** account (BDA / clickable Client → `/accounts/:id` / requirement / date).
+  5. `requirements_brought_counts` — #4 counted per BDA per day; Count hover lists client names.
+- **New `GET /reports/sales-reports`** (`authorize('admin','sales')`, `sales` scoped to self via `sales_id`). `reports.service.salesReports` → 2 per-day tables:
+  1. `requirements_created` — requirements per `sales_owner_id` per day; Count hover lists client names.
+  2. `meetings_attended` — accounts where the sales user is in `meeting_attendees`, counted by the account's `meeting_date` day. (One meeting per account in the data model — reschedules overwrite `meeting_date`.)
+- **Joinings report gains a 4th tab** `by_sales_poc` ("By sales requirement") — joinings grouped by month + the joining's requirement `sales_owner`. `joinings()` now selects `seat.requirement.sales_owner`.
+- Both new reports take only a date range, are `authorize('admin','sales')` for `/export` (BDA export not wired — view in-app), and produce one export sheet per table (same as HR / joinings).
+- Client: `ALL_REPORTS` gains `bda-reports` (admin, bda) + `sales-reports` (admin, sales); `bdaReportsSections()` / `salesReportsSections()` + column defs in `reportViews.js` (`hoverCount` for the breakdown cells, `clientLink` for the clickable client); `ReportsPage` renders them with the joinings-style tab cards (`bdaReportsTab` / `salesReportsTab` state, `isDateOnly` extended). Tab-card badge for these two reports is `sectionTabBadge()` — the **sum of the count column** (total meetings / requirements for the range), not the grouped-row count, since these are daily aggregate tables. Detail tables (`requirements_brought`) still badge row count.
+- Tests: `server/tests/reports-bda-sales.test.js` (8 — per-day counts, type split, meeting conversion, client-only filter, self-scoping for bda + sales, the joinings `by_sales_poc` tab). `reportViews.test.mjs` role lists updated. Server + client lint/build green.
+
+## 2026-09-09 — Superadmin requirement status override (reopen dropped/closed) — branch `dev-deep`
+
+- **Problem:** `REQUIREMENT_STATUS_TRANSITIONS` maps `closed` and `dropped` to `[]`
+  and dropping sets `is_locked = true`, so a dropped requirement had no way back —
+  `POST /requirements/:id/status` rejects it twice (`locked`, then
+  `invalid_transition`) and `updateSchema` has no `status` field. Submissions and
+  accounts already had `POST /:id/stage/override`; requirements never did.
+- **New:** `POST /requirements/:id/status/override` (`authorizeSuperadmin`) —
+  force a requirement to ANY status, bypassing the transition map, the lock, and
+  the seats-closed gate. `reason` required; audited in `stage_history` as
+  `[override] <reason>`. Clears `closed_at` unless the target is `closed`; may
+  flip the lock via optional `is_locked`. `statusOverrideSchema` +
+  `service.changeStatusOverride` + `controller.changeStatusOverride` + route.
+  Mirrors `POST /accounts/:id/stage/override`.
+- **Client:** `RequirementStatusOverrideDrawer` (status select over
+  `REQUIREMENT_ALL_STATUSES` + required reason + "keep record locked" checkbox).
+  `requirementStages.js` gains `REQUIREMENT_ALL_STATUSES` +
+  `canOverrideRequirementStatus`. Wired into:
+  - `JobPipelineBoard` — a superadmin dragging a card to a disallowed column (or
+    the new "Override status…" card action) opens the drawer preset to the drop
+    target; superadmins can now drag locked / terminal cards. Ordinary roles
+    still get the "Cannot move from X to Y" toast.
+  - `RequirementDetailPage` — "Override status…" button in the Requirement status
+    section (always shown for superadmins, even when locked / no transitions).
+- **Reports impact:** none historical. Every report/dashboard query reads
+  requirement `status` + `closed_at` live (no snapshots) and keys closure metrics
+  on `status: 'closed'` + `closed_at`, which a dropped req never had. Reopening a
+  dropped→open req just moves it out of the `dropped` count and back into the
+  `open`/active population everywhere; `updated_at` bumps so it is not
+  immediately "stuck". No report reads requirement `stage_history`.
+- **One-off:** `server/scripts/reopen-dropped-requirement.js` — dry-run by
+  default, `--commit` to apply; for the requirement already stuck before this
+  shipped. Run it in the target environment (not committed data).
+
+## 2026-09-08 — Time to submit re-anchored + Type/Vendor cols + client meetings on the calendar — branch `dev-deep`
+
+- **Time to submit** — the three durations now all start at **requirement
+  creation** (leadership's definition), not hop-to-hop:
+  `req_to_submission` (`requirement.created_at → submission.created_at`),
+  `req_to_r1` (`→ first internal_r1 scheduled_at`),
+  `req_to_submitted` (`→ first submitted_to_client stage-history entry`). Each
+  keeps `{ ms, label, from, to }`; hover still shows the bound timestamps.
+- Two new columns: **Type** (`Bench` / `Vendor` / `Market` from `Profile.source`
+  via `SOURCE_LABEL`) and **Vendor** (`Profile.vendor_account.name`, `—` when not
+  vendor-sourced). Export sheet carries both + the renamed `requirement_to_*`
+  columns.
+- **Calendar now shows client meetings.** `interviews.service.listForCalendar`
+  concats `listClientMeetings()` — accounts with `meeting_date` in range
+  (`deleted_at: null`), serialized as `{ kind: 'client_meeting', meeting_mode,
+  meeting_location, meeting_notes, audience: 'external', … }` with id
+  `meeting-<accountId>`. Dropped `audience=internal` from the feed; `mine=1`
+  scopes to `owner_id` / `origin_owner_id` / a `meeting_attendees` row;
+  `status=completed` excludes meetings, `cancelled` → `stage=dropped`.
+- Client colour model (`interviewRounds.js`): `CLIENT_MEETING_LOOK` — **online =
+  blue, in-person = amber**; `isClientMeeting()`, `eventPrimaryLabel()`,
+  `eventTypeLabel()` helpers; `eventAppearance` / `eventAudience` handle the new
+  kind; two new `STATUS_LEGEND` rows. `CalendarTimeGrid` / `EventPill` /
+  `EventCard` / `EventHoverCard` / `EventDetailDrawer` render meeting labels,
+  link to `/accounts/:id`, show Mode/Location/Notes, and hide the interview-only
+  feedback/cancel/reschedule actions.
+- Tests: `reports-time-to-submit.test.js` (6 — re-anchored durations, Type +
+  Vendor, filters), `interviews-calendar.test.js` (+3 — meeting kind/mode,
+  audience filter, `mine=1` scoping). Server + client lint/build clean.
+
+## 2026-09-08 — Two new reports: Joinings + Time to submit — branch `feature/reports-joinings-time-to-submit`
+
+Both `authorize('admin', 'sales')`, visible in the Reports picker, follow the HR-report pattern.
+
+- **`GET /reports/joinings`** (`joiningsSchema`: `date_from`/`date_to`).
+  `reports.service.joinings` — a joining = `Submission` `stage='closed'` with
+  `actual_joining_date` in range. Returns `{ tables: [by_sourcer,
+  by_interviewer, by_vendor] }`, all grouped by joining **month**:
+  - `by_sourcer` — month × `Profile.added_by` → count.
+  - `by_interviewer` — month × interviewer, split `l1` (users on the joined
+    candidate's `internal_r1` rounds) / `l2` (`internal_r2`) / `total`; every
+    linked interviewer credited, `interviewer_name` fallback.
+  - `by_vendor` — vendor-sourced joinings only, month × `vendor_account.name`.
+- **`GET /reports/time-to-submit`** (`timeToSubmitSchema`: `date_from`/`date_to`
+  + `client_id` / `requirement_id` / `sourcer_id` / `search` candidate-name).
+  One row per submission `created_at` in range (any stage). Columns: requirement
+  created-at, requirement, client, candidate, **sourcer** (`Profile.added_by`),
+  and the three hop durations of the app flow **profile sourced → submission
+  created → internal round 1 → submitted to client** (raw `ms` + `"1d 6h"`
+  label + `from`/`to` ISO bounds, `—` when not reached):
+  `sourced_to_submission` (`profile.created_at → submission.created_at`),
+  `submission_to_r1` (`submission.created_at → first internal_r1 scheduled_at`),
+  `r1_to_submitted` (`→ first submitted_to_client stage-history entry`).
+  Each duration cell shows its lower/upper bound timestamps on hover (`from`/`to`).
+- Wired into `reports.routes` (`REPORTS` map + routes + `/export` branches:
+  joinings = one sheet per table, time-to-submit = one sheet from `rows`).
+- Client: `reportViews.js` `joiningsSections()` / `timeToSubmitColumns()` +
+  `ALL_REPORTS` entries; `ReportsPage` renders Joinings as a 3-tab block (like
+  HR) and Time to submit as one table with a Candidate-search box + Client /
+  Requirement / Sourcer `SearchableSelect` filters (client & requirement lists
+  fetched from `/accounts?type=client` + `/requirements`, `limit=100`).
+- Tests: `reports-joinings.test.js` (5), `reports-time-to-submit.test.js` (5,
+  incl. sourcer field + sourcer/search filter narrowing). All 6 reports suites
+  (53 tests) green; client eslint + build clean; `reportViews.test.mjs` updated.
+
+## 2026-09-08 — Reports polish + candidate-source relabel + notification time fix + calendar overlap fix
+
+- **Reports dates** — all dates in the Reports section render as `08 September 26`
+  (`formatReportDate` in `reportViews.js`); the HR chart axis uses a compact
+  `08 Sep 26` and tooltips the full form.
+- **Candidate source relabel (display only)** — stored enum values stay
+  `direct` / `vendor` / `linkedin`; UI labels are now **Bench** (`direct`),
+  **Vendor**, **Market** (`linkedin`). Via `Badge` `LABEL_OVERRIDES` + the source
+  dropdowns (profile form / profiles list / HR reports filter) + server
+  `reports.service SOURCE_LABEL`. No migration, no logic change.
+- **HR report — no more per-type row spam.** The Sourcing / Submissions tables
+  now have **one row per (sourcer, day)**; the per-source split lives in
+  `by_type` and shows on **hover** over the Count cell ("Bench 3 · Vendor 2 ·
+  Market 1"). `hrReport` groups without the source dimension; server test updated.
+- **HR chart is horizontally scrollable** — dropped the day-window carousel;
+  the plot area now has a `min-width` that grows with the number of days inside
+  an `overflow-x-auto` wrapper, so every day is reachable by scrolling. Sourcing /
+  submissions = stacked bars by source; round tables = multi-line.
+- **Notification times were wrong (UTC).** The server clock is UTC, so
+  `fmtWhen` in `jobs/interviewReminders.js` and `modules/submissions/
+  submissions.service.js` rendered interview times in UTC (e.g. 5:00 PM IST shown
+  as 11:30 AM). Now formatted in `env.timezone` — new `APP_TIMEZONE` env var,
+  default `Asia/Kolkata`. Calendar (client-side, local TZ) was already correct.
+- **Calendar time-grid horizontal overlap.** `layoutDayEvents` computed
+  `colCount` only across *currently-active* events, so blocks in the same visual
+  cluster could disagree on width and render on top of each other. Rewritten as
+  cluster-based column packing — every event in a cluster shares one `colCount`;
+  freed columns are reused. New `monthGrid.test.mjs`.
+
+## 2026-09-08 — Superadmin record deletion (soft-delete) — branch `feature/superadmin-record-deletion`
+
+Replaces hand-written prod SQL for pruning duplicate / mistaken rows (the trigger:
+vendor `ACC-F637AC68` "Spiral TechnoLabs" entered twice). Spec:
+[RD-SUPERADMIN-RECORD-DELETION.md](../features/RD-SUPERADMIN-RECORD-DELETION.md).
+
+- **Schema** — `account`, `requirement`, `submission`, `profile`, `interview_round`
+  gain `deleted_at` / `deleted_by` / `delete_reason` (+ a `deleted_at` index). New
+  `AuditLog` model (`audit_logs`): `actor_id`, `action`, `entity_type`, `entity_id`,
+  `reason`, `snapshot` JSON. Migration `20260908120000_soft_delete_and_audit`
+  (additive, `IF NOT EXISTS` throughout) — applied to the local dev + test DBs.
+- **Global filter** — one `prisma.$use` middleware in `config/db.js` injects
+  `deleted_at: null` into every `findMany/findFirst/findUnique/count/aggregate/groupBy`
+  on those 5 models (no raw SQL anywhere, so one hook covers ~150 read sites).
+  `findUnique` is promoted to `findFirst`. Escape hatch: pass an explicit
+  `deleted_at` in the `where`. Known gap: nested-include reads aren't filtered.
+- **API** — extends the `admin` module, all `authorizeSuperadmin`:
+  `POST /admin/:entity_type/:entity_id/delete` `{ password, reason }` (bcrypt-checks
+  the caller's **own** password), `POST .../restore` `{ reason }`,
+  `GET /admin/deleted?entity_type=` (current deletions + deleter name),
+  `GET /admin/audit?entity_type=&limit=` (full delete + restore trail). Every
+  delete/restore writes an `audit_logs` row with a pre-image snapshot. Delete
+  response carries live-dependency counts (informational — soft-delete is
+  reversible, so it never blocks).
+- **Visibility + reversal UI** — **Settings → Deleted records** tab (superadmin
+  only, `DeletedRecordsPanel`) lists everything currently deleted with a
+  **Restore** action (reason required) plus the full delete/restore audit trail.
+  Deletions/restores are also folded into the dashboard **Recent activity** feed
+  (`recentActivity` now merges `stage_history` + `audit_logs`). Settings tab bar
+  now stretches full-width (`flex-1` tabs) at `max-w-5xl`.
+
+## 2026-09-08 — Boards/lists: open-in-new-tab, filter persistence, Clear all filters + Requirements work-mode
+
+- **Open in new tab.** `OpenInNewTabButton` is now a real `<a href={path+search}
+  target="_blank">` (was `window.open(url, '_blank', 'features')`, which opens a
+  popup-blocked window). Every board card's primary open action + `CardActionsMenu`
+  nav items are React-Router `<Link>`s (menu items gained a `to`/`href` prop), so
+  cmd/ctrl/middle-click opens the **correct** requirement / account / profile /
+  submission in a new tab. Applied to Lead/Job/Candidate/Matrix boards,
+  `RequirementKanbanPage`, `AccountPipelineBoardPage`. Drag-and-drop unaffected.
+- List peeks (`{Accounts,Profiles,Submissions,Requirements}ListPage`): the peek
+  **Key** field and the primary "Open …" action are `<Link>`s now.
+- **Filter persistence.** The 4 list pages hydrated filter state from the URL only
+  once; added a `useEffect([searchParams])` that re-hydrates every filter state
+  var from the params (guarded, converges with the existing mirror-to-URL effect),
+  so Back / reload / a shared link / a new tab all restore the filters.
+  (Pipeline boards were already URL-authoritative via `PipelineFilters`.)
+- **"Clear all filters"** — the only way to clear. `PipelineFilters`' tiny ghost
+  "Clear" is now a `btn-secondary` **Clear all filters** (X icon), shown only when
+  a filter/search is active. Same button added to each of the 4 list toolbars with
+  a `clearAllFilters()` that resets every filter state + strips the params
+  (keeping only `create` / `profile_id`). No implicit clears anywhere.
+- **Requirements list: Work mode.** New `work_mode` list filter — server
+  `listQuerySchema` + `list()` where-clause (`requirements.validation` /
+  `.service`), test in `requirements-crud-ui.test.js`. Client: a "Work mode: All /
+  Remote / Onsite / Hybrid" `<select>`, a **Work mode** table column, and a peek
+  field — all URL-synced + cleared by Clear all filters. Visible to every role.
+- Fix: `RequirementDetailPage` requested `GET /submissions?…&limit=200`
+  (`listQuerySchema` caps at 100) → every requirement detail page threw "Number
+  must be less than or equal to 100". Now `limit: 100`. Also added a **Job
+  details** `<Link>` CTA to the requirement peek (was reachable only via the Key).
+- Server suite **35 / 253** green; client eslint 0 errors; `vite build` +
+  `usePipelineFilters.test.mjs` (new round-trip case) pass.
+
+## 2026-09-08 — Calendar: "Review feedback" once feedback is submitted
+
+The interview "Submit feedback" CTA kept showing (and opened a blank form) even
+after feedback was recorded for a round (e.g. a rejection). Now:
+- New `hasSubmittedFeedback(event)` in `interviewRounds.js` — true when
+  `result ∈ {pass,fail,no_show}` or free-text `feedback` exists.
+- `EventCard`, `EventDetailDrawer`, `EventHoverCard`: the button reads **Review
+  feedback** (not "Submit feedback") once feedback exists, and stays available
+  even if the start time check would otherwise hide it. The detail drawer's
+  "Candidate did not join" quick action is hidden once feedback is in.
+- `FeedbackDrawer` pre-fills `result` / `rating` / `feedback` from the round (was
+  blanking rating + feedback), retitles to "Review interview feedback", and the
+  save button reads "Update feedback". Server already allowed amending (no
+  "already submitted" guard on `POST /interviews/:id/feedback`).
+
+## 2026-09-08 — Pipeline "Open in new tab" + Tagged profiles on requirement detail
+
+- **Open in new tab** — new shared `OpenInNewTabButton` (`window.open(location.href)`,
+  every role, no gate) in the pipeline board headers: `PipelineShell` (covers
+  Leads / Jobs / Candidates / Requirement map), `RequirementKanbanPage`
+  (`/requirements/:id/board`), `AccountPipelineBoardPage` (`/pipeline/:accountId`).
+  Board filters + `view` are already URL-synced (`usePipelineFilters` →
+  `applyFiltersToSearchParams`), so the new tab opens the same filtered view.
+- **Tagged profiles on the requirement detail page** — `RequirementDetailPage`
+  loads `GET /submissions?requirement_id=<id>` and shows a **Tagged profiles**
+  table (candidate → profile link, stage badge, seat, recruiter, tagged-on date,
+  "Open submission" link) between Seats and Status history. Recruiters see only
+  their own submissions (existing `GET /submissions` scope) — a note says so.
+
+## 2026-09-08 — Date presets (Today / This week) + BDA can view profiles + CVs
+
+- **Filter bar date presets** gain **Today** and **This week** (Monday-start,
+  matches the calendar grid) ahead of This month. `rangeForPreset` +
+  `FilterBar.DATE_PRESETS`; Reports `groupBy` now defaults to `month` for any
+  non-quarter preset. Applies to Reports + Dashboard filter bars.
+- **BDA read access to profiles.** `GET /profiles`, `/profiles/:id`,
+  `/profiles/:id/submissions` now allow `bda` (create/edit still recruiter+admin);
+  client cap `viewProfiles` added to `bda`. A BDA can now open a candidate and see
+  the **attached CV** (document reads were already open across roles; the block
+  was the profile routes + the missing client cap). Test in `entity-access.test.js`.
+
+## 2026-09-08 — HR report (4 tables) + em-dash → hyphen sweep
+
+- **New `GET /reports/hr`** (`authorize('admin')`, `hrSchema`: `date_from`,
+  `date_to`, `sourcer_id?`, `interviewer_id?`, `source?`). `reports.service.hrReport`
+  returns `{ tables: [...] }`, all per-day, on-bench profiles excluded:
+  - **Sourcing** — group `Profile` (added_by, `created_at` day, `source`) → count.
+  - **Submissions** — group `Submission` (profile.added_by, `created_at` day,
+    profile.source) → count.
+  - **Internal round 1 by sourcer** / **by interviewer** — from `internal_r1`
+    rounds keyed on `scheduled_at` day: `scheduled` = all, `completed` =
+    `status='completed' && result in (pass,fail)`, `shortlisted` = `result='pass'`.
+    The interviewer table expands each round to every linked `interviewers[].user`
+    (falls back to `interviewer_name`); `interviewer_id` narrows it.
+  - Wired into `/reports/export` (4 sheets) + the `REPORTS` map.
+- Client: `reportViews.js` gains a visible `{ key: 'hr', label: 'HR reports' }` +
+  `hrSections()`. `ReportsPage` shows the 4 tables on **named tabs** (icon +
+  title + hint, row count as a highlighted pill top-right — mirrors the RVG/CWR
+  tab cards), one table at a time, above it an **adaptive `HrChart`**: a range of
+  ≤14 days (Today / This week / short custom) renders a grouped/stacked **bar
+  chart** with every date; longer ranges render a **line chart** (round tables:
+  scheduled/completed/shortlisted) or **streamgraph** (stacked area, silhouette
+  offset — sourcing/submissions by type) with a **day-window carousel** (prev/next,
+  14 days/page). Type / Sourcer / Interviewer filter row (people from
+  `/users/directory`) + standard date-range presets; the chart always reflects the
+  filtered response.
+- Tests: `server/tests/reports-hr.test.js` (6). Server suite **35 / 251** green.
+- **Em-dash sweep** — replaced `—` with `-` in **user-facing prose only** across
+  `client/src` (31 lines: JSX text, labels, placeholders, tooltips, option
+  labels, toasts). Left untouched: the `'—'` empty-value placeholder in
+  tables/detail fields, and code comments / JSDoc.
+
+## 2026-09-08 — Team directory endpoint: filters + owner/POC pickers work for every role
+
+The Accounts **Owner** / **Brought by** filters (and owner / POC pickers elsewhere)
+were empty or wrong for non-admin roles: `GET /users` is gated to
+`admin|sales|bda` (recruiters got 403) **and** clamps a `sales` caller's results
+to recruiters only — so a sales/recruiter user never saw BDAs like Garv / Krupali
+/ Prashanth. The lists also filtered `active: true`, hiding deactivated people
+whose names still appear on existing records.
+
+- **New `GET /users/directory`** — any authenticated user; lightweight
+  `{ id, name, role, active }` only (no email/phone/pagination), inactive users
+  **included**, no role clamp. Optional `?role=` / `?active=true`.
+  (`users.service.listDirectory`, `directoryQuerySchema`.)
+- Client `useUserOptions` and every filter/picker `/users` fetch (Accounts list +
+  form, PipelineFilters, ReportsPage, AssignRecruiterDrawer, RequirementFormPage,
+  InterviewRoundsPanel, Account stage move/override drawers) repointed to
+  `/users/directory`. Inactive people show as "Name (inactive)".
+- Tests: `server/tests/users-directory.test.js` (recruiter blocked on `/users`
+  but reads the directory; inactive included unless `?active=true`; sales not
+  clamped; `?role=` narrows). 34 suites / 245 green.
+- **Client** — superadmin-only `DeleteRecordButton` (password + reason modal, reuses
+  `PasswordInput` / `Modal`) on Account / Submission / Profile / Requirement detail
+  pages and per-round in `InterviewRoundsPanel`. New cap `deleteRecords` in
+  `permissions.js` `SUPERADMIN_ONLY`.
+- **Tests** — `server/tests/admin-soft-delete.test.js` (9 cases: happy path + audit,
+  wrong password, non-superadmin 403, reason required, double-delete 409, restore +
+  409-on-live, dependency counts, submission drops out of list, unknown type 422).
+  `cleanDatabase` TRUNCATE list gains `audit_logs`.
+- **Server suite 34 / 245 green** (no regressions from the `$use` middleware or the
+  directory endpoint); server `eslint` 0 errors; client `vite build` + `eslint` clean.
+- Still to do: manual superadmin click-through; hand the human `prisma migrate
+  deploy` for staging/prod.
+
+## 2026-09-07 — Fix RVG tabs: restore Active/Inactive, add With live submissions
+
+Wrong 3-way split in `eb1d7c8` redefined Active/Inactive. Restored prior meanings and added the difference tab:
+
+- **Active vendors** — every active-stage vendor (`vendor_activity=active`)
+- **Inactive vendors** — no candidate currently in a live submission (`inactive`)
+- **With live submissions** — Active − Inactive (`has_live`)
+
+## 2026-09-07 — Calendar: team-wide scope, clickable links, in-card actions, 24h time grid (branch `feature/notifications-calendar`)
+
+- **Scope filter.** `GET /interviews` "All" is now truly team-wide for **every**
+  role (no ownership / role scope). "My interviews" (`mine=1`) = rounds the user
+  **scheduled** (`scheduled_by`), is **tagged on** as an interviewer, or
+  **submitted the candidate** for. Removed the per-role `where.OR` branches in
+  `interviews.service.listForCalendar`. Test updated
+  (`interviews-calendar.test.js`: "All is team-wide … mine=1 hides them").
+- **Clickable links** in every calendar card (`EventCard`, `EventHoverCard`,
+  `EventDetailDrawer`): the **requirement** → `/requirements/:id`, the
+  **candidate** → `/submissions/:id`.
+- **In-card actions.** The month/week/day hover card (`EventHoverCard`) now
+  carries role/permission-gated buttons — **Open details** (always),
+  **Submit feedback** (when `can_submit_feedback` and the round has started),
+  **Cancel** (when it's still upcoming; routes to the detail drawer's reason
+  form), plus **Join meeting**. `onFeedback` threaded
+  `CalendarPage → CalendarMonthView / CalendarTimeGrid → EventPill / TimeBlock →
+  EventHoverCard`.
+- **Time grid.** `DAY_START_HOUR/DAY_END_HOUR` widened to a full 24h
+  (`monthGrid.js`) — an early-morning interview was clamped to `top: 0` and hidden
+  under the header ("top half hidden", wrong times). `CalendarTimeGrid` now
+  auto-scrolls to the day's **earliest event** (falls back to now).
+- **Schedule CTA.** Calendar toolbar gains a role-wise button: BDA →
+  "+ Schedule meeting" (`/accounts`); recruiter / sales / admin →
+  "+ Schedule interview" (`/submissions`). There is no standalone scheduler —
+  interviews are added from a submission's rounds panel, client meetings from an
+  account's stage flow — so the CTA routes to the right list.
+- **Time-grid polish.** Fixed the 12 AM label clipping (first hour label no
+  longer `-translate-y-1/2` off the top edge).
+- **Calendar colour model reworked** (`interviewRounds.js` `eventAppearance`) to
+  two independent signals: the **fill** now encodes the interview **category** —
+  internal = sky/blue, external (client-facing) = violet/purple, and *only* those
+  two — while **status** rides on the `<Badge>`s already shown on cards / hover /
+  detail, plus `cancelled` → grey + struck (overrides) and `rescheduled` → same
+  fill dimmed + struck. Previously the fill was status-coloured with clashing
+  hues (completed≈pass, no_show≈rescheduled) and internal/external was only a
+  thin border in a colliding shade. `STATUS_LEGEND` + the toolbar legend updated
+  to match.
+- **Reschedule / Cancel on every calendar surface, for every role.** `EventCard`
+  (agenda) and `EventHoverCard` gained a **Reschedule** button (opens the detail
+  drawer's inline form). Cancel + Reschedule are no longer gated on the
+  `can_*` permission flags client-side — they show for any live (non-cancelled,
+  non-past for cancel) round and the **server** enforces who may actually act
+  (`canManageInterviewRound` / scheduler), returning 403 otherwise.
+- **Reschedule no longer requires a new time.** The drawer's reschedule form
+  starts blank; with a time it PATCHes `scheduled_at`, without one it PATCHes
+  `{ result: 'rescheduled' }` — flags the round for rescheduling, slot set later.
+- **Outcome recolours the slot.** `eventAppearance` now colours the interview
+  slot itself by outcome when there is one — passed=green, rejected/failed=red
+  (round `fail` *or* the submission is `rejected`/`backout`), did-not-join=orange,
+  cancelled=grey+struck — superseding the internal(sky)/external(violet) category
+  fill; only still-scheduled slots show the category colour. `serializeCalendarEvent`
+  gained `submission_stage`. Legend + trailing note updated.
+- Also fixed a missing `CalendarDays` lucide import in `CalendarPage.jsx` (crash
+  on the empty-agenda path) surfaced by the `main` merge.
+- Server suite **32 / 229** green; client lint 0 errors; `vite build` clean.
+
+## 2026-09-07 — Notifications: admins get a copy of every event (branch `feature/notifications-calendar`)
+
+- `dispatch.notify()` now folds **every active admin** into the recipient set for
+  *every* `NotificationType`, independent of `ROLE_EVENT_MATRIX` and the per-event
+  recipient resolvers. The existing filters still run after: an admin who is the
+  actor is not self-notified, and an admin can still mute a type for themselves
+  via `NotificationPreference` (`in_app: false`). Role filter changed to
+  `u.role === 'admin' || matrix.roles.includes(u.role)`. Costs one extra
+  `user.findMany({ role: 'admin', active: true })` per dispatch.
+- `eventCatalog.js` header comment documents the admin exemption; `admin` stays in
+  every `roles` list only so the preferences UI offers admins all toggles.
+- Tests: `notifications.test.js` +3 — every active admin gets a non-participant
+  event; an admin-actor is not self-notified; an admin can mute a type. Full
+  server suite **32 suites / 222 tests** green.
+- Docs: feature spec §4.1 algorithm + §10 as-built; `TESTING-NOTIFICATIONS-CALENDAR.md`
+  Part A note + regression checklist item.
+
+## 2026-09-07 — Calendar month-view: hover-expand meeting cards (branch `feature/notifications-calendar`)
+
+- New `client/src/pages/calendar/EventHoverCard.jsx` — a floating detail card,
+  portalled to `<body>` and `position: fixed` (escapes the month grid's
+  `overflow-hidden`), flips right/left + clamps to the viewport. Shows round type
+  + name, status/result, when, candidate, requirement, account, interviewers,
+  cancellation reason, feedback/rating, and a "Join meeting" link.
+- `EventPill.jsx` now opens the card on hover/focus (140 ms in, 160 ms out); the
+  card stays open while the pointer is on it (so the Join link is reachable).
+  Clicking the pill still opens `EventDetailDrawer`. Lint + `vite build` clean.
+
+## 2026-09-07 — Merge `main` into `feature/notifications-calendar` + Prisma schema realign (branch `feature/notifications-calendar`)
+
+**Merged `origin/main` (`727ca7b`) into the branch** — merge commit `8f15352`, no
+conflicts. What `main` brought in (all shipped to `main` first; see its own log
+`57ef425`..`727ca7b`):
+
+- **Accounts** — a **Specialization** column in the list table: vendor accounts
+  show `vendor_specializations` as chips, clients/unclassified show `—`. Row peek
+  gains Specializations / Rate range / Payment terms for vendors only.
+  Client-only; the list API already returned the fields.
+- **Reports — CWR** (`clients-without-requirements`) reworked to present-state, no
+  date filters: **3 tabs** — *All active clients* (strictly `type = 'client'`,
+  `stage = 'active'`), *Has requirements* (`bucket=with_requirements` — ≥1 req
+  open/in-progress/on-hold), *No requirements* (`bucket=no_active` — no such req;
+  closed/dropped only or never had one). `with_requirements` + `no_active`
+  partition the set. The "Reqs" column is now **"Active requirements"**
+  (`active_requirements_count`, a filtered `_count` on the same statuses).
+  `without_active_requirements` / `closed_only` buckets kept server-side for the
+  export route / back-compat.
+- **Reports — RVG** (`recruiter-vendor-gaps`) reworked: vendor set is strictly
+  `type = 'vendor'` **and** `stage = 'active'` (dropped the profile-linked wide
+  net). **2 tabs** — *Active vendors* (`vendor_activity=active`, every
+  active-stage vendor) and *Inactive vendors* (`vendor_activity=inactive` — no
+  sourced candidate currently in a live submission stage: any `SubmissionStage`
+  except `closed`/`rejected`/`backout`). New `has_live_submission` field per row.
+  `vendor_activity` enum trimmed back to `active|inactive`. Date inputs removed
+  from both reports (server still accepts `date_from`/`date_to`).
+- **BDA requirement map** — `requirementScopeWhere()` returns `{}` for `bda` (team-
+  wide, like admin) instead of scoping to accounts they own. Affects the pipeline
+  board + reports explorer. Sales (own) / recruiter (assigned) unchanged.
+- **Documents / resumes** — `documents.service.list()` no longer runs the per-
+  entity access gate on **reads**: any authenticated user can list an entity's
+  attachments (sales needs a recruiter's attached CV). `create` / `delete` stay
+  owner-gated. `FilesPanel` + `ProfileFormPage` drop the explicit
+  `Content-Type: multipart/form-data` header on upload (it dropped the boundary →
+  request hung on "Uploading…"). New `FileViewerModal` — PDF `<iframe>` /
+  image `<img>` inline, `.docx` rendered in-browser via **`docx-preview`**
+  (dynamic import, own chunk); other types → download. Row actions are now
+  **View** / **Download** / Delete, with a file-type badge + size.
+  `apiClient` exports `fetchAuthenticatedBlob`, adds `downloadAuthenticatedFile`.
+- **Candidate detail for sales** — the profile peek gains a **"View full
+  details"** action for every role (navigates to read-only `/profiles/:id`), so
+  sales no longer has to open the edit drawer to see the full record.
+
+**Prisma schema realign (this branch, `server/prisma/schema.prisma`).** A prior
+rebase on this branch had dropped the schema changes for migration
+`20260903110804_notifications_and_calendar` while keeping the migration SQL, the
+app code, and the tests — so the generated client lacked `prisma.notification`,
+`prisma.notificationPreference`, and `InterviewRound.status`, and the three
+notification/calendar suites failed. Reconstructed in `schema.prisma` to match
+the already-applied migration (no new migration, DB untouched,
+`prisma migrate diff` confirms alignment):
+
+- enums `InterviewRoundStatus`, `NotificationType`, `NotificationEntityType`
+- `InterviewRound`: `status` (default `scheduled`), `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`,
+  `online_meeting_provider`, `external_event_id`, `@@index([status, scheduled_at])`
+- `model Notification`, `model NotificationPreference` + their `User` relations
+
+**Status.** `node_modules` synced (`npm ci` — `docx-preview` + `lottie-web` +
+`node-cron`), Prisma client regenerated. **Server suite 32 / 32 suites, 219 / 219
+tests green** (`--runInBand`). Client `npm run lint` 0 errors, `vite build` clean.
+Nothing pushed. `server/prisma/schema.prisma` is the only uncommitted change.
+
+## 2026-09-04 — Login polish + "Delphic one" rename + hover-zoom + calendar interview dot (branch `feature/notifications-calendar`)
+
+- **Rename** — the product now reads **"Delphic one"**: login brand panel heading
+  + wordmark, sign-in card copy, `client/index.html` `<title>`. (The old
+  "Requirement Management Dashboard" string is gone from the login page.)
+- **Login UI** — reworked into a proper split: full-bleed `primary-700→800`
+  gradient brand panel (white text, glass card around `undraw_dashboard_p93p.svg`,
+  soft light blobs) on `lg+`; right side a centered card with a gradient top
+  accent bar, larger inputs (shadow-soft, 4px `primary/15` focus ring), and a
+  faint `primary-50` wash behind the form on mobile. `delphic-logo.png` shows
+  above the card on mobile, `Delphic_D-logo_transparent.png` in the panel.
+- **Accent audit** — confirmed no `#0052ff` / `rgb(0 82 255)` / `#3d7bff`
+  anywhere under `client/` (grep clean); buttons + avatars already ride the
+  `primary` scale / solid `primary-600` from the earlier brand pass.
+- **Hover-zoom** — new `.hover-zoom` utility in `global.css` (`scale(1.02)`,
+  soft easing, `prefers-reduced-motion` aware). Applied to `KpiCard`, `StatCard`,
+  the three dashboard panels (Stuck leads / Stuck requirements / Recent activity),
+  and calendar `EventCard`.
+- **Calendar interview indicator** — `notificationsContext` now derives
+  `interviewUnread` (unread notifications whose `type` starts with `interview_` —
+  scheduled / rescheduled / cancelled / reminder). `AppLayout` shows a red count
+  pill on the **Calendar** nav item (a dot on the icon when the sidebar is
+  collapsed), mirroring the bell badge.
+- `vite build` + `eslint` clean.
+
+## 2026-09-04 — Settings page (tabbed): account / security / notifications / activity (branch `feature/notifications-calendar`)
+
+- **New `/settings` route + nav item** (`Settings` icon, no capability — everyone).
+  `client/src/pages/settings/SettingsPage.jsx` — top tab bar (`?tab=` synced,
+  `account` is the default / bare URL): **Account** (profile summary + Log out),
+  **Security** (change-password form), **Notifications** (renders the existing
+  `NotificationPreferencesPage`), **Activity** (account history).
+- **Change-password** extracted from the modal into
+  `client/src/components/ChangePasswordForm.jsx` (fields + submit, optional
+  `onDone`/`onCancel`). `ChangePasswordModal.jsx` deleted — the header avatar
+  menu no longer opens a modal; its "Change password" item is replaced by a
+  **Settings** link, "Logout" kept. `AppLayout` lost the `passwordOpen` state +
+  modal mount.
+- **Account history** — new read-only `GET /users/me/activity` (`users.routes` →
+  `users.controller.myActivity` → `users.service.listActivity`): the caller's own
+  `stage_history` rows (account / requirement / seat / submission), newest first,
+  `limit` 1–200 (default 50), entity labels resolved (account name, requirement
+  title, `candidate → requirement` for submissions). No schema change. The
+  Activity tab renders it as a timeline with `from → to` stage, reason, and a
+  link to the entity where one exists.
+- **Redirect** `/notifications/preferences` → `/settings?tab=notifications`; the
+  notification-bell dropdown "Settings" link and `headerTitle` updated to match.
+- `vite build` + `eslint` (client + server) clean.
+
+## 2026-09-04 — Brand pass: accent → #105aa9, login redesign, home Lottie preloader (branch `feature/notifications-calendar`)
+
+- **Accent colour** — the `primary` Tailwind scale (`client/tailwind.config.js`) rebuilt
+  around `#105aa9` (600 = the accent); `--color-primary` / `--color-primary-soft`
+  tokens in `client/src/styles/global.css` updated to match. Hardcoded `#0052FF` /
+  `#EEF4FF` / `#DBE6FE` literals swapped for `#105AA9` / `#EEF5FC` / `#D8E8F6` across
+  `AppLayout`, `FilterBar`, `chartTheme.js`, and the Accounts / Dashboard / Pipeline /
+  Profiles / Requirements / Submissions / Users pages. Everything else already goes
+  through `primary-*` utilities so it recolours automatically. `Avatar` (initials
+  badge for candidates + people) switched to a solid `#105aa9` fill / white text
+  (was `primary-100` / `primary-800`); the redundant `bg-primary-600` override on
+  the sidebar user avatar dropped. Sidebar brand now `Delphic_D-logo_transparent.png`
+  + "Delphic one" text (was a letter-D tile + "Delphic").
+- **Login page** (`client/src/pages/auth/LoginPage.jsx`) — split layout: left brand
+  panel (`primary-50→100` gradient, soft blur blobs, `Delphic_D-logo_transparent.png`,
+  `undraw_dashboard_p93p.svg` illustration, feature bullets), right sign-in card
+  (`shadow-card`, rounded-2xl, `primary` focus ring). Panel is `lg`+ only; mobile
+  shows `delphic-logo.png` above the card. Assets are the new files dropped in
+  `client/public/`.
+- **Home Lottie preloader** — `client/public/assets/preloader/d_preloader.json`
+  (copied from `public/d_preloader.json`); `lottie-web@^5.13` added to the client
+  workspace. New self-contained `client/src/components/HomePreloaderGate.jsx` wraps
+  the index route (`DashboardPage`) in `App.jsx`. First visit per browser session:
+  fixed full-screen white overlay (`z-9999`, `role="status"`, `aria-busy`), Lottie
+  (`svg`, loop, `xMidYMid meet`, 180×230) plays while critical home images preload;
+  page reveals only when a full `loopComplete` **and** the assets are both done, then
+  the overlay fades + scales + blurs out (~320ms) and unmounts. `sessionStorage`
+  `site_preloader_played='1'` — revisits skip the Lottie and wait on assets only.
+  Fail-open: any Lottie fetch/parse error reveals as soon as assets are ready.
+  `lottie-web` is a dynamic `import()` so it stays out of the login-route bundle
+  (separate 308 kB / 79 kB gzip chunk). CSS lives under `.site-preloader*` in
+  `global.css` (respects `prefers-reduced-motion`). `vite build` + `eslint` clean.
+
+## 2026-09-04 — In-app notifications + interview calendar (built, branch `feature/notifications-calendar`)
+
+Full spec + as-built: [features/RD-NOTIFICATIONS-AND-CALENDAR.md](../features/RD-NOTIFICATIONS-AND-CALENDAR.md).
+
+- **Schema** — migration `20260903110804_notifications_and_calendar`: `notifications`
+  + `notification_preferences` tables; `NotificationType` / `NotificationEntityType`
+  / `InterviewRoundStatus` enums; `interview_rounds` gains `status`, `cancelled_at`,
+  `cancellation_reason`, `reminder_sent_at`, `reminder_1h_sent_at`, and reserved
+  `online_meeting_provider` / `external_event_id`. `tests/helpers.js` truncate list
+  + `createInterviewRound` helper.
+- **Dispatch** — `server/src/lib/notifications/` (`eventCatalog` `ROLE_EVENT_MATRIX`
+  + `renderNotification`; `recipients`; `dispatch.notify()` — role- + preference-
+  filtered, wrapped so it never throws / never rolls back a business `$transaction`).
+- **APIs** — `/api/v1/notifications` (`GET /`, `/unread-count`, `POST /read`,
+  `/read-all`, `GET`/`PUT`/`DELETE /preferences`) and `/api/v1/interviews`
+  (`GET /` role-scoped calendar feed, `POST /:id/feedback` for assigned
+  interviewers **or** managers, `POST /:id/cancel`). Both mounted in `app.js`.
+- **Call sites** — account → active; requirement create / assign / unassign /
+  status-changed; submission interview scheduled / rescheduled / feedback /
+  cancelled / submitted-to-client / rejected / backout / offer.
+- **Cron** — `node-cron`; `server/src/jobs/interviewReminders.js` (T-24h + T-1h,
+  deduped) started from `index.js` via `startJobs()`, gated by `ENABLE_JOBS`
+  (`!== 'false'`, always off in tests). Reserved `env.notifications` block.
+- **Frontend** — `NotificationsProvider` (60s poll, tab-visibility aware) in
+  `main.jsx`; header `NotificationBell` (9+ badge, popover); `/notifications` +
+  `/notifications/preferences` pages; `/calendar` page (month grid + agenda,
+  `localStorage` view, scope + status filters, `EventDetailDrawer` /
+  `FeedbackDrawer`), `Calendar` nav item; shared `lib/interviewRounds.js`,
+  `components/ui/Toggle.jsx`, `Badge` colors for the new statuses.
+- **Tests** — `notifications.test.js`, `interviews-calendar.test.js`,
+  `interview-reminders.test.js`. **Not yet run against the full suite** — local
+  Docker Postgres (`:5434`) was down; client `vite build` + `eslint` are clean,
+  and the submissions / interviews / accounts / requirements suites passed
+  pre-merge.
+
 ## 2026-09-07 — BDA team-wide account flow + specialization filter + docs
 
 - **BDA accounts:** team-wide view + mutate (edit, classify, stage/meetings, type, brought-by); unlock **accounts** only. Still no requirement mutate and no superadmin stage override.

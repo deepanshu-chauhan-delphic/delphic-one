@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { Link } from 'react-router-dom';
 import { rangeForPreset } from '../../lib/datePresets.js';
 
 /**
@@ -17,7 +19,12 @@ export const ALL_REPORTS = [
   { key: 'aging', label: 'Aging / SLA', roles: ['admin', 'sales'], hidden: true },
   { key: 'closure', label: 'Closure report', roles: ['admin', 'sales'], hidden: true },
   { key: 'clients-without-requirements', label: 'Clients w/o requirements', roles: ['admin', 'sales', 'bda'] },
-  { key: 'recruiter-vendor-gaps', label: 'Recruiter–vendor gaps', roles: ['admin', 'recruiter'] },
+  { key: 'recruiter-vendor-gaps', label: 'Recruiter-vendor gaps', roles: ['admin', 'recruiter'] },
+  { key: 'hr', label: 'HR reports', roles: ['admin'] },
+  { key: 'joinings', label: 'Joinings', roles: ['admin', 'sales'] },
+  { key: 'time-to-submit', label: 'Time to submit', roles: ['admin', 'sales'] },
+  { key: 'bda-reports', label: 'BDA reports', roles: ['admin', 'bda'] },
+  { key: 'sales-reports', label: 'Sales reports', roles: ['admin', 'sales'] },
 ];
 
 export function reportsForRole(role) {
@@ -33,6 +40,32 @@ function cell(value) {
   if (value == null) return '—';
   if (typeof value === 'number') return Number.isInteger(value) ? value : value.toFixed(1);
   return String(value);
+}
+
+/**
+ * Human-readable date for every date shown in the Reports section, e.g.
+ * "08 September 26". Accepts a `YYYY-MM-DD` string (parsed as a local date so it
+ * doesn't shift a day across time zones), an ISO string, or a Date.
+ */
+export function formatReportDate(value) {
+  if (!value) return '—';
+  let date;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    date = new Date(y, m - 1, d);
+  } else {
+    date = new Date(value);
+  }
+  if (Number.isNaN(date.getTime())) return String(value);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleString('en-US', { month: 'long' });
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${dd} ${month} ${yy}`;
+}
+
+/** Compact variant for dense chart axes, e.g. "08 Sep 26". */
+export function formatReportDateShort(value) {
+  return formatReportDate(value).replace(/^(\d{2}) (\w{3})\w* (\d{2})$/, '$1 $2 $3');
 }
 
 export function personName(row, key) {
@@ -152,7 +185,7 @@ export function columnsForReport(reportKey) {
       { key: 'brought_by', header: 'Brought by', render: (r) => personName(r, 'brought_by') },
       { key: 'sales_poc', header: 'Sales POC', render: (r) => personName(r, 'sales_poc') },
       { key: 'active_requirements_count', header: 'Active requirements', render: (r) => cell(r.active_requirements_count) },
-      { key: 'created_at', header: 'Created', render: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString() : '—') },
+      { key: 'created_at', header: 'Created', render: (r) => formatReportDate(r.created_at) },
       { key: 'days_idle', header: 'Days idle', render: (r) => cell(r.days_idle) },
     ];
   }
@@ -166,7 +199,7 @@ export function columnsForReport(reportKey) {
       {
         key: 'last_sourced_at',
         header: 'Last sourced',
-        render: (r) => (r.last_sourced_at ? new Date(r.last_sourced_at).toLocaleDateString() : '—'),
+        render: (r) => formatReportDate(r.last_sourced_at),
       },
       { key: 'days_since_sourced', header: 'Days since', render: (r) => cell(r.days_since_sourced) },
     ];
@@ -176,7 +209,7 @@ export function columnsForReport(reportKey) {
 
 export function tableRowsForReport(reportKey, data) {
   if (!data) return [];
-  if (reportKey === 'aging') return [];
+  if (['aging', 'hr', 'joinings', 'time-to-submit'].includes(reportKey)) return [];
   if (reportKey === 'pipeline-explorer') {
     const rows = Array.isArray(data.rows) ? data.rows : [];
     return rows.map((row, index) => ({
@@ -267,6 +300,280 @@ export function agingSections(data) {
       rows: (data.past_sla_requirements || []).map((r, i) => ({ id: r.requirement?.id || `sla-${i}`, ...r })),
     },
   ];
+}
+
+// HR report - server returns { tables: [{ key, title, rows }] }; column defs live here.
+const hrDate = (header) => ({ key: 'date', header, render: (r) => formatReportDate(r.date) });
+
+/** "Bench 3 · Vendor 2 · Market 1" from a { label: count } map. */
+export function hrTypeSummary(byType) {
+  const parts = Object.entries(byType || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => `${label} ${n}`);
+  return parts.join(' · ') || '—';
+}
+
+// Count column carries `by_type` on the row; ReportsPage swaps in a hover cell.
+const hrCount = { key: 'count', header: 'Count' };
+
+const HR_COLUMNS = {
+  sourcing: [
+    { key: 'sourcer', header: 'Sourcer' },
+    hrCount,
+    hrDate('Sourcing date'),
+  ],
+  submissions: [
+    { key: 'sourcer', header: 'Sourcer' },
+    hrCount,
+    hrDate('Submission date'),
+  ],
+  round1_by_sourcer: [
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'scheduled', header: 'Scheduled' },
+    { key: 'completed', header: 'Completed' },
+    { key: 'shortlisted', header: 'Shortlisted' },
+    hrDate('Round date'),
+  ],
+  round1_by_interviewer: [
+    { key: 'interviewer', header: 'Interviewer' },
+    { key: 'scheduled', header: 'Scheduled' },
+    { key: 'completed', header: 'Completed' },
+    { key: 'shortlisted', header: 'Shortlisted' },
+    hrDate('Round date'),
+  ],
+};
+
+export function hrSections(data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: HR_COLUMNS[t.key] || fallbackColumns(t.rows?.[0]),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
+}
+
+// --- Joinings + Time to submit ----------------------------------------------
+const JOININGS_COLUMNS = {
+  by_sourcer: [
+    { key: 'month', header: 'Month' },
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
+  by_interviewer: [
+    { key: 'month', header: 'Month' },
+    { key: 'interviewer', header: 'Interviewer' },
+    { key: 'l1', header: 'L1' },
+    { key: 'l2', header: 'L2' },
+    { key: 'total', header: 'Total' },
+  ],
+  by_vendor: [
+    { key: 'month', header: 'Month' },
+    { key: 'vendor', header: 'Vendor' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
+  by_sales_poc: [
+    { key: 'month', header: 'Month' },
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'joinings', header: 'Joinings' },
+  ],
+};
+
+export function joiningsSections(data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: JOININGS_COLUMNS[t.key] || fallbackColumns(t.rows?.[0]),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
+}
+
+// --- BDA + Sales daily activity reports ------------------------------------
+const reportDate = (header) => ({ key: 'date', header, render: (r) => formatReportDate(r.date) });
+
+/** "Client 3 · Vendor 1" from a { label: count } map; sorted desc. */
+export function countSummary(map) {
+  const parts = Object.entries(map || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => `${label} ${n}`);
+  return parts.join(' · ') || '—';
+}
+
+// A count cell that reveals a { label: count } breakdown on hover.
+// eslint-disable-next-line react/display-name
+const hoverCount = (mapKey) => (r) => {
+  const map = r[mapKey];
+  if (!map || !Object.keys(map).length) return r.count ?? 0;
+  return createElement(
+    'span',
+    { title: countSummary(map), className: 'cursor-help border-b border-dotted border-tertiary-300' },
+    r.count ?? 0
+  );
+};
+
+const clientLink = (r) =>
+  r.client_id
+    ? createElement(Link, { to: `/accounts/${r.client_id}`, className: 'text-primary-600 hover:underline' }, r.client)
+    : r.client || '—';
+
+const BDA_REPORTS_COLUMNS = {
+  accounts_created: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'count', header: 'Count', render: hoverCount('by_type') },
+    reportDate('Date'),
+  ],
+  meetings_scheduled: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'meetings_scheduled', header: 'Meetings scheduled' },
+    { key: 'converted_to_active', header: 'Converted to active' },
+    reportDate('Date'),
+  ],
+  meetings_conversion: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'meetings_scheduled', header: 'Meetings scheduled' },
+    { key: 'converted_to_active', header: 'Converted to active' },
+  ],
+  requirements_brought: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'client', header: 'Client', render: clientLink },
+    { key: 'requirement', header: 'Requirement' },
+    reportDate('Date'),
+  ],
+  requirements_brought_counts: [
+    { key: 'bda', header: 'BDA' },
+    { key: 'count', header: 'Count', render: hoverCount('clients') },
+    reportDate('Date'),
+  ],
+};
+
+const SALES_REPORTS_COLUMNS = {
+  requirements_created: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count', render: hoverCount('clients') },
+    reportDate('Date'),
+  ],
+  meetings_attended: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count' },
+    reportDate('Date'),
+  ],
+  profiles_submitted_to_client: [
+    { key: 'sales_poc', header: 'Sales POC' },
+    { key: 'count', header: 'Count', render: hoverCount('profiles') },
+    reportDate('Date'),
+  ],
+};
+
+// Per-table tab badge: for the daily aggregate tables the useful headline number
+// is the SUM of the count column (e.g. total meetings this month), not the number
+// of grouped rows. Detail tables (one row = one record) fall back to row count.
+const TAB_BADGE_SUM_FIELD = {
+  accounts_created: 'count',
+  requirements_brought_counts: 'count',
+  requirements_created: 'count',
+  meetings_attended: 'count',
+  profiles_submitted_to_client: 'count',
+  meetings_scheduled: 'meetings_scheduled',
+  meetings_conversion: 'meetings_scheduled',
+};
+
+export function sectionTabBadge(section) {
+  const field = TAB_BADGE_SUM_FIELD[section?.key];
+  if (!field) return section?.rows?.length ?? 0;
+  return (section.rows || []).reduce((sum, r) => sum + (Number(r[field]) || 0), 0);
+}
+
+// A defined column set may not match the rows in hand — e.g. a stale response
+// for a previously active report landing after the tab switched. Never let an
+// object-valued field (a hover-breakdown map, a details array) reach a <td>
+// unrendered; React throws on that and takes the whole page down.
+function fallbackColumns(row) {
+  return Object.keys(row || {})
+    .filter((k) => k !== 'id' && typeof row[k] !== 'object')
+    .map((k) => ({ key: k, header: k }));
+}
+
+function tablesToSections(columnsByKey, data) {
+  if (!data || !Array.isArray(data.tables)) return [];
+  return data.tables.map((t) => ({
+    key: t.key,
+    title: t.title,
+    columns: columnsByKey[t.key] || fallbackColumns(t.rows?.[0]),
+    rows: (t.rows || []).map((r, i) => ({ id: `${t.key}-${i}`, ...r })),
+  }));
+}
+
+export function bdaReportsSections(data) {
+  return tablesToSections(BDA_REPORTS_COLUMNS, data);
+}
+
+export function salesReportsSections(data) {
+  return tablesToSections(SALES_REPORTS_COLUMNS, data);
+}
+
+const fmtStamp = (iso) => {
+  if (!iso) return '—';
+  return `${formatReportDate(iso)} ${new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+// A duration cell that reveals its lower/upper bound timestamps on hover.
+const durCell = (key, fromLabel, toLabel) => {
+  // eslint-disable-next-line react/display-name
+  return (r) => {
+    const cell = r[key] || {};
+    const text = cell.label || '—';
+    if (!cell.from && !cell.to) return text;
+    const title = `${fromLabel}: ${fmtStamp(cell.from)}\n${toLabel}: ${fmtStamp(cell.to)}`;
+    return createElement(
+      'span',
+      { title, className: 'cursor-help border-b border-dotted border-tertiary-300' },
+      text
+    );
+  };
+};
+
+export function timeToSubmitColumns() {
+  return [
+    {
+      key: 'requirement_created_at',
+      header: 'Req created',
+      render: (r) =>
+        r.requirement_created_at
+          ? `${formatReportDate(r.requirement_created_at)} ${new Date(r.requirement_created_at).toLocaleTimeString(
+              'en-US',
+              { hour: '2-digit', minute: '2-digit' }
+            )}`
+          : '—',
+    },
+    { key: 'requirement', header: 'Requirement' },
+    { key: 'client', header: 'Client' },
+    { key: 'candidate', header: 'Candidate' },
+    { key: 'sourcer', header: 'Sourcer' },
+    { key: 'type', header: 'Type' },
+    { key: 'vendor_name', header: 'Vendor' },
+    {
+      key: 'req_to_submission',
+      header: 'Requirement → Submission',
+      render: durCell('req_to_submission', 'Requirement created', 'Submission created'),
+    },
+    {
+      key: 'req_to_r1',
+      header: 'Requirement → R1',
+      render: durCell('req_to_r1', 'Requirement created', 'R1 scheduled'),
+    },
+    {
+      key: 'req_to_submitted',
+      header: 'Requirement → Submitted to client',
+      render: durCell('req_to_submitted', 'Requirement created', 'Submitted to client'),
+    },
+  ];
+}
+
+export function timeToSubmitRows(data) {
+  return (data?.rows || []).map((r, i) => ({ id: r.id || `tts-${i}`, ...r }));
 }
 
 export function chartDataForReport(reportKey, data) {

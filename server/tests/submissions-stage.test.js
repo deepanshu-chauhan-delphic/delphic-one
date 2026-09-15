@@ -111,6 +111,58 @@ describe('submission create + margin', () => {
   });
 });
 
+describe('sales may only put forward bench candidates', () => {
+  test('sales can create a submission for a bench candidate', async () => {
+    const benchProfile = await createProfile(recruiterToken, { on_bench: true });
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: benchProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  test('sales is blocked from an off-bench candidate', async () => {
+    // `profile` (from beforeEach) is source=direct with the on_bench default (false).
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test('sales is blocked from a vendor-sourced candidate', async () => {
+    const vendorAccount = await prisma.account.create({
+      data: { type: 'vendor', name: 'Vendor Co', stage: 'active', owner_id: (await createUser({ role: 'bda' })).id },
+    });
+    const vendorProfile = await createProfile(recruiterToken, { source: 'vendor', vendor_account_id: vendorAccount.id });
+    const res = await authed(request(app).post('/api/v1/submissions'), salesToken).send({
+      requirement_seat_id: seatId,
+      profile_id: vendorProfile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+      vendor_rate: 60,
+      vendor_rate_currency: 'USD',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test('recruiter and admin are unaffected — off-bench candidates still work for them', async () => {
+    const admin = await createUser({ role: 'admin' });
+    const { access_token: adminToken } = await loginAs(admin);
+    const asAdmin = await authed(request(app).post('/api/v1/submissions'), adminToken).send({
+      requirement_seat_id: seatId,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+    });
+    expect(asAdmin.status).toBe(201);
+  });
+});
+
 describe('submission stage machine', () => {
   test('cannot skip from sourced straight to offer', async () => {
     const sub = await createSubmission();
@@ -322,5 +374,70 @@ describe('submission stage machine', () => {
     });
     expect(moved.status).toBe(200);
     expect(moved.body.data.stage).toBe('interview_result');
+  });
+});
+
+describe('sales stage permissions', () => {
+  test('sales can do any forward transition, on any submission (not just their own requirement)', async () => {
+    // A requirement owned by a different sales user.
+    const otherSales = await createUser({ role: 'sales' });
+    const { access_token: otherSalesToken } = await loginAs(otherSales);
+    const otherAccount = await createActiveClientAccount(otherSales.id);
+    const otherReq = await createRequirement(otherSalesToken, otherAccount.id);
+    const otherSeats = await authed(request(app).get(`/api/v1/requirements/${otherReq.id}/seats`), otherSalesToken);
+    const sub = await authed(request(app).post('/api/v1/submissions'), recruiterToken).send({
+      requirement_seat_id: otherSeats.body.data[0].id,
+      profile_id: profile.id,
+      proposed_rate: 100,
+      proposed_rate_currency: 'USD',
+      vendor_rate: 70,
+      vendor_rate_currency: 'USD',
+    });
+    expect(sub.status).toBe(201);
+
+    // our salesToken user owns neither the requirement nor the account
+    const toScreening = await authed(request(app).post(`/api/v1/submissions/${sub.body.data.id}/stage`), salesToken).send({
+      to_stage: 'internal_screening',
+    });
+    expect(toScreening.status).toBe(200);
+
+    const toClient = await authed(request(app).post(`/api/v1/submissions/${sub.body.data.id}/stage`), salesToken).send({
+      to_stage: 'submitted_to_client',
+    });
+    expect(toClient.status).toBe(200);
+    expect(toClient.body.data.stage).toBe('submitted_to_client');
+  });
+
+  test('sales can reject / backout, and the reason is still required', async () => {
+    const sub = await createSubmission();
+    const rejected = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), salesToken).send({
+      to_stage: 'rejected',
+      rejection_reason: 'client passed',
+    });
+    expect(rejected.status).toBe(200);
+    expect(rejected.body.data.stage).toBe('rejected');
+
+    const sub2 = await createSubmission({ profile_id: (await createProfile(recruiterToken)).id });
+    const missingReason = await authed(request(app).post(`/api/v1/submissions/${sub2.id}/stage`), salesToken).send({
+      to_stage: 'backout',
+    });
+    expect(missingReason.status).toBe(400);
+
+    const backedOut = await authed(request(app).post(`/api/v1/submissions/${sub2.id}/stage`), salesToken).send({
+      to_stage: 'backout',
+      backout_reason: 'candidate withdrew',
+    });
+    expect(backedOut.status).toBe(200);
+    expect(backedOut.body.data.stage).toBe('backout');
+  });
+
+  test('sales still cannot step a submission backward', async () => {
+    const sub = await createSubmission();
+    await advanceTo(sub.id, ['internal_screening', 'submitted_to_client']);
+    const back = await authed(request(app).post(`/api/v1/submissions/${sub.id}/stage`), salesToken).send({
+      to_stage: 'internal_screening',
+      reason: 'oops',
+    });
+    expect(back.status).toBe(403);
   });
 });

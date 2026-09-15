@@ -6,15 +6,50 @@ function daysBetween(from, to) {
   return (new Date(to) - new Date(from)) / 86400000;
 }
 
-/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; end day inclusive. */
+// The business runs on IST (Asia/Kolkata — fixed +05:30, no DST). Every report
+// buckets rows and closes date ranges on the IST calendar day/month, regardless
+// of the server clock (UTC in prod). `date_from`/`date_to` from the UI are IST
+// `YYYY-MM-DD` strings.
+const IST_OFFSET_MS = 330 * 60 * 1000;
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A Date shifted so its UTC getters (`getUTCFullYear`, `toISOString`, …) read the IST wall clock. */
+function asIst(value) {
+  return new Date(new Date(value).getTime() + IST_OFFSET_MS);
+}
+
+/** IST calendar day of an instant, as `YYYY-MM-DD`. */
+function dayKey(value) {
+  return value ? asIst(value).toISOString().slice(0, 10) : null;
+}
+
+/** IST month of an instant: `{ label: 'Sep 2026', sort: '2026-09' }`. */
+function monthKey(value) {
+  const d = asIst(value);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  return { label: `${MONTHS_SHORT[m]} ${y}`, sort: `${y}-${String(m + 1).padStart(2, '0')}` };
+}
+
+/** Report `date_from` → instant: start of the IST day for `YYYY-MM-DD`, else pass-through. */
+function reportFrom(value) {
+  return typeof value === 'string' && value.length <= 10
+    ? new Date(`${value}T00:00:00.000+05:30`)
+    : new Date(value);
+}
+
+/** Report `date_to` → instant: end of the IST day for `YYYY-MM-DD`, else pass-through. */
+function reportTo(value) {
+  return typeof value === 'string' && value.length <= 10
+    ? new Date(`${value}T23:59:59.999+05:30`)
+    : new Date(value);
+}
+
+/** Build a Prisma date filter from optional YYYY-MM-DD (or ISO) strings; IST, end day inclusive. */
 function optionalDateRange(date_from, date_to) {
   const range = {};
-  if (date_from) range.gte = new Date(date_from);
-  if (date_to) {
-    const to = new Date(date_to);
-    if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
-    range.lte = to;
-  }
+  if (date_from) range.gte = reportFrom(date_from);
+  if (date_to) range.lte = reportTo(date_to);
   return Object.keys(range).length ? range : undefined;
 }
 
@@ -141,10 +176,8 @@ async function recruiterPerformance({ date_from, date_to, recruiter_id, departme
     },
   });
 
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  // Include full end day when date_to is YYYY-MM-DD
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     recruiters.map(async (r) => {
@@ -236,9 +269,8 @@ async function salesPerformance({ date_from, date_to, sales_id, department_id })
       ...(department_id ? { department_id } : {}),
     },
   });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     salesUsers.map(async (s) => {
@@ -359,9 +391,8 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
       ...(department_id ? { department_id } : {}),
     },
   });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
   const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
   return Promise.all(
@@ -429,8 +460,8 @@ async function bdaPerformance({ date_from, date_to, bda_id, department_id }) {
 
 async function vendorPerformance({ date_from, date_to, vendor_id }) {
   const vendors = await prisma.account.findMany({ where: { type: 'vendor', ...(vendor_id ? { id: vendor_id } : {}) } });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
 
   return Promise.all(
     vendors.map(async (v) => {
@@ -469,9 +500,8 @@ async function vendorPerformance({ date_from, date_to, vendor_id }) {
 
 async function clientPerformance({ date_from, date_to, client_id }) {
   const clients = await prisma.account.findMany({ where: { type: 'client', ...(client_id ? { id: client_id } : {}) } });
-  const from = new Date(date_from);
-  const to = new Date(date_to);
-  if (typeof date_to === 'string' && date_to.length <= 10) to.setHours(23, 59, 59, 999);
+  const from = reportFrom(date_from);
+  const to = reportTo(date_to);
   const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_DAYS * 86400000);
 
   return Promise.all(
@@ -698,7 +728,7 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   const rows = await prisma.submission.findMany({
     where: {
       stage: 'closed',
-      actual_joining_date: { gte: new Date(date_from), lte: new Date(date_to) },
+      actual_joining_date: { gte: reportFrom(date_from), lte: reportTo(date_to) },
       ...(department_id ? { submitted_by_user: { department_id } } : {}),
     },
     include: {
@@ -709,11 +739,11 @@ async function closure({ date_from, date_to, group_by = 'month', department_id }
   });
 
   const groupKey = (row) => {
-    const d = new Date(row.actual_joining_date);
+    const d = asIst(row.actual_joining_date);
     if (group_by === 'client') return row.seat.requirement.account.name;
     if (group_by === 'recruiter') return row.submitted_by_user.name;
-    if (group_by === 'quarter') return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
-    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    if (group_by === 'quarter') return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
+    return `${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   };
 
   const groups = new Map();
@@ -850,9 +880,11 @@ const LIVE_SUBMISSION_STAGES = [
  *     (the route also forces this to the caller for the recruiter role).
  *   - `date_from` / `date_to` — scope the sourced-profile counts by profile
  *     created date.
- *   - `vendor_activity`:
- *       `active` (default) — every active-stage vendor.
- *       `inactive` — no sourced candidate is currently in a live submission.
+ *   - `vendor_activity` (no value = every active-stage vendor):
+ *       `active` — every active-stage vendor (same as omitting the filter).
+ *       `inactive` — no sourced candidate currently in a live submission.
+ *       `has_live` — Active − Inactive: at least one live submission
+ *         (sourced → BGV).
  */
 async function recruiterVendorGaps({
   recruiter_id, vendor_id, owner_id, origin_owner_id, vendor_activity, date_from, date_to,
@@ -923,9 +955,772 @@ async function recruiterVendorGaps({
 
   return rows
     .filter((r) => !recruiter_id || r.recruiters.some((x) => x.id === recruiter_id))
-    // `active` (default) = every active-stage vendor; `inactive` = no live candidate.
-    .filter((r) => vendor_activity !== 'inactive' || !r.has_live_submission)
+    // `active` (or omitted) = every active-stage vendor;
+    // `inactive` = no live candidate; `has_live` = Active − Inactive.
+    .filter((r) => {
+      if (vendor_activity === 'inactive') return !r.has_live_submission;
+      if (vendor_activity === 'has_live') return r.has_live_submission;
+      return true;
+    })
     .sort((a, b) => (b.days_since_sourced ?? -1) - (a.days_since_sourced ?? -1));
+}
+
+// --- HR report -------------------------------------------------------------
+// Recruiter-ops throughput grouped per day. Four tables; on-bench profiles are
+// excluded everywhere. Date anchors: sourcing = Profile.created_at, submission =
+// Submission.created_at, round = InterviewRound.scheduled_at.
+
+// Display labels for the candidate-source enum; stored values stay direct/linkedin.
+const SOURCE_LABEL = { direct: 'Bench', vendor: 'Vendor', linkedin: 'Market' };
+
+function bump(map, key, seed, mutate) {
+  if (!map.has(key)) map.set(key, seed());
+  mutate(map.get(key));
+}
+
+async function hrReport({ date_from, date_to, sourcer_id, interviewer_id, source }) {
+  const range = optionalDateRange(date_from, date_to);
+  const profileWhere = { on_bench: false, ...(source ? { source } : {}) };
+
+  // Table 1 - sourcing
+  const sourcedProfiles = await prisma.profile.findMany({
+    where: {
+      ...profileWhere,
+      ...(range ? { created_at: range } : {}),
+      ...(sourcer_id ? { added_by: sourcer_id } : {}),
+    },
+    select: { added_by: true, created_at: true, source: true, added_by_user: { select: { id: true, name: true } } },
+  });
+  // One row per (sourcer, day); the per-source split lives in `by_type` and is
+  // shown on hover, not as extra rows.
+  const addTyped = (map, personId, personName, day, sourceKey) => {
+    const key = `${personId}|${day}`;
+    if (!map.has(key)) {
+      map.set(key, { sourcer: personName || 'Unknown', sourcer_id: personId, date: day, count: 0, by_type: {} });
+    }
+    const row = map.get(key);
+    row.count += 1;
+    const label = SOURCE_LABEL[sourceKey] || sourceKey;
+    row.by_type[label] = (row.by_type[label] || 0) + 1;
+  };
+
+  const sourcingMap = new Map();
+  for (const p of sourcedProfiles) {
+    addTyped(sourcingMap, p.added_by, p.added_by_user?.name, dayKey(p.created_at), p.source);
+  }
+
+  // Table 2 - submissions
+  const submissions = await prisma.submission.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      profile: { ...profileWhere, ...(sourcer_id ? { added_by: sourcer_id } : {}) },
+    },
+    select: {
+      created_at: true,
+      profile: { select: { added_by: true, source: true, added_by_user: { select: { id: true, name: true } } } },
+    },
+  });
+  const submissionMap = new Map();
+  for (const s of submissions) {
+    const p = s.profile;
+    addTyped(submissionMap, p.added_by, p.added_by_user?.name, dayKey(s.created_at), p.source);
+  }
+
+  // Tables 3 & 4 - internal round 1
+  const rounds = await prisma.interviewRound.findMany({
+    where: {
+      round_type: 'internal_r1',
+      ...(range ? { scheduled_at: range } : {}),
+      submission: { profile: profileWhere },
+    },
+    select: {
+      scheduled_at: true,
+      status: true,
+      result: true,
+      interviewer_name: true,
+      submission: {
+        select: {
+          profile: {
+            select: { added_by: true, source: true, added_by_user: { select: { id: true, name: true } } },
+          },
+        },
+      },
+      interviewers: { select: { user: { select: { id: true, name: true } } } },
+    },
+  });
+
+  const metricSeed = (base) => () => ({ ...base, scheduled: 0, completed: 0, shortlisted: 0 });
+  const applyMetrics = (row, r) => {
+    // Scheduled = every internal round 1. Completed = the interview actually
+    // happened, i.e. a pass/fail result was recorded (recording a result stamps
+    // completed_at but NOT `status`, so `status` alone can't be trusted).
+    // Shortlisted = the pass ones.
+    row.scheduled += 1;
+    if (['pass', 'fail'].includes(r.result)) row.completed += 1;
+    if (r.result === 'pass') row.shortlisted += 1;
+  };
+
+  const bySourcer = new Map();
+  const byInterviewer = new Map();
+  for (const r of rounds) {
+    const p = r.submission?.profile;
+    const day = dayKey(r.scheduled_at);
+
+    if (p && (!sourcer_id || p.added_by === sourcer_id)) {
+      const key = `${p.added_by}|${day}`;
+      bump(
+        bySourcer,
+        key,
+        metricSeed({ sourcer: p.added_by_user?.name || 'Unknown', sourcer_id: p.added_by, date: day }),
+        (row) => applyMetrics(row, r)
+      );
+    }
+
+    const people = r.interviewers.length
+      ? r.interviewers.map((i) => i.user)
+      : [{ id: null, name: r.interviewer_name || 'Unassigned' }];
+    for (const person of people) {
+      if (interviewer_id && person.id !== interviewer_id) continue;
+      const key = `${person.id || `name:${person.name}`}|${day}`;
+      bump(
+        byInterviewer,
+        key,
+        metricSeed({ interviewer: person.name || 'Unassigned', interviewer_id: person.id, date: day }),
+        (row) => applyMetrics(row, r)
+      );
+    }
+  }
+
+  const byDateThenName = (nameKey) => (a, b) =>
+    (b.date || '').localeCompare(a.date || '') || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+  return {
+    tables: [
+      {
+        key: 'sourcing',
+        title: 'Sourcing',
+        rows: [...sourcingMap.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'submissions',
+        title: 'Submissions',
+        rows: [...submissionMap.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'round1_by_sourcer',
+        title: 'Internal round 1 - by sourcer',
+        rows: [...bySourcer.values()].sort(byDateThenName('sourcer')),
+      },
+      {
+        key: 'round1_by_interviewer',
+        title: 'Internal round 1 - by interviewer',
+        rows: [...byInterviewer.values()].sort(byDateThenName('interviewer')),
+      },
+    ],
+  };
+}
+
+// --- Joinings + time-to-submit -------------------------------------------------
+
+/** ms -> "1d 6h" / "4h 20m" / "12m" / "<1m"; null/negative -> null. */
+function formatDuration(ms) {
+  if (ms == null || Number.isNaN(ms) || ms < 0) return null;
+  const totalMin = Math.floor(ms / 60000);
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h) return m ? `${h}h ${m}m` : `${h}h`;
+  return m ? `${m}m` : '<1m';
+}
+
+const dur = (fromDate, toDate) => {
+  const from = fromDate ? new Date(fromDate).toISOString() : null;
+  const to = toDate ? new Date(toDate).toISOString() : null;
+  if (!fromDate || !toDate) return { ms: null, label: null, from, to };
+  const ms = new Date(toDate) - new Date(fromDate);
+  return { ms, label: formatDuration(ms), from, to };
+};
+
+// A joining = a submission that reached `closed` with a joining date in range.
+async function joinings({ date_from, date_to }) {
+  const range = optionalDateRange(date_from, date_to);
+  const rows = await prisma.submission.findMany({
+    where: { stage: 'closed', actual_joining_date: range },
+    select: {
+      actual_joining_date: true,
+      seat: {
+        select: {
+          requirement: {
+            select: {
+              sales_owner_id: true,
+              sales_owner: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+      profile: {
+        select: {
+          added_by: true,
+          added_by_user: { select: { id: true, name: true } },
+          vendor_account_id: true,
+          vendor_account: { select: { id: true, name: true } },
+        },
+      },
+      interview_rounds: {
+        select: {
+          round_type: true,
+          interviewer_name: true,
+          interviewers: { select: { user: { select: { id: true, name: true } } } },
+        },
+      },
+    },
+  });
+
+  const bySourcer = new Map();
+  const byInterviewer = new Map();
+  const byVendor = new Map();
+  const bySalesPoc = new Map();
+
+  for (const r of rows) {
+    const mk = monthKey(r.actual_joining_date);
+    const p = r.profile || {};
+
+    // by sales POC (the sales owner of the requirement this joining closed on)
+    const req = r.seat?.requirement;
+    const spId = req?.sales_owner_id || 'none';
+    const spKey = `${mk.sort}|${spId}`;
+    if (!bySalesPoc.has(spKey)) {
+      bySalesPoc.set(spKey, {
+        month: mk.label,
+        sort: mk.sort,
+        sales_poc: req?.sales_owner?.name || 'Unassigned',
+        sales_poc_id: req?.sales_owner_id || null,
+        joinings: 0,
+      });
+    }
+    bySalesPoc.get(spKey).joinings += 1;
+
+    // by sourcer
+    const sKey = `${mk.sort}|${p.added_by}`;
+    if (!bySourcer.has(sKey)) {
+      bySourcer.set(sKey, {
+        month: mk.label,
+        sort: mk.sort,
+        sourcer: p.added_by_user?.name || 'Unknown',
+        sourcer_id: p.added_by,
+        joinings: 0,
+      });
+    }
+    bySourcer.get(sKey).joinings += 1;
+
+    // by vendor (vendor-sourced only)
+    if (p.vendor_account_id) {
+      const vKey = `${mk.sort}|${p.vendor_account_id}`;
+      if (!byVendor.has(vKey)) {
+        byVendor.set(vKey, {
+          month: mk.label,
+          sort: mk.sort,
+          vendor: p.vendor_account?.name || 'Unknown vendor',
+          joinings: 0,
+        });
+      }
+      byVendor.get(vKey).joinings += 1;
+    }
+
+    // by interviewer, split L1 (internal_r1) / L2 (internal_r2)
+    const perLevel = { l1: new Map(), l2: new Map() };
+    for (const round of r.interview_rounds || []) {
+      const level = round.round_type === 'internal_r1' ? 'l1' : round.round_type === 'internal_r2' ? 'l2' : null;
+      if (!level) continue;
+      const people = round.interviewers.length
+        ? round.interviewers.map((i) => i.user)
+        : [{ id: null, name: round.interviewer_name || 'Unassigned' }];
+      for (const person of people) {
+        perLevel[level].set(person.id || `name:${person.name}`, person);
+      }
+    }
+    for (const [level, people] of Object.entries(perLevel)) {
+      for (const [pid, person] of people) {
+        const iKey = `${mk.sort}|${pid}`;
+        if (!byInterviewer.has(iKey)) {
+          byInterviewer.set(iKey, {
+            month: mk.label,
+            sort: mk.sort,
+            interviewer: person.name || 'Unassigned',
+            interviewer_id: person.id,
+            l1: 0,
+            l2: 0,
+            total: 0,
+          });
+        }
+        const row = byInterviewer.get(iKey);
+        row[level] += 1;
+        row.total += 1;
+      }
+    }
+  }
+
+  const sortRows = (nameKey) => (a, b) =>
+    b.sort.localeCompare(a.sort) || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+  return {
+    tables: [
+      { key: 'by_sourcer', title: 'By sourcer', rows: [...bySourcer.values()].sort(sortRows('sourcer')) },
+      { key: 'by_interviewer', title: 'By interviewer (L1 / L2)', rows: [...byInterviewer.values()].sort(sortRows('interviewer')) },
+      { key: 'by_vendor', title: 'By vendor', rows: [...byVendor.values()].sort(sortRows('vendor')) },
+      { key: 'by_sales_poc', title: 'By sales requirement', rows: [...bySalesPoc.values()].sort(sortRows('sales_poc')) },
+    ],
+  };
+}
+
+// --- BDA + Sales daily activity reports --------------------------------------
+
+const byDateThenNameDesc = (nameKey) => (a, b) =>
+  (b.date || '').localeCompare(a.date || '') || (a[nameKey] || '').localeCompare(b[nameKey] || '');
+
+/**
+ * BDA reports — 5 tables, all keyed off `origin_owner_id` ("Brought by", the
+ * immutable account creator). `bda_id` scopes every table to one person;
+ * `client_id` scopes every table to one account (client or vendor);
+ * `account_type` further narrows `accounts_created` to client/vendor/unclassified.
+ *   1. accounts_created        - accounts brought per BDA per day (+ type split on hover)
+ *   2. meetings_scheduled      - account meetings scheduled per BDA per day, with how
+ *                                many of those accounts are active now
+ *   3. meetings_conversion     - the same, rolled up per BDA (no date)
+ *   4. requirements_brought    - one row per requirement on a BDA-brought *client*
+ *   5. requirements_brought_counts - those requirements counted per BDA per day
+ */
+async function bdaReports({ date_from, date_to, bda_id, client_id, account_type }) {
+  const range = optionalDateRange(date_from, date_to);
+  const ownerScope = bda_id ? { origin_owner_id: bda_id } : { origin_owner_id: { not: null } };
+  // `client_id` here is really "account id" — accounts_created / meetings can be a
+  // client OR a vendor account, so the filter isn't restricted to type=client.
+  const accountScope = client_id ? { id: client_id } : {};
+  const typeScope = account_type ? { type: account_type === 'unclassified' ? null : account_type } : {};
+
+  // 1. accounts created (brought)
+  const accounts = await prisma.account.findMany({
+    where: { ...ownerScope, ...accountScope, ...typeScope, ...(range ? { created_at: range } : {}) },
+    select: {
+      created_at: true,
+      type: true,
+      origin_owner_id: true,
+      origin_owner: { select: { id: true, name: true } },
+    },
+  });
+  const TYPE_LABEL = { client: 'Client', vendor: 'Vendor' };
+  const accountsCreated = new Map();
+  for (const a of accounts) {
+    const day = dayKey(a.created_at);
+    const key = `${a.origin_owner_id}|${day}`;
+    if (!accountsCreated.has(key)) {
+      accountsCreated.set(key, {
+        bda: a.origin_owner?.name || 'Unknown',
+        bda_id: a.origin_owner_id,
+        date: day,
+        count: 0,
+        by_type: {},
+      });
+    }
+    const row = accountsCreated.get(key);
+    row.count += 1;
+    const label = TYPE_LABEL[a.type] || 'Unclassified';
+    row.by_type[label] = (row.by_type[label] || 0) + 1;
+  }
+
+  // 2 & 3. meetings scheduled (stage_history: account -> meeting_scheduled)
+  const meetingEvents = await prisma.stageHistory.findMany({
+    where: {
+      entity_type: 'account',
+      to_stage: 'meeting_scheduled',
+      ...(range ? { changed_at: range } : {}),
+      ...(bda_id ? { changed_by: bda_id } : {}),
+      ...(client_id ? { entity_id: client_id } : {}),
+    },
+    select: {
+      changed_at: true,
+      changed_by: true,
+      changed_by_user: { select: { id: true, name: true } },
+      entity_id: true,
+    },
+  });
+  const meetingAccountIds = [...new Set(meetingEvents.map((e) => e.entity_id))];
+  const activeNow = meetingAccountIds.length
+    ? new Set(
+        (
+          await prisma.account.findMany({
+            where: { id: { in: meetingAccountIds }, stage: 'active' },
+            select: { id: true },
+          })
+        ).map((a) => a.id)
+      )
+    : new Set();
+
+  const meetingsScheduled = new Map();
+  const meetingsConversion = new Map();
+  for (const e of meetingEvents) {
+    const day = dayKey(e.changed_at);
+    const converted = activeNow.has(e.entity_id) ? 1 : 0;
+    const dayKeyStr = `${e.changed_by}|${day}`;
+    if (!meetingsScheduled.has(dayKeyStr)) {
+      meetingsScheduled.set(dayKeyStr, {
+        bda: e.changed_by_user?.name || 'Unknown',
+        bda_id: e.changed_by,
+        date: day,
+        meetings_scheduled: 0,
+        converted_to_active: 0,
+      });
+    }
+    const dRow = meetingsScheduled.get(dayKeyStr);
+    dRow.meetings_scheduled += 1;
+    dRow.converted_to_active += converted;
+
+    if (!meetingsConversion.has(e.changed_by)) {
+      meetingsConversion.set(e.changed_by, {
+        bda: e.changed_by_user?.name || 'Unknown',
+        bda_id: e.changed_by,
+        meetings_scheduled: 0,
+        converted_to_active: 0,
+      });
+    }
+    const cRow = meetingsConversion.get(e.changed_by);
+    cRow.meetings_scheduled += 1;
+    cRow.converted_to_active += converted;
+  }
+
+  // 4 & 5. requirements on BDA-brought *client* accounts
+  const requirements = await prisma.requirement.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      account: { type: 'client', ...ownerScope, ...accountScope },
+    },
+    select: {
+      title: true,
+      created_at: true,
+      account: {
+        select: {
+          id: true,
+          name: true,
+          origin_owner_id: true,
+          origin_owner: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  const requirementsBrought = requirements
+    .map((r) => ({
+      bda: r.account?.origin_owner?.name || 'Unknown',
+      bda_id: r.account?.origin_owner_id || null,
+      client: r.account?.name || '—',
+      client_id: r.account?.id || null,
+      requirement: r.title,
+      date: dayKey(r.created_at),
+    }))
+    .sort(byDateThenNameDesc('bda'));
+
+  const requirementsBroughtCounts = new Map();
+  for (const r of requirementsBrought) {
+    const key = `${r.bda_id}|${r.date}`;
+    if (!requirementsBroughtCounts.has(key)) {
+      requirementsBroughtCounts.set(key, {
+        bda: r.bda,
+        bda_id: r.bda_id,
+        date: r.date,
+        count: 0,
+        clients: {},
+      });
+    }
+    const row = requirementsBroughtCounts.get(key);
+    row.count += 1;
+    row.clients[r.client] = (row.clients[r.client] || 0) + 1;
+  }
+
+  return {
+    tables: [
+      {
+        key: 'accounts_created',
+        title: 'Accounts brought',
+        rows: [...accountsCreated.values()].sort(byDateThenNameDesc('bda')),
+      },
+      {
+        key: 'meetings_scheduled',
+        title: 'Meetings scheduled',
+        rows: [...meetingsScheduled.values()].sort(byDateThenNameDesc('bda')),
+      },
+      {
+        key: 'meetings_conversion',
+        title: 'Meetings → active (by BDA)',
+        rows: [...meetingsConversion.values()].sort((a, b) => (a.bda || '').localeCompare(b.bda || '')),
+      },
+      {
+        key: 'requirements_brought',
+        title: 'Requirements from BDA clients',
+        rows: requirementsBrought,
+      },
+      {
+        key: 'requirements_brought_counts',
+        title: 'Requirements from BDA clients (count)',
+        rows: [...requirementsBroughtCounts.values()].sort(byDateThenNameDesc('bda')),
+      },
+    ],
+  };
+}
+
+/**
+ * Sales reports — 2 tables. `sales_id` scopes both to one person; `client_id`
+ * scopes both to one client account.
+ *   1. requirements_created - requirements per Sales POC (`sales_owner_id`) per day,
+ *                             client names on hover
+ *   2. meetings_attended    - account meetings the Sales POC is an attendee of,
+ *                             per day (day = the account's meeting_date)
+ */
+async function salesReports({ date_from, date_to, sales_id, client_id }) {
+  const range = optionalDateRange(date_from, date_to);
+
+  // 1. requirements created, by sales owner
+  const requirements = await prisma.requirement.findMany({
+    where: {
+      ...(range ? { created_at: range } : {}),
+      ...(sales_id ? { sales_owner_id: sales_id } : {}),
+      ...(client_id ? { account_id: client_id } : {}),
+    },
+    select: {
+      created_at: true,
+      sales_owner_id: true,
+      sales_owner: { select: { id: true, name: true } },
+      account: { select: { name: true } },
+    },
+  });
+  const requirementsCreated = new Map();
+  for (const r of requirements) {
+    const day = dayKey(r.created_at);
+    const key = `${r.sales_owner_id}|${day}`;
+    if (!requirementsCreated.has(key)) {
+      requirementsCreated.set(key, {
+        sales_poc: r.sales_owner?.name || 'Unknown',
+        sales_poc_id: r.sales_owner_id,
+        date: day,
+        count: 0,
+        clients: {},
+      });
+    }
+    const row = requirementsCreated.get(key);
+    row.count += 1;
+    const client = r.account?.name || '—';
+    row.clients[client] = (row.clients[client] || 0) + 1;
+  }
+
+  // 2. meetings attended (sales user is a meeting attendee; day = meeting_date).
+  // The attendee picker isn't role-restricted (anyone can be added to a meeting),
+  // so this "Sales POC" table only counts attendees who actually hold a sales-ish
+  // role — a BDA or recruiter tagged as an attendee shouldn't show up here.
+  const attendedAccounts = await prisma.account.findMany({
+    where: {
+      meeting_date: range || { not: null },
+      meeting_attendees: {
+        some: { ...(sales_id ? { user_id: sales_id } : {}), user: { role: { in: ['sales', 'admin'] } } },
+      },
+      ...(client_id ? { id: client_id } : {}),
+    },
+    select: {
+      meeting_date: true,
+      meeting_attendees: { select: { user: { select: { id: true, name: true, role: true } } } },
+    },
+  });
+  const meetingsAttended = new Map();
+  for (const a of attendedAccounts) {
+    const day = dayKey(a.meeting_date);
+    for (const att of a.meeting_attendees) {
+      if (!['sales', 'admin'].includes(att.user?.role)) continue;
+      if (sales_id && att.user?.id !== sales_id) continue;
+      const key = `${att.user?.id}|${day}`;
+      if (!meetingsAttended.has(key)) {
+        meetingsAttended.set(key, {
+          sales_poc: att.user?.name || 'Unknown',
+          sales_poc_id: att.user?.id || null,
+          date: day,
+          count: 0,
+        });
+      }
+      meetingsAttended.get(key).count += 1;
+    }
+  }
+
+  // 3. profiles submitted to client — bench submissions put forward by a
+  // sales/admin user (profile.source = 'direct' && on_bench; recruiter-created
+  // submissions don't belong on a sales report even when the candidate happens
+  // to be on the bench) that actually reached the submitted_to_client stage.
+  // Counted/dated by that stage transition, not by when the put-forward was
+  // created, so a candidate still sitting in internal_screening doesn't count.
+  const putForwardCandidates = await prisma.submission.findMany({
+    where: {
+      ...(sales_id ? { submitted_by: sales_id } : {}),
+      submitted_by_user: { role: { in: ['sales', 'admin'] } },
+      profile: { source: 'direct', on_bench: true },
+      ...(client_id ? { seat: { requirement: { account_id: client_id } } } : {}),
+    },
+    select: {
+      id: true,
+      submitted_by: true,
+      submitted_by_user: { select: { id: true, name: true } },
+      profile: { select: { name: true } },
+      seat: { select: { requirement: { select: { title: true, account: { select: { id: true, name: true } } } } } },
+    },
+  });
+  const submittedToClientHistory = putForwardCandidates.length
+    ? await prisma.stageHistory.findMany({
+        where: {
+          entity_type: 'submission',
+          entity_id: { in: putForwardCandidates.map((s) => s.id) },
+          to_stage: 'submitted_to_client',
+          ...(range ? { changed_at: range } : {}),
+        },
+        orderBy: { changed_at: 'asc' },
+      })
+    : [];
+  const submittedAtBySubmission = new Map();
+  for (const h of submittedToClientHistory) {
+    if (!submittedAtBySubmission.has(h.entity_id)) submittedAtBySubmission.set(h.entity_id, h.changed_at);
+  }
+  const profilesSubmittedToClient = new Map();
+  for (const s of putForwardCandidates) {
+    const submittedAt = submittedAtBySubmission.get(s.id);
+    if (!submittedAt) continue;
+    const day = dayKey(submittedAt);
+    const key = `${s.submitted_by}|${day}`;
+    if (!profilesSubmittedToClient.has(key)) {
+      profilesSubmittedToClient.set(key, {
+        sales_poc: s.submitted_by_user?.name || 'Unknown',
+        sales_poc_id: s.submitted_by,
+        date: day,
+        count: 0,
+        profiles: {},
+        details: [],
+      });
+    }
+    const row = profilesSubmittedToClient.get(key);
+    row.count += 1;
+    const profileName = s.profile?.name || '—';
+    row.profiles[profileName] = (row.profiles[profileName] || 0) + 1;
+    row.details.push({
+      profile: { name: profileName },
+      requirement: { title: s.seat?.requirement?.title || '—' },
+      client: { name: s.seat?.requirement?.account?.name || '—', id: s.seat?.requirement?.account?.id || null },
+    });
+  }
+
+  return {
+    tables: [
+      {
+        key: 'requirements_created',
+        title: 'Requirements created',
+        rows: [...requirementsCreated.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
+      {
+        key: 'meetings_attended',
+        title: 'Meetings attended',
+        rows: [...meetingsAttended.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
+      {
+        key: 'profiles_submitted_to_client',
+        title: 'Profiles submitted to client',
+        rows: [...profilesSubmittedToClient.values()].sort(byDateThenNameDesc('sales_poc')),
+      },
+    ],
+  };
+}
+
+// One row per submission. All three duration columns are measured from the
+// requirement's creation time: requirement created -> submission created,
+// -> first internal round 1 scheduled, -> submitted to client.
+async function timeToSubmit({ date_from, date_to, client_id, requirement_id, sourcer_id, search }) {
+  const range = optionalDateRange(date_from, date_to);
+  const profileWhere = {
+    ...(sourcer_id ? { added_by: sourcer_id } : {}),
+    ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+  };
+  const reqWhere = {
+    ...(requirement_id ? { id: requirement_id } : {}),
+    ...(client_id ? { account_id: client_id } : {}),
+  };
+  const subs = await prisma.submission.findMany({
+    where: {
+      created_at: range,
+      ...(Object.keys(profileWhere).length ? { profile: profileWhere } : {}),
+      ...(Object.keys(reqWhere).length ? { seat: { requirement: reqWhere } } : {}),
+    },
+    orderBy: { created_at: 'desc' },
+    select: {
+      id: true,
+      created_at: true,
+      profile: {
+        select: {
+          name: true,
+          created_at: true,
+          source: true,
+          added_by: true,
+          added_by_user: { select: { id: true, name: true } },
+          vendor_account: { select: { name: true } },
+        },
+      },
+      seat: {
+        select: {
+          requirement: { select: { id: true, title: true, created_at: true, account: { select: { name: true } } } },
+        },
+      },
+    },
+  });
+
+  const ids = subs.map((s) => s.id);
+  const [historyRows, roundRows] = await Promise.all([
+    ids.length
+      ? prisma.stageHistory.findMany({
+          where: { entity_type: 'submission', entity_id: { in: ids }, to_stage: 'submitted_to_client' },
+          orderBy: { changed_at: 'asc' },
+        })
+      : [],
+    ids.length
+      ? prisma.interviewRound.findMany({
+          where: { submission_id: { in: ids }, round_type: 'internal_r1' },
+          orderBy: [{ scheduled_at: 'asc' }, { round_number: 'asc' }],
+        })
+      : [],
+  ]);
+
+  const submittedAtBySub = new Map();
+  for (const h of historyRows) {
+    if (!submittedAtBySub.has(h.entity_id)) submittedAtBySub.set(h.entity_id, h.changed_at);
+  }
+  const firstR1BySub = new Map();
+  for (const r of roundRows) {
+    const at = r.scheduled_at || r.completed_at;
+    if (at && !firstR1BySub.has(r.submission_id)) firstR1BySub.set(r.submission_id, at);
+  }
+
+  return {
+    rows: subs.map((s) => {
+      const req = s.seat?.requirement;
+      const r1At = firstR1BySub.get(s.id) || null;
+      const submittedAt = submittedAtBySub.get(s.id) || null;
+      const reqAt = req?.created_at || null;
+      return {
+        id: s.id,
+        requirement_created_at: reqAt,
+        requirement: req?.title || '—',
+        client: req?.account?.name || '—',
+        candidate: s.profile?.name || '—',
+        sourcer: s.profile?.added_by_user?.name || '—',
+        sourcer_id: s.profile?.added_by || null,
+        type: SOURCE_LABEL[s.profile?.source] || '—',
+        vendor_name: s.profile?.vendor_account?.name || '—',
+        // all three clocks start when the requirement was created
+        req_to_submission: dur(reqAt, s.created_at),
+        req_to_r1: dur(reqAt, r1At),
+        req_to_submitted: dur(reqAt, submittedAt),
+      };
+    }),
+  };
 }
 
 module.exports = {
@@ -938,4 +1733,9 @@ module.exports = {
   closure,
   clientsWithoutRequirements,
   recruiterVendorGaps,
+  hrReport,
+  joinings,
+  timeToSubmit,
+  bdaReports,
+  salesReports,
 };

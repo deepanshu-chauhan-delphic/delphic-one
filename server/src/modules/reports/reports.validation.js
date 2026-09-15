@@ -15,6 +15,8 @@ const dateRangeSchema = z.object({
   bda_id: optionalUuid,
   vendor_id: optionalUuid,
   client_id: optionalUuid,
+  // bda-reports only: narrows the "Accounts brought" table to one account type.
+  account_type: z.enum(['client', 'vendor', 'unclassified']).optional(),
 });
 
 const agingSchema = z.object({
@@ -34,10 +36,10 @@ const agingSchema = z.object({
 //   without_active_requirements / closed_only - kept server-side (export, back-compat).
 // recruiter-vendor-gaps lists `type = 'vendor'`, `stage = 'active'` accounts and
 // filters by `recruiter_id`, `vendor_id`, `owner_id` (our POC), `origin_owner_id`.
-// `vendor_activity`:
-//   active   - every active-stage vendor (default)
-//   inactive - no candidate currently in a live submission (any stage except
-//              closed / rejected / backout)
+// `vendor_activity` (no value / active = every active-stage vendor):
+//   active   - every active-stage vendor
+//   inactive - no candidate currently in a live submission (sourced → BGV)
+//   has_live - Active − Inactive (at least one live submission)
 // `date_from` / `date_to` still accepted (profile sourced date) but the UI no
 // longer sends them.
 const coverageSchema = z.object({
@@ -50,13 +52,40 @@ const coverageSchema = z.object({
   bucket: z
     .enum(['all', 'with_requirements', 'no_active', 'without_active_requirements', 'closed_only'])
     .optional(),
-  vendor_activity: z.enum(['active', 'inactive']).optional(),
+  vendor_activity: z.enum(['active', 'inactive', 'has_live']).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
 });
 
 const closureSchema = dateRangeSchema.extend({
   group_by: z.enum(['month', 'quarter', 'client', 'recruiter']).optional(),
+});
+
+// HR report - recruiter-ops throughput, grouped per day. `sourcer_id` narrows
+// tables 1-3 (Profile.added_by), `interviewer_id` narrows table 4, `source`
+// narrows all four.
+const hrSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  sourcer_id: optionalUuid,
+  interviewer_id: optionalUuid,
+  source: z.enum(['direct', 'vendor', 'linkedin']).optional(),
+});
+
+// Joinings by month (by sourcer / interviewer L1+L2 / vendor).
+const joiningsSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+});
+
+// Time-to-submit per candidate; filterable by the entity columns.
+const timeToSubmitSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  client_id: optionalUuid,
+  requirement_id: optionalUuid,
+  sourcer_id: optionalUuid,
+  search: z.string().optional(),
 });
 
 const boolFlag = z
@@ -85,4 +114,13 @@ const explorerSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-module.exports = { dateRangeSchema, agingSchema, closureSchema, explorerSchema, coverageSchema };
+module.exports = {
+  dateRangeSchema,
+  agingSchema,
+  closureSchema,
+  explorerSchema,
+  coverageSchema,
+  hrSchema,
+  joiningsSchema,
+  timeToSubmitSchema,
+};

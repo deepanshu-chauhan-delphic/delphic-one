@@ -5,6 +5,7 @@ const {
   createSchema,
   updateSchema,
   statusSchema,
+  statusOverrideSchema,
   assignSchema,
   unassignSchema,
   seatCreateSchema,
@@ -63,7 +64,7 @@ const getOne = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   const body = createSchema.parse(req.body);
-  const result = await service.create(body, req.user.id);
+  const result = await service.create(body, req.user.id, req.user);
   if (result.error) return mapError(res, result.error);
   return created(res, result.requirement);
 });
@@ -78,6 +79,13 @@ const update = asyncHandler(async (req, res) => {
 const changeStatus = asyncHandler(async (req, res) => {
   const body = statusSchema.parse(req.body);
   const result = await service.changeStatus(req.params.id, body, req.user);
+  if (result.error) return mapError(res, result.error);
+  return ok(res, result.requirement);
+});
+
+const changeStatusOverride = asyncHandler(async (req, res) => {
+  const body = statusOverrideSchema.parse(req.body);
+  const result = await service.changeStatusOverride(req.params.id, body, req.user);
   if (result.error) return mapError(res, result.error);
   return ok(res, result.requirement);
 });
@@ -143,6 +151,7 @@ module.exports = {
   create,
   update,
   changeStatus,
+  changeStatusOverride,
   assign,
   unassign,
   assignments,

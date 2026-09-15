@@ -366,9 +366,9 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     );
   });
 
-  test('vendor_activity: active = every active-stage vendor; inactive = no live candidate', async () => {
+  test('vendor_activity: active = all, inactive = no live, has_live = Active − Inactive', async () => {
     const live = await seedVendorProfile(recruiterToken, { submitted: true }); // fresh submission → `sourced` (a live stage)
-    const noLive = await seedVendorProfile(recruiterToken); // sourced, never submitted
+    const noLive = await seedVendorProfile(recruiterToken); // sourced, never in a live submission
     const bare = await createBareVendor(); // nothing sourced
 
     const get = (vendor_activity) =>
@@ -377,14 +377,23 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
         adminToken
       );
 
-    const activeIds = (await get('active')).body.data.map((r) => r.vendor.id);
+    const activeRows = (await get('active')).body.data;
+    const activeIds = activeRows.map((r) => r.vendor.id);
     expect(activeIds).toEqual(expect.arrayContaining([live.vendor.id, noLive.vendor.id, bare.id]));
 
     const inactiveRows = (await get('inactive')).body.data;
     const inactiveIds = inactiveRows.map((r) => r.vendor.id);
-    expect(inactiveIds).toEqual(expect.arrayContaining([noLive.vendor.id, bare.id]));
+    expect(inactiveIds).toContain(bare.id);
+    expect(inactiveIds).toContain(noLive.vendor.id);
     expect(inactiveIds).not.toContain(live.vendor.id);
     expect(inactiveRows.every((r) => r.has_live_submission === false)).toBe(true);
+
+    const hasLiveRows = (await get('has_live')).body.data;
+    const hasLiveIds = hasLiveRows.map((r) => r.vendor.id);
+    expect(hasLiveIds).toContain(live.vendor.id);
+    expect(hasLiveIds).not.toContain(noLive.vendor.id);
+    expect(hasLiveIds).not.toContain(bare.id);
+    expect(hasLiveRows.every((r) => r.has_live_submission === true)).toBe(true);
   });
 
   test('a vendor whose only submission is terminal (rejected) counts as inactive', async () => {
@@ -402,6 +411,12 @@ describe('GET /reports/recruiter-vendor-gaps', () => {
     expect(row).toBeTruthy();
     expect(row.has_live_submission).toBe(false);
     expect(row.profiles_submitted).toBe(1);
+
+    const hasLive = await authed(
+      request(app).get('/api/v1/reports/recruiter-vendor-gaps').query({ vendor_activity: 'has_live' }),
+      adminToken
+    );
+    expect(hasLive.body.data.find((r) => r.vendor.id === v.vendor.id)).toBeFalsy();
   });
 
   test('filters by origin_owner_id (brought by)', async () => {

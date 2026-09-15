@@ -14,6 +14,17 @@ export function rangeForPreset(preset, now = new Date()) {
   const m = now.getMonth();
   const iso = formatLocalDate;
 
+  if (preset === 'today') {
+    return { date_from: iso(now), date_to: iso(now) };
+  }
+  if (preset === 'this_week') {
+    // Monday-start week, matching the calendar grid.
+    const diffToMonday = (now.getDay() + 6) % 7;
+    const from = new Date(y, m, now.getDate() - diffToMonday);
+    const to = new Date(from);
+    to.setDate(from.getDate() + 6);
+    return { date_from: iso(from), date_to: iso(to) };
+  }
   if (preset === 'last_month') {
     const from = new Date(y, m - 1, 1);
     const to = new Date(y, m, 0);

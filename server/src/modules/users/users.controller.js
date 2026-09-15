@@ -1,7 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created, fail } = require('../../utils/response');
 const usersService = require('./users.service');
-const { listQuerySchema, createSchema, updateSchema } = require('./users.validation');
+const { listQuerySchema, directoryQuerySchema, createSchema, updateSchema } = require('./users.validation');
 
 const ERROR_STATUS = {
   email_taken: [409, 'Email already in use'],
@@ -17,6 +17,11 @@ const me = asyncHandler(async (req, res) => {
   return ok(res, user);
 });
 
+const myActivity = asyncHandler(async (req, res) => {
+  const rows = await usersService.listActivity(req.user.id, { limit: req.query.limit });
+  return ok(res, rows);
+});
+
 const list = asyncHandler(async (req, res) => {
   const query = listQuerySchema.parse(req.query);
   // Sales may list users only to pick recruiters for assignment (RD-106). Keep scope narrow.
@@ -24,6 +29,12 @@ const list = asyncHandler(async (req, res) => {
   if (req.user.role === 'sales') query.role = 'recruiter';
   const { rows, pagination } = await usersService.list(query);
   return ok(res, rows, { pagination });
+});
+
+const directory = asyncHandler(async (req, res) => {
+  const query = directoryQuerySchema.parse(req.query);
+  const rows = await usersService.listDirectory(query);
+  return ok(res, rows);
 });
 
 const getOne = asyncHandler(async (req, res) => {
@@ -52,4 +63,4 @@ const update = asyncHandler(async (req, res) => {
   return ok(res, result.user);
 });
 
-module.exports = { me, list, getOne, create, update };
+module.exports = { me, myActivity, directory, list, getOne, create, update };

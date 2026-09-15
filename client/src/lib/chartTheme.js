@@ -4,7 +4,7 @@
  */
 
 export const CHART_COLORS = {
-  primary: '#0052FF',
+  primary: '#105AA9',
   primarySoft: '#60A5FA',
   success: '#10B981',
   warning: '#F59E0B',

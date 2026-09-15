@@ -7,3 +7,4 @@ process.env.JWT_REFRESH_EXPIRES = '7d';
 process.env.CORS_ORIGIN = 'http://localhost:5173';
 process.env.UPLOAD_DIR = './uploads_test';
 process.env.MAX_UPLOAD_MB = '10';
+process.env.ENABLE_JOBS = 'false';

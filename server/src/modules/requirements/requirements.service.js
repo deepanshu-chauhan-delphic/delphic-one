@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { STUCK_THRESHOLD_DAYS } = require('../../config/constants');
+const { notify, requirementParticipants, admins } = require('../../lib/notifications');
 const {
   REQUIREMENT_STATUS_TRANSITIONS,
   SEAT_STATUS_TRANSITIONS,
@@ -57,7 +58,14 @@ function serialize(row) {
     account: account ? { id: account.id, name: account.name, type: account.type } : undefined,
     sales_owner: sales_owner ? { id: sales_owner.id, name: sales_owner.name } : undefined,
     assigned_recruiters: assignments
-      ? assignments.map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
+      ? assignments
+          .filter((a) => a.role_on_req === 'recruiter')
+          .map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
+      : undefined,
+    assigned_vendor_team: assignments
+      ? assignments
+          .filter((a) => a.role_on_req === 'vendor_team')
+          .map((a) => ({ id: a.user.id, name: a.user.name, assigned_at: a.assigned_at }))
       : undefined,
     seats_total,
     seats_closed,
@@ -69,7 +77,7 @@ const DECORATE_INCLUDE = {
   account: { select: { id: true, name: true, type: true } },
   sales_owner: { select: { id: true, name: true } },
   assignments: {
-    where: { role_on_req: 'recruiter', unassigned_at: null },
+    where: { role_on_req: { in: ['recruiter', 'vendor_team'] }, unassigned_at: null },
     include: { user: { select: { id: true, name: true } } },
   },
   seats: {
@@ -81,18 +89,24 @@ const DECORATE_INCLUDE = {
 };
 
 async function list(filters) {
-  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, stuck, tech_stack, search, sort_by, sort_order, page, limit } = filters;
+  const { status, req_type, account_id, sales_owner_id, recruiter_id, priority, work_mode, stuck, closed_from, closed_to, tech_stack, search, sort_by, sort_order, page, limit } = filters;
 
   const stuckClause = { status: { in: STUCK_STATUSES }, updated_at: { lte: stuckCutoff() } };
+
+  const closedRange = {};
+  if (closed_from) closedRange.gte = new Date(closed_from);
+  if (closed_to) closedRange.lte = new Date(closed_to);
 
   const where = {
     ...(status ? { status } : {}),
     ...(stuck === 'stuck' ? { AND: [stuckClause] } : {}),
     ...(stuck === 'not_stuck' ? { NOT: [stuckClause] } : {}),
+    ...(Object.keys(closedRange).length ? { closed_at: closedRange } : {}),
     ...(req_type ? { req_type } : {}),
     ...(account_id ? { account_id } : {}),
     ...(sales_owner_id ? { sales_owner_id } : {}),
     ...(priority ? { priority } : {}),
+    ...(work_mode ? { work_mode } : {}),
     ...(search
       ? {
           OR: [
@@ -140,7 +154,7 @@ function canMutateRequirement(requirement, user) {
   return user.role === 'sales' && requirement.sales_owner_id === user.id;
 }
 
-async function create(data, salesOwnerId) {
+async function create(data, salesOwnerId, actor = null) {
   const account = await prisma.account.findUnique({ where: { id: data.account_id } });
   if (!account || account.type !== 'client' || account.stage !== 'active') {
     return { error: 'invalid_account' };
@@ -158,6 +172,22 @@ async function create(data, salesOwnerId) {
       },
     },
     include: DECORATE_INCLUDE,
+  });
+
+  const recipientIds = [
+    ...(await requirementParticipants(prisma, row.id)),
+    ...(await admins(prisma)),
+  ];
+  await notify(prisma, {
+    type: 'requirement_created',
+    actorId: actor?.id || salesOwnerId,
+    recipientIds,
+    context: {
+      actorName: actor?.name,
+      requirementTitle: row.title,
+      requirementId: row.id,
+      accountName: account.name,
+    },
   });
 
   return { requirement: serialize(row) };
@@ -217,6 +247,56 @@ async function changeStatus(id, { to_status, reason }, user) {
       },
     });
 
+    await notify(tx, {
+      type: 'requirement_status_changed',
+      actorId: user.id,
+      recipientIds: await requirementParticipants(tx, id),
+      context: {
+        actorName: user.name,
+        requirementTitle: updated.title,
+        requirementId: id,
+        accountName: updated.account?.name,
+        toStatus: to_status,
+      },
+    });
+
+    return { requirement: serialize(updated) };
+  });
+}
+
+// Superadmin-only: move a requirement to any status — backward, or out of the
+// terminal `closed` / `dropped` states — ignoring ownership, the lock, the
+// transition map, and the seats-closed gate. Still audited in stage_history.
+async function changeStatusOverride(id, { to_status, reason, is_locked }, user) {
+  return prisma.$transaction(async (tx) => {
+    const requirement = await tx.requirement.findUnique({ where: { id } });
+    if (!requirement) return { error: 'not_found' };
+
+    const patch = { status: to_status };
+    if (is_locked !== undefined) patch.is_locked = is_locked;
+    if (to_status === 'closed') {
+      patch.closed_at = new Date();
+    } else {
+      patch.closed_at = null;
+    }
+
+    const updated = await tx.requirement.update({
+      where: { id },
+      data: patch,
+      include: DECORATE_INCLUDE,
+    });
+
+    await tx.stageHistory.create({
+      data: {
+        entity_type: 'requirement',
+        entity_id: id,
+        from_stage: requirement.status,
+        to_stage: to_status,
+        changed_by: user.id,
+        reason: `[override] ${reason}`,
+      },
+    });
+
     return { requirement: serialize(updated) };
   });
 }
@@ -228,7 +308,9 @@ async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
 
   const target = await prisma.user.findUnique({ where: { id: user_id } });
   if (!target) return { error: 'user_not_found' };
-  if (target.role !== role_on_req) return { error: 'role_mismatch' };
+  // sales/recruiter assignments must match the user's actual account role; vendor_team
+  // is a cross-functional tag (anyone sourcing from vendors) so any user qualifies.
+  if (role_on_req !== 'vendor_team' && target.role !== role_on_req) return { error: 'role_mismatch' };
 
   const existing = await prisma.requirementAssignment.findFirst({
     where: { requirement_id: requirementId, user_id, role_on_req, unassigned_at: null },
@@ -237,6 +319,17 @@ async function assign(requirementId, { user_id, role_on_req }, assignedByUser) {
 
   const row = await prisma.requirementAssignment.create({
     data: { requirement_id: requirementId, user_id, role_on_req, assigned_by: assignedByUser.id },
+  });
+
+  await notify(prisma, {
+    type: 'requirement_assigned',
+    actorId: assignedByUser.id,
+    recipientIds: [user_id],
+    context: {
+      actorName: assignedByUser.name,
+      requirementTitle: requirement.title,
+      requirementId,
+    },
   });
 
   return {
@@ -259,6 +352,18 @@ async function unassign(requirementId, assignmentId, user) {
   if (!assignment || assignment.requirement_id !== requirementId) return { error: 'not_found' };
 
   await prisma.requirementAssignment.update({ where: { id: assignmentId }, data: { unassigned_at: new Date() } });
+
+  await notify(prisma, {
+    type: 'requirement_unassigned',
+    actorId: user.id,
+    recipientIds: [assignment.user_id],
+    context: {
+      actorName: user.name,
+      requirementTitle: requirement.title,
+      requirementId,
+    },
+  });
+
   return { ok: true };
 }
 
@@ -393,6 +498,7 @@ module.exports = {
   create,
   update,
   changeStatus,
+  changeStatusOverride,
   assign,
   unassign,
   getAssignments,

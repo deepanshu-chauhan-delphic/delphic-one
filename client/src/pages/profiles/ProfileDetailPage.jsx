@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import apiClient from '../../lib/apiClient.js';
 import { useAuth } from '../../lib/authContext.jsx';
 import { useAlerts } from '../../lib/alerts/alertContext.jsx';
@@ -11,6 +12,8 @@ import ProgressRing from '../../components/ui/ProgressRing.jsx';
 import ClosureStepsBreakdown from '../../components/ui/ClosureStepsBreakdown.jsx';
 import NotesPanel from '../../components/NotesPanel.jsx';
 import FilesPanel from '../../components/FilesPanel.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import ProfileFormPage from './ProfileFormPage.jsx';
 import { apiErrorMessage, canEditProfile, formatProfileValue, profileKey } from './profileUtils.js';
 
@@ -34,6 +37,7 @@ function DetailSection({ title, children }) {
 
 export default function ProfileDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushError } = useAlerts();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,7 +117,19 @@ export default function ProfileDetailPage() {
               <ProgressRing percent={profile.progress?.percent ?? null} size="md" />
               <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-tertiary-400">Closure %</span>
             </div>
-            {canEdit && <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>Edit</button>}
+            {canEdit && (
+              <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
+            )}
+            {userCan(user, 'deleteRecords') && (
+              <DeleteRecordButton
+                entityType="profile"
+                entityId={profile.id}
+                entityLabel={`${profileKey(profile.id)} · ${profile.name}`}
+                onDeleted={() => navigate('/profiles')}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -225,7 +241,7 @@ export default function ProfileDetailPage() {
         </aside>
       </div>
 
-      <Drawer open={editOpen} title="Edit candidate" onClose={closeEdit} size="md" tone="edit">
+      <Drawer open={editOpen} title="Edit candidate" onClose={closeEdit} size="xl" tone="edit">
         {editOpen && (
           <ProfileFormPage
             asPanel

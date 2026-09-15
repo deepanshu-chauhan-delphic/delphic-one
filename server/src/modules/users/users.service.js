@@ -51,6 +51,18 @@ async function list({ role, active, search, department_id, page = 1, limit = 20 
   return { rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
+// Full lightweight roster for pickers/filters — no secrets, no pagination.
+async function listDirectory({ role, active } = {}) {
+  return prisma.user.findMany({
+    where: {
+      ...(role ? { role } : {}),
+      ...(active !== undefined ? { active } : {}),
+    },
+    select: { id: true, name: true, role: true, active: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
 async function create({ name, email, password, role, phone, department_id }) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: 'email_taken' };
@@ -99,4 +111,69 @@ async function update(id, patch, actor = {}) {
   return { user };
 }
 
-module.exports = { getById, list, create, update, countActiveSuperadmins };
+/**
+ * Reverse-chronological list of stage/status changes the given user has made,
+ * across accounts, requirements, seats, and submissions. Read-only; powers the
+ * "Activity" tab on the Settings page.
+ */
+async function listActivity(userId, { limit = 50 } = {}) {
+  const take = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const rows = await prisma.stageHistory.findMany({
+    where: { changed_by: userId },
+    orderBy: { changed_at: 'desc' },
+    take,
+  });
+
+  const ids = { account: new Set(), requirement: new Set(), seat: new Set(), submission: new Set() };
+  rows.forEach((r) => ids[r.entity_type]?.add(r.entity_id));
+
+  const [accounts, requirements, seats, submissions] = await Promise.all([
+    ids.account.size
+      ? prisma.account.findMany({ where: { id: { in: [...ids.account] } }, select: { id: true, name: true } })
+      : [],
+    ids.requirement.size
+      ? prisma.requirement.findMany({ where: { id: { in: [...ids.requirement] } }, select: { id: true, title: true } })
+      : [],
+    ids.seat.size
+      ? prisma.requirementSeat.findMany({
+          where: { id: { in: [...ids.seat] } },
+          select: { id: true, requirement: { select: { title: true } } },
+        })
+      : [],
+    ids.submission.size
+      ? prisma.submission.findMany({
+          where: { id: { in: [...ids.submission] } },
+          select: {
+            id: true,
+            profile: { select: { name: true } },
+            seat: { select: { requirement: { select: { title: true } } } },
+          },
+        })
+      : [],
+  ]);
+
+  const label = {
+    account: Object.fromEntries(accounts.map((a) => [a.id, a.name])),
+    requirement: Object.fromEntries(requirements.map((r) => [r.id, r.title])),
+    seat: Object.fromEntries(seats.map((s) => [s.id, s.requirement?.title || 'Seat'])),
+    submission: Object.fromEntries(
+      submissions.map((s) => [
+        s.id,
+        `${s.profile?.name || 'Candidate'} → ${s.seat?.requirement?.title || 'Requirement'}`,
+      ])
+    ),
+  };
+
+  return rows.map((r) => ({
+    id: r.id,
+    entity_type: r.entity_type,
+    entity_id: r.entity_id,
+    entity_label: label[r.entity_type]?.[r.entity_id] || null,
+    from_stage: r.from_stage,
+    to_stage: r.to_stage,
+    reason: r.reason,
+    changed_at: r.changed_at,
+  }));
+}
+
+module.exports = { getById, list, listDirectory, create, update, countActiveSuperadmins, listActivity };

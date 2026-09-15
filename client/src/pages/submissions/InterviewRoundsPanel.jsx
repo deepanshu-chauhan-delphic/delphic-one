@@ -6,26 +6,10 @@ import { required, runValidations, fieldErrorClass } from '../../lib/alerts/form
 import Drawer from '../../components/ui/Drawer.jsx';
 import MultiSelectDropdown from '../../components/ui/MultiSelectDropdown.jsx';
 import SearchableSelect from '../../components/ui/SearchableSelect.jsx';
+import DeleteRecordButton from '../../components/DeleteRecordButton.jsx';
+import { userCan } from '../../lib/permissions.js';
 import { canManageInterviewRound, isInternalRoundType, roundTypeLabel } from '../../lib/submissionStages.js';
-
-const ROUND_TYPES = [
-  { value: 'internal_r1', label: 'Internal Round 1', color: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { value: 'internal_r2', label: 'Internal Round 2', color: 'bg-cyan-50 text-cyan-800 border-cyan-200' },
-  { value: 'client_r1', label: 'Client Round 1', color: 'bg-violet-50 text-violet-800 border-violet-200' },
-  { value: 'client_r2', label: 'Client Round 2', color: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
-  { value: 'client_r3', label: 'Client Round 3', color: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200' },
-  { value: 'hr_cto_ceo', label: 'HR, CTO & CEO Round', color: 'bg-amber-50 text-amber-900 border-amber-200' },
-];
-
-const RESULT_COLORS = {
-  pending: 'bg-tertiary-100 text-tertiary-700',
-  pass: 'bg-success-50 text-success-700',
-  fail: 'bg-danger-50 text-danger-700',
-  no_show: 'bg-warning-50 text-warning-800',
-  rescheduled: 'bg-sky-50 text-sky-800',
-};
-
-const RESULTS = ['pending', 'pass', 'fail', 'no_show', 'rescheduled'];
+import { ROUND_TYPES, RESULT_COLORS, ROUND_RESULTS as RESULTS, roundTypeMeta } from '../../lib/interviewRounds.js';
 
 const emptyForm = {
   round_type: 'internal_r1',
@@ -92,10 +76,6 @@ function buildPayload(form) {
   return payload;
 }
 
-function roundTypeMeta(type) {
-  return ROUND_TYPES.find((t) => t.value === type) || ROUND_TYPES[0];
-}
-
 function formatInterviewerLine(round) {
   if (isInternalRoundType(round.round_type) && round.interviewers?.length) {
     return round.interviewers.map((interviewer) => interviewer.name).join(', ');
@@ -126,7 +106,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
   useEffect(() => {
     if (!open || !showInternalInterviewers) return;
     apiClient
-      .get('/users', { params: { active: true, limit: 100 } })
+      .get('/users/directory', { params: { active: 'true' } })
       .then(({ data }) => setActiveUsers(data.data || []))
       .catch(() => setActiveUsers([]));
   }, [open, showInternalInterviewers]);
@@ -176,7 +156,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
   }
 
   return (
-    <section className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 shadow-soft">
+    <section id="interview-rounds" className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 shadow-soft">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-heading text-sm font-semibold text-sky-900">Interview rounds</h2>
@@ -214,7 +194,7 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${meta.color}`}>
                         {meta.label}
                       </span>
-                      {r.round_name ? ` — ${r.round_name}` : ''}
+                      {r.round_name ? ` - ${r.round_name}` : ''}
                     </p>
                     <p className="mt-1.5 text-xs text-tertiary-600">
                       <span className="font-medium text-sky-800">Interview:</span>{' '}
@@ -243,6 +223,15 @@ export default function InterviewRoundsPanel({ submissionId, submission, rounds,
                       <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => openEdit(r)}>
                         Edit
                       </button>
+                    )}
+                    {userCan(user, 'deleteRecords') && (
+                      <DeleteRecordButton
+                        entityType="interview_round"
+                        entityId={r.id}
+                        entityLabel={`Interview round #${r.round_number}`}
+                        label="Delete"
+                        onDeleted={onChanged}
+                      />
                     )}
                   </div>
                 </div>
