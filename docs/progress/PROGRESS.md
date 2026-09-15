@@ -87,6 +87,52 @@ New guide: [DATABASE-CONNECTION-POOLING.md](../guides/DATABASE-CONNECTION-POOLIN
   read replica (once real write contention shows up on reports/
   profitability queries). Neither is needed at current scale.
 
+## 2026-09-15 — Multi-company ERP: client brief received, Phase 2 amended — branch `feature/multi-company-erp`
+
+Full brief + phase mapping: HLD doc's new "Product brief" section + §11. Plan doc log has the exhaustive diff; this is the summary.
+
+- **Docs updated first**: HLD gained the full client brief (3 client-facing
+  phases: Core ERP/HRMS → project timesheets/revenue → financials/
+  analytics/multi-company), a revised module map + data model covering 6 new
+  entities not in the original design (`Location`, `Shift`,
+  `TimesheetLock`/`TimesheetRegularizationTicket`, `BillingRate`/
+  `DailyProjectRevenue`, `ExpenseClaim`/`VendorPayment`,
+  `LedgerAccount`/`LedgerEntry`/`TaxRecord`, `ExternalAccess`), 4 new internal
+  phases (7 expenses/vendor, 8 accounting, 9 external access, 10 org chart),
+  and a mapping table (§11) tying the client's phase names to this doc's
+  numbered phases so nothing gets lost in translation.
+- **4 concrete gaps closed same-day** (schema migration
+  `20260915120000_phase2_amend_location_shift_poc_multiproject_calendar`,
+  additive-only): `Location` (default Ahmedabad/Indore/Gurgaon + custom) +
+  `GET/POST /orgs/locations`; `OrgMembership.hr_poc_id`/`sourcing_poc_id`/
+  `manager_id` + `PATCH /orgs/memberships/:id`; `Shift` (timings + grace
+  period) + `GET/POST /attendance/shifts` + automatic
+  `AttendanceRecord.overtime_minutes` computed on check-out; `EmployeeCalendar`
+  changed from strictly one-per-employee to one-per-(employee, project) so an
+  employee on two concurrent client engagements follows two calendars at
+  once (`account_id` added, the old single-column unique dropped for a
+  compound one) + `GET /calendars/assignments/:id`.
+- Fixed same-day rather than deferred: the multi-project calendar change
+  alters the *shape* of an already-shipped table, and it's cheaper to fix
+  while only demo data exists than after Phase 3-6 build on top of the old
+  1:1 assumption.
+- Tests: `erp-phase2-amendment.test.js` (10 — location CRUD + admin gate,
+  POC/manager mapping + self-manager + cross-org-manager rejections, shift
+  CRUD + overtime math incl. overnight-shift-safe duration + within-grace
+  case, multi-project assignment/listing/reassignment-replaces). Full suite
+  **44 suites / 338 tests green**, eslint clean.
+- Local: seeded Ahmedabad/Indore/Gurgaon + a "General 9-6" shift into
+  `requirement_dashboard_erp`, assigned to all 13 memberships.
+- **Explicitly not built this pass** (documented, not silently dropped):
+  everything from internal Phase 3 onward — timesheet locking/
+  regularization tickets, billing/daily-revenue, payroll, profitability/
+  super-dashboard — plus all 4 brand-new phases (expenses/vendor,
+  accounting, external access, org chart). Schema-sketched in the HLD, no
+  code. Infra (AWS S3, dedicated server + RDS) stays deliberately last per
+  the client's own stated "local first" dev strategy — no change needed to
+  the existing local-DB-first approach, just confirmation it already
+  matches.
+
 ## 2026-09-15 — Multi-company ERP Phase 2 (calendar, attendance, leave, backend) — branch `feature/multi-company-erp`
 
 Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration `20260915110152_phase2_directory_calendar_attendance_leave` — additive only.

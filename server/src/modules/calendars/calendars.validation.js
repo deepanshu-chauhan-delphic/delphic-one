@@ -14,6 +14,9 @@ const addHolidaySchema = z.object({
 
 const assignCalendarSchema = z.object({
   org_membership_id: z.string().uuid(),
+  // Which client/project this mapping is for — omit for the employee's
+  // default calendar. Client brief: multi-project calendar mapping.
+  account_id: z.string().uuid().nullable().optional(),
 });
 
 module.exports = { createCalendarSchema, addHolidaySchema, assignCalendarSchema };

@@ -51,11 +51,20 @@ router.post(
   '/:id/assign',
   authorize('admin'),
   asyncHandler(async (req, res) => {
-    const { org_membership_id } = assignCalendarSchema.parse(req.body);
-    const result = await service.assign(req.user.org_id, req.params.id, org_membership_id);
+    const { org_membership_id, account_id } = assignCalendarSchema.parse(req.body);
+    const result = await service.assign(req.user.org_id, req.params.id, org_membership_id, account_id || null);
     if (result.error === 'calendar_not_found') return fail(res, 404, 'Calendar not found');
     if (result.error === 'membership_not_found') return fail(res, 404, 'Org membership not found');
+    if (result.error === 'account_not_found') return fail(res, 404, 'Account not found');
     return ok(res, result.assignment);
+  })
+);
+
+router.get(
+  '/assignments/:orgMembershipId',
+  asyncHandler(async (req, res) => {
+    const rows = await service.listAssignments(req.user.org_id, req.params.orgMembershipId);
+    return ok(res, rows);
   })
 );
 

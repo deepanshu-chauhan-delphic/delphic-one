@@ -30,6 +30,11 @@ enum EmploymentStatus {
   active
   on_leave
   terminated
+  // Added 2026-09-15 for the org-chart lifecycle indicators (client brief
+  // Phase 3.2) — a membership can exist before day one (offer accepted,
+  // onboarding not started) or be counting down after resignation.
+  pending_onboarding
+  notice_period
 }
 
 // --- Multi-company ERP platform (Phase 2 — directory + calendar + attendance + leave) ---
@@ -303,6 +308,8 @@ model User {
   notification_preferences    NotificationPreference[]
   org_memberships             OrgMembership[]             @relation("OrgMembershipPerson")
   attendance_regularizations  AttendanceRecord[]          @relation("AttendanceRegularizedBy")
+  hr_poc_for                  OrgMembership[]             @relation("OrgMembershipHrPoc")
+  sourcing_poc_for            OrgMembership[]             @relation("OrgMembershipSourcingPoc")
 
   @@index([department_id])
   @@map("users")
@@ -352,20 +359,71 @@ model Designation {
 // from the existing interview/client-meeting calendar (modules/interviews),
 // which this does not replace (HLD §3).
 model Calendar {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  org_id     String       @db.Uuid
-  org        Org          @relation(fields: [org_id], references: [id])
-  name       String
-  kind       CalendarKind @default(internal)
-  is_default Boolean      @default(false)
-  created_at DateTime     @default(now())
-  updated_at DateTime     @default(now()) @updatedAt
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id      String       @db.Uuid
+  org         Org          @relation(fields: [org_id], references: [id])
+  name        String
+  kind        CalendarKind @default(internal)
+  // Which office location this calendar's holidays apply to — null for a
+  // client-specific calendar that isn't tied to a physical location (e.g. a
+  // US client calendar followed by IT staff based in India). Added
+  // 2026-09-15 for the client brief's location-mapping requirement.
+  location_id String?      @db.Uuid
+  location    Location?    @relation(fields: [location_id], references: [id])
+  is_default  Boolean      @default(false)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @default(now()) @updatedAt
 
   holidays  CalendarHoliday[]
   employees EmployeeCalendar[]
 
   @@index([org_id])
+  @@index([location_id])
   @@map("calendars")
+}
+
+// Default (Ahmedabad, Indore, Gurgaon) and custom office locations — an
+// Org-scoped directory, per the client brief's location-mapping requirement
+// (added 2026-09-15).
+model Location {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id     String   @db.Uuid
+  org        Org      @relation(fields: [org_id], references: [id])
+  name       String
+  city       String?
+  country    String?
+  is_default Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  calendars       Calendar[]
+  org_memberships OrgMembership[]
+
+  @@unique([org_id, name])
+  @@index([org_id])
+  @@map("locations")
+}
+
+// Shift timings + configurable check-in grace period, per the client
+// brief's attendance/shift requirement (added 2026-09-15). Times are
+// minutes-from-midnight (not a DateTime) so a shift isn't tied to a
+// specific calendar date.
+model Shift {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id        String   @db.Uuid
+  org           Org      @relation(fields: [org_id], references: [id])
+  name          String
+  start_minutes Int
+  end_minutes   Int
+  grace_minutes Int      @default(15)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+
+  org_memberships OrgMembership[]
+
+  @@unique([org_id, name])
+  @@index([org_id])
+  @@map("shifts")
 }
 
 model CalendarHoliday {
@@ -381,16 +439,28 @@ model CalendarHoliday {
 }
 
 // Which calendar an employee's attendance/leave working-days follow.
-// One active calendar per membership (per-employee customizable per HLD §3).
+// Changed 2026-09-15 (client brief): an employee on more than one
+// concurrent client engagement follows more than one calendar at once, so
+// this is many-per-membership now, one row per (membership, project) —
+// `account_id: null` is the employee's default/base calendar. Was a strict
+// one-to-one (`org_membership_id @unique`) in the original Phase 2 build;
+// dropping that constraint is additive (relaxes a rule, doesn't touch data
+// — no rows existed with more than one mapping under the old constraint).
+// Known gap: `account_id: null` isn't itself unique per membership, so the
+// service layer (not the DB) must prevent two default-calendar rows.
 model EmployeeCalendar {
   id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  org_membership_id String        @unique @db.Uuid
+  org_membership_id String        @db.Uuid
   org_membership    OrgMembership @relation(fields: [org_membership_id], references: [id], onDelete: Cascade)
   calendar_id       String        @db.Uuid
   calendar          Calendar      @relation(fields: [calendar_id], references: [id])
+  account_id        String?       @db.Uuid
+  account           Account?      @relation("EmployeeCalendarAccount", fields: [account_id], references: [id])
   created_at        DateTime      @default(now())
   updated_at        DateTime      @default(now()) @updatedAt
 
+  @@unique([org_membership_id, calendar_id, account_id])
+  @@index([org_membership_id])
   @@index([calendar_id])
   @@map("employee_calendars")
 }
@@ -409,6 +479,10 @@ model AttendanceRecord {
   check_out_at        DateTime?
   status              AttendanceStatus @default(present)
   source              AttendanceSource @default(web)
+  // Minutes worked beyond the assigned Shift's duration (incl. grace),
+  // computed automatically at check-out — client brief's overtime
+  // requirement. Null when no Shift is assigned or before check-out.
+  overtime_minutes    Int?
   regularized_by      String?          @db.Uuid
   regularized_by_user User?            @relation("AttendanceRegularizedBy", fields: [regularized_by], references: [id])
   regularized_reason  String?
@@ -528,7 +602,9 @@ model Org {
   attendance_records AttendanceRecord[]
   leave_types        LeaveType[]
   leave_requests     LeaveRequest[]
-  Department         Department[]
+  departments        Department[]
+  locations          Location[]
+  shifts             Shift[]
 
   @@index([org_group_id])
   @@map("orgs")
@@ -549,13 +625,33 @@ model OrgMembership {
   // Multi-company ERP (Phase 2) — nullable, unused until a designation is set.
   designation_id    String?          @db.Uuid
   designation       Designation?     @relation(fields: [designation_id], references: [id])
+  // Added 2026-09-15 (client brief) — all nullable, unused until set.
+  location_id       String?          @db.Uuid
+  location          Location?        @relation(fields: [location_id], references: [id])
+  shift_id          String?          @db.Uuid
+  shift             Shift?           @relation(fields: [shift_id], references: [id])
+  // Reporting line for the org-chart module (Phase 10, not built yet) — a
+  // self-relation, so a manager is just another OrgMembership in this org.
+  manager_id        String?          @db.Uuid
+  manager           OrgMembership?   @relation("OrgMembershipManager", fields: [manager_id], references: [id], onDelete: SetNull)
+  direct_reports    OrgMembership[]  @relation("OrgMembershipManager")
+  // HR contact for general queries, and the recruiter who onboarded this
+  // person (for recruiter-performance tracking) — both point at User, not
+  // OrgMembership, since an HR/sourcing POC may not share this org.
+  hr_poc_id         String?          @db.Uuid
+  hr_poc            User?            @relation("OrgMembershipHrPoc", fields: [hr_poc_id], references: [id])
+  sourcing_poc_id   String?          @db.Uuid
+  sourcing_poc      User?            @relation("OrgMembershipSourcingPoc", fields: [sourcing_poc_id], references: [id])
   employment_status EmploymentStatus @default(active)
   joined_at         DateTime         @default(now()) @db.Date
   left_at           DateTime?        @db.Date
+  // Set when employment_status = notice_period — the org chart's
+  // resignation indicator reads this (Phase 10, not built yet).
+  notice_end_date   DateTime?        @db.Date
   created_at        DateTime         @default(now())
   updated_at        DateTime         @default(now()) @updatedAt
 
-  employee_calendar       EmployeeCalendar?
+  employee_calendars      EmployeeCalendar[]
   attendance_records      AttendanceRecord[]
   leave_balances          LeaveBalance[]
   leave_requests          LeaveRequest[]     @relation("LeaveRequestOwner")
@@ -564,6 +660,7 @@ model OrgMembership {
   @@unique([person_id, org_id])
   @@index([org_id])
   @@index([person_id])
+  @@index([manager_id])
   @@map("org_memberships")
 }
 
@@ -627,9 +724,10 @@ model Account {
   org_id String? @db.Uuid
   org    Org?    @relation(fields: [org_id], references: [id])
 
-  requirements      Requirement[]
-  vendor_profiles   Profile[]                @relation("ProfileVendorAccount")
-  meeting_attendees AccountMeetingAttendee[]
+  requirements               Requirement[]
+  vendor_profiles            Profile[]                @relation("ProfileVendorAccount")
+  meeting_attendees          AccountMeetingAttendee[]
+  employee_calendar_mappings EmployeeCalendar[]       @relation("EmployeeCalendarAccount")
 
   @@index([type, stage])
   @@index([owner_id])

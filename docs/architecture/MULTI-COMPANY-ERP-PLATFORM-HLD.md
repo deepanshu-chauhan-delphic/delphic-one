@@ -1,13 +1,75 @@
-# Multi-Company Group ERP Platform — HLD
+# Multi-Company Group ERP Platform ("Delphic One") — HLD
 
-Status: **design, not yet built**. Target: evolve this repo from a single-tenant
-Delphic recruitment dashboard into a multi-company platform for a parent group
-(e.g. Delphic, Acconcy, future companies), adding employee ERP — attendance,
-timesheets, calendars, leaves, overtime, payroll, company billing, client
-billing, and a cross-company "super dashboard" for daily/weekly/monthly/
-quarterly profitability per employee per company.
+Status: **Phase 0-2 built, in progress** (see the companion
+[Implementation Plan](MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md) for what's
+actually shipped vs. planned). Target: evolve this repo from a single-tenant
+Delphic recruitment dashboard into a centralized, multi-tenant portal
+replacing third-party tools (Zoho, Razorpay, etc.) for internal operations —
+HR/HRMS, attendance, timesheets, calendars, leaves, overtime, payroll,
+project-based billing/revenue, expense & vendor management, end-to-end
+accounting/compliance, and a cross-company "super admin" dashboard with
+group-level analytics and org charts.
 
-Decisions locked in for this design (confirmed 2026-09-15):
+## Product brief (client requirements, confirmed 2026-09-15 — supersedes the
+original phase framing below where they conflict; see §11 for the mapping)
+
+**Core objective**: a centralized, multi-tenant portal ("Delphic One") to
+replace third-party software for internal operations, HR, payroll, billing,
+time-tracking, and business intelligence.
+
+**Phase 1 — Core ERP & HRMS (immediate focus)**
+1. *Flexible calendar & location mapping*: default locations (Ahmedabad,
+   Indore, Gurgaon) and custom/client-specific holiday calendars (e.g. US vs
+   Indian client calendars for IT staff); map employees to specific project
+   calendars based on their **active client assignments** (an employee can
+   follow more than one project calendar at once — not a single calendar per
+   employee).
+2. *Stakeholder & HR POC mapping*: an HR point of contact per employee for
+   general HR queries, and a Sourcing POC (the recruiter who onboarded them)
+   to monitor recruiter performance.
+3. *Attendance, shift & overtime*: configurable shift timings per
+   employee/project, configurable grace periods (±15-30 min, set by HR),
+   automatic overtime calculation for hours worked beyond the shift.
+4. *Leave & payroll*: automated leave-balance tracking, paid leave, and
+   attendance-based salary calculation.
+
+**Phase 2 — Project-based time tracking & revenue auto-calculation**
+1. *Project-centric timesheets*: an employee split across projects in one
+   day (e.g. 4h on Project A, 4h on Project B) logs hours per project, not
+   one blended entry; timesheets link to project constraints (calendar,
+   schedule), not the general employee profile.
+2. *Timesheet locking & authorization*: admins lock timesheets daily to
+   freeze entries; any post-lock change requires a raised ticket + approval
+   (a regularization flow, distinct from the attendance regularization
+   already built in Phase 2).
+3. *Automated daily revenue/billing*: hourly/monthly billing rates per
+   client/project; real-time daily revenue generated from approved timesheet
+   hours.
+
+**Phase 3 — Financials, analytics & multi-company management (long-term)**
+1. *Super admin dashboard & group analytics*: a unified dashboard with
+   company-wide valuation, revenue, and expense graphs (daily/monthly/
+   quarterly/yearly); clickable company tiles drilling into that company's
+   own ERP/live data; interactive drill-down from a report number to its
+   underlying transactions.
+2. *Live automated org charts*: a dynamic hierarchy per subsidiary and a
+   combined group chart, with visual indicators for new hires (planned/
+   pending onboarding) and resignations/notice periods.
+3. *Expense & vendor management*: office expense logging + reimbursement
+   requests by location; vendor payment tracking for contractors and
+   external/third-party vendors.
+4. *End-to-end accounting & compliance*: native bookkeeping — invoicing, tax
+   compliance, P&L/balance sheet — plus guest/external portal access for
+   legal counsel and CAs to audit compliance directly inside the portal.
+
+**Technical infrastructure**: AWS S3 for documents (resumes, onboarding
+docs, receipts); a dedicated/scalable server + managed DB (e.g. AWS RDS),
+upgrading from the current basic single instance; build the core ERP module
+locally first, migrate to cloud infra after.
+
+---
+
+Architecture decisions locked in for this design (confirmed 2026-09-15):
 
 1. **One identity, per-company roles.** A person has one login (email/password)
    for the whole group. They can hold membership + a role in more than one
@@ -93,17 +155,21 @@ same convention as `accounts`, `requirements`, etc. All models carry `org_id`.
 
 | Module | Owns | Depends on |
 |---|---|---|
-| `orgs` | `Org`, `OrgGroup`, `Department`, `Designation`, `OrgMembership` | identity |
-| `attendance` | check-in/out, daily attendance status, regularization requests | orgs, calendar (holidays) |
-| `calendar` | `Calendar`, `CalendarEvent`, per-employee calendar assignment; extends the **existing** interview/meeting calendar rather than replacing it | orgs |
-| `leave` | leave types, policies, balances, requests, approvals | orgs, calendar |
-| `timesheet` | daily work-log entries, linked to a project/requirement/client | orgs, requirements (existing), billing |
-| `overtime` | OT requests/approvals, computed from attendance + timesheet | attendance, timesheet |
-| `payroll` | salary structures, payroll runs, payslips | orgs, attendance, leave, overtime |
-| `billing-client` | client invoices (per org, billing that org's clients) | requirements/submissions (existing), timesheet |
-| `billing-group` | intra-group billing (parent charges each `Org` a management fee, shared-service cross-charges) | orgs |
-| `profitability` | the analytics fact tables and rollups behind the super dashboard | timesheet, payroll, billing-client, billing-group |
-| `super-dashboard` | cross-org read-only aggregation API + UI | profitability, group superadmin auth |
+| `orgs` | `Org`, `OrgGroup`, `Department`, `Designation`, `OrgMembership`, `Location` | identity |
+| `calendars` | `Calendar`, `CalendarHoliday`, `EmployeeCalendar` (per-employee, **per-project** — an employee can carry more than one active mapping); extends the **existing** interview/meeting calendar rather than replacing it | orgs |
+| `attendance` | check-in/out, daily attendance status, `Shift` (timings + grace period), automatic overtime, regularization | orgs, calendars |
+| `leave` | leave types, policies, balances, requests, approvals | orgs, calendars |
+| `timesheet` | project-centric daily work-log entries (multi-project per day), daily locking, post-lock regularization tickets | orgs, requirements/accounts (existing), calendars |
+| `payroll` | salary structures, payroll runs, payslips, attendance-based salary calc | orgs, attendance, leave, timesheet (overtime) |
+| `billing-client` | client invoices + **daily revenue auto-calc** from approved timesheet hours × billing rate | requirements/submissions (existing), timesheet |
+| `billing-group` | intra-group billing (management fee, shared-service cross-charges) | orgs |
+| `expenses` | office expense claims + reimbursement, by `Location` | orgs |
+| `vendor-payments` | payment tracking for contractors / external resources / third-party vendors — **distinct from** the existing recruitment `Account(type=vendor)` (candidate-sourcing vendors); this is money going *out* for services, not candidates coming *in* | orgs |
+| `accounting` | ledger, invoicing, tax records, P&L / balance sheet | orgs, billing-client, billing-group, expenses, vendor-payments |
+| `external-access` | scoped, read-only guest access for Legal/CA compliance audits — a distinct auth path from `OrgMembership` (they are not employees) | orgs, accounting |
+| `org-chart` | live reporting-line hierarchy (per subsidiary + combined group), onboarding/notice-period visual state | orgs (OrgMembership.manager_id + lifecycle state) |
+| `profitability` | the analytics fact tables and rollups behind the super dashboard — valuation, revenue, expense, margin | timesheet, payroll, billing-client, billing-group, expenses, accounting |
+| `super-dashboard` | cross-org read-only aggregation API + UI, company tiles, drill-down to transaction detail | profitability, group superadmin auth |
 
 The existing recruitment domain (`accounts`, `requirements`, `profiles`,
 `submissions`, `pipeline`, `reports`) becomes **one business capability that
@@ -120,37 +186,73 @@ OrgGroup      { id, name }
 Org           { id, org_group_id, name, slug, timezone, default_currency, status }
 Department    { id, org_id, name }
 Designation   { id, org_id, name, department_id? }
+Location      { id, org_id, name, city, country, is_default }  // Ahmedabad/Indore/Gurgaon + custom
+Shift         { id, org_id, name, start_minutes, end_minutes, grace_minutes }  // configurable check-in grace, ±15-30min typical
 OrgMembership { id, person_id(User.id), org_id, role, employee_code,
-                department_id, designation_id, employment_status,
-                joined_at, left_at }
+                department_id, designation_id, location_id, shift_id,
+                manager_id(OrgMembership.id)?,        // reporting line, for the org chart
+                hr_poc_id(User.id)?,                  // HR contact for this employee
+                sourcing_poc_id(User.id)?,             // recruiter who onboarded them
+                employment_status[active|on_leave|terminated|pending_onboarding|notice_period],
+                joined_at, left_at, notice_end_date? }
 
-Calendar        { id, org_id, name, kind[internal|client|custom], is_default }
+Calendar        { id, org_id, name, kind[internal|client|custom], location_id?, is_default }
 CalendarHoliday { id, calendar_id, date, label }
-EmployeeCalendar{ id, org_membership_id, calendar_id }  // customizable per employee
+// One employee can carry >1 active row here — one per concurrently-assigned
+// project/client, not a single calendar per employee (client brief §1).
+EmployeeCalendar{ id, org_membership_id, calendar_id, account_id? }
 
 AttendanceRecord { id, org_membership_id, date, check_in_at, check_out_at,
                     status[present|absent|half_day|leave|holiday|wfh],
-                    source[web|mobile|manual], regularized_by, regularized_reason }
+                    source[web|mobile|manual], overtime_minutes,
+                    regularized_by, regularized_reason }
 
 LeaveType    { id, org_id, name, paid, annual_quota }
 LeaveBalance { id, org_membership_id, leave_type_id, year, accrued, used }
 LeaveRequest { id, org_membership_id, leave_type_id, from_date, to_date,
                status[pending|approved|rejected|cancelled], approver_id, reason }
 
+// One row per (employee, day, project) — the same employee logs multiple rows
+// on the same date across different projects (client brief §Phase 2.1).
 TimesheetEntry { id, org_membership_id, date, project_ref (client_account_id
                   or requirement_id, existing models), hours, billable,
-                  notes, approved_by, status }
-
-OvertimeRecord { id, org_membership_id, date, hours, approved_by, status }
+                  notes, approved_by, status, locked_at }
+// Freezes every TimesheetEntry for an org on a given date; a locked entry can
+// only change via a TimesheetRegularizationTicket.
+TimesheetLock { id, org_id, date, locked_by, locked_at }
+TimesheetRegularizationTicket { id, timesheet_entry_id, requested_by, requested_change(json),
+                                  reason, status[pending|approved|rejected], decided_by }
 
 SalaryStructure { id, org_membership_id, effective_from, ctc, components(json) }
 PayrollRun      { id, org_id, period_month, period_year, status, run_at }
 Payslip         { id, payroll_run_id, org_membership_id, gross, deductions,
                    net, generated_pdf_doc_id }
 
+BillingRate       { id, org_id, account_id, requirement_id?, rate_type[hourly|monthly],
+                     rate, currency, effective_from }  // per client/project
 ClientInvoice     { id, org_id, client_account_id, period, amount, currency,
                      status, line_items(json) }
 GroupBillingCharge{ id, org_id, org_group_id, period, amount, currency, kind }
+// One row per (project, day) — the real-time revenue metric the client brief
+// asks for; DailyEmployeeProfitability (below) rolls this up per employee.
+DailyProjectRevenue { id, org_id, account_id, requirement_id?, date,
+                       billable_hours, rate, revenue }
+
+ExpenseClaim   { id, org_id, org_membership_id, location_id, category, amount,
+                  currency, receipt_doc_id, status[pending|approved|rejected|reimbursed] }
+VendorPayment  { id, org_id, vendor_name, vendor_type[contractor|external_resource|third_party],
+                  amount, currency, period, status, invoice_doc_id }
+                 // NOT the recruitment Account(type=vendor) — see module map note.
+
+// Minimal double-entry ledger — enough for P&L/balance sheet + CA audit, not
+// a full accounting-package rebuild.
+LedgerAccount  { id, org_id, name, kind[asset|liability|equity|revenue|expense] }
+LedgerEntry    { id, org_id, ledger_account_id, date, debit, credit, memo, source_ref(json) }
+TaxRecord      { id, org_id, period, jurisdiction, kind, amount, status, filed_at }
+
+// Read-only, scoped guest access for Legal/CA — deliberately not an
+// OrgMembership (they're not employees, don't get a role-in-a-company).
+ExternalAccess { id, org_id, email, scope(json), expires_at, granted_by }
 
 DailyEmployeeProfitability { id, org_membership_id, org_id, date,
                               revenue, cost, margin }   // fact table, see §6
@@ -275,34 +377,73 @@ JWT gains `org_id`; `authorize()` resolves role via `OrgMembership` instead of
 (Delphic) until Acconcy is created. `authorizeGroupSuperadmin` added.
 Recruitment app behaves identically to today for every existing user.
 
-**Phase 2 — directory + calendar + attendance + leave**
+**Phase 2 — directory + calendar + attendance + leave** (shipped 2026-09-15;
+amended same day per the client brief — see the Implementation Plan's Phase
+2 log for the exact diff)
 `Department`/`Designation`, `Calendar`/`CalendarHoliday`/`EmployeeCalendar`
 (extends, doesn't replace, the existing interview/meeting calendar),
 `AttendanceRecord`, `LeaveType`/`LeaveBalance`/`LeaveRequest`. These are the
 modules every later module depends on (payroll needs attendance + leave;
-timesheet needs calendar for working days).
+timesheet needs calendar for working days). **Amendment**: `EmployeeCalendar`
+changed from one-per-employee to one-per-(employee, project) so an employee
+on two concurrent client engagements follows two calendars at once; added
+`Location`, `Shift` (timings + grace period), `OrgMembership.hr_poc_id` /
+`sourcing_poc_id` / `manager_id`; `AttendanceRecord.overtime_minutes`
+computed automatically at check-out against the assigned `Shift`.
 
 **Phase 3 — timesheet + overtime**
 Daily work-log entries linked to existing `Account`/`Requirement` as the
 "project" reference, so recruiters/BDAs logging time against a client
 requirement don't need a new "project" concept invented — reuse what exists.
-Overtime computed off attendance + timesheet.
+**One row per (employee, day, project)**, not one blended entry, so a split
+day (4h Project A + 4h Project B) is two rows. Daily `TimesheetLock` freezes
+a day's entries; a post-lock change requires a
+`TimesheetRegularizationTicket` + approval (separate from the attendance
+regularization already built in Phase 2 — different entities, same
+raise-a-ticket shape).
 
 **Phase 4 — payroll**
 Salary structures, payroll runs, payslips. Depends on attendance + leave +
 overtime being live and trusted (at least one full month of clean data)
 before payroll math is allowed to read them.
 
-**Phase 5 — billing**
-Client billing (extends existing client `Account` — this is closer to
-"finish what's there" than new ground, since accounts/requirements/
-submissions already model the client relationship) + intra-group billing.
+**Phase 5 — billing + real-time project revenue**
+Client billing (extends existing client `Account`) + intra-group billing +
+`BillingRate` (hourly/monthly per client/project) + `DailyProjectRevenue`,
+computed from that day's **approved** `TimesheetEntry` hours × the
+applicable rate — this is the "real-time revenue" metric from the client
+brief, and it's what `DailyEmployeeProfitability` (Phase 6) rolls up per
+employee across projects.
 
 **Phase 6 — profitability + super dashboard**
 The `DailyEmployeeProfitability` fact table, its nightly job, rollup views,
-and the cross-org super-dashboard API/UI, gated to
-`is_group_superadmin`. This is deliberately last: it's the one module that
-depends on every other module already producing real data.
+and the cross-org super-dashboard API/UI, gated to `is_group_superadmin`.
+
+**Phase 7 — expenses + vendor payments**
+`ExpenseClaim` (office expense + reimbursement, scoped by `Location`) and
+`VendorPayment` (contractors / external resources / third-party vendors —
+money going out for services, kept deliberately separate from the
+recruitment domain's `Account(type=vendor)`, which is money/candidates
+coming in from a sourcing vendor).
+
+**Phase 8 — accounting & compliance**
+Minimal double-entry `LedgerAccount`/`LedgerEntry` + `TaxRecord`, enough to
+produce P&L/balance sheet and support a CA audit — not a full accounting
+package rebuild. Feeds from billing, group billing, expenses, and vendor
+payments (Phase 5/7), so it lands after them.
+
+**Phase 9 — external access (Legal/CA guest portal)**
+`ExternalAccess` — scoped, time-boxed, read-only grants for non-employees.
+Deliberately not an `OrgMembership` (no role-in-a-company, no login
+password to manage) — its own auth path, gated to whatever `scope` was
+granted (e.g. "read accounting for Org X, expires in 30 days").
+
+**Phase 10 — org chart + lifecycle visualization**
+Live reporting-line hierarchy from `OrgMembership.manager_id`, per
+subsidiary and combined group; `employment_status` gains
+`pending_onboarding` / `notice_period` states (plus `notice_end_date`) so
+the chart can show new-hire and resignation indicators without a separate
+workflow engine.
 
 **Onboarding Acconcy (or any second `Org`)** is then just: create the `Org`
 row, create `OrgMembership` rows for its employees (existing `User`s get a
@@ -310,7 +451,32 @@ second membership if they're shared with the group; new hires get a fresh
 `User` + membership), configure its calendar/leave policy/salary structures.
 No schema changes required — that's the point of Phase 0–1 landing first.
 
-## 10. What this deliberately does not do yet
+## 11. Client-brief phase names → this doc's internal phase numbers
+
+The client brief's 3 phases are coarser-grained than this doc's phased
+migration plan (each of its phases spans several of the numbered phases
+above, because "additive-only, one dependency chain at a time" — HARD RULE —
+forces payroll/billing/etc. apart even though the client groups them by
+product area). This table is the map, kept current as phases ship (✅) or
+stay planned:
+
+| Client brief | Internal phases | Status |
+|---|---|---|
+| Phase 1.1 Calendar & location mapping | Phase 2 (+ 2026-09-15 amendment) | ✅ shipped |
+| Phase 1.2 HR/Sourcing POC mapping | Phase 2 amendment | ✅ shipped |
+| Phase 1.3 Attendance, shift & overtime | Phase 2 amendment | ✅ shipped (shift + grace + auto-OT); OT *requests/approvals* (vs. auto-calc) still planned |
+| Phase 1.4 Leave & payroll | Phase 2 (leave) shipped; payroll = Phase 4 | leave ✅, payroll planned |
+| Phase 2.1 Project-centric timesheets | Phase 3 | planned |
+| Phase 2.2 Timesheet locking + regularization | Phase 3 | planned |
+| Phase 2.3 Automated daily revenue | Phase 5 (`DailyProjectRevenue`) | planned |
+| Phase 3.1 Super admin dashboard + group analytics | Phase 6 (+ valuation/expense additions) | planned |
+| Phase 3.2 Live org charts | Phase 10 | planned |
+| Phase 3.3 Expense & vendor management | Phase 7 | planned |
+| Phase 3.4 Accounting + external CA/Legal portal | Phase 8 + 9 | planned |
+| Infra: AWS S3 | orthogonal to phases — a storage-adapter swap, see Implementation Plan | planned |
+| Infra: dedicated server + AWS RDS | orthogonal — a `DATABASE_URL`/deploy-target change once service-layer DB access stays centralized (already true) | planned, deliberately last (local-first per the client's own stated dev strategy) |
+
+## 12. What this deliberately does not do yet
 
 - No physical multi-tenancy (schema/DB-per-company) — row-level isolation
   only, per the confirmed decision. Revisit only if a specific company has a
@@ -323,8 +489,22 @@ No schema changes required — that's the point of Phase 0–1 landing first.
 - No mobile app / biometric device integration for attendance — `source`
   enum on `AttendanceRecord` leaves room for it, but web/manual check-in is
   the Phase 2 scope.
+- **No full accounting-package rebuild** — `LedgerAccount`/`LedgerEntry`/
+  `TaxRecord` (Phase 8) is a minimal double-entry ledger sized to produce
+  P&L/balance sheet and support a CA audit, not a Tally/QuickBooks
+  replacement. Revisit only if the CA's actual compliance workflow needs
+  more than that.
+- **No S3/RDS migration until the core ERP module (Phases 2-6) works
+  locally** — explicit client-stated dev strategy. Local disk storage
+  (`UPLOAD_DIR`) and the local Postgres stay as-is until then; the storage
+  and DB access are already abstracted behind one module each
+  (`documents`, `config/db.js`), so swapping either later is a
+  configuration/adapter change, not a rewrite.
+- **No AI/ML valuation modeling** — "company valuation" on the super
+  dashboard (Phase 6) means a number the group finance function inputs or a
+  simple formula over revenue/assets, not a computed market valuation.
 
-## Open items to confirm before Phase 0 starts
+## Open items (original, still unconfirmed)
 
 - Exact list of companies to onboard beyond Delphic (Acconcy confirmed; any
   others, and their target timeline) — affects how much of Phase 1's org
@@ -334,3 +514,31 @@ No schema changes required — that's the point of Phase 0–1 landing first.
   span INR/USD/AED/SAR/EUR/GBP) — affects `SalaryStructure.components` shape.
 - Who holds `is_group_superadmin` day one, and whether it's a brand-new set of
   people or a superset of existing Delphic superadmins.
+
+## Open items (raised by the 2026-09-15 client brief)
+
+- Full list of default locations beyond Ahmedabad/Indore/Gurgaon, and
+  whether each `Org` gets its own location set or they're shared
+  group-wide (currently modeled per-`Org`).
+- Standard grace-period value(s) HR wants as the default (brief says
+  "±15-30 min" — is that one fixed org-wide default, or does it vary by
+  shift/designation?).
+- Whether overtime needs an approval step (a request/approval workflow,
+  matching `OvertimeRecord` in the original sketch) or the automatic
+  calculation alone is the whole feature — affects whether Phase 3 also
+  needs an approval queue or just the auto-calc already shipped.
+- Billing-rate granularity: per client, per project/requirement, or
+  per-employee-per-project (a senior dev and a junior dev on the same
+  project at different rates) — affects `BillingRate`'s shape before
+  Phase 5 is built.
+- What "company valuation" means concretely for the super dashboard tiles —
+  a manually-entered number, a formula, or something else (see §12 — this
+  doc assumes a simple input/formula, not computed modeling).
+- Compliance/jurisdiction scope for the accounting module (Phase 8) — which
+  tax regimes, and whether the CA/Legal `ExternalAccess` grant needs an
+  audit trail of what they viewed (likely yes, for compliance, but not yet
+  designed).
+- AWS account/infra ownership for the eventual S3 + RDS migration, and
+  target timeline — affects nothing about the local build, but the
+  Implementation Plan's "local first" sequencing assumes this is genuinely
+  a later phase, not a parallel workstream.

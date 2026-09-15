@@ -3,7 +3,7 @@ const { authenticate, authorize, requireOrgMembership } = require('../../middlew
 const { ok, created, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./attendance.service');
-const { listQuerySchema, regularizeSchema } = require('./attendance.validation');
+const { listQuerySchema, regularizeSchema, createShiftSchema } = require('./attendance.validation');
 
 const router = express.Router();
 router.use(authenticate, requireOrgMembership);
@@ -54,6 +54,25 @@ router.post(
     const result = await service.regularize(req.user.org_id, req.params.id, req.user.id, body);
     if (result.error === 'not_found') return fail(res, 404, 'Attendance record not found');
     return ok(res, result.record);
+  })
+);
+
+router.get(
+  '/shifts',
+  asyncHandler(async (req, res) => {
+    const rows = await service.listShifts(req.user.org_id);
+    return ok(res, rows);
+  })
+);
+
+router.post(
+  '/shifts',
+  authorize('admin'),
+  asyncHandler(async (req, res) => {
+    const body = createShiftSchema.parse(req.body);
+    const result = await service.createShift(req.user.org_id, body);
+    if (result.error === 'name_taken') return fail(res, 409, 'Shift name already in use');
+    return created(res, result.shift);
   })
 );
 

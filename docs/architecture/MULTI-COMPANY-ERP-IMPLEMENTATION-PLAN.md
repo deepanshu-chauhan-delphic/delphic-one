@@ -2,8 +2,113 @@
 
 Companion to [MULTI-COMPANY-ERP-PLATFORM-HLD.md](MULTI-COMPANY-ERP-PLATFORM-HLD.md) (design).
 This doc is the **execution plan**: branch, database, workstreams, schedule, and
-exit criteria for a working local build. Status: **kickoff — branch + DB created,
-no phase code written yet.**
+exit criteria for a working local build. Status: **Phase 0-2 shipped and
+amended for the 2026-09-15 client brief; Phase 3 (timesheet) next.**
+
+## 2026-09-15 — client brief received, plan updated
+
+A full product brief landed (HLD doc's new "Product brief" section, top of
+file) — 3 client-facing phases (Core ERP/HRMS → project timesheets/revenue →
+financials/analytics/multi-company), each broader than this doc's original
+phase-by-phase build order. The HLD's §11 has the exact mapping table; the
+short version:
+
+- **Nothing already shipped had to be thrown away** — the client's Phase 1
+  is what Phase 0-2 already built, plus 4 concrete gaps (below).
+- **The internal phase list grew**: Phase 5 now includes real-time daily
+  project revenue (not just invoicing); three new phases were added —
+  **Phase 7** (expenses + vendor payments), **Phase 8** (accounting
+  ledger/tax), **Phase 9** (external Legal/CA access), **Phase 10** (org
+  chart + lifecycle visualization) — none of which existed in the original
+  design at all.
+- **Phase 2 got amended same-day** (below) rather than deferring the 4 gaps
+  to a later phase, because they change the *shape* of already-shipped
+  tables (`EmployeeCalendar`'s cardinality, in particular) — better to fix
+  that now while only two orgs' worth of demo data exists than after
+  Phase 3-6 have built on top of the old shape.
+- **Infra (S3, dedicated server + RDS) stays explicitly last**, per the
+  client's own stated dev strategy ("begin implementation locally... before
+  executing cloud migration") — this doc's existing local-DB-first approach
+  already matches that; no change needed there, just confirmation.
+
+## Revised workstream table (supersedes the one below where it conflicts)
+
+| Stream | Owns | Depends on |
+|---|---|---|
+| A — Platform | Phase 0, 1 | — |
+| B — Directory/Calendar/Attendance/Leave | Phase 2 (+ amendment) | A |
+| C — Timesheet/Locking/Regularization | Phase 3 | B |
+| D — Payroll | Phase 4 | B, C |
+| E — Billing + daily revenue | Phase 5 | C, existing Account/Requirement |
+| F — Profitability + Super Dashboard | Phase 6 | D, E |
+| H — Expenses + Vendor Payments | Phase 7 | A (Location) |
+| I — Accounting + tax | Phase 8 | E, H |
+| J — External access (Legal/CA) | Phase 9 | I |
+| K — Org chart + lifecycle | Phase 10 | A (manager_id, employment_status) |
+| G — Frontend | every phase's UI | contract-first per stream |
+
+H/I/J/K are new relative to the original plan and are **not started** —
+schema-sketched in the HLD, not built. They sit later in the dependency
+graph than anything currently in flight, so they don't change what Phase 3
+does next.
+
+## 2026-09-15 — Phase 2 amended for the client brief (4 gaps closed)
+
+Migration `20260915120000_phase2_amend_location_shift_poc_multiproject_calendar`
+— additive only (one `DROP INDEX`, relaxing a uniqueness rule with zero data
+loss; everything else is `ADD COLUMN`/`CREATE TABLE`). Applied to
+`requirement_dashboard_erp` and the shared test DB.
+
+- **`Location`** (new model, org-scoped): default (Ahmedabad/Indore/Gurgaon)
+  + custom locations. `Calendar.location_id` (nullable — a client-specific
+  calendar isn't tied to a physical office) and `OrgMembership.location_id`.
+  New endpoints `GET/POST /orgs/locations` (admin creates).
+- **HR POC / sourcing POC / manager**: `OrgMembership` gains `hr_poc_id` /
+  `sourcing_poc_id` (both → `User`, since an HR/sourcing contact may not
+  share this org) and a self-referencing `manager_id` (→ `OrgMembership`,
+  for the not-yet-built org chart, Phase 10). New `PATCH
+  /orgs/memberships/:id` (admin) sets any of these — validated so a
+  membership can't manage itself, and a manager must be a membership in the
+  same org.
+- **`Shift`** (new model, org-scoped): `start_minutes`/`end_minutes`
+  (minutes-from-midnight, so an overnight shift works) + `grace_minutes`
+  (default 15). `OrgMembership.shift_id`. New `GET/POST /attendance/shifts`.
+  **Automatic overtime**: `AttendanceRecord.overtime_minutes`, computed in
+  `attendance.service.checkOut()` as `max(0, worked_minutes - (shift
+  duration + grace))`, `null` when no shift is assigned. This is the
+  auto-*calculation* the brief asks for — an approval workflow on top of it
+  (matching the original HLD sketch's `OvertimeRecord`) is a separate,
+  still-open question (HLD "Open items").
+- **Multi-project calendar mapping** (the change with the most blast
+  radius): `EmployeeCalendar` was a strict one-per-membership
+  (`org_membership_id @unique`) in the original Phase 2 build; the client
+  brief requires an employee on more than one concurrent client engagement
+  to follow more than one calendar at once. Dropped that unique constraint,
+  added `account_id` (nullable — `null` = the employee's default/base
+  calendar), new compound unique `(org_membership_id, calendar_id,
+  account_id)`. `calendars.service.assign()` now takes an optional
+  `account_id` and does a find-then-upsert per `(membership, project)`
+  rather than a single `upsert` on the old unique key (Postgres unique
+  constraints don't dedupe `NULL` against `NULL`, so the service layer
+  enforces "one mapping per project" itself — documented as a known gap in
+  the schema comment, same pattern as `Department`'s name-uniqueness gap).
+  New `GET /calendars/assignments/:orgMembershipId`.
+- **Tests**: `server/tests/erp-phase2-amendment.test.js` (10 cases —
+  location CRUD + admin gate, POC/manager mapping + self-manager rejection
+  + cross-org manager rejection, shift CRUD + overtime math including the
+  overnight-safe duration calc and the "within grace, no OT" case,
+  multi-project assignment + listing + reassignment-replaces-not-duplicates).
+  Full suite **44 suites / 338 tests green**; eslint clean (same
+  pre-existing warnings only).
+- Local: seeded Ahmedabad/Indore/Gurgaon + a "General 9-6" shift into
+  `requirement_dashboard_erp`, assigned the shift to all 13 memberships.
+- **Not built this pass** (see HLD §11 for the full remaining map):
+  everything in Phase 3 onward (timesheet locking/regularization tickets,
+  billing/daily revenue, payroll, profitability/super-dashboard) and all
+  four brand-new phases (7 expenses/vendor, 8 accounting, 9 external
+  access, 10 org chart) — schema-sketched in the HLD, zero code. Also not
+  built: an overtime *approval* workflow (only the auto-calc), and any
+  frontend for locations/shifts/POC-mapping/multi-project calendars.
 
 ## Branch & database (do this once, per machine)
 

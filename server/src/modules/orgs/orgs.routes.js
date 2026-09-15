@@ -1,8 +1,9 @@
 const express = require('express');
-const { authenticate, authorizeGroupSuperadmin } = require('../../middleware/auth');
-const { ok } = require('../../utils/response');
+const { authenticate, authorize, authorizeGroupSuperadmin, requireOrgMembership } = require('../../middleware/auth');
+const { ok, created, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./orgs.service');
+const { createLocationSchema, updateMembershipSchema } = require('./orgs.validation');
 
 const router = express.Router();
 router.use(authenticate);
@@ -21,6 +22,41 @@ router.get(
   asyncHandler(async (req, res) => {
     const rows = await service.listOrgs();
     return ok(res, rows);
+  })
+);
+
+router.get(
+  '/locations',
+  requireOrgMembership,
+  asyncHandler(async (req, res) => {
+    const rows = await service.listLocations(req.user.org_id);
+    return ok(res, rows);
+  })
+);
+
+router.post(
+  '/locations',
+  requireOrgMembership,
+  authorize('admin'),
+  asyncHandler(async (req, res) => {
+    const body = createLocationSchema.parse(req.body);
+    const result = await service.createLocation(req.user.org_id, body);
+    if (result.error === 'name_taken') return fail(res, 409, 'Location name already in use');
+    return created(res, result.location);
+  })
+);
+
+router.patch(
+  '/memberships/:id',
+  requireOrgMembership,
+  authorize('admin'),
+  asyncHandler(async (req, res) => {
+    const body = updateMembershipSchema.parse(req.body);
+    const result = await service.updateMembership(req.user.org_id, req.params.id, body);
+    if (result.error === 'not_found') return fail(res, 404, 'Org membership not found');
+    if (result.error === 'manager_not_found') return fail(res, 404, 'Manager membership not found in this org');
+    if (result.error === 'self_manager') return fail(res, 422, 'A membership cannot be its own manager');
+    return ok(res, result.membership);
   })
 );
 

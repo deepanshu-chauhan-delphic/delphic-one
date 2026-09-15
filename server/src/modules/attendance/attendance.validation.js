@@ -16,4 +16,11 @@ const regularizeSchema = z.object({
   reason: z.string().min(1).max(500),
 });
 
-module.exports = { listQuerySchema, regularizeSchema };
+const createShiftSchema = z.object({
+  name: z.string().min(1).max(100),
+  start_minutes: z.coerce.number().int().min(0).max(1439),
+  end_minutes: z.coerce.number().int().min(0).max(1439),
+  grace_minutes: z.coerce.number().int().min(0).max(120).default(15),
+});
+
+module.exports = { listQuerySchema, regularizeSchema, createShiftSchema };

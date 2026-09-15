@@ -38,10 +38,25 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       request/approve/cancel, holiday calendars). New `requireOrgMembership`
       middleware. 10 new tests, full suite 43/328 green. See PROGRESS.md /
       plan doc log for detail.
+- [x] Phase 2 amendment (2026-09-15 client brief) — `Location` +
+      `GET/POST /orgs/locations`; HR/sourcing POC + `manager_id` +
+      `PATCH /orgs/memberships/:id`; `Shift` + `GET/POST /attendance/shifts`
+      + automatic overtime on check-out; `EmployeeCalendar` changed from
+      one-per-employee to one-per-(employee, project) +
+      `GET /calendars/assignments/:id`. 10 new tests, full suite 44/338
+      green. See PROGRESS.md / plan doc log for detail.
 - [ ] Phase 2 (remaining) — Department/Designation CRUD API (schema exists,
       no endpoints yet); frontend (attendance widget, leave request form,
-      calendar admin screen); leave accrual (balances only move on approval
-      today, nothing seeds `accrued`).
+      calendar admin screen, location/shift/POC admin screens); leave
+      accrual (balances only move on approval today, nothing seeds
+      `accrued`); overtime *approval* workflow (only the auto-calc exists).
+- [ ] **New scope from the 2026-09-15 client brief, not started**: Phase 3
+      timesheet locking + regularization tickets; Phase 5 real-time daily
+      project revenue (`BillingRate`/`DailyProjectRevenue`); Phase 7
+      expenses + vendor payments; Phase 8 accounting ledger/tax; Phase 9
+      external Legal/CA access; Phase 10 org chart + lifecycle
+      visualization. All schema-sketched in the HLD (§4, §11), zero code —
+      see the HLD's phase-mapping table for what maps to what.
 - [ ] Phase 3 — Timesheet/Overtime.
 - [ ] Phase 4 — Payroll (synchronous local run, seeded synthetic history).
 - [ ] Phase 5 — Billing (client + intra-group).

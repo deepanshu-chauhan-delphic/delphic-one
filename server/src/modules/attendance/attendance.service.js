@@ -19,6 +19,23 @@ async function checkIn(orgId, orgMembershipId) {
   return { record };
 }
 
+// A shift's expected duration in minutes, handling an overnight shift
+// (end_minutes < start_minutes, e.g. a 22:00-06:00 shift).
+function shiftDurationMinutes(shift) {
+  const raw = shift.end_minutes - shift.start_minutes;
+  return raw >= 0 ? raw : raw + 24 * 60;
+}
+
+// Overtime = minutes worked beyond (shift duration + grace period). Null
+// when no Shift is assigned — there's no "standard shift duration" to be
+// over, per the client brief's overtime requirement.
+function computeOvertimeMinutes(shift, checkInAt, checkOutAt) {
+  if (!shift) return null;
+  const workedMinutes = Math.round((checkOutAt - checkInAt) / 60000);
+  const allowed = shiftDurationMinutes(shift) + shift.grace_minutes;
+  return Math.max(0, workedMinutes - allowed);
+}
+
 async function checkOut(orgMembershipId) {
   const date = todayIst();
   const existing = await prisma.attendanceRecord.findUnique({
@@ -27,9 +44,16 @@ async function checkOut(orgMembershipId) {
   if (!existing || !existing.check_in_at) return { error: 'not_checked_in' };
   if (existing.check_out_at) return { error: 'already_checked_out', record: existing };
 
+  const membership = await prisma.orgMembership.findUnique({
+    where: { id: orgMembershipId },
+    select: { shift: true },
+  });
+  const check_out_at = new Date();
+  const overtime_minutes = computeOvertimeMinutes(membership?.shift, existing.check_in_at, check_out_at);
+
   const record = await prisma.attendanceRecord.update({
     where: { id: existing.id },
-    data: { check_out_at: new Date() },
+    data: { check_out_at, overtime_minutes },
   });
   return { record };
 }
@@ -95,4 +119,16 @@ async function regularize(orgId, recordId, adminUserId, { status, check_in_at, c
   return { record };
 }
 
-module.exports = { checkIn, checkOut, listMine, listTeam, regularize };
+// Client brief: configurable shift timings + grace period per employee.
+async function listShifts(orgId) {
+  return prisma.shift.findMany({ where: { org_id: orgId }, orderBy: { name: 'asc' } });
+}
+
+async function createShift(orgId, { name, start_minutes, end_minutes, grace_minutes }) {
+  const existing = await prisma.shift.findUnique({ where: { org_id_name: { org_id: orgId, name } } });
+  if (existing) return { error: 'name_taken' };
+  const shift = await prisma.shift.create({ data: { org_id: orgId, name, start_minutes, end_minutes, grace_minutes } });
+  return { shift };
+}
+
+module.exports = { checkIn, checkOut, listMine, listTeam, regularize, listShifts, createShift };
