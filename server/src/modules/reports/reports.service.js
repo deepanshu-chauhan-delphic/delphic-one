@@ -1547,32 +1547,50 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
     }
   }
 
-  // 3. profiles submitted to client — bench submissions put forward by a
-  // sales/admin user (profile.source = 'direct' && on_bench; recruiter-created
-  // submissions don't belong on a sales report even when the candidate happens
-  // to be on the bench) that actually reached the submitted_to_client stage.
-  // Counted/dated by that stage transition, not by when the put-forward was
-  // created, so a candidate still sitting in internal_screening doesn't count.
-  const putForwardCandidates = await prisma.submission.findMany({
+  // 3. profiles submitted to client — every submission (any source, any
+  // creator) that reaches the submitted_to_client stage on a requirement this
+  // sales person owns. Attributed by requirement.sales_owner_id, same as
+  // "Requirements created" above — NOT by who clicked submit, since in
+  // practice almost every submission is put forward by a recruiter on a
+  // requirement the sales person owns, not by the sales person themselves.
+  // (An earlier version filtered to submitted_by = sales/admin + bench
+  // candidates only, which matched the sales "put forward" UI flow but missed
+  // the vast majority of real submitted-to-client candidates — audited
+  // 2026-09-16 against prod: 15 submissions reached submitted_to_client for
+  // one sales owner in a day, only 2 of which she'd personally submitted.)
+  // Counted/dated by the stage transition itself, not by submission creation,
+  // so a candidate still sitting in internal_screening doesn't count.
+  const candidateSubmissions = await prisma.submission.findMany({
     where: {
-      ...(sales_id ? { submitted_by: sales_id } : {}),
-      submitted_by_user: { role: { in: ['sales', 'admin'] } },
-      profile: { source: 'direct', on_bench: true },
-      ...(client_id ? { seat: { requirement: { account_id: client_id } } } : {}),
+      seat: {
+        requirement: {
+          ...(sales_id ? { sales_owner_id: sales_id } : {}),
+          ...(client_id ? { account_id: client_id } : {}),
+        },
+      },
     },
     select: {
       id: true,
-      submitted_by: true,
-      submitted_by_user: { select: { id: true, name: true } },
       profile: { select: { name: true } },
-      seat: { select: { requirement: { select: { title: true, account: { select: { id: true, name: true } } } } } },
+      seat: {
+        select: {
+          requirement: {
+            select: {
+              title: true,
+              sales_owner_id: true,
+              sales_owner: { select: { id: true, name: true } },
+              account: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
     },
   });
-  const submittedToClientHistory = putForwardCandidates.length
+  const submittedToClientHistory = candidateSubmissions.length
     ? await prisma.stageHistory.findMany({
         where: {
           entity_type: 'submission',
-          entity_id: { in: putForwardCandidates.map((s) => s.id) },
+          entity_id: { in: candidateSubmissions.map((s) => s.id) },
           to_stage: 'submitted_to_client',
           ...(range ? { changed_at: range } : {}),
         },
@@ -1584,15 +1602,17 @@ async function salesReports({ date_from, date_to, sales_id, client_id }) {
     if (!submittedAtBySubmission.has(h.entity_id)) submittedAtBySubmission.set(h.entity_id, h.changed_at);
   }
   const profilesSubmittedToClient = new Map();
-  for (const s of putForwardCandidates) {
+  for (const s of candidateSubmissions) {
     const submittedAt = submittedAtBySubmission.get(s.id);
     if (!submittedAt) continue;
+    const salesOwner = s.seat?.requirement?.sales_owner;
+    if (!salesOwner) continue; // requirement has no sales owner assigned — nothing to attribute
     const day = dayKey(submittedAt);
-    const key = `${s.submitted_by}|${day}`;
+    const key = `${salesOwner.id}|${day}`;
     if (!profilesSubmittedToClient.has(key)) {
       profilesSubmittedToClient.set(key, {
-        sales_poc: s.submitted_by_user?.name || 'Unknown',
-        sales_poc_id: s.submitted_by,
+        sales_poc: salesOwner.name || 'Unknown',
+        sales_poc_id: salesOwner.id,
         date: day,
         count: 0,
         profiles: {},
