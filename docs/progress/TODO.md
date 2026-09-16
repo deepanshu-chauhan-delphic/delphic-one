@@ -64,13 +64,14 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       screens); leave accrual (balances only move on approval today,
       nothing seeds `accrued`); overtime *approval* workflow (only the
       auto-calc exists).
-- [ ] **New scope from the 2026-09-15 client brief, not started**: Phase 3
-      timesheet locking + regularization tickets; Phase 5 real-time daily
-      project revenue (`BillingRate`/`DailyProjectRevenue`); Phase 7
-      expenses + vendor payments; Phase 8 accounting ledger/tax; Phase 9
-      external Legal/CA access; Phase 10 org chart + lifecycle
-      visualization. All schema-sketched in the HLD (§4, §11), zero code —
-      see the HLD's phase-mapping table for what maps to what.
+- [ ] **New scope from the 2026-09-15 client brief, still not started**:
+      Phase 5 real-time daily project revenue
+      (`BillingRate`/`DailyProjectRevenue`); Phase 7 expenses + vendor
+      payments; Phase 8 accounting ledger/tax; Phase 9 external Legal/CA
+      access; Phase 10 org chart + lifecycle visualization. All
+      schema-sketched in the HLD (§4, §11), zero code — see the HLD's
+      phase-mapping table for what maps to what. (Phase 3 timesheet
+      locking + regularization tickets — shipped, see below.)
 - [x] Phase 3 — project-centric `TimesheetEntry` (one per employee/day/
       project), org-wide daily `TimesheetLock`,
       `TimesheetRegularizationTicket` (post-lock changes only). New

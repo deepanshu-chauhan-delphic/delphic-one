@@ -2,8 +2,34 @@
 
 Companion to [MULTI-COMPANY-ERP-PLATFORM-HLD.md](MULTI-COMPANY-ERP-PLATFORM-HLD.md) (design).
 This doc is the **execution plan**: branch, database, workstreams, schedule, and
-exit criteria for a working local build. Status: **Phase 0-2 shipped and
-amended for the 2026-09-15 client brief; Phase 3 (timesheet) next.**
+exit criteria for a working local build. Status: **Phase 0-3 shipped; Phase 4
+(Payroll) next.** See "Current status" right below for a one-screen summary
+— the rest of this doc is a chronological log, newest work at the bottom of
+each dated section but sections themselves added newest-last, so scan the
+tail of the file for the latest entry.
+
+## Current status (updated 2026-09-16)
+
+| Phase | What | Status |
+|---|---|---|
+| 0 | Tenancy scaffold (`OrgGroup`/`Org`/`OrgMembership`, nullable `org_id` backfill) | ✅ shipped — `org_id` → `NOT NULL` deliberately still open |
+| 1 | JWT org context, org switcher backend, group superadmin, write-side `org_id` auto-injection | ✅ shipped — switcher **frontend** not built |
+| 2 | Directory/calendar/attendance/leave + client-brief amendment (Location, Shift, HR/Sourcing POC, multi-project calendars, auto-overtime) | ✅ shipped — Department/Designation admin frontend, leave accrual, overtime *approval* workflow not built |
+| 3 | Project-centric timesheets, daily lock, regularization tickets | ✅ shipped — frontend not built; overtime not yet reconciled against timesheet hours |
+| 4 | Payroll | ⬜ not started — next up |
+| 5 | Billing + `DailyProjectRevenue` | ⬜ not started |
+| 6 | Profitability fact table + super dashboard | ⬜ not started |
+| 7 | Expenses + vendor payments | ⬜ not started (new scope, HLD-sketched only) |
+| 8 | Accounting ledger + tax | ⬜ not started (new scope, HLD-sketched only) |
+| 9 | External Legal/CA access | ⬜ not started (new scope, HLD-sketched only) |
+| 10 | Org chart + lifecycle visualization | ⬜ not started (new scope, HLD-sketched only) |
+
+Backend-verified end to end at each phase: **46 suites / 360 tests green**,
+eslint clean, on branch `feature/multi-company-erp` (isolated local DB
+`requirement_dashboard_erp`, never merged/pushed to `main`/`staging`/`dev`
+by an agent). No frontend has been built for any ERP phase yet — every
+phase so far is backend + tests only, by deliberate scoping (see each
+phase's "not built" notes below for why).
 
 ## 2026-09-15 — client brief received, plan updated
 

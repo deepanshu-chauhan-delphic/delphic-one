@@ -1,8 +1,10 @@
 # Multi-Company Group ERP Platform ("Delphic One") — HLD
 
-Status: **Phase 0-2 built, in progress** (see the companion
-[Implementation Plan](MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md) for what's
-actually shipped vs. planned). Target: evolve this repo from a single-tenant
+Status: **Phase 0-3 built, in progress** (tenancy/auth, directory/calendar/
+attendance/leave + the 2026-09-15 client-brief amendment, project-centric
+timesheets/locking/regularization — see §11 for the full phase-by-phase
+status table, and the companion [Implementation Plan](MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md)
+for exactly what's shipped vs. planned). Target: evolve this repo from a single-tenant
 Delphic recruitment dashboard into a centralized, multi-tenant portal
 replacing third-party tools (Zoho, Razorpay, etc.) for internal operations —
 HR/HRMS, attendance, timesheets, calendars, leaves, overtime, payroll,
@@ -363,15 +365,18 @@ grows across companies.
 no `DROP` ships with feature code, every phase is an expand, contraction is
 always its own later PR)
 
-**Phase 0 — tenancy scaffold, invisible to users**
+**Phase 0 — tenancy scaffold, invisible to users** (shipped 2026-09-15)
 Add `OrgGroup`, `Org`, `OrgMembership`. Backfill: create one `Org` row
 ("Delphic"), one `OrgGroup` row, and one `OrgMembership` per existing `User`
 pointing at it. Every existing table (`Account`, `Requirement`, `Submission`,
 etc.) gets a nullable `org_id` column, backfilled to Delphic's `org_id`, then
 (next migration, per HARD RULE) made `NOT NULL`. App behavior unchanged —
-this phase is pure plumbing.
+this phase is pure plumbing. **The `NOT NULL` flip is still outstanding**
+(see the Implementation Plan's "pre-Phase-3 hardening" log for why it's a
+deliberate, larger deferral rather than a forgotten step).
 
-**Phase 1 — org switcher + group superadmin**
+**Phase 1 — org switcher + group superadmin** (shipped 2026-09-15; write-side
+`org_id` auto-injection added 2026-09-16, see the plan doc)
 JWT gains `org_id`; `authorize()` resolves role via `OrgMembership` instead of
 `User.role`; org switcher UI ships but there's still only one selectable org
 (Delphic) until Acconcy is created. `authorizeGroupSuperadmin` added.
@@ -391,7 +396,9 @@ on two concurrent client engagements follows two calendars at once; added
 `sourcing_poc_id` / `manager_id`; `AttendanceRecord.overtime_minutes`
 computed automatically at check-out against the assigned `Shift`.
 
-**Phase 3 — timesheet + overtime**
+**Phase 3 — timesheet + overtime** (shipped 2026-09-16 — the timesheet half;
+overtime *auto-calculation* shipped in the Phase 2 amendment, an overtime
+*approval* workflow is still open, see §11)
 Daily work-log entries linked to existing `Account`/`Requirement` as the
 "project" reference, so recruiters/BDAs logging time against a client
 requirement don't need a new "project" concept invented — reuse what exists.
@@ -466,8 +473,8 @@ stay planned:
 | Phase 1.2 HR/Sourcing POC mapping | Phase 2 amendment | ✅ shipped |
 | Phase 1.3 Attendance, shift & overtime | Phase 2 amendment | ✅ shipped (shift + grace + auto-OT); OT *requests/approvals* (vs. auto-calc) still planned |
 | Phase 1.4 Leave & payroll | Phase 2 (leave) shipped; payroll = Phase 4 | leave ✅, payroll planned |
-| Phase 2.1 Project-centric timesheets | Phase 3 | planned |
-| Phase 2.2 Timesheet locking + regularization | Phase 3 | planned |
+| Phase 2.1 Project-centric timesheets | Phase 3 | ✅ shipped |
+| Phase 2.2 Timesheet locking + regularization | Phase 3 | ✅ shipped |
 | Phase 2.3 Automated daily revenue | Phase 5 (`DailyProjectRevenue`) | planned |
 | Phase 3.1 Super admin dashboard + group analytics | Phase 6 (+ valuation/expense additions) | planned |
 | Phase 3.2 Live org charts | Phase 10 | planned |
