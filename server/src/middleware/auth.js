@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const env = require('../config/env');
 const prisma = require('../config/db');
 const orgContext = require('../lib/orgContext');
@@ -123,6 +124,48 @@ function requireOrgMembership(req, res, next) {
   return next();
 }
 
+// Multi-company ERP (Phase 9): a deliberately separate auth path for
+// ExternalAccess guests (Legal/CA) — they're not a User, have no password,
+// and never get req.user / org context set here. The bearer token is an
+// opaque secret (not a JWT); only its SHA-256 hash is ever stored, so this
+// looks it up the same way a password would, not verifies a signature.
+async function authenticateExternal(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return fail(res, 401, 'Missing access token');
+
+    const token_hash = crypto.createHash('sha256').update(token).digest('hex');
+    const grant = await prisma.externalAccess.findUnique({ where: { token_hash } });
+    if (!grant || grant.revoked_at || grant.expires_at < new Date()) {
+      return fail(res, 401, 'Invalid or expired access token');
+    }
+
+    req.externalAccess = grant;
+    prisma.externalAccess
+      .update({ where: { id: grant.id }, data: { last_used_at: new Date(), use_count: { increment: 1 } } })
+      .catch(() => {});
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
+
+// scope is { resources: string[] } — an allow-list of module names this
+// grant may read (e.g. 'accounting'). No wildcard support yet: every grant
+// names its resources explicitly, matching the "scoped" half of HLD §9's
+// "scoped, time-boxed, read-only" description.
+function requireExternalScope(resource) {
+  return (req, res, next) => {
+    if (!req.externalAccess) return fail(res, 401, 'Not authenticated');
+    const resources = req.externalAccess.scope?.resources;
+    if (!Array.isArray(resources) || !resources.includes(resource)) {
+      return fail(res, 403, 'This access grant does not cover that resource');
+    }
+    return next();
+  };
+}
+
 module.exports = {
   authenticate,
   authorize,
@@ -130,4 +173,6 @@ module.exports = {
   loadSuperadminFlag,
   authorizeGroupSuperadmin,
   requireOrgMembership,
+  authenticateExternal,
+  requireExternalScope,
 };

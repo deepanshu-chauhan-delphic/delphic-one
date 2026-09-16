@@ -290,7 +290,7 @@ dedicated `withoutOrgScope()` escape hatch, used only by the
 `super-dashboard` and `profitability` modules), never a default.
 
 ## 6. Profitability pipeline (the "daily/weekly/monthly/quarterly margin per
-employee" requirement)
+employee" requirement) — shipped 2026-09-16, backend only
 
 This is the part that breaks if it's built naively — computing margin per
 employee per company by joining live attendance + timesheet + billing +
@@ -301,9 +301,10 @@ grows across companies.
   write-optimized, as above.
 - A **nightly batch job** (extendable to near-real-time via a queue later)
   computes `DailyEmployeeProfitability` per `(org_membership_id, date)`:
-  `revenue` = that day's billable timesheet hours × client rate (or an
-  allocated share of the period's invoice), `cost` = salary/CTC prorated to
-  the day + overhead allocation, `margin = revenue - cost`.
+  `revenue` = that day's `DailyProjectRevenue` (Phase 5) allocated pro-rata
+  by hours across everyone who logged approved+billable time on it, `cost`
+  = salary/CTC prorated to the day (**overhead allocation not built yet —
+  cost is salary only**), `margin = revenue - cost`.
 - **Weekly / monthly / quarterly numbers are never recomputed from scratch on
   read** — they're `SUM()`s over the daily fact table, which is cheap because
   the fact table is narrow, indexed on `(org_id, date)`, and orders of
@@ -312,12 +313,13 @@ grows across companies.
   refreshed by the nightly job) for the rollups; only reach for a separate
   analytics warehouse (ClickHouse, etc.) if/when row counts make Postgres
   aggregation too slow for the dashboard's latency budget — don't build that
-  upfront.
-- Implementation: a `node-cron` (or BullMQ repeatable job, see §8) job in the
-  `profitability` module, same shape as the existing
-  `jobs/interviewReminders.js` cron already in this repo.
+  upfront. **Shipped as a live `SUM()` query, not a materialized view** —
+  the fact table is still small; revisit once it isn't.
+- Implementation: a `node-cron` job in the `profitability` module, same
+  shape as the existing `jobs/interviewReminders.js` cron already in this
+  repo. **Shipped** as `jobs/profitabilityCompute.js`.
 
-## 7. Super dashboard
+## 7. Super dashboard — shipped 2026-09-16, backend only
 
 - A single cross-org read API (`GET /super-dashboard/...`), `org_id`-agnostic
   by design, gated by `authorizeGroupSuperadmin` only.
@@ -409,48 +411,62 @@ a day's entries; a post-lock change requires a
 regularization already built in Phase 2 — different entities, same
 raise-a-ticket shape).
 
-**Phase 4 — payroll**
+**Phase 4 — payroll** (shipped 2026-09-16, backend only)
 Salary structures, payroll runs, payslips. Depends on attendance + leave +
 overtime being live and trusted (at least one full month of clean data)
-before payroll math is allowed to read them.
+before payroll math is allowed to read them. Overtime pay itself is
+deliberately excluded from the computation (tracked, not paid) since no
+overtime-pay policy exists yet — see the Implementation Plan's Phase 4 log
+for the exact formula.
 
-**Phase 5 — billing + real-time project revenue**
+**Phase 5 — billing + real-time project revenue** (shipped 2026-09-16, backend only)
 Client billing (extends existing client `Account`) + intra-group billing +
 `BillingRate` (hourly/monthly per client/project) + `DailyProjectRevenue`,
-computed from that day's **approved** `TimesheetEntry` hours × the
-applicable rate — this is the "real-time revenue" metric from the client
-brief, and it's what `DailyEmployeeProfitability` (Phase 6) rolls up per
-employee across projects.
+computed from that day's **approved and billable** `TimesheetEntry` hours ×
+the applicable rate — this is the "real-time revenue" metric from the
+client brief, and it's what `DailyEmployeeProfitability` (Phase 6) rolls up
+per employee across projects. Computation is an admin-triggered call today,
+not yet a scheduled job — see the Implementation Plan's Phase 5 log.
 
-**Phase 6 — profitability + super dashboard**
+**Phase 6 — profitability + super dashboard** (shipped 2026-09-16, backend only)
 The `DailyEmployeeProfitability` fact table, its nightly job, rollup views,
 and the cross-org super-dashboard API/UI, gated to `is_group_superadmin`.
+UI not built yet — see the Implementation Plan's Phase 6 log.
 
-**Phase 7 — expenses + vendor payments**
+**Phase 7 — expenses + vendor payments** (shipped 2026-09-16, backend only)
 `ExpenseClaim` (office expense + reimbursement, scoped by `Location`) and
 `VendorPayment` (contractors / external resources / third-party vendors —
 money going out for services, kept deliberately separate from the
 recruitment domain's `Account(type=vendor)`, which is money/candidates
 coming in from a sourcing vendor).
 
-**Phase 8 — accounting & compliance**
+**Phase 8 — accounting & compliance** (shipped 2026-09-16, backend only)
 Minimal double-entry `LedgerAccount`/`LedgerEntry` + `TaxRecord`, enough to
 produce P&L/balance sheet and support a CA audit — not a full accounting
-package rebuild. Feeds from billing, group billing, expenses, and vendor
-payments (Phase 5/7), so it lands after them.
+package rebuild. Journal-entry posting is manual/API-driven today, not yet
+auto-generated from billing/group-billing/expense/vendor-payment events —
+that wiring is the natural next step once a frontend calls for it.
 
-**Phase 9 — external access (Legal/CA guest portal)**
+**Phase 9 — external access (Legal/CA guest portal)** (shipped 2026-09-16,
+backend only)
 `ExternalAccess` — scoped, time-boxed, read-only grants for non-employees.
 Deliberately not an `OrgMembership` (no role-in-a-company, no login
-password to manage) — its own auth path, gated to whatever `scope` was
-granted (e.g. "read accounting for Org X, expires in 30 days").
+password to manage) — its own bearer-token auth path
+(`authenticateExternal`/`requireExternalScope`), gated to whatever
+`scope.resources` was granted. The guest portal itself reads the
+accounting module's reports (the doc's own "read accounting for Org X,
+expires in 30 days" example, built literally); extend the resource enum as
+more modules grow a guest-facing view.
 
-**Phase 10 — org chart + lifecycle visualization**
+**Phase 10 — org chart + lifecycle visualization** (shipped 2026-09-16,
+backend only)
 Live reporting-line hierarchy from `OrgMembership.manager_id`, per
 subsidiary and combined group; `employment_status` gains
 `pending_onboarding` / `notice_period` states (plus `notice_end_date`) so
 the chart can show new-hire and resignation indicators without a separate
-workflow engine.
+workflow engine. Both landed in the 2026-09-15 Phase 2 amendment already,
+so this phase needed no schema change — only the `orgChart` module that
+reads them.
 
 **Onboarding Acconcy (or any second `Org`)** is then just: create the `Org`
 row, create `OrgMembership` rows for its employees (existing `User`s get a
@@ -472,14 +488,14 @@ stay planned:
 | Phase 1.1 Calendar & location mapping | Phase 2 (+ 2026-09-15 amendment) | ✅ shipped |
 | Phase 1.2 HR/Sourcing POC mapping | Phase 2 amendment | ✅ shipped |
 | Phase 1.3 Attendance, shift & overtime | Phase 2 amendment | ✅ shipped (shift + grace + auto-OT); OT *requests/approvals* (vs. auto-calc) still planned |
-| Phase 1.4 Leave & payroll | Phase 2 (leave) shipped; payroll = Phase 4 | leave ✅, payroll planned |
+| Phase 1.4 Leave & payroll | Phase 2 (leave) shipped; payroll = Phase 4 | leave ✅, payroll ✅ shipped (backend) — frontend + correction workflow + payslip PDF still planned |
 | Phase 2.1 Project-centric timesheets | Phase 3 | ✅ shipped |
 | Phase 2.2 Timesheet locking + regularization | Phase 3 | ✅ shipped |
-| Phase 2.3 Automated daily revenue | Phase 5 (`DailyProjectRevenue`) | planned |
-| Phase 3.1 Super admin dashboard + group analytics | Phase 6 (+ valuation/expense additions) | planned |
-| Phase 3.2 Live org charts | Phase 10 | planned |
-| Phase 3.3 Expense & vendor management | Phase 7 | planned |
-| Phase 3.4 Accounting + external CA/Legal portal | Phase 8 + 9 | planned |
+| Phase 2.3 Automated daily revenue | Phase 5 (`DailyProjectRevenue`) | ✅ shipped (backend) — computed on an admin-triggered call, not yet scheduled |
+| Phase 3.1 Super admin dashboard + group analytics | Phase 6 (+ valuation/expense additions) | ✅ shipped (backend) — valuation/expense rollups depend on Phase 7/8, still planned |
+| Phase 3.2 Live org charts | Phase 10 | ✅ shipped (backend) — chart visualization (frontend) still planned |
+| Phase 3.3 Expense & vendor management | Phase 7 | ✅ shipped (backend) |
+| Phase 3.4 Accounting + external CA/Legal portal | Phase 8 + 9 | ✅ shipped (backend) |
 | Infra: AWS S3 | orthogonal to phases — a storage-adapter swap, see Implementation Plan | planned |
 | Infra: dedicated server + AWS RDS | orthogonal — a `DATABASE_URL`/deploy-target change once service-layer DB access stays centralized (already true) | planned, deliberately last (local-first per the client's own stated dev strategy) |
 

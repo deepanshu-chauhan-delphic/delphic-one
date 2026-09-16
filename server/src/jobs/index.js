@@ -1,5 +1,6 @@
 const logger = require('../config/logger');
 const interviewReminders = require('./interviewReminders');
+const profitabilityCompute = require('./profitabilityCompute');
 
 /**
  * Start in-process background jobs. Called once from src/index.js after app.listen,
@@ -11,7 +12,8 @@ const interviewReminders = require('./interviewReminders');
 function startJobs() {
   const tasks = [];
   tasks.push(interviewReminders.schedule());
-  logger.info('jobs_started', { count: tasks.length, jobs: ['interviewReminders'] });
+  tasks.push(profitabilityCompute.schedule());
+  logger.info('jobs_started', { count: tasks.length, jobs: ['interviewReminders', 'profitabilityCompute'] });
   return tasks;
 }
 

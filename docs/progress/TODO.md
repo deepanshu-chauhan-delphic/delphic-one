@@ -64,14 +64,71 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       screens); leave accrual (balances only move on approval today,
       nothing seeds `accrued`); overtime *approval* workflow (only the
       auto-calc exists).
-- [ ] **New scope from the 2026-09-15 client brief, still not started**:
-      Phase 5 real-time daily project revenue
-      (`BillingRate`/`DailyProjectRevenue`); Phase 7 expenses + vendor
-      payments; Phase 8 accounting ledger/tax; Phase 9 external Legal/CA
-      access; Phase 10 org chart + lifecycle visualization. All
-      schema-sketched in the HLD (§4, §11), zero code — see the HLD's
-      phase-mapping table for what maps to what. (Phase 3 timesheet
-      locking + regularization tickets — shipped, see below.)
+- [x] Phase 8 (backend) — `LedgerAccount` (asset/liability/equity/revenue/
+      expense chart of accounts, unique per org by name), `LedgerEntry` (one
+      row per debit/credit line; a journal entry is >=2 rows sharing one
+      `transaction_id`, balance enforced in `accounting.service`, not the
+      DB — same posture as `PayrollRun`/`ClientInvoice`'s forward-only
+      transitions), `TaxRecord` (`pending → filed → paid`; `jurisdiction`/
+      `kind` kept free text since which tax regimes apply is still an open
+      question, HLD §10). Migration
+      `20260916123254_phase8_accounting_ledger_tax`. New `accounting`
+      module: ledger-account CRUD, journal-entry posting, ledger-entry
+      listing, trial balance / P&L / balance sheet reports, tax-record
+      lifecycle. Posting is manual/API-driven, not auto-generated from
+      billing/expense/vendor-payment events yet. 14 new tests
+      (`erp-phase8-accounting.test.js`), eslint clean.
+- [ ] Phase 8 (remaining) — frontend (ledger-account admin, journal-entry
+      form, report views, tax-record admin); no period-close/
+      retained-earnings posting (the balance sheet reports the
+      not-yet-closed-into-equity gap rather than hiding it — see its
+      `balances` field); no auto-posting from billing/expense/vendor-payment
+      events (manual/API journal entries only, today).
+- [x] Phase 9 (backend) — `ExternalAccess` (scoped, time-boxed, read-only
+      guest grants for Legal/CA; deliberately **not** an `OrgMembership` —
+      its own bearer-token auth path, `authenticateExternal`/
+      `requireExternalScope` in `middleware/auth.js`, separate from JWT user
+      auth entirely; the opaque token is SHA-256-hashed at rest and returned
+      exactly once, on grant). Migration
+      `20260916130602_phase9_external_access`. New `externalAccess` module:
+      admin grant/list/revoke (ordinary JWT+org admin auth) plus a guest
+      portal that reads the accounting module's own report functions (trial
+      balance / P&L / balance sheet / tax records) so a CA sees numbers
+      computed identically to an org admin, scoped to whatever `resources`
+      the grant names. 7 new tests (`erp-phase9-external-access.test.js`),
+      eslint clean.
+- [ ] Phase 9 (remaining) — frontend (grant-management screen, guest portal
+      UI); no email delivery of the token (returned in the API response
+      only — nothing to send it through yet, matching "begin implementation
+      locally" posture); no per-view audit trail beyond `last_used_at`/
+      `use_count` (HLD §10 flags whether one is needed as still open); guest
+      surface limited to the accounting module's read reports today (matches
+      the HLD's own example verbatim, "read accounting for Org X" — extend
+      `externalAccess.validation.js`'s `RESOURCE` enum as more modules grow
+      a guest-facing view).
+- [x] Phase 10 (backend) — org chart + lifecycle visualization. **No schema
+      change** — `OrgMembership.manager_id`, `employment_status` (including
+      `pending_onboarding`/`notice_period`), and `notice_end_date` all
+      landed already, in the 2026-09-15 Phase 2 amendment. New `orgChart`
+      module: `GET /org-chart` (any active org member — a directory, not
+      admin-only — builds the `manager_id` tree in memory,
+      `include_terminated` toggle) and `GET /org-chart/group`
+      (`authorizeGroupSuperadmin`, combined view across every org, optional
+      `org_group_id` filter, mirrors the super-dashboard's cross-org
+      posture). 6 new tests (`erp-phase10-org-chart.test.js`), eslint clean.
+- [ ] Phase 10 (remaining) — frontend (the actual chart visualization); no
+      dedicated onboarding/resignation workflow — `pending_onboarding`/
+      `notice_period` are just `employment_status` values an admin sets via
+      the existing `PATCH /orgs/memberships/:id`, matching the HLD's
+      "without a separate workflow engine" framing.
+- [ ] **Full cross-suite regression (all ~54 test files) for Phases 8-10 —
+      deliberately deferred.** Each new phase's own suite is green in
+      isolation (27/27 across the three files above); the full-suite run
+      keeps hitting this machine's known resource ceiling (severe RAM
+      contention → transient Postgres disconnects / OOM, documented earlier
+      in PROGRESS.md) and was explicitly paused mid-run at the human's
+      request to prioritize shipping Phase 8-10 functionality first. Run it
+      before merge.
 - [x] Phase 3 — project-centric `TimesheetEntry` (one per employee/day/
       project), org-wide daily `TimesheetLock`,
       `TimesheetRegularizationTicket` (post-lock changes only). New
@@ -83,9 +140,79 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
 - [ ] Phase 3 (remaining) — frontend; reconciling attendance-derived
       overtime against logged timesheet hours (currently computed from
       attendance alone, per Phase 2).
-- [ ] Phase 4 — Payroll (synchronous local run, seeded synthetic history).
-- [ ] Phase 5 — Billing (client + intra-group).
-- [ ] Phase 6 — Profitability fact table + cross-org super dashboard.
+- [x] Phase 4 (backend) — `SalaryStructure` (versioned by `effective_from`,
+      MONTHLY `ctc` + itemized `components` validated to sum to it),
+      `PayrollRun` (draft → processed, one per org/period, one-way like
+      `TimesheetLock`), `Payslip` (`gross`/`deductions`/`net` +
+      full `breakdown` JSON). Migration `20260916074851_phase4_payroll`
+      (+ `payslip` added to `DocumentEntityType` for a future PDF attachment
+      via the existing polymorphic Document model — no dedicated FK). New
+      `payroll` module: salary-structure CRUD, run create/process, payslip
+      views (self + admin team + per-run). 13 new tests
+      (`erp-phase4-payroll.test.js`), full suite **47/373 green**, eslint
+      clean. See PROGRESS.md / plan doc log for the computation formula and
+      its documented assumptions (5-day work week, no weekly-off calendar
+      yet; overtime tracked but not paid).
+- [ ] Phase 4 (remaining) — frontend (salary structure admin screen, run
+      processing UI, payslip view); a correction/re-run workflow for a
+      mistaken run (today: one-way, no undo); payslip PDF generation.
+- [x] Phase 5 (backend) — `BillingRate` (per account/requirement,
+      versioned by `effective_from`, requirement-specific overrides
+      account-wide), `DailyProjectRevenue` (one row per project/day,
+      computed from that day's APPROVED + billable `TimesheetEntry` hours ×
+      the applicable rate; hourly = hours × rate, monthly = rate prorated
+      over days in month; idempotent recompute), `ClientInvoice` (one per
+      client account/period, generated from a period's computed revenue,
+      `draft → sent → paid` forward-only), `GroupBillingCharge` (intra-group
+      charge against a member org, raised only by a group-superadmin).
+      Migration `20260916092941_phase5_billing`. New `billing` module.
+      12 new tests (`erp-phase5-billing.test.js`), full suite **48/385
+      green**, eslint clean. See PROGRESS.md / plan doc log for the rate
+      resolution + revenue formula.
+- [ ] Phase 5 (remaining) — frontend (rate admin, invoice list/detail,
+      group-charge screens); the nightly/scheduled auto-compute for daily
+      revenue (today it's an admin-triggered `POST
+      /billing/daily-revenue/compute` call, not a background job — matches
+      the project's "add a job queue only once something needs it" posture);
+      invoice PDF/export.
+- [x] Phase 6 (backend) — `DailyEmployeeProfitability` fact table (one row
+      per org_membership/day; `revenue` = that day's `DailyProjectRevenue`
+      (Phase 5) allocated pro-rata by hours across everyone who logged
+      approved+billable time on each project; `cost` = `SalaryStructure.ctc`
+      prorated to the day, no overhead allocation yet; `margin` = revenue −
+      cost). Migration `20260916103733_phase6_profitability`. New
+      `profitability` module (org-scoped: compute, self/team view, rollup by
+      day/month) + `super-dashboard` module (cross-org, `authorizeGroupSuperadmin`
+      only, `GET /super-dashboard/rollup` reads exclusively from the fact
+      table per HLD §7, `org_id` optional for a group-wide total vs. a
+      company drill-in). New nightly cron `jobs/profitabilityCompute.js`
+      (computes *yesterday*, wired into `jobs/index.js`, no-op wherever no
+      orgs exist yet). 10 new tests (`erp-phase6-profitability.test.js`),
+      full suite **49/395 green**, eslint clean. See PROGRESS.md / plan doc
+      log for the allocation formula.
+- [ ] Phase 6 (remaining) — frontend (super dashboard UI, per-company
+      drill-in, org-scoped profitability view); overhead-cost allocation
+      (today: salary only); a materialized-view/refresh layer for rollups if
+      live `SUM()` ever stops being fast enough (deliberately not built yet
+      per HLD §6 — the fact table is still small).
+- [x] Phase 7 (backend) — `ExpenseClaim` (`pending → approved → reimbursed`
+      or `→ rejected`, scoped by `Location`) and `VendorPayment`
+      (`pending → approved → paid` or `→ rejected`; `contractor` /
+      `external_resource` / `third_party`; `vendor_name` is plain text —
+      deliberately **not** linked to the recruitment domain's
+      `Account(type=vendor)`, which is candidates/money coming *in* from a
+      sourcing vendor, not money going *out*). `expense_claim` /
+      `vendor_payment` added to `DocumentEntityType` so a receipt/invoice
+      attaches via the existing generic documents module — no new upload
+      code needed. Migration `20260916115320_phase7_expenses_vendor_payments`.
+      New `expenses` module (self-serve claims + admin decide/reimburse;
+      admin-only vendor payments). 10 new tests
+      (`erp-phase7-expenses.test.js`), full suite **50/405 green**, eslint
+      clean.
+- [ ] Phase 7 (remaining) — frontend (claim submission + admin
+      approval/reimbursement queue, vendor payment admin screens); no
+      claim/payment limits or approval-chain policy (single-admin-decides
+      today, matching every other decision flow in this codebase).
 - [ ] Local demo script (plan doc §"Local demo script") passes end-to-end with
       two orgs + isolation verified.
 - [ ] Never merge this branch into `dev`/`staging`/`main` without the human's

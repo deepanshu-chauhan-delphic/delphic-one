@@ -87,6 +87,20 @@ const ORG_SCOPED_ON_CREATE = new Set([
   'LeaveRequest',
   'TimesheetEntry',
   'TimesheetLock',
+  'SalaryStructure',
+  'PayrollRun',
+  'BillingRate',
+  'ClientInvoice',
+  'ExpenseClaim',
+  'VendorPayment',
+  'LedgerAccount',
+  'LedgerEntry',
+  'TaxRecord',
+  'ExternalAccess',
+  // Deliberately NOT 'GroupBillingCharge' — its org_id is the org being
+  // charged, which is routinely a different org than the caller's own, so
+  // auto-stamping the caller's org_id here would be actively wrong. The
+  // service always sets it explicitly from the target org's own record.
 ]);
 
 prisma.$use(async (params, next) => {

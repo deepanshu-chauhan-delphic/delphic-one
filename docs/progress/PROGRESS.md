@@ -2,6 +2,376 @@
 
 Reverse-chronological log of what's been done. Newest entry on top. See [TODO.md](TODO.md) for what's next and [AGENTS.md](../AGENTS.md) for project context.
 
+## 2026-09-16 — Multi-company ERP Phases 8-10 (accounting ledger/tax, external CA/Legal access, org chart — all backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md).
+Closes out every phase the 2026-09-15 client brief added. Two additive
+migrations (Phase 10 needed none — see below), applied to
+`requirement_dashboard_erp` + `requirement_dashboard_test`.
+
+- **Phase 8 — accounting.** Migration
+  `20260916123254_phase8_accounting_ledger_tax`. Schema: `LedgerAccount`
+  (asset/liability/equity/revenue/expense, unique per org by `name`);
+  `LedgerEntry` — one row per debit/credit line, no separate "journal
+  entry header" table; a posting is simply >=2 `LedgerEntry` rows sharing
+  one `transaction_id`, and `accounting.service.postJournalEntry` is the
+  only place balance (`sum(debit) === sum(credit)`) is enforced — the DB
+  has no constraint for it, same documented-gap posture as
+  `PayrollRun`/`ClientInvoice`'s forward-only status transitions;
+  `TaxRecord` (`pending → filed → paid`, `jurisdiction`/`kind` **kept free
+  text**, not enums — which tax regimes apply is an explicit open question
+  in the HLD's §10, so this doesn't guess at one). New `accounting` module
+  (router-wide `authorize('admin')` — every route here is finance data):
+  ledger-account CRUD, `POST /journal-entries`, `GET /ledger-entries`
+  (filterable by account/transaction/date range), and three reports —
+  `GET /reports/trial-balance`, `/profit-and-loss`, `/balance-sheet`. The
+  balance sheet's `balances` field (`assets − (liabilities + equity)`) is
+  reported, not hidden or auto-corrected: this module posts journal entries
+  but doesn't do period-close/retained-earnings postings, so a non-zero
+  value there just means the period's net profit hasn't been closed into
+  equity yet — proved directly in a test (`balances === net_profit` on an
+  unclosed book). Trial-balance/P&L aggregation uses a single
+  `prisma.ledgerEntry.groupBy` per report (not one query per account) to
+  keep it to two round trips regardless of chart-of-accounts size. 14 tests
+  (`erp-phase8-accounting.test.js`).
+- **Phase 9 — external Legal/CA access.** Migration
+  `20260916130602_phase9_external_access`. Schema: `ExternalAccess`
+  (`org_id`, `email`, `scope` json — `{ resources: [...] }`, `token_hash`,
+  `granted_by`, `expires_at`, `revoked_at`, `last_used_at`/`use_count`).
+  Deliberately **not** an `OrgMembership`, per the HLD — a CA/Legal
+  reviewer has no role-in-a-company and no password to manage, so this
+  gets its own auth path end to end: `middleware/auth.js` gained
+  `authenticateExternal` (looks up a SHA-256 hash of an opaque `ext_…`
+  bearer token, same posture as a password hash — never stores or accepts
+  the plaintext after the grant response) and `requireExternalScope`
+  (checks the grant's `scope.resources` allow-list). New `externalAccess`
+  module: `POST/GET /external-access` + `POST /external-access/:id/revoke`
+  (ordinary JWT+org admin auth — the plaintext token is returned exactly
+  once, in the create response, and is never recoverable after that) plus
+  a guest portal at `/external-access/guest/accounting/*` that calls the
+  accounting module's own report functions directly, so a CA sees numbers
+  computed identically to what an org admin sees — no parallel read path
+  to keep in sync. Guest resources are an explicit enum
+  (`externalAccess.validation.js`'s `RESOURCE`, currently just
+  `'accounting'`, the HLD's own worked example) rather than a wildcard —
+  extend it as more modules grow a guest-facing view. 7 tests
+  (`erp-phase9-external-access.test.js`), including an expired-token case
+  and a revoked-token-that-was-valid-before case.
+- **Phase 10 — org chart + lifecycle visualization.** **No migration** —
+  `OrgMembership.manager_id` (self-relation), `employment_status`
+  (`pending_onboarding`/`notice_period` included), and `notice_end_date`
+  all landed already in the 2026-09-15 Phase 2 amendment, specifically so
+  this phase wouldn't need a schema change once it was built (see that
+  amendment's own PROGRESS.md entry). New `orgChart` module:
+  `GET /org-chart` (any active org member, not admin-only — a directory
+  view) builds the `manager_id` reporting tree **in memory** from a single
+  `OrgMembership.findMany`, not a recursive SQL CTE — one company's
+  headcount doesn't need one (same reasoning as the project's
+  no-analytics-warehouse posture, HLD §12); `include_terminated` toggle
+  defaults to excluding them. `GET /org-chart/group`
+  (`authorizeGroupSuperadmin`, mirrors the super-dashboard's cross-org
+  gating exactly) returns every org's tree, optionally narrowed by
+  `org_group_id`. `pending_onboarding`/`notice_period`/`notice_end_date`
+  carry straight through onto each node as the "lifecycle indicators" the
+  client brief asked for — no separate workflow engine, an admin just sets
+  them via the existing `PATCH /orgs/memberships/:id`. 6 tests
+  (`erp-phase10-org-chart.test.js`).
+- **Verification posture for this entry, stated plainly**: each of the
+  three new suites above is green **in isolation** (27/27 total,
+  eslint clean across all three modules). The full ~54-file cross-suite
+  regression was **not** re-run to completion this session — it was
+  started, then explicitly paused mid-run at the human's request
+  ("complete the remaining test cases later... do all the functionality of
+  remaining phases first") to prioritize shipping Phase 8-10 before
+  circling back to the full run. This machine's known RAM ceiling (see the
+  Phase 4-7 entries below) made a `prisma migrate dev` and a backgrounded
+  jest batch collide into a literal Node OOM crash mid-session — recovered
+  by retrying once the colliding process had exited, not by any code
+  change. **Run the full suite before merge.**
+- **Not built this session**: frontend for any of the three phases; Phase
+  8's auto-posting from billing/expense/vendor-payment events (manual/API
+  journal entries only); Phase 9's email delivery of the guest token
+  (API-response-only, matching this project's "local first" posture) and
+  its per-view audit trail beyond `last_used_at`/`use_count` (HLD §10 flags
+  a finer-grained trail as still an open question, not decided here); Phase
+  10's actual chart visualization (the API returns the tree; nothing
+  renders it yet).
+
+## 2026-09-16 — Multi-company ERP Phase 7 (expenses + vendor payments, backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration
+`20260916115320_phase7_expenses_vendor_payments` — additive only, applied
+to `requirement_dashboard_erp` + `requirement_dashboard_test`. First of the
+four brand-new phases (7-10) that only existed as an HLD schema sketch
+before this — no prior migration-plan section to extend.
+
+- **Schema**: `ExpenseClaim` (`org_membership_id` + `location_id`, free-text
+  `category`; `pending → approved → reimbursed` or `→ rejected` —
+  `reimbursed` only reachable from `approved`, a separate step from the
+  decision itself, since approving and actually paying out are different
+  events). `VendorPayment` (`vendor_name` plain text, `vendor_type` ∈
+  `contractor`/`external_resource`/`third_party`, `period_month`/
+  `period_year`; `pending → approved → paid` or `→ rejected`, same two-step
+  shape). **`VendorPayment` has zero FK to the recruitment domain's
+  `Account`** — deliberately, per the HLD's module-map note: a recruitment
+  `Account(type=vendor)` is a sourcing vendor (candidates/money coming
+  *in*), while `VendorPayment` is money going *out* to a contractor/external
+  resource, a completely different real-world relationship that happens to
+  reuse the word "vendor." `expense_claim`/`vendor_payment` added to
+  `DocumentEntityType` — a receipt or invoice attaches via the **existing**
+  polymorphic documents module (`POST /documents` with the right
+  `entity_type`/`entity_id`), zero new upload code required.
+- **New `expenses` module**: `POST /expenses/claims` (any org member, for
+  themselves), `GET /expenses/claims/me`, `GET /expenses/claims` (admin,
+  team-wide), `POST /expenses/claims/:id/decision` (admin, pending only),
+  `POST /expenses/claims/:id/reimburse` (admin, approved only);
+  `POST/GET /expenses/vendor-payments` (admin-only throughout — raising a
+  vendor payment isn't a self-serve action like an expense claim),
+  `GET /expenses/vendor-payments/:id`,
+  `POST /expenses/vendor-payments/:id/decision`,
+  `POST /expenses/vendor-payments/:id/pay` (approved only). Both
+  `ExpenseClaim`/`VendorPayment` added to the write-side `org_id`
+  auto-injection set (`config/db.js`).
+- Tests: `erp-phase7-expenses.test.js` (10 — org-membership gate, claim
+  submission + cross-org location rejection, approve→reimburse +
+  reimburse-before-approval rejected + double-decide rejected, rejection
+  carries its reason and blocks reimbursement, self-view vs. admin
+  team-view scoping, non-admin blocked from deciding/reimbursing/team-view,
+  vendor payment creation admin-gated, decide→pay + pay-before-approval
+  rejected + double-decide rejected, list filters by status/vendor_type/
+  period, and an explicit proof that a `VendorPayment` shares no FK with a
+  same-named recruitment `Account`). Full suite **50 suites / 405 tests
+  green** (verified across two ~25-file batches to fit this session's
+  tooling — both clean, no flakiness this run), eslint clean (0 errors,
+  pre-existing warnings only).
+- **Not built this phase**: frontend (claim submission + admin
+  approval/reimbursement queue, vendor payment admin screens); any
+  approval-chain policy beyond single-admin-decides (matches every other
+  decision flow already in this codebase — timesheets, leave, payroll,
+  billing all work the same way); claim/payment amount limits.
+
+## 2026-09-16 — Multi-company ERP Phase 6 (profitability fact table + super dashboard, backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration
+`20260916103733_phase6_profitability` — additive only, applied to
+`requirement_dashboard_erp` + `requirement_dashboard_test`.
+
+- **Schema**: `DailyEmployeeProfitability` — one row per
+  (org_membership, day): `revenue`, `cost`, `margin`, plus a `breakdown`
+  json carrying the full allocation math for audit. This is the *only*
+  table the super dashboard reads (HLD §7 — never live OLTP tables).
+- **Computation** (`profitability.service.computeDayForOrg`) — a genuine
+  two-step pipeline in one call:
+  1. Ensures that day's `DailyProjectRevenue` is fresh by calling
+     `billing.service.computeDayRevenue` directly (a cross-module service
+     import — same established pattern as `interviews.service` importing
+     from `submissions.service`), rather than assuming Phase 5's compute
+     already ran for that date.
+  2. Allocates each project-day's revenue across everyone who logged
+     approved+billable `TimesheetEntry` hours on it, **pro-rata by hours** —
+     two employees splitting a day 6h/2h split that project's revenue
+     75%/25%, regardless of hourly vs. monthly rate type.
+  3. Nets it against `cost` = that membership's latest `SalaryStructure.ctc`
+     ÷ days-in-month (same per-day method as Phase 4 payroll; **no overhead
+     allocation yet** — HLD mentions it, nothing computes it). A membership
+     with no salary structure is skipped (reported, not failed) — same
+     posture as payroll. Cost accrues every day of employment regardless of
+     billable activity, so a bench/leave/weekend day nets a negative margin
+     by design — that's the actual signal a profitability view is for.
+  4. Upserts on `(org_membership_id, date)` — idempotent, and this one *is*
+     a real DB unique constraint (unlike `DailyProjectRevenue`, both key
+     columns here are non-nullable).
+- **Rollups** (`profitability.service.rollup`) — plain `SUM()` over the
+  fact table grouped by day or month, shared by both modules below
+  (`orgId: undefined` reads across every org). No materialized view yet —
+  HLD §6 explicitly says start with a live query and only add one once the
+  fact table is too large for that to stay fast; it currently isn't.
+- **New `profitability` module** (org-scoped, `requireOrgMembership` +
+  `authorize('admin')` except `/me`): `POST /compute` (date range, capped at
+  31 days), `GET /me`, `GET /team`, `GET /rollup`.
+- **New `super-dashboard` module** (cross-org): `POST /compute` +
+  `GET /rollup`, both gated to `authorizeGroupSuperadmin` **alone** —
+  deliberately no `requireOrgMembership`, mirroring the `orgs` module's
+  `GET /orgs` (this isn't a self-org action; a group-superadmin with zero
+  org memberships anywhere must still be able to use it — tested). `org_id`
+  on the rollup is optional: omitted, a group-wide total; passed, the exact
+  same query drills into one company (HLD §7 — "one UI, parameterized, not a
+  second dashboard to maintain").
+- **New nightly job** `jobs/profitabilityCompute.js` (`node-cron`, same
+  shape as the existing `jobs/interviewReminders.js`) — computes
+  **yesterday** every day at 02:00 UTC across every `Org.status: 'active'`,
+  per-org try/catch so one org's failure doesn't block the rest. A pure
+  no-op wherever no orgs exist yet (e.g. this repo's base recruitment app
+  before Phase 0's backfill) — nothing gates it further than that. Wired
+  into `jobs/index.js`.
+- Tests: `erp-phase6-profitability.test.js` (10 — org-membership gate,
+  pro-rata revenue allocation across two employees verified with exact
+  numbers, no-salary-structure skip, pure-cost negative-margin day +
+  idempotent recompute, non-admin blocked, month rollup summing across days
+  and employees with a headcount count, super-dashboard 403 for a
+  non-group-superadmin, a group-superadmin with **no org membership at all**
+  still succeeds, cross-org compute + group-wide vs. single-org rollup, the
+  nightly job's "yesterday" date selection). Full suite **49 suites / 395
+  tests green**, eslint clean (0 errors, pre-existing warnings only).
+- **Test-fixture note**: `tests/helpers.js`'s `createOrgMembership` defaults
+  `joined_at` to "now" (real system clock). This suite computes profitability
+  for fixed calendar dates, so every membership needed explicit backdating
+  or the service's employment-eligibility check correctly (and confusingly)
+  excluded them — fixed locally in the test file, no shared helper change.
+- **Confirmed pre-existing, unrelated to this session**: while chasing
+  intermittent full-suite failures on this resource-constrained dev machine
+  (see below), found that `tests/orgs-phase1.test.js`'s "earliest-joined
+  active membership" case is genuinely flaky — `OrgMembership.joined_at` is
+  `@db.Date` (day precision only), so two memberships created moments apart
+  in the same test get an *identical* value and `auth.service.js`'s
+  `orderBy: { joined_at: 'asc' }` has no secondary tie-breaker, making the
+  "earliest" pick physically-row-order-dependent. `git diff` against that
+  file and `orgs.service.js` is empty for this session — not something this
+  work touched or caused. Not fixed here (out of scope); flagged for
+  whoever picks up Phase 1's remaining items.
+- **This dev machine, still resource-constrained**: the full 49-file suite
+  doesn't reliably fit in one run — under memory/CPU pressure,
+  `cleanDatabase()`'s `TRUNCATE` occasionally exceeds Jest's 20s hook
+  timeout on an otherwise-passing file (confirmed by rerunning each
+  "failure" alone or with less concurrent load, where it passes clean every
+  time). Verified this phase's 395 tests green across a full pass split into
+  batches to fit available resources, with every suite independently
+  confirmed passing — no logic regressions found.
+
+## 2026-09-16 — Multi-company ERP Phase 5 (billing + real-time project revenue, backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration
+`20260916092941_phase5_billing` — additive only, applied to
+`requirement_dashboard_erp` + `requirement_dashboard_test` (day-to-day
+`requirement_dashboard` untouched, as with every ERP phase).
+
+- **Schema**: `BillingRate` (per `account_id` + optional `requirement_id`,
+  versioned by `effective_from` like `SalaryStructure`; `hourly` or
+  `monthly` `rate_type`). `DailyProjectRevenue` (one row per
+  (account/requirement, day) — the client brief's real-time revenue metric;
+  idempotent by design, recomputing a date updates the row instead of
+  duplicating — not a DB unique constraint, since `requirement_id` is
+  nullable and Postgres treats `NULL` as distinct under a unique index,
+  which would silently let account-level rows duplicate). `ClientInvoice`
+  (one per client account/period, `draft → sent → paid` forward-only, same
+  freeze posture as `PayrollRun`/`TimesheetLock`). `GroupBillingCharge`
+  (intra-group — a charge against one member org's books, raised at the
+  group level; `kind` is free text since the HLD doesn't enumerate charge
+  kinds).
+- **Rate resolution** (`billing.service.resolveRate`) — most-specific-wins:
+  a requirement-specific `BillingRate` beats the account-wide default
+  (`requirement_id: null`) when both apply on a date.
+- **Revenue computation** (`billing.service.computeDayRevenue`) — groups
+  that day's **approved + billable** `TimesheetEntry` hours (never
+  draft/rejected/non-billable) by (account, requirement), resolves the
+  applicable rate, and computes: `hourly` = hours × rate; `monthly` = rate ÷
+  days-in-month (that day's share of the retainer, only earned because
+  there was billable activity — no activity, no row). A pairing with no
+  applicable rate is skipped and reported, not failed.
+- **New `billing` module**: `POST/GET /billing/rates` (admin);
+  `POST /billing/daily-revenue/compute` (admin, a date range capped at 31
+  days — admin-triggered, not a background job yet, see "not built" below)
+  + `GET /billing/daily-revenue`; `POST /billing/invoices` (admin — sums a
+  period's `DailyProjectRevenue` into a draft invoice with a per-requirement
+  `line_items` breakdown; rejects if no revenue has been computed for that
+  period) + `GET /billing/invoices` + `GET /billing/invoices/:id` +
+  `POST /billing/invoices/:id/status` (forward-only transition);
+  `POST /billing/group-charges` (`authorizeGroupSuperadmin` only — raises a
+  charge against any org) + `GET /billing/group-charges` (self-org view, any
+  admin) + `GET /billing/group-charges/all` (group-superadmin, cross-org).
+  Mirrors the `orgs` module's pattern of NOT requiring `requireOrgMembership`
+  on the two group-superadmin routes, since those are inherently cross-org,
+  not self-org, actions. `BillingRate`/`ClientInvoice` added to the
+  write-side `org_id` auto-injection set (`config/db.js`) —
+  `GroupBillingCharge` deliberately excluded, since its `org_id` is the org
+  *being charged*, routinely different from the caller's own org, so
+  auto-stamping the caller's org_id there would be actively wrong.
+- Tests: `erp-phase5-billing.test.js` (12 — org-membership gate, rate CRUD +
+  cross-account requirement rejection, hourly revenue from approved+billable
+  hours only, monthly-rate proration, requirement-specific rate overriding
+  the account default, no-rate pairing skipped not failed, idempotent
+  recompute, invoice generation + duplicate-period rejection + line_items,
+  no-revenue-yet rejection, forward-only status transitions + non-admin
+  block, group-charge creation gated to group-superadmin + self-org and
+  cross-org visibility). Full suite **48 suites / 385 tests green**
+  (split into two ~24-file batches to fit this session's tooling — each
+  batch clean on its own), eslint clean (0 errors, pre-existing warnings
+  only).
+- **Not built this phase**: frontend (rate admin, invoice list/detail,
+  group-charge screens); a scheduled/nightly auto-compute for daily revenue
+  (today it's a manual admin call — matches the HLD §8 posture of adding a
+  job queue only once something actually needs it, not speculatively);
+  invoice PDF/export.
+
+## 2026-09-16 — Multi-company ERP Phase 4 (payroll, backend) — branch `feature/multi-company-erp`
+
+Plan log: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md). Migration
+`20260916074851_phase4_payroll` — additive only, applied to the isolated
+`requirement_dashboard_erp` + `requirement_dashboard_test` DBs (the
+day-to-day `requirement_dashboard` DB is untouched, as with every prior ERP
+phase).
+
+- **Schema**: `SalaryStructure` (per `org_membership_id`, versioned by
+  `effective_from` — a run uses the latest row with `effective_from <=` the
+  period's last day; `ctc` is **monthly** gross throughout this module, not
+  annual; `components` json is validated on write to sum to `ctc`).
+  `PayrollRun` (`org_id` + `period_month`/`period_year`, unique per period;
+  `draft → processed` is **one-way**, same freeze posture as
+  `TimesheetLock` — a mistaken run needs a documented manual correction, not
+  a silent re-run; `skipped` json records which memberships processing
+  couldn't cover and why). `Payslip` (`gross`/`deductions`/`net` +
+  a full `breakdown` json for audit). `payslip` added to
+  `DocumentEntityType` so a generated PDF can attach via the existing
+  polymorphic Document model later — no dedicated FK column needed, and none
+  was added.
+- **Payroll math** (`payroll.service.computeBreakdown`), per employee per
+  period, documented assumptions and all: a day is paid in full when it's a
+  weekend (**5-day work week assumed — no weekly-off calendar exists yet to
+  configure this per org**), a holiday on the org's default `Calendar`, or
+  attendance is `present`/`wfh`; half-paid on `half_day`; an approved
+  `LeaveRequest` on a paid `LeaveType` covers it fully, an unpaid one docks a
+  day. Everything else on a working day (absent, or simply no attendance
+  record and no leave) is loss-of-pay. Deduction = `(ctc / days_in_month) ×
+  lop_days`. **Overtime is tracked (`overtime_minutes` summed into the
+  breakdown) but not paid** — no overtime-pay policy exists yet (Phase 3's
+  own deferred item).
+- **New `payroll` module**: `POST/GET /payroll/salary-structures` (admin) +
+  `GET /payroll/salary-structures/me`; `POST/GET /payroll/runs` (admin);
+  `POST /payroll/runs/:id/process` (admin, one-way) — pulls every org
+  membership employed during the period, skips (not fails) anyone with no
+  applicable salary structure, computes + stores a `Payslip` per the rest in
+  one transaction; `GET /payroll/runs/:id/payslips` (admin team view);
+  `GET /payroll/payslips/me` / `GET /payroll/payslips/:id` (owner or admin).
+  Gated by `requireOrgMembership`, mirrors the `timesheets` module's route
+  shape. `SalaryStructure`/`PayrollRun` added to the write-side `org_id`
+  auto-injection set (`config/db.js`) — belt-and-suspenders, the service
+  already sets `org_id` explicitly on every write.
+- Tests: `erp-phase4-payroll.test.js` (13 — org-membership gate,
+  components-must-sum-to-ctc validation + cross-org rejection, duplicate-run
+  rejection, a fully-present employee nets exactly `ctc` with zero
+  deductions, unpaid absences deduct correctly while approved paid leave
+  doesn't, a member with no salary structure is skipped not failed, a run
+  can't be processed twice, payslip ownership + admin access). Full suite
+  **47 suites / 373 tests green**, eslint clean (0 errors, pre-existing
+  warnings only).
+- **Local environment note (this machine specifically)**: port **5434** is
+  *also* taken by a native `postgres.exe` on this box (in addition to the
+  5432/5433 conflicts AGENTS.md already documented) — the Docker `db`
+  service is remapped to **5435** here via a local (gitignored) root `.env`
+  (`POSTGRES_PORT=5435`); `server/.env` / `server/.env.erp` follow suit.
+  `tests/env.setup.js` gained a `TEST_DATABASE_URL` override (falls back to
+  the documented `:5434` default unchanged for every other machine) so this
+  local remap didn't require touching the checked-in default. Also created
+  the isolated `requirement_dashboard_erp` + `requirement_dashboard_test`
+  databases in the shared Docker Postgres container (they didn't exist yet
+  on this machine).
+- **Not built this phase**: frontend (salary-structure admin screen, run
+  processing + payslip UI); a correction/re-run workflow for a mistaken run
+  (today it's one-way with no undo, matching Phase 3's `TimesheetLock`
+  posture, but documented as a gap rather than assumed-fine); payslip PDF
+  generation (the `payslip` `DocumentEntityType` value is ready for it, nothing
+  generates one yet).
+
 ## 2026-09-15 — Multi-company ERP Phase 0 (tenancy scaffold) — branch `feature/multi-company-erp`
 
 Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md) (full log there). Design: [MULTI-COMPANY-ERP-PLATFORM-HLD.md](../architecture/MULTI-COMPANY-ERP-PLATFORM-HLD.md).

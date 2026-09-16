@@ -31,6 +31,14 @@ const attendanceRoutes = require('./modules/attendance/attendance.routes');
 const leaveRoutes = require('./modules/leave/leave.routes');
 const designationsRoutes = require('./modules/designations/designations.routes');
 const timesheetsRoutes = require('./modules/timesheets/timesheets.routes');
+const payrollRoutes = require('./modules/payroll/payroll.routes');
+const billingRoutes = require('./modules/billing/billing.routes');
+const profitabilityRoutes = require('./modules/profitability/profitability.routes');
+const superDashboardRoutes = require('./modules/superDashboard/superDashboard.routes');
+const expensesRoutes = require('./modules/expenses/expenses.routes');
+const accountingRoutes = require('./modules/accounting/accounting.routes');
+const externalAccessRoutes = require('./modules/externalAccess/externalAccess.routes');
+const orgChartRoutes = require('./modules/orgChart/orgChart.routes');
 
 const app = express();
 
@@ -85,6 +93,14 @@ app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/leave', leaveRoutes);
 app.use('/api/v1/designations', designationsRoutes);
 app.use('/api/v1/timesheets', timesheetsRoutes);
+app.use('/api/v1/payroll', payrollRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/profitability', profitabilityRoutes);
+app.use('/api/v1/super-dashboard', superDashboardRoutes);
+app.use('/api/v1/expenses', expensesRoutes);
+app.use('/api/v1/accounting', accountingRoutes);
+app.use('/api/v1/external-access', externalAccessRoutes);
+app.use('/api/v1/org-chart', orgChartRoutes);
 
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
 app.use(errorHandler);
