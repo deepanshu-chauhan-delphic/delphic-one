@@ -71,7 +71,17 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       external Legal/CA access; Phase 10 org chart + lifecycle
       visualization. All schema-sketched in the HLD (§4, §11), zero code —
       see the HLD's phase-mapping table for what maps to what.
-- [ ] Phase 3 — Timesheet/Overtime.
+- [x] Phase 3 — project-centric `TimesheetEntry` (one per employee/day/
+      project), org-wide daily `TimesheetLock`,
+      `TimesheetRegularizationTicket` (post-lock changes only). New
+      `timesheets` module (log/edit/approve/reject entries, lock a day,
+      raise + decide tickets). Migrations
+      `20260916052421_phase3_project_timesheets` +
+      `20260916052614_phase3_timesheet_decision_reason`. 14 new tests, full
+      suite 46/360 green. See PROGRESS.md / plan doc log for detail.
+- [ ] Phase 3 (remaining) — frontend; reconciling attendance-derived
+      overtime against logged timesheet hours (currently computed from
+      attendance alone, per Phase 2).
 - [ ] Phase 4 — Payroll (synchronous local run, seeded synthetic history).
 - [ ] Phase 5 — Billing (client + intra-group).
 - [ ] Phase 6 — Profitability fact table + cross-org super dashboard.

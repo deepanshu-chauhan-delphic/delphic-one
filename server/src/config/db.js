@@ -85,6 +85,8 @@ const ORG_SCOPED_ON_CREATE = new Set([
   'AttendanceRecord',
   'LeaveType',
   'LeaveRequest',
+  'TimesheetEntry',
+  'TimesheetLock',
 ]);
 
 prisma.$use(async (params, next) => {

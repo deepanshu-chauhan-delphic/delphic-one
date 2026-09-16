@@ -87,6 +87,37 @@ New guide: [DATABASE-CONNECTION-POOLING.md](../guides/DATABASE-CONNECTION-POOLIN
   read replica (once real write contention shows up on reports/
   profitability queries). Neither is needed at current scale.
 
+## 2026-09-16 — Multi-company ERP Phase 3 (project-centric timesheets, daily lock, regularization tickets) — branch `feature/multi-company-erp`
+
+Plan log has the full diff. Two additive migrations
+(`20260916052421_phase3_project_timesheets` +
+`20260916052614_phase3_timesheet_decision_reason`).
+
+- New `TimesheetEntry` — one row per (employee, day, project); a split day
+  (4h Project A + 4h Project B) is two rows, per the client brief. Linked to
+  the existing `Account`/`Requirement` as the "project," not a new concept.
+  New `TimesheetLock` — an org-wide daily lock (not per-employee). New
+  `TimesheetRegularizationTicket` — the only path to change a locked day's
+  entry; `requested_change` is restricted to `hours`/`billable`/`notes` by
+  validation, applied field-by-field on approval inside a transaction.
+- New `timesheets` module: log/list/edit entries (edit blocked once
+  approved or once the day is locked), admin approve/reject, admin lock a
+  day (no unlock — one-way freeze by design), raise + decide regularization
+  tickets. Gated by `requireOrgMembership`; `TimesheetEntry`/`TimesheetLock`
+  added to the write-side `org_id` auto-injection set.
+- Tests: `erp-phase3-timesheets.test.js` (14 — org-membership gate, basic +
+  multi-project logging, 24h/day cap, requirement-must-belong-to-account,
+  cross-org rejection, edit-while-submitted then blocked-after-approval,
+  non-admin can't decide, lock freezes new entries + edits, ticket rejected
+  before lock / required after, approved ticket applies the change,
+  rejected one doesn't, admin team view + non-admin blocked). Full suite
+  **46 suites / 360 tests green**, eslint clean. Smoke-tested against
+  `requirement_dashboard_erp`.
+- **Not built this phase**: frontend; reconciling attendance-derived
+  overtime against logged timesheet hours (still attendance-only, per
+  Phase 2) — the HLD's overtime module description ("computed from
+  attendance + timesheet") is only half-built.
+
 ## 2026-09-16 — Pre-Phase-3 hardening: org_id auto-injection + Designations module — branch `feature/multi-company-erp`
 
 No migration — pure app code. Plan doc log has the full reasoning; summary here.

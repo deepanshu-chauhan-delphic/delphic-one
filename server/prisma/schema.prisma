@@ -67,6 +67,20 @@ enum LeaveRequestStatus {
   cancelled
 }
 
+// --- Multi-company ERP platform (Phase 3 — project-centric timesheets) ---
+
+enum TimesheetEntryStatus {
+  submitted
+  approved
+  rejected
+}
+
+enum RegularizationTicketStatus {
+  pending
+  approved
+  rejected
+}
+
 enum AccountType {
   client
   vendor
@@ -288,28 +302,32 @@ model User {
   created_at          DateTime @default(now())
   updated_at          DateTime @default(now()) @updatedAt
 
-  department                  Department?                 @relation(fields: [department_id], references: [id])
-  owned_accounts              Account[]                   @relation("AccountOwner")
-  origin_accounts             Account[]                   @relation("AccountOriginOwner")
-  classified_accounts         Account[]                   @relation("AccountClassifiedBy")
+  department                  Department?                     @relation(fields: [department_id], references: [id])
+  owned_accounts              Account[]                       @relation("AccountOwner")
+  origin_accounts             Account[]                       @relation("AccountOriginOwner")
+  classified_accounts         Account[]                       @relation("AccountClassifiedBy")
   meeting_attendances         AccountMeetingAttendee[]
-  sales_requirements          Requirement[]               @relation("RequirementSalesOwner")
-  assignments                 RequirementAssignment[]     @relation("AssignmentUser")
-  assignments_made            RequirementAssignment[]     @relation("AssignmentAssignedBy")
-  profiles_added              Profile[]                   @relation("ProfileAddedBy")
-  submissions_created         Submission[]                @relation("SubmissionSubmittedBy")
+  sales_requirements          Requirement[]                   @relation("RequirementSalesOwner")
+  assignments                 RequirementAssignment[]         @relation("AssignmentUser")
+  assignments_made            RequirementAssignment[]         @relation("AssignmentAssignedBy")
+  profiles_added              Profile[]                       @relation("ProfileAddedBy")
+  submissions_created         Submission[]                    @relation("SubmissionSubmittedBy")
   stage_history_changes       StageHistory[]
   documents_uploaded          Document[]
   comments                    Comment[]
   interview_round_assignments InterviewRoundInterviewer[]
-  interview_rounds_scheduled  InterviewRound[]            @relation("InterviewRoundScheduler")
-  notifications               Notification[]              @relation("NotificationUser")
-  notifications_authored      Notification[]              @relation("NotificationActor")
+  interview_rounds_scheduled  InterviewRound[]                @relation("InterviewRoundScheduler")
+  notifications               Notification[]                  @relation("NotificationUser")
+  notifications_authored      Notification[]                  @relation("NotificationActor")
   notification_preferences    NotificationPreference[]
-  org_memberships             OrgMembership[]             @relation("OrgMembershipPerson")
-  attendance_regularizations  AttendanceRecord[]          @relation("AttendanceRegularizedBy")
-  hr_poc_for                  OrgMembership[]             @relation("OrgMembershipHrPoc")
-  sourcing_poc_for            OrgMembership[]             @relation("OrgMembershipSourcingPoc")
+  org_memberships             OrgMembership[]                 @relation("OrgMembershipPerson")
+  attendance_regularizations  AttendanceRecord[]              @relation("AttendanceRegularizedBy")
+  hr_poc_for                  OrgMembership[]                 @relation("OrgMembershipHrPoc")
+  sourcing_poc_for            OrgMembership[]                 @relation("OrgMembershipSourcingPoc")
+  timesheet_approvals         TimesheetEntry[]                @relation("TimesheetApprover")
+  timesheet_locks_made        TimesheetLock[]
+  regularization_requests     TimesheetRegularizationTicket[] @relation("RegularizationRequestedBy")
+  regularization_decisions    TimesheetRegularizationTicket[] @relation("RegularizationDecidedBy")
 
   @@index([department_id])
   @@map("users")
@@ -554,6 +572,84 @@ model LeaveRequest {
   @@map("leave_requests")
 }
 
+// One row per (employee, day, project) — client brief §Phase 2.1: an
+// employee split across projects in one day logs hours per project, not one
+// blended entry. `account_id` is the client/project, `requirement_id` an
+// optional more-specific engagement under that account (reuses the existing
+// recruitment domain rather than inventing a new "project" concept, per the
+// original HLD's own reasoning).
+model TimesheetEntry {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id            String               @db.Uuid
+  org               Org                  @relation(fields: [org_id], references: [id])
+  org_membership_id String               @db.Uuid
+  org_membership    OrgMembership        @relation(fields: [org_membership_id], references: [id])
+  date              DateTime             @db.Date
+  account_id        String               @db.Uuid
+  account           Account              @relation("TimesheetAccount", fields: [account_id], references: [id])
+  requirement_id    String?              @db.Uuid
+  requirement       Requirement?         @relation("TimesheetRequirement", fields: [requirement_id], references: [id])
+  hours             Decimal              @db.Decimal(4, 1)
+  billable          Boolean              @default(true)
+  notes             String?
+  status            TimesheetEntryStatus @default(submitted)
+  approved_by       String?              @db.Uuid
+  approver          User?                @relation("TimesheetApprover", fields: [approved_by], references: [id])
+  approved_at       DateTime?
+  decision_reason   String?
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @default(now()) @updatedAt
+
+  regularization_tickets TimesheetRegularizationTicket[]
+
+  @@index([org_id, date])
+  @@index([org_membership_id, date])
+  @@index([account_id])
+  @@map("timesheet_entries")
+}
+
+// Freezes every TimesheetEntry for an org on a given date — an org-wide
+// daily lock (client brief: "Admins can lock timesheets daily"), not
+// per-employee. A locked day's entries can only change via a
+// TimesheetRegularizationTicket below.
+model TimesheetLock {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id         String   @db.Uuid
+  org            Org      @relation(fields: [org_id], references: [id])
+  date           DateTime @db.Date
+  locked_by      String   @db.Uuid
+  locked_by_user User     @relation(fields: [locked_by], references: [id])
+  locked_at      DateTime @default(now())
+
+  @@unique([org_id, date])
+  @@index([org_id, date])
+  @@map("timesheet_locks")
+}
+
+// Post-lock change request + approval — client brief: "any post-lock
+// changes require a raised ticket and approval." `requested_change` is a
+// small JSON patch (hours/notes/billable only — applied field-by-field on
+// approval, not trusted as an arbitrary write) so the ticket records
+// exactly what was asked for even before it's decided.
+model TimesheetRegularizationTicket {
+  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  timesheet_entry_id String                     @db.Uuid
+  timesheet_entry    TimesheetEntry             @relation(fields: [timesheet_entry_id], references: [id], onDelete: Cascade)
+  requested_by       String                     @db.Uuid
+  requester          User                       @relation("RegularizationRequestedBy", fields: [requested_by], references: [id])
+  requested_change   Json
+  reason             String
+  status             RegularizationTicketStatus @default(pending)
+  decided_by         String?                    @db.Uuid
+  decider            User?                      @relation("RegularizationDecidedBy", fields: [decided_by], references: [id])
+  decided_at         DateTime?
+  decision_reason    String?
+  created_at         DateTime                   @default(now())
+
+  @@index([timesheet_entry_id])
+  @@map("timesheet_regularization_tickets")
+}
+
 // --- Multi-company ERP platform (Phase 0) ---
 
 model OrgGroup {
@@ -605,6 +701,8 @@ model Org {
   departments        Department[]
   locations          Location[]
   shifts             Shift[]
+  timesheet_entries  TimesheetEntry[]
+  timesheet_locks    TimesheetLock[]
 
   @@index([org_group_id])
   @@map("orgs")
@@ -656,6 +754,7 @@ model OrgMembership {
   leave_balances          LeaveBalance[]
   leave_requests          LeaveRequest[]     @relation("LeaveRequestOwner")
   leave_requests_approved LeaveRequest[]     @relation("LeaveRequestApprover")
+  timesheet_entries       TimesheetEntry[]
 
   @@unique([person_id, org_id])
   @@index([org_id])
@@ -728,6 +827,7 @@ model Account {
   vendor_profiles            Profile[]                @relation("ProfileVendorAccount")
   meeting_attendees          AccountMeetingAttendee[]
   employee_calendar_mappings EmployeeCalendar[]       @relation("EmployeeCalendarAccount")
+  timesheet_entries          TimesheetEntry[]         @relation("TimesheetAccount")
 
   @@index([type, stage])
   @@index([owner_id])
@@ -805,8 +905,9 @@ model Requirement {
   org_id String? @db.Uuid
   org    Org?    @relation(fields: [org_id], references: [id])
 
-  seats       RequirementSeat[]
-  assignments RequirementAssignment[]
+  seats             RequirementSeat[]
+  assignments       RequirementAssignment[]
+  timesheet_entries TimesheetEntry[]        @relation("TimesheetRequirement")
 
   @@index([account_id])
   @@index([status, priority])

@@ -151,6 +151,72 @@ Phase 1/2 logs — both zero-regression, verified against the full suite.
   it, confirmed all three local databases and the `max_connections=200`
   setting survived, and reran clean.
 
+## 2026-09-16 — Phase 3 shipped (project-centric timesheets, daily lock, regularization tickets)
+
+Two migrations (`20260916052421_phase3_project_timesheets` +
+`20260916052614_phase3_timesheet_decision_reason`, both additive-only, no
+`DROP`), applied to `requirement_dashboard_erp` and the shared test DB.
+
+- **Schema**: new `TimesheetEntry` — one row per **(employee, day,
+  project)**, per the client brief (a split day like 4h Project A + 4h
+  Project B is two rows, not one blended entry). `account_id` (required, the
+  client) + `requirement_id` (optional, a specific engagement under that
+  account) reuse the existing recruitment domain rather than inventing a
+  new "project" concept, per the original HLD's own reasoning. `org_id`
+  denormalized directly (same reasoning as `AttendanceRecord`/
+  `LeaveRequest` — a real `(org_id, date)` index, not a join). New
+  `TimesheetLock` — one row per `(org_id, date)`, an **org-wide** daily
+  lock (not per-employee — matches "Admins can lock timesheets daily").
+  New `TimesheetRegularizationTicket` — `requested_change` is a small JSON
+  patch restricted to `hours`/`billable`/`notes` by validation (never
+  trusted as an arbitrary write), applied field-by-field on approval inside
+  a transaction alongside the ticket's own status update.
+- **New `timesheets` module** (`server/src/modules/timesheets/`), gated by
+  `requireOrgMembership`:
+  - `POST /timesheets/entries` — checks the day isn't locked, the account
+    (and requirement, if given) belongs to the caller's org, and the day's
+    total hours across all of that employee's entries won't exceed 24.
+  - `GET /timesheets/entries/me`, `GET /timesheets/entries` (admin, team-wide).
+  - `PATCH /timesheets/entries/:id` — owner-only, and only while `status`
+    is still `submitted` **and** the day isn't locked; a decided or
+    locked-day entry can only change via a regularization ticket.
+  - `POST /timesheets/entries/:id/decision` (admin) — approve/reject,
+    reason optional but stored (`decision_reason`), one-shot (can't
+    re-decide).
+  - `POST /timesheets/entries/:id/regularization-tickets` — **only valid
+    once the day is locked** (422 otherwise — "just edit it directly").
+  - `GET /timesheets/regularization-tickets` (admin), `POST
+    /timesheets/regularization-tickets/:id/decision` (admin) — approving
+    applies the patch to the entry inside a transaction; rejecting leaves
+    the entry untouched; one-shot.
+  - `POST /timesheets/locks`, `GET /timesheets/locks` (admin) — locking is
+    idempotent-checked (409 on a day already locked), and deliberately has
+    **no unlock endpoint** — the brief's whole point is that a lock is a
+    one-way freeze; corrections go through the ticket flow, not an admin
+    toggle.
+  - `TimesheetEntry`/`TimesheetLock` added to the write-side `org_id`
+    auto-injection set in `config/db.js` (redundant with the service
+    explicitly setting `org_id` — defense-in-depth, matching the pattern
+    for every other Phase 2/3 module).
+- **Tests**: `server/tests/erp-phase3-timesheets.test.js` (14 cases —
+  org-membership gate, basic logging, multi-project split-day logging, the
+  24h/day cap, requirement-must-belong-to-account validation, cross-org
+  account rejection, owner-edit-while-submitted then blocked-after-approval,
+  non-admin can't decide, lock freezes both new entries and edits on that
+  day, a ticket is rejected before the day is locked and required after,
+  approving a ticket applies the change transactionally, rejecting one
+  doesn't, admin team view, non-admin blocked from the team view and from
+  locking). Full suite **46 suites / 360 tests green**, eslint clean.
+- Local: smoke-tested `createEntry` end-to-end against
+  `requirement_dashboard_erp` inside a real `orgContext.run()` block.
+- **Not built this phase**: any frontend (timesheet entry form, admin lock
+  button, ticket review screen); overtime is still computed only from
+  attendance check-in/out (Phase 2), not cross-checked against logged
+  timesheet hours — the HLD's `overtime` module description
+  ("computed from attendance + timesheet") is only half-built; that
+  reconciliation is a reasonable next add, not done here to keep this pass
+  scoped to what the client brief's Phase 2.1/2.2 actually asked for.
+
 - **Not built this pass** (see HLD §11 for the full remaining map):
   everything in Phase 3 onward (timesheet locking/regularization tickets,
   billing/daily revenue, payroll, profitability/super-dashboard) and all
