@@ -87,6 +87,32 @@ New guide: [DATABASE-CONNECTION-POOLING.md](../guides/DATABASE-CONNECTION-POOLIN
   read replica (once real write contention shows up on reports/
   profitability queries). Neither is needed at current scale.
 
+## 2026-09-16 — Pre-Phase-3 hardening: org_id auto-injection + Designations module — branch `feature/multi-company-erp`
+
+No migration — pure app code. Plan doc log has the full reasoning; summary here.
+
+- New `src/lib/orgContext.js` (`AsyncLocalStorage`) + `middleware/auth.js`
+  now runs each request inside it; `config/db.js` gained a second
+  `prisma.$use` that auto-stamps `org_id` on `create` for 17 org-scoped
+  models when the request has org context and the caller didn't already
+  set it. Zero behavior change for anyone without an org membership (still
+  the default test/pre-backfill case) or any service that already sets
+  `org_id` explicitly (all of Phase 2/2-amendment).
+- **Deliberately still not done**: the `org_id` → `NOT NULL` flip and the
+  read-side half (filtering every list/report query by org). Both need a
+  bigger, separate decision than this pass — see the plan doc / TODO.md for
+  why.
+- New `designations` module (org-scoped, mirrors `departments`):
+  `GET/POST /designations`, `PATCH /designations/:id`.
+- Tests: `designations.test.js` (8 — membership gate, CRUD + admin gate,
+  cross-org name reuse, rename collision, plus 3 proving the auto-injection
+  behaves correctly in all three cases: stamped, left `null`, never
+  overrides an explicit value). Full suite **45 suites / 346 tests green**,
+  eslint clean. Smoke-tested against `requirement_dashboard_erp` directly.
+- Docker Desktop went down mid-session (unrelated — a Postgres-unreachable
+  connection error, not a test failure); relaunched it, confirmed all three
+  local databases + `max_connections=200` survived, reran clean.
+
 ## 2026-09-15 — Multi-company ERP: client brief received, Phase 2 amended — branch `feature/multi-company-erp`
 
 Full brief + phase mapping: HLD doc's new "Product brief" section + §11. Plan doc log has the exhaustive diff; this is the summary.

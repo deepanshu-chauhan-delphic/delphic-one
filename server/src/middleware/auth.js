@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const prisma = require('../config/db');
+const orgContext = require('../lib/orgContext');
 const { fail } = require('../utils/response');
 
 // Multi-company ERP (Phase 1): the JWT carries an `org_id` for users who have
@@ -36,7 +37,13 @@ function authenticate(req, res, next) {
     resolveOrgContext(base, payload.org_id)
       .then((user) => {
         req.user = user;
-        next();
+        // Multi-company ERP (HLD §5, layer 1): the rest of this request runs
+        // inside an AsyncLocalStorage context carrying the resolved org_id,
+        // so config/db.js's Prisma middleware can auto-stamp org_id on
+        // writes that forget to set it. Empty org_id (no membership, or a
+        // pre-Phase-1 token) means the middleware no-ops — zero behavior
+        // change for anything that stays oblivious to org context.
+        orgContext.run({ org_id: user.org_id, org_membership_id: user.org_membership_id }, next);
       })
       .catch(next);
   } catch (err) {

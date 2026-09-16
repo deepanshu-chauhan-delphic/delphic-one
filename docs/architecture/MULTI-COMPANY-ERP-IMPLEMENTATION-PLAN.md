@@ -102,6 +102,55 @@ loss; everything else is `ADD COLUMN`/`CREATE TABLE`). Applied to
   pre-existing warnings only).
 - Local: seeded Ahmedabad/Indore/Gurgaon + a "General 9-6" shift into
   `requirement_dashboard_erp`, assigned the shift to all 13 memberships.
+## 2026-09-16 — Pre-Phase-3 hardening: org_id write-side auto-injection + Designations module
+
+Before starting Phase 3, closed two loose ends flagged as "remaining" in the
+Phase 1/2 logs — both zero-regression, verified against the full suite.
+
+- **`org_id` auto-injection on create** (HLD §5 layer 1, the write-side
+  half only — see below for why the read-side half and the `NOT NULL` flip
+  stay deferred). New `server/src/lib/orgContext.js`
+  (`AsyncLocalStorage`-based, empty outside a request — cron jobs/scripts
+  are unaffected). `middleware/auth.authenticate` now runs the rest of the
+  request inside `orgContext.run({ org_id, org_membership_id }, next)`.
+  `config/db.js` gained a second `prisma.$use` (alongside the existing
+  soft-delete one) that stamps `org_id` onto a `create` for 17 org-scoped
+  models (the Phase 0 list + `Department`/`Designation`/`Calendar`/
+  `AttendanceRecord`/`LeaveType`/`LeaveRequest`) **only when** the request
+  has resolved org context **and** the caller didn't already set `org_id`
+  explicitly. Every existing service that already sets `org_id` explicitly
+  (all of Phase 2/2-amendment) is unaffected; every caller with no org
+  membership (still the default for a plain `createUser()` in tests, and
+  for any real user before they're backfilled) is unaffected.
+  **Why not the read-side half or the `NOT NULL` flip too**: auto-filtering
+  every read by `org_id` would change results for any caller who already
+  has an org membership, and the entire recruitment domain's read paths
+  (accounts/requirements/profiles/submissions/reports/dashboard — dozens of
+  service functions) have never been audited against that; and `NOT NULL`
+  can't land while `createUser()`-style membership-less users are still a
+  deliberately-supported, tested case (Phase 1's own backward-compat
+  guarantee). Both stay open, larger, separately-scoped decisions — not
+  silently dropped, tracked in TODO.md.
+- **`designations` module** (new, org-scoped, mirrors the existing global
+  `departments` module's shape): `GET/POST /designations`, `PATCH
+  /designations/:id`, gated by `requireOrgMembership` + `authorize('admin')`
+  for writes. Same designation name is allowed in two different orgs
+  (unlike `Department`'s still-global unique).
+- Tests: `server/tests/designations.test.js` (8 — membership gate, CRUD +
+  admin gate, cross-org name reuse, rename-collision rejection, plus 3
+  cases proving the auto-injection: a department created with org context
+  gets stamped, one created without context stays `null` exactly as before,
+  and an explicitly-set `org_id` from an existing service is never
+  overridden). Full suite **45 suites / 346 tests green**, eslint clean.
+- Local: smoke-tested the auto-injection directly against
+  `requirement_dashboard_erp` (a `Department` created inside
+  `orgContext.run()` came back correctly stamped).
+- **Side note**: mid-session, Docker Desktop went down (unrelated to this
+  work — confirmed by the error being a Postgres-unreachable connection
+  failure, not a test failure) while a test run was in flight; relaunched
+  it, confirmed all three local databases and the `max_connections=200`
+  setting survived, and reran clean.
+
 - **Not built this pass** (see HLD §11 for the full remaining map):
   everything in Phase 3 onward (timesheet locking/regularization tickets,
   billing/daily revenue, payroll, profitability/super-dashboard) and all

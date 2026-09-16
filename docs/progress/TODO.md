@@ -23,10 +23,21 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       (`GET /orgs/me/memberships`, `GET /orgs`), `POST /auth/switch-org`.
       No schema change. 11 new tests, full suite 42/318 green. See
       PROGRESS.md / plan doc log for detail.
-- [ ] Phase 1 (remaining) — AsyncLocalStorage + Prisma middleware to
-      auto-inject `org_id` on every write (HLD §5 layer 1), then the
-      `org_id` → `NOT NULL` migration (must come after the auto-injection,
-      not before — nothing sets `org_id` on create yet). Org-switcher
+- [x] Phase 1 (remaining, part 1) — `AsyncLocalStorage` org context
+      (`src/lib/orgContext.js`) + Prisma middleware auto-injecting `org_id`
+      on `create` for 17 org-scoped models, write-side only. 3 new tests
+      (+ designations tests below), full suite 45/346 green.
+- [ ] Phase 1 (remaining, part 2) — the `org_id` → `NOT NULL` migration:
+      **still deferred, on purpose**, not just unstarted. It can't land
+      while a membership-less user (still a deliberately-supported, tested
+      case — Phase 1's own backward-compat guarantee) can create rows;
+      flipping it requires either (a) guaranteeing every real user always
+      has a membership, or (b) a deliberate cutover where recruitment
+      routes stop being org-oblivious — a bigger decision than a plain
+      follow-up task. The read-side half of org_id auto-injection (filtering
+      every list/report query by org) is the same story — untested against
+      the whole recruitment domain, deferred until there's a second org
+      with real data to actually need the isolation. Org-switcher
       **frontend** (header dropdown, `authContext` storing
       `memberships`/`active_org`) — deferred until there's a second org to
       switch to.
@@ -45,11 +56,14 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       one-per-employee to one-per-(employee, project) +
       `GET /calendars/assignments/:id`. 10 new tests, full suite 44/338
       green. See PROGRESS.md / plan doc log for detail.
-- [ ] Phase 2 (remaining) — Department/Designation CRUD API (schema exists,
-      no endpoints yet); frontend (attendance widget, leave request form,
-      calendar admin screen, location/shift/POC admin screens); leave
-      accrual (balances only move on approval today, nothing seeds
-      `accrued`); overtime *approval* workflow (only the auto-calc exists).
+- [x] Phase 2 (remaining, part 1) — `designations` module
+      (`GET/POST /designations`, `PATCH /designations/:id`), org-scoped,
+      mirrors the existing global `departments` module. 8 new tests.
+- [ ] Phase 2 (remaining, part 2) — frontend (attendance widget, leave
+      request form, calendar admin screen, location/shift/POC admin
+      screens); leave accrual (balances only move on approval today,
+      nothing seeds `accrued`); overtime *approval* workflow (only the
+      auto-calc exists).
 - [ ] **New scope from the 2026-09-15 client brief, not started**: Phase 3
       timesheet locking + regularization tickets; Phase 5 real-time daily
       project revenue (`BillingRate`/`DailyProjectRevenue`); Phase 7

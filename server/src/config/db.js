@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const env = require('./env');
+const orgContext = require('../lib/orgContext');
 
 const prisma = new PrismaClient({
   log: env.nodeEnv === 'development' ? ['warn', 'error'] : ['error'],
@@ -52,6 +53,47 @@ prisma.$use(async (params, next) => {
     }
   }
 
+  return next(params);
+});
+
+// --- Multi-company ERP: org_id auto-stamp on create (HLD §5, layer 1) ---
+// Write-side only, deliberately not read-side yet: auto-filtering every
+// read by org_id would change results for any caller who already has an
+// org membership, and the recruitment domain's services were never audited
+// against that (see the plan doc's reasoning for why the org_id -> NOT NULL
+// flip is also still deferred). This half is pure upside with no such risk
+// — it only fires when (a) the request has resolved org context AND (b) the
+// caller didn't already set org_id explicitly, so every model that already
+// sets it (calendars/attendance/leave services, the Phase 0 backfill
+// script) is unaffected, and every caller with no org membership (still the
+// common case — see resolveOrgContext in middleware/auth.js) is unaffected.
+const ORG_SCOPED_ON_CREATE = new Set([
+  'Account',
+  'Requirement',
+  'Profile',
+  'Submission',
+  'InterviewRound',
+  'StageHistory',
+  'Document',
+  'Comment',
+  'Notification',
+  'NotificationPreference',
+  'AuditLog',
+  'Department',
+  'Designation',
+  'Calendar',
+  'AttendanceRecord',
+  'LeaveType',
+  'LeaveRequest',
+]);
+
+prisma.$use(async (params, next) => {
+  if (ORG_SCOPED_ON_CREATE.has(params.model) && params.action === 'create') {
+    const orgId = orgContext.getOrgId();
+    if (orgId && params.args?.data && params.args.data.org_id === undefined) {
+      params.args.data.org_id = orgId;
+    }
+  }
   return next(params);
 });
 

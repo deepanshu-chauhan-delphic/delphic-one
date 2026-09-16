@@ -29,6 +29,7 @@ const orgsRoutes = require('./modules/orgs/orgs.routes');
 const calendarsRoutes = require('./modules/calendars/calendars.routes');
 const attendanceRoutes = require('./modules/attendance/attendance.routes');
 const leaveRoutes = require('./modules/leave/leave.routes');
+const designationsRoutes = require('./modules/designations/designations.routes');
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use('/api/v1/orgs', orgsRoutes);
 app.use('/api/v1/calendars', calendarsRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/leave', leaveRoutes);
+app.use('/api/v1/designations', designationsRoutes);
 
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
 app.use(errorHandler);
