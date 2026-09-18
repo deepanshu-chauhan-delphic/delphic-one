@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: delphic-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    repo: https://github.com/<your-github-user>/<your-repo>
+    branch: staging
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES
+        value: 1h
+      - key: JWT_REFRESH_EXPIRES
+        value: 7d
+      - key: CORS_ORIGIN
+        value: https://delphic-staging.onrender.com
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      - key: UPLOAD_DIR
+        value: /app/server/uploads
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      - key: ENABLE_JOBS
+        value: "false"
+      - key: LOG_LEVEL
+        value: info
