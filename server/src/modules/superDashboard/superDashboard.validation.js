@@ -12,9 +12,13 @@ const computeSchema = z
 const rollupQuerySchema = z.object({
   from: requiredDate,
   to: requiredDate,
-  group_by: z.enum(['day', 'month']).default('month'),
+  group_by: z.enum(['day', 'month', 'quarter', 'year']).default('month'),
   // Omit for a group-wide total across every org; pass to drill into one company.
   org_id: z.string().uuid().optional(),
 });
 
-module.exports = { computeSchema, rollupQuerySchema };
+// Same shape as rollupQuerySchema — shared by /financials-rollup, which adds
+// expenses + vendor payments on top of the revenue/cost/margin rollup above.
+const financialsRollupQuerySchema = rollupQuerySchema;
+
+module.exports = { computeSchema, rollupQuerySchema, financialsRollupQuerySchema };

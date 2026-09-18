@@ -67,6 +67,11 @@ enum LeaveRequestStatus {
   cancelled
 }
 
+enum LeaveHalfDaySession {
+  FIRST_HALF
+  SECOND_HALF
+}
+
 // --- Multi-company ERP platform (Phase 3 — project-centric timesheets) ---
 
 enum TimesheetEntryStatus {
@@ -404,6 +409,7 @@ model User {
   notifications_authored       Notification[]                  @relation("NotificationActor")
   notification_preferences     NotificationPreference[]
   org_memberships              OrgMembership[]                 @relation("OrgMembershipPerson")
+  org_group_memberships        OrgGroupMembership[]            @relation("OrgGroupMembershipUser")
   attendance_regularizations   AttendanceRecord[]              @relation("AttendanceRegularizedBy")
   hr_poc_for                   OrgMembership[]                 @relation("OrgMembershipHrPoc")
   sourcing_poc_for             OrgMembership[]                 @relation("OrgMembershipSourcingPoc")
@@ -433,13 +439,9 @@ model Department {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  // Multi-company ERP (Phase 2) — nullable, unused by app code today. The
-  // global `name` unique is intentionally left as-is (not yet
-  // `@@unique([org_id, name])`): today's single-org data has no collisions,
-  // and tightening it is a follow-up once org_id is actually enforced —
-  // see the plan doc's Phase 2 log for why this is a known, accepted gap.
-  org_id String? @db.Uuid
-  org    Org?    @relation(fields: [org_id], references: [id])
+  // Multi-company ERP: departments belong to the active organization.
+  org_id String   @db.Uuid
+  org    Org      @relation(fields: [org_id], references: [id])
 
   users           User[]
   org_memberships OrgMembership[]
@@ -653,6 +655,8 @@ model LeaveRequest {
   leave_type        LeaveType          @relation(fields: [leave_type_id], references: [id])
   from_date         DateTime           @db.Date
   to_date           DateTime           @db.Date
+  is_half_day       Boolean            @default(false)
+  half_day_session  LeaveHalfDaySession?
   status            LeaveRequestStatus @default(pending)
   reason            String?
   approver_id       String?            @db.Uuid
@@ -1125,9 +1129,26 @@ model OrgGroup {
   updated_at DateTime @default(now()) @updatedAt
 
   orgs                  Org[]
+  memberships           OrgGroupMembership[]
   group_billing_charges GroupBillingCharge[]
 
   @@map("org_groups")
+}
+
+// Parent holding-company access. A group superadmin is scoped to one or more
+// holding groups instead of receiving implicit access to every tenant in the
+// database.
+model OrgGroupMembership {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation("OrgGroupMembershipUser", fields: [user_id], references: [id], onDelete: Cascade)
+  org_group_id String   @db.Uuid
+  org_group    OrgGroup @relation(fields: [org_group_id], references: [id], onDelete: Cascade)
+  created_at   DateTime @default(now())
+
+  @@unique([user_id, org_group_id])
+  @@index([org_group_id])
+  @@map("org_group_memberships")
 }
 
 model Org {
@@ -1136,9 +1157,14 @@ model Org {
   org_group        OrgGroup  @relation(fields: [org_group_id], references: [id])
   name             String
   slug             String    @unique
+  logo_url         String?
   timezone         String    @default("Asia/Kolkata")
   default_currency Currency  @default(INR)
   status           OrgStatus @default(active)
+  // Manually set by a group superadmin (Phase 3 group dashboard) — no
+  // valuation methodology exists yet, so this is an admin-entered figure,
+  // not a computed one. Null until set.
+  valuation        Decimal?  @db.Decimal(16, 2)
   created_at       DateTime  @default(now())
   updated_at       DateTime  @default(now()) @updatedAt
 

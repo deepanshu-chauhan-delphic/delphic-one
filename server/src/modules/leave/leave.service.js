@@ -1,7 +1,57 @@
 const prisma = require('../../config/db');
 
+const DEFAULT_LEAVE_TYPES = [
+  { id: '00000000-0000-4000-8000-000000000001', name: 'Casual Leave', paid: true, annual_quota: 12 },
+  { id: '00000000-0000-4000-8000-000000000002', name: 'Sick Leave', paid: true, annual_quota: 12 },
+  { id: '00000000-0000-4000-8000-000000000003', name: 'Earned Leave', paid: true, annual_quota: 18 },
+  { id: '00000000-0000-4000-8000-000000000004', name: 'Unpaid Leave', paid: false, annual_quota: 0 },
+];
+
+async function ensureDefaultTypes(orgId) {
+  const existing = await prisma.leaveType.findMany({ where: { org_id: orgId }, select: { name: true } });
+  const existingNames = new Set(existing.map((type) => type.name));
+  const missing = DEFAULT_LEAVE_TYPES.filter((type) => !existingNames.has(type.name));
+  if (missing.length === 0) return;
+
+  for (const type of missing) {
+    await prisma.leaveType.create({ data: { ...type, org_id: orgId } }).catch(() => undefined);
+  }
+}
+
 async function listTypes(orgId) {
+  await ensureDefaultTypes(orgId);
   return prisma.leaveType.findMany({ where: { org_id: orgId }, orderBy: { name: 'asc' } });
+}
+
+async function listMyBalances(orgId, orgMembershipId, year) {
+  await ensureDefaultTypes(orgId);
+  const leaveTypes = await prisma.leaveType.findMany({
+    where: { org_id: orgId },
+    orderBy: { name: 'asc' },
+    include: {
+      balances: {
+        where: { org_membership_id: orgMembershipId, year },
+        take: 1,
+      },
+    },
+  });
+
+  return leaveTypes.map((leaveType) => {
+    const balance = leaveType.balances[0];
+    const accrued = balance ? Number(balance.accrued) : 0;
+    const allocated = accrued > 0 ? accrued : Number(leaveType.annual_quota || 0);
+    const used = balance ? Number(balance.used) : 0;
+    return {
+      leave_type_id: leaveType.id,
+      leave_type_name: leaveType.name,
+      paid: leaveType.paid,
+      year,
+      allocated,
+      accrued,
+      used,
+      remaining: Math.max(allocated - used, 0),
+    };
+  });
 }
 
 async function createType(orgId, { name, paid, annual_quota }) {
@@ -11,19 +61,32 @@ async function createType(orgId, { name, paid, annual_quota }) {
   return { leaveType };
 }
 
-async function createRequest(orgId, orgMembershipId, { leave_type_id, from_date, to_date, reason }) {
+async function createRequest(
+  orgId,
+  orgMembershipId,
+  { leave_type_id, from_date, to_date, is_half_day, half_day_session, reason }
+) {
   const leaveType = await prisma.leaveType.findFirst({ where: { id: leave_type_id, org_id: orgId } });
   if (!leaveType) return { error: 'leave_type_not_found' };
 
   const request = await prisma.leaveRequest.create({
-    data: { org_id: orgId, org_membership_id: orgMembershipId, leave_type_id, from_date, to_date, reason },
+    data: {
+      org_id: orgId,
+      org_membership_id: orgMembershipId,
+      leave_type_id,
+      from_date,
+      to_date,
+      is_half_day,
+      half_day_session: is_half_day ? half_day_session : null,
+      reason,
+    },
     include: { leave_type: true },
   });
   return { request };
 }
 
-async function listMine(orgMembershipId, { status, page, limit }) {
-  const where = { org_membership_id: orgMembershipId, ...(status ? { status } : {}) };
+async function listMine(orgId, orgMembershipId, { status, page, limit }) {
+  const where = { org_id: orgId, org_membership_id: orgMembershipId, ...(status ? { status } : {}) };
   const [data, total] = await Promise.all([
     prisma.leaveRequest.findMany({
       where,
@@ -71,7 +134,9 @@ async function decide(orgId, requestId, approverMembershipId, { status, reason }
   });
 
   if (status === 'approved') {
-    const days = Math.round((request.to_date - request.from_date) / 86400000) + 1;
+    const days = request.is_half_day
+      ? 0.5
+      : Math.round((request.to_date - request.from_date) / 86400000) + 1;
     await prisma.leaveBalance.upsert({
       where: {
         org_membership_id_leave_type_id_year: {
@@ -93,8 +158,8 @@ async function decide(orgId, requestId, approverMembershipId, { status, reason }
   return { request };
 }
 
-async function cancel(orgMembershipId, requestId) {
-  const existing = await prisma.leaveRequest.findFirst({ where: { id: requestId, org_membership_id: orgMembershipId } });
+async function cancel(orgId, orgMembershipId, requestId) {
+  const existing = await prisma.leaveRequest.findFirst({ where: { id: requestId, org_id: orgId, org_membership_id: orgMembershipId } });
   if (!existing) return { error: 'not_found' };
   if (existing.status !== 'pending') return { error: 'not_pending' };
 
@@ -102,4 +167,4 @@ async function cancel(orgMembershipId, requestId) {
   return { request };
 }
 
-module.exports = { listTypes, createType, createRequest, listMine, listTeam, decide, cancel };
+module.exports = { listTypes, listMyBalances, createType, createRequest, listMine, listTeam, decide, cancel };

@@ -12,8 +12,13 @@ export function headerTitleForPath(pathname, user) {
   if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/reports')) return 'Reports';
-  if (pathname.startsWith('/users')) return 'Users';
-  return 'Delphic';
+  if (pathname.startsWith('/group-overview')) return 'Group Overview';
+  if (pathname.startsWith('/finance')) return 'Finance';
+  if (pathname.startsWith('/payroll')) return 'Payroll';
+  if (/^\/people\/[^/]+$/.test(pathname)) return 'Employee profile';
+  if (pathname.startsWith('/people')) return 'People';
+  if (pathname.startsWith('/attendance')) return 'Time & Attendance';
+  return user?.active_org?.name || 'Workspace';
 }
 
 /** Subtitle shown directly under the header title on the same canvas background. */
@@ -33,8 +38,15 @@ export function headerSubtitleForPath(pathname, user) {
   if (pathname.startsWith('/notifications')) return 'Assignments, interviews, and stage changes across your work.';
   if (pathname.startsWith('/settings')) return 'Your profile, password, notifications, and account history.';
   if (pathname.startsWith('/reports')) return 'Pick filters and export Excel or PDF.';
-  if (pathname.startsWith('/users')) {
-    return 'Only admins can create accounts. Assign a department so reports can filter by team.';
+  if (pathname.startsWith('/group-overview')) {
+    return 'Group-wide valuation, revenue vs. expense, and drill-down into any subsidiary.';
   }
+  if (pathname.startsWith('/finance')) return 'Expenses, vendor payments, billing rates, accounting, group charges, and CA/audit access.';
+  if (pathname.startsWith('/payroll')) return 'Salary structures, payroll runs, and payslips.';
+  if (/^\/people\/[^/]+$/.test(pathname)) return 'Employee directory, organization details, and reporting context.';
+  if (pathname.startsWith('/people')) {
+    return 'Directory, org chart, users, and HR settings in one place.';
+  }
+  if (pathname.startsWith('/attendance')) return 'Attendance, leave, and timesheets in one place.';
   return '';
 }

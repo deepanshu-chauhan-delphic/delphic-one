@@ -9,6 +9,7 @@ const PUBLIC_SELECT = {
   role: true,
   active: true,
   is_superadmin: true,
+  is_group_superadmin: true,
   department_id: true,
   created_at: true,
   department: { select: { id: true, name: true } },
@@ -18,12 +19,17 @@ async function countActiveSuperadmins() {
   return prisma.user.count({ where: { is_superadmin: true, active: true } });
 }
 
-async function getById(id) {
-  return prisma.user.findUnique({ where: { id }, select: PUBLIC_SELECT });
+function activeOrgMembership(orgId) {
+  return orgId ? { org_memberships: { some: { org_id: orgId, employment_status: 'active' } } } : {};
 }
 
-async function list({ role, active, search, department_id, page = 1, limit = 20 }) {
+async function getById(orgId, id) {
+  return prisma.user.findFirst({ where: { id, ...activeOrgMembership(orgId) }, select: PUBLIC_SELECT });
+}
+
+async function list(orgId, { role, active, search, department_id, page = 1, limit = 20 }) {
   const where = {
+    ...activeOrgMembership(orgId),
     ...(role ? { role } : {}),
     ...(active !== undefined ? { active } : {}),
     ...(department_id ? { department_id } : {}),
@@ -52,9 +58,10 @@ async function list({ role, active, search, department_id, page = 1, limit = 20 
 }
 
 // Full lightweight roster for pickers/filters — no secrets, no pagination.
-async function listDirectory({ role, active } = {}) {
+async function listDirectory(orgId, { role, active } = {}) {
   return prisma.user.findMany({
     where: {
+      ...activeOrgMembership(orgId),
       ...(role ? { role } : {}),
       ...(active !== undefined ? { active } : {}),
     },
@@ -63,28 +70,42 @@ async function listDirectory({ role, active } = {}) {
   });
 }
 
-async function create({ name, email, password, role, phone, department_id }) {
+async function create(orgId, { name, email, password, role, phone, department_id }) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: 'email_taken' };
+  if (department_id) {
+    const department = await prisma.department.findFirst({ where: { id: department_id, org_id: orgId } });
+    if (!department) return { error: 'department_not_found' };
+  }
 
   const password_hash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password_hash,
-      role,
-      phone: phone || null,
-      department_id: department_id || null,
-    },
-    select: PUBLIC_SELECT,
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        name,
+        email,
+        password_hash,
+        role,
+        phone: phone || null,
+        department_id: department_id || null,
+      },
+      select: { id: true },
+    });
+    await tx.orgMembership.create({
+      data: { person_id: created.id, org_id: orgId, role, department_id: department_id || null },
+    });
+    return tx.user.findUnique({ where: { id: created.id }, select: PUBLIC_SELECT });
   });
   return { user };
 }
 
-async function update(id, patch, actor = {}) {
-  const target = await prisma.user.findUnique({ where: { id } });
+async function update(orgId, id, patch, actor = {}) {
+  const target = await prisma.user.findFirst({ where: { id, ...activeOrgMembership(orgId) } });
   if (!target) return { error: 'not_found' };
+  if (Object.prototype.hasOwnProperty.call(patch, 'department_id') && patch.department_id) {
+    const department = await prisma.department.findFirst({ where: { id: patch.department_id, org_id: orgId } });
+    if (!department) return { error: 'department_not_found' };
+  }
 
   if ('is_superadmin' in patch && !actor.is_superadmin) return { error: 'forbidden_superadmin_field' };
   if (patch.password !== undefined && !actor.is_superadmin) return { error: 'forbidden_password' };
@@ -108,6 +129,17 @@ async function update(id, patch, actor = {}) {
   }
 
   const user = await prisma.user.update({ where: { id }, data, select: PUBLIC_SELECT });
+  if (patch.role || Object.prototype.hasOwnProperty.call(patch, 'department_id')) {
+    await prisma.orgMembership.updateMany({
+      where: { person_id: id, org_id: orgId },
+      data: {
+        ...(patch.role ? { role: patch.role } : {}),
+        ...(Object.prototype.hasOwnProperty.call(patch, 'department_id')
+          ? { department_id: patch.department_id }
+          : {}),
+      },
+    });
+  }
   return { user };
 }
 
@@ -116,10 +148,10 @@ async function update(id, patch, actor = {}) {
  * across accounts, requirements, seats, and submissions. Read-only; powers the
  * "Activity" tab on the Settings page.
  */
-async function listActivity(userId, { limit = 50 } = {}) {
+async function listActivity(userId, orgId, { limit = 50 } = {}) {
   const take = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const rows = await prisma.stageHistory.findMany({
-    where: { changed_by: userId },
+    where: { changed_by: userId, org_id: orgId },
     orderBy: { changed_at: 'desc' },
     take,
   });
@@ -129,20 +161,20 @@ async function listActivity(userId, { limit = 50 } = {}) {
 
   const [accounts, requirements, seats, submissions] = await Promise.all([
     ids.account.size
-      ? prisma.account.findMany({ where: { id: { in: [...ids.account] } }, select: { id: true, name: true } })
+      ? prisma.account.findMany({ where: { id: { in: [...ids.account] }, org_id: orgId }, select: { id: true, name: true } })
       : [],
     ids.requirement.size
-      ? prisma.requirement.findMany({ where: { id: { in: [...ids.requirement] } }, select: { id: true, title: true } })
+      ? prisma.requirement.findMany({ where: { id: { in: [...ids.requirement] }, org_id: orgId }, select: { id: true, title: true } })
       : [],
     ids.seat.size
       ? prisma.requirementSeat.findMany({
-          where: { id: { in: [...ids.seat] } },
+          where: { id: { in: [...ids.seat] }, requirement: { org_id: orgId } },
           select: { id: true, requirement: { select: { title: true } } },
         })
       : [],
     ids.submission.size
       ? prisma.submission.findMany({
-          where: { id: { in: [...ids.submission] } },
+          where: { id: { in: [...ids.submission] }, org_id: orgId },
           select: {
             id: true,
             profile: { select: { name: true } },

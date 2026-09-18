@@ -17,10 +17,16 @@ import ProfileDetailPage from '../pages/profiles/ProfileDetailPage.jsx';
 import SubmissionsListPage from '../pages/submissions/SubmissionsListPage.jsx';
 import SubmissionDetailPage from '../pages/submissions/SubmissionDetailPage.jsx';
 import ReportsPage from '../pages/reports/ReportsPage.jsx';
-import UsersPage from '../pages/users/UsersPage.jsx';
 import CalendarPage from '../pages/calendar/CalendarPage.jsx';
 import NotificationsPage from '../pages/notifications/NotificationsPage.jsx';
 import SettingsPage from '../pages/settings/SettingsPage.jsx';
+import PeopleHubPage from '../pages/people/PeopleHubPage.jsx';
+import EmployeeProfilePage from '../pages/people/EmployeeProfilePage.jsx';
+import TimeAttendanceHubPage from '../pages/time/TimeAttendanceHubPage.jsx';
+import FinanceHubPage from '../pages/finance/FinanceHubPage.jsx';
+import PayrollHubPage from '../pages/payroll/PayrollHubPage.jsx';
+import GroupOverviewPage from '../pages/groupOverview/GroupOverviewPage.jsx';
+import GuestPortalPage from '../pages/guest/GuestPortalPage.jsx';
 
 function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center text-tertiary-500">Loading…</div>;
@@ -59,10 +65,20 @@ function RequirePermission({ capability, children }) {
   return children;
 }
 
+/** Group Overview is gated on the per-user is_group_superadmin flag, not a role capability. */
+function RequireGroupSuperadmin({ children }) {
+  const { user, loading, isGroupSuperadmin } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isGroupSuperadmin) return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/guest-access" element={<GuestPortalPage />} />
       <Route
         path="/"
         element={
@@ -133,19 +149,28 @@ export default function App() {
           element={<Navigate to="/settings?tab=notifications" replace />}
         />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="people" element={<PeopleHubPage />} />
+        <Route path="people/:id" element={<EmployeeProfilePage />} />
+        {/* Merged into the People / Time & Attendance hubs — keep old links working. */}
+        <Route path="people/settings" element={<Navigate to="/people?section=hr-settings" replace />} />
+        <Route path="users" element={<Navigate to="/people?section=users" replace />} />
+        <Route path="attendance" element={<TimeAttendanceHubPage />} />
+        <Route path="leave" element={<Navigate to="/attendance?section=leave" replace />} />
+        <Route path="finance" element={<FinanceHubPage />} />
+        <Route path="payroll" element={<PayrollHubPage />} />
+        <Route
+          path="group-overview"
+          element={
+            <RequireGroupSuperadmin>
+              <GroupOverviewPage />
+            </RequireGroupSuperadmin>
+          }
+        />
         <Route
           path="reports"
           element={
             <RequirePermission capability="viewReports">
               <ReportsPage />
-            </RequirePermission>
-          }
-        />
-        <Route
-          path="users"
-          element={
-            <RequirePermission capability="manageUsers">
-              <UsersPage />
             </RequirePermission>
           }
         />

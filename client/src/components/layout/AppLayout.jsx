@@ -1,34 +1,89 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LogOut, Menu, MoreVertical, Settings, X } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, LogOut, Menu, MoreVertical, Plus, Settings, X } from 'lucide-react';
 import { useAuth } from '../../lib/authContext.jsx';
+import { useAlerts } from '../../lib/alerts/alertContext.jsx';
 import { useNotifications } from '../../lib/notifications/notificationsContext.jsx';
 import { usePermissions } from '../../lib/permissions.js';
 import Avatar from '../ui/Avatar.jsx';
 import NotificationBell from '../notifications/NotificationBell.jsx';
 import { headerSubtitleForPath, headerTitleForPath } from './headerTitle.js';
 import { NAV_ITEMS } from './navItems.js';
+import Drawer from '../ui/Drawer.jsx';
 
 const SIDEBAR_KEY = 'delphic_sidebar_collapsed';
+
+function OrgCreateDrawer({ open, onClose }) {
+  const { createOrganization } = useAuth();
+  const { pushError, pushInfo } = useAlerts();
+  const [fields, setFields] = useState({ name: '', slug: '', logo_url: '' });
+  const [saving, setSaving] = useState(false);
+
+  function updateField(key, value) {
+    setFields((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await createOrganization({
+        name: fields.name.trim(),
+        slug: fields.slug.trim(),
+        logo_url: fields.logo_url.trim() || null,
+      });
+      setFields({ name: '', slug: '', logo_url: '' });
+      onClose();
+      pushInfo('Organization created and selected');
+    } catch (error) {
+      pushError(error.response?.data?.message || 'Failed to create organization', 'Organization onboarding failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer open={open} title="Create organization" onClose={onClose} size="md" tone="create" footer={(
+      <>
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+        <button type="submit" form="create-organization-form" className="btn-primary" disabled={saving || !fields.name.trim() || !fields.slug.trim()}>
+          {saving ? 'Creating...' : 'Create organization'}
+        </button>
+      </>
+    )}>
+      <form id="create-organization-form" onSubmit={submit} className="space-y-4">
+        <label className="block text-xs font-medium text-tertiary-600">Organization name<input required value={fields.name} onChange={(event) => updateField('name', event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" /></label>
+        <label className="block text-xs font-medium text-tertiary-600">Workspace slug<input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={fields.slug} onChange={(event) => updateField('slug', event.target.value.toLowerCase())} placeholder="acme-consulting" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" /></label>
+        <label className="block text-xs font-medium text-tertiary-600">Logo URL <span className="font-normal text-tertiary-400">(optional)</span><input type="url" value={fields.logo_url} onChange={(event) => updateField('logo_url', event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" /></label>
+      </form>
+    </Drawer>
+  );
+}
 
 /**
  * App shell: collapsible icon sidebar with profile actions, canvas header title, and main outlet.
  */
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchOrg, isGroupSuperadmin } = useAuth();
   const { pathname } = useLocation();
   const { can } = usePermissions(user);
   const { interviewUnread } = useNotifications();
   const navItems = useMemo(
-    () => NAV_ITEMS.filter((item) => !item.capability || can(item.capability)),
+    () =>
+      NAV_ITEMS.filter((item) => {
+        if (item.groupSuperadminOnly) return isGroupSuperadmin;
+        return !item.capability || can(item.capability);
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- can is derived from user.role
-    [user?.role]
+    [user?.role, isGroupSuperadmin]
   );
 
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
+  const [orgSwitching, setOrgSwitching] = useState(false);
+  const [orgCreateOpen, setOrgCreateOpen] = useState(false);
   const sidebarMenuRef = useRef(null);
 
   useEffect(() => {
@@ -45,6 +100,19 @@ export default function AppLayout() {
 
   function toggleCollapsed() {
     setCollapsed((v) => !v);
+  }
+
+  async function handleOrgChange(event) {
+    const nextOrgId = event.target.value;
+    if (!nextOrgId || nextOrgId === user?.active_org?.id) return;
+    setOrgSwitching(true);
+    try {
+      await switchOrg(nextOrgId);
+    } catch {
+      // Keep the previous organization selected when the server rejects a switch.
+    } finally {
+      setOrgSwitching(false);
+    }
   }
 
   const sidebarWidth = collapsed ? 64 : 224;
@@ -65,13 +133,13 @@ export default function AppLayout() {
     <>
       <div className={`flex items-center gap-2.5 px-3 py-4 ${collapsed ? 'justify-center' : ''}`}>
         <img
-          src="/Delphic_D-logo_transparent.png"
-          alt="Delphic"
+          src={user?.active_org?.logo_url || '/Delphic_D-logo_transparent.png'}
+          alt={user?.active_org?.name || 'Organization'}
           className="h-9 w-9 shrink-0 object-contain"
         />
         {!collapsed && (
           <span className="font-heading text-lg font-bold tracking-tight text-tertiary-900">
-            Delphic one
+            {user?.active_org?.name || 'Workspace'}
           </span>
         )}
       </div>
@@ -252,6 +320,34 @@ export default function AppLayout() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                {user?.active_org && (
+                  <label className="flex items-center gap-2 rounded-lg border border-tertiary-200 bg-white px-2.5 py-1.5 text-sm text-tertiary-700 shadow-soft">
+                    <Building2 className="h-4 w-4 shrink-0 text-primary-700" />
+                    <span className="sr-only">Active organization</span>
+                    {user.memberships.length > 1 ? (
+                      <select
+                        value={user.active_org.id}
+                        onChange={handleOrgChange}
+                        disabled={orgSwitching}
+                        className="max-w-[10rem] bg-transparent text-sm font-medium outline-none disabled:cursor-wait disabled:opacity-60"
+                        aria-label="Active organization"
+                      >
+                        {user.memberships.map((membership) => (
+                          <option key={membership.org_id} value={membership.org_id}>
+                            {membership.org.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="max-w-[10rem] truncate text-sm font-medium">{user.active_org.name}</span>
+                    )}
+                  </label>
+                )}
+                {user?.role === 'admin' && (
+                  <button type="button" className="rounded-lg p-2 text-tertiary-500 hover:bg-tertiary-50 hover:text-tertiary-800" aria-label="Create organization" title="Create organization" onClick={() => setOrgCreateOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
                 <NotificationBell />
               </div>
             </div>
@@ -262,6 +358,7 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
+      <OrgCreateDrawer open={orgCreateOpen} onClose={() => setOrgCreateOpen(false)} />
     </div>
   );
 }

@@ -3,8 +3,8 @@ const { todayIst } = require('../../lib/istDate');
 
 async function checkIn(orgId, orgMembershipId) {
   const date = todayIst();
-  const existing = await prisma.attendanceRecord.findUnique({
-    where: { org_membership_id_date: { org_membership_id: orgMembershipId, date } },
+  const existing = await prisma.attendanceRecord.findFirst({
+    where: { org_id: orgId, org_membership_id: orgMembershipId, date },
   });
   if (existing?.check_in_at) return { error: 'already_checked_in', record: existing };
 
@@ -36,10 +36,10 @@ function computeOvertimeMinutes(shift, checkInAt, checkOutAt) {
   return Math.max(0, workedMinutes - allowed);
 }
 
-async function checkOut(orgMembershipId) {
+async function checkOut(orgId, orgMembershipId) {
   const date = todayIst();
-  const existing = await prisma.attendanceRecord.findUnique({
-    where: { org_membership_id_date: { org_membership_id: orgMembershipId, date } },
+  const existing = await prisma.attendanceRecord.findFirst({
+    where: { org_id: orgId, org_membership_id: orgMembershipId, date },
   });
   if (!existing || !existing.check_in_at) return { error: 'not_checked_in' };
   if (existing.check_out_at) return { error: 'already_checked_out', record: existing };
@@ -63,9 +63,9 @@ function dateRangeWhere({ from, to }) {
   return { gte: from || undefined, lte: to || undefined };
 }
 
-async function listMine(orgMembershipId, { from, to, page, limit }) {
+async function listMine(orgId, orgMembershipId, { from, to, page, limit }) {
   const date = dateRangeWhere({ from, to });
-  const where = { org_membership_id: orgMembershipId, ...(date ? { date } : {}) };
+  const where = { org_id: orgId, org_membership_id: orgMembershipId, ...(date ? { date } : {}) };
   const [data, total] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where,

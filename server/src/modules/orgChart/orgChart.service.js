@@ -49,9 +49,13 @@ async function getOrgChart(orgId, { include_terminated }) {
 // every org. Reads live OrgMembership rows directly, unlike the super
 // dashboard's profitability rollups, because there's no fact table here to
 // roll up — this *is* the live directory.
-async function getGroupOrgChart({ org_group_id, include_terminated }) {
+async function getGroupOrgChart({ org_group_id, include_terminated }, allowedGroupIds) {
   const orgs = await prisma.org.findMany({
-    where: org_group_id ? { org_group_id } : {},
+    where: {
+      org_group_id: org_group_id && allowedGroupIds.includes(org_group_id)
+        ? org_group_id
+        : { in: allowedGroupIds },
+    },
     select: { id: true, name: true, slug: true },
     orderBy: { name: 'asc' },
   });

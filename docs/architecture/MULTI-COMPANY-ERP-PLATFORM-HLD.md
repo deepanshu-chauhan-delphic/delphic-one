@@ -1,6 +1,6 @@
 # Multi-Company Group ERP Platform ("Delphic One") — HLD
 
-Status: **Phase 0-3 built, in progress** (tenancy/auth, directory/calendar/
+Status: **Phases 0-10 backend shipped; tenant-scoped frontend in progress** (tenancy/auth, directory/calendar/
 attendance/leave + the 2026-09-15 client-brief amendment, project-centric
 timesheets/locking/regularization — see §11 for the full phase-by-phase
 status table, and the companion [Implementation Plan](MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md)
@@ -103,9 +103,10 @@ OrgGroup (the parent holding entity)
          └── ... every future module
 ```
 
-- `OrgGroup` exists mainly so a future group might contain multiple sibling
-  companies with a shared super-admin layer above all `Org`s. For now there is
-  one `OrgGroup` row; it's there so we don't have to retrofit it later.
+- `OrgGroup` is the parent holding-company boundary. It may own multiple
+  sibling `Org` subsidiaries, and group-superadmin access is explicitly
+  scoped through `OrgGroupMembership` rather than being global across the
+  database.
 - `Org` is the tenant boundary. Every module table added by this design
   carries `org_id`.
 - **`Person` is global**, not per-org. One row per human being, regardless of
@@ -140,11 +141,11 @@ Target shape (additive, migrated in phases — see §9):
   workspace switcher) that re-issues a token scoped to the chosen `org_id`.
   Default org = their only membership, or last-used.
 - **Group superadmin** is a new, separate flag from `Org`-level
-  `is_superadmin` — `User.is_group_superadmin`. It grants read access to the
-  super dashboard (§7) across all orgs, and nothing else — it does not imply
-  per-org admin powers inside any single company. Gated by a new
-  `authorizeGroupSuperadmin` middleware, following the existing
-  re-read-from-DB pattern, never a JWT claim.
+  `is_superadmin` — `User.is_group_superadmin` plus one or more
+  `OrgGroupMembership` rows. It grants read access to the super dashboard
+  (§7) only inside those parent groups, and nothing else — it does not imply
+  per-org admin powers inside any subsidiary. Gated by
+  `authorizeGroupSuperadmin`, following the re-read-from-DB pattern.
 
 `can()` / `usePermissions()` on the client keep working as-is; they just start
 reading role-for-active-org instead of a single global role.

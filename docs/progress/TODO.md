@@ -27,20 +27,21 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       (`src/lib/orgContext.js`) + Prisma middleware auto-injecting `org_id`
       on `create` for 17 org-scoped models, write-side only. 3 new tests
       (+ designations tests below), full suite 45/346 green.
-- [ ] Phase 1 (remaining, part 2) — the `org_id` → `NOT NULL` migration:
-      **still deferred, on purpose**, not just unstarted. It can't land
-      while a membership-less user (still a deliberately-supported, tested
-      case — Phase 1's own backward-compat guarantee) can create rows;
-      flipping it requires either (a) guaranteeing every real user always
-      has a membership, or (b) a deliberate cutover where recruitment
-      routes stop being org-oblivious — a bigger decision than a plain
-      follow-up task. The read-side half of org_id auto-injection (filtering
-      every list/report query by org) is the same story — untested against
-      the whole recruitment domain, deferred until there's a second org
-      with real data to actually need the isolation. Org-switcher
-      **frontend** (header dropdown, `authContext` storing
-      `memberships`/`active_org`) — deferred until there's a second org to
-      switch to.
+- [x] Release 1 tenant hardening — active-org context is required for
+      organization-scoped Users, Departments, Attendance, Leave, and HR
+      Settings routes; reads and writes carry explicit `org_id` filters;
+      tokens with missing/inactive org memberships fail closed.
+- [x] Release 1 organization onboarding and branding — `Org.logo_url`,
+      admin organization creation with an initial admin membership, seamless
+      switch into the new membership, and active-org name/logo in the shell.
+- [x] Holding-company RBAC hardening — `OrgGroupMembership` scopes group
+      superadmins to authorized parent holding companies; subsidiary lists,
+      group profitability rollups, and combined org charts cannot cross that
+      parent boundary. `OrgGroup` is the canonical parent scope; no redundant
+      `parent_org_id` column is introduced.
+- [ ] Phase 1 (remaining) — the recruitment domain read-side isolation audit
+      and final `org_id` NOT NULL hardening for legacy tenant tables remain
+      open; the ERP People/HR surfaces are now explicitly tenant-scoped.
 - [x] Phase 2 (backend) — `Designation`, `Calendar`/`CalendarHoliday`/
       `EmployeeCalendar`, `AttendanceRecord`, `LeaveType`/`LeaveBalance`/
       `LeaveRequest` schema + migration
@@ -59,11 +60,29 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
 - [x] Phase 2 (remaining, part 1) — `designations` module
       (`GET/POST /designations`, `PATCH /designations/:id`), org-scoped,
       mirrors the existing global `departments` module. 8 new tests.
-- [ ] Phase 2 (remaining, part 2) — frontend (attendance widget, leave
-      request form, calendar admin screen, location/shift/POC admin
-      screens); leave accrual (balances only move on approval today,
-      nothing seeds `accrued`); overtime *approval* workflow (only the
-      auto-calc exists).
+- [x] Release 2, Delivery Step 2 — Attendance, Leave, and HR Settings UI:
+      `/attendance` with My/Team tabs, check-in/out, date/status filters,
+      overtime display, and admin regularization drawer; `/leave` with
+      request form, isolated `is_half_day` UI payload, request history,
+      cancellation, admin approval queue, and decision drawer; and
+      `/people/settings` with Departments, Designations, Locations, Shifts,
+      Calendars, and holiday management tabs. Empty states are used when
+      backend data is unavailable. Remaining backend gaps: leave balance read
+      API, leave accrual, and overtime approval. Half-day persistence and
+      FIRST_HALF/SECOND_HALF session selection are complete across backend and
+      frontend.
+- [x] Release 2, Delivery Step 3 — leave balance summary: added
+      `GET /leave/balances/me?year=YYYY`, returning allocated/accrued/used/
+      remaining days per leave type for the active employee, and connected the
+      `/leave` balances card. Standard leave types with no balance row still
+      appear with their annual quota and zero usage.
+- [x] Release 2, Delivery Step 1 — employee directory and profile frontend:
+      org-scoped `GET /orgs/memberships` directory with active-by-default and
+      include-terminated filtering, `/people` list with row peek, dedicated
+      `/people/:id` profile, and admin-only organization-detail editing for
+      department, designation, location, shift, manager, HR POC, and sourcing
+      POC. Attendance, leave, and HR Settings remain for the next delivery
+      steps.
 - [x] Phase 8 (backend) — `LedgerAccount` (asset/liability/equity/revenue/
       expense chart of accounts, unique per org by name), `LedgerEntry` (one
       row per debit/credit line; a journal entry is >=2 rows sharing one
@@ -78,12 +97,14 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       lifecycle. Posting is manual/API-driven, not auto-generated from
       billing/expense/vendor-payment events yet. 14 new tests
       (`erp-phase8-accounting.test.js`), eslint clean.
-- [ ] Phase 8 (remaining) — frontend (ledger-account admin, journal-entry
-      form, report views, tax-record admin); no period-close/
-      retained-earnings posting (the balance sheet reports the
-      not-yet-closed-into-equity gap rather than hiding it — see its
-      `balances` field); no auto-posting from billing/expense/vendor-payment
-      events (manual/API journal entries only, today).
+- [x] Phase 8 (remaining) — frontend built 2026-09-18 (ledger accounts,
+      journal entries, all three reports, tax records, plus invoicing —
+      see that dated entry below).
+- [ ] Phase 8 (still open) — no period-close/retained-earnings posting (the
+      balance sheet reports the not-yet-closed-into-equity gap rather than
+      hiding it — see its `balances` field); no auto-posting from
+      billing/expense/vendor-payment events (manual/API journal entries
+      only, today).
 - [x] Phase 9 (backend) — `ExternalAccess` (scoped, time-boxed, read-only
       guest grants for Legal/CA; deliberately **not** an `OrgMembership` —
       its own bearer-token auth path, `authenticateExternal`/
@@ -97,15 +118,16 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       computed identically to an org admin, scoped to whatever `resources`
       the grant names. 7 new tests (`erp-phase9-external-access.test.js`),
       eslint clean.
-- [ ] Phase 9 (remaining) — frontend (grant-management screen, guest portal
-      UI); no email delivery of the token (returned in the API response
-      only — nothing to send it through yet, matching "begin implementation
-      locally" posture); no per-view audit trail beyond `last_used_at`/
-      `use_count` (HLD §10 flags whether one is needed as still open); guest
-      surface limited to the accounting module's read reports today (matches
-      the HLD's own example verbatim, "read accounting for Org X" — extend
-      `externalAccess.validation.js`'s `RESOURCE` enum as more modules grow
-      a guest-facing view).
+- [x] Phase 9 (remaining) — frontend built 2026-09-18 (admin grant/revoke
+      screen + public `/guest-access` portal), see that dated entry below.
+- [ ] Phase 9 (still open) — no email delivery of the token (returned in the
+      API response only — nothing to send it through yet, matching "begin
+      implementation locally" posture); no per-view audit trail beyond
+      `last_used_at`/`use_count` (HLD §10 flags whether one is needed as
+      still open); guest surface limited to the accounting module's read
+      reports today (matches the HLD's own example verbatim, "read
+      accounting for Org X" — extend `externalAccess.validation.js`'s
+      `RESOURCE` enum as more modules grow a guest-facing view).
 - [x] Phase 10 (backend) — org chart + lifecycle visualization. **No schema
       change** — `OrgMembership.manager_id`, `employment_status` (including
       `pending_onboarding`/`notice_period`), and `notice_end_date` all
@@ -116,11 +138,13 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       (`authorizeGroupSuperadmin`, combined view across every org, optional
       `org_group_id` filter, mirrors the super-dashboard's cross-org
       posture). 6 new tests (`erp-phase10-org-chart.test.js`), eslint clean.
-- [ ] Phase 10 (remaining) — frontend (the actual chart visualization); no
-      dedicated onboarding/resignation workflow — `pending_onboarding`/
-      `notice_period` are just `employment_status` values an admin sets via
-      the existing `PATCH /orgs/memberships/:id`, matching the HLD's
-      "without a separate workflow engine" framing.
+- [x] Phase 10 (remaining) — frontend built 2026-09-18 (`OrgChartPage`, org
+      + group modes, new-hire/notice-period badges), see that dated entry
+      below.
+- [ ] Phase 10 (still open) — no dedicated onboarding/resignation workflow —
+      `pending_onboarding`/`notice_period` are just `employment_status`
+      values an admin sets via the existing `PATCH /orgs/memberships/:id`,
+      matching the HLD's "without a separate workflow engine" framing.
 - [ ] **Full cross-suite regression (all ~54 test files) for Phases 8-10 —
       deliberately deferred.** Each new phase's own suite is green in
       isolation (27/27 across the three files above); the full-suite run
@@ -137,9 +161,11 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       `20260916052421_phase3_project_timesheets` +
       `20260916052614_phase3_timesheet_decision_reason`. 14 new tests, full
       suite 46/360 green. See PROGRESS.md / plan doc log for detail.
-- [ ] Phase 3 (remaining) — frontend; reconciling attendance-derived
-      overtime against logged timesheet hours (currently computed from
-      attendance alone, per Phase 2).
+- [x] Phase 3 (remaining) — frontend built 2026-09-18, see that dated entry
+      below.
+- [ ] Phase 3 (still open) — reconciling attendance-derived overtime against
+      logged timesheet hours (currently computed from attendance alone, per
+      Phase 2).
 - [x] Phase 4 (backend) — `SalaryStructure` (versioned by `effective_from`,
       MONTHLY `ctc` + itemized `components` validated to sum to it),
       `PayrollRun` (draft → processed, one per org/period, one-way like
@@ -169,12 +195,15 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       12 new tests (`erp-phase5-billing.test.js`), full suite **48/385
       green**, eslint clean. See PROGRESS.md / plan doc log for the rate
       resolution + revenue formula.
-- [ ] Phase 5 (remaining) — frontend (rate admin, invoice list/detail,
-      group-charge screens); the nightly/scheduled auto-compute for daily
-      revenue (today it's an admin-triggered `POST
-      /billing/daily-revenue/compute` call, not a background job — matches
-      the project's "add a job queue only once something needs it" posture);
-      invoice PDF/export.
+- [x] Phase 5 (remaining, part) — invoicing frontend (compute revenue,
+      generate, status transitions) built 2026-09-18, folded into the
+      Accounting tab — see that dated entry below.
+- [ ] Phase 5 (still open) — a dedicated billing-rate admin screen and
+      group-charge screens (no frontend yet, not in scope for the last
+      pass); the nightly/scheduled auto-compute for daily revenue (today
+      it's an admin-triggered `POST /billing/daily-revenue/compute` call,
+      not a background job — matches the project's "add a job queue only
+      once something needs it" posture); invoice PDF/export.
 - [x] Phase 6 (backend) — `DailyEmployeeProfitability` fact table (one row
       per org_membership/day; `revenue` = that day's `DailyProjectRevenue`
       (Phase 5) allocated pro-rata by hours across everyone who logged
@@ -190,11 +219,13 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       orgs exist yet). 10 new tests (`erp-phase6-profitability.test.js`),
       full suite **49/395 green**, eslint clean. See PROGRESS.md / plan doc
       log for the allocation formula.
-- [ ] Phase 6 (remaining) — frontend (super dashboard UI, per-company
-      drill-in, org-scoped profitability view); overhead-cost allocation
-      (today: salary only); a materialized-view/refresh layer for rollups if
-      live `SUM()` ever stops being fast enough (deliberately not built yet
-      per HLD §6 — the fact table is still small).
+- [x] Phase 6 (remaining, part) — super dashboard UI + per-company drill-in
+      built 2026-09-18 (Group Overview), see that dated entry below.
+- [ ] Phase 6 (still open) — an org-scoped "my profitability" self-service
+      view has no frontend yet; overhead-cost allocation (today: salary
+      only); a materialized-view/refresh layer for rollups if live `SUM()`
+      ever stops being fast enough (deliberately not built yet per HLD §6 —
+      the fact table is still small).
 - [x] Phase 7 (backend) — `ExpenseClaim` (`pending → approved → reimbursed`
       or `→ rejected`, scoped by `Location`) and `VendorPayment`
       (`pending → approved → paid` or `→ rejected`; `contractor` /
@@ -209,14 +240,172 @@ Plan: [MULTI-COMPANY-ERP-IMPLEMENTATION-PLAN.md](../architecture/MULTI-COMPANY-E
       admin-only vendor payments). 10 new tests
       (`erp-phase7-expenses.test.js`), full suite **50/405 green**, eslint
       clean.
-- [ ] Phase 7 (remaining) — frontend (claim submission + admin
-      approval/reimbursement queue, vendor payment admin screens); no
-      claim/payment limits or approval-chain policy (single-admin-decides
-      today, matching every other decision flow in this codebase).
+- [x] Phase 7 (remaining) — frontend built 2026-09-18, see that dated entry
+      below.
+- [ ] Phase 7 (still open) — no claim/payment limits or approval-chain
+      policy (single-admin-decides today, matching every other decision
+      flow in this codebase).
 - [ ] Local demo script (plan doc §"Local demo script") passes end-to-end with
       two orgs + isolation verified.
 - [ ] Never merge this branch into `dev`/`staging`/`main` without the human's
       explicit go-ahead (standing rule).
+
+### 2026-09-18 — Nav restructuring + Phase 3 client-brief frontend (Financials, Analytics & Multi-Company Group Management)
+
+Closes most of the "frontend" gaps the phase bullets above still listed as
+open, plus a sidebar cleanup pass. All new frontend, uncommitted (see
+plan doc's matching log entry for the full breakdown, including exact
+files and what's deliberately still thin).
+
+- [x] **Nav consolidation** — `People` (Directory/Org Chart/Users/HR
+      Settings), `Time & Attendance` (Attendance/Leave/Timesheets), and
+      `Finance` (Expenses/Vendor Payments/Accounting/External Access) are
+      now single sidebar entries with an in-page tab strip each, instead of
+      one row per sub-resource. Old routes (`/people/settings`, `/users`,
+      `/leave`) redirect into the new `?section=` tabs. This also structurally
+      removes the "People and HR Settings both highlight" class of bug —
+      `AppLayout.jsx`'s old special-cased `isNavItemActive` hack (for the
+      `/people` vs `/people/settings` prefix collision) is deleted; there's
+      no longer a prefix collision to special-case.
+- [x] **Group Overview** — new sidebar item, visible only when
+      `isGroupSuperadmin` (route-guarded too, not just hidden). Dashboard tab:
+      KPI row, a revenue/expense `ComposedChart` with day/month/quarter/year
+      grouping (quarter/year didn't exist before this — added to
+      `profitability.service.rollup`'s bucketing, shared by both
+      `/profitability/rollup` and `/super-dashboard/rollup`), and clickable
+      subsidiary tiles (`switchOrg` + navigate home = "drill into that
+      company's ERP"). Org Chart tab reuses `OrgChartPage` in group mode.
+      New endpoints: `GET /super-dashboard/subsidiaries`,
+      `GET /super-dashboard/financials-rollup` (layers expenses + vendor
+      payments on top of the profitability rollup; vendor payments are
+      skipped on a `day` bucket since `VendorPayment` only has month/year
+      granularity — documented gap, not a bug). New `Org.valuation` (nullable
+      decimal, migration `20260918120000_add_org_valuation`) — manually
+      set/cleared by a group superadmin via `PATCH /orgs/:id/valuation`; no
+      valuation methodology exists, so this is an admin-entered figure, never
+      computed.
+- [x] **Org Chart frontend** (Phase 10) — `OrgChartPage`, a recursive tree
+      render off `GET /org-chart` / `GET /org-chart/group`; new-hire
+      (`pending_onboarding`) and notice-period (`notice_period` +
+      `notice_end_date`) badges read directly off `employment_status`.
+- [x] **Timesheets frontend** (Phase 3 remaining) — log/edit entries, admin
+      team view + approve/reject, daily lock, regularization ticket
+      request/review. Not built: a UI surfacing whether a specific day is
+      already locked before a submit attempt (today: the API's 409 comes
+      back as a toast, not a pre-check).
+- [x] **Expenses + Vendor Payments frontend** (Phase 7) — self-serve claim
+      submission + admin decide/reimburse; admin-only vendor payment
+      raise/decide/pay.
+- [x] **Accounting frontend** (Phase 8) — ledger-account CRUD, a balanced
+      (debit=credit, enforced client-side before enabling submit)
+      journal-entry form, and all three reports (trial balance / P&L /
+      balance sheet), tax-record lifecycle.
+- [x] **Invoicing frontend** (Phase 5, the piece the client brief's
+      "Accounting & Compliance" section actually named) — folded into the
+      Accounting tab: compute daily revenue, generate a draft invoice,
+      forward-only status transitions. **Not built**: a dedicated billing-rate
+      admin screen or the group-billing-charge screens — nothing in the
+      client brief named those explicitly, so they stayed out of scope for
+      this pass.
+- [x] **External Access / Guest portal frontend** (Phase 9) — admin
+      grant/revoke screen (the plaintext token is shown exactly once, as the
+      backend already guarantees) plus a public `/guest-access` page
+      (outside the login/AppLayout shell entirely — a reviewer has no user
+      account) where a pasted token drives the same four accounting reports
+      via a bare `axios` instance, deliberately not the app's `apiClient`
+      (never touches the normal JWT refresh/redirect machinery).
+- [x] **Small necessary fixes found along the way**: `users.service.js`'s
+      `PUBLIC_SELECT` didn't include `is_group_superadmin`, so a page refresh
+      (not just a fresh login) would silently drop group-superadmin status
+      client-side — fixed. A `departments_org_id_fkey` `ON UPDATE` action
+      left mismatched by the earlier org-scoping migration was flagged by
+      `prisma migrate diff` as drift — fixed with a small follow-up migration
+      (`20260918121000_fix_department_org_fk_action`), applied and registered
+      via `prisma migrate resolve` (already-applied, not re-run).
+- [ ] **Not built this pass**: Phase 4 (payroll) and Phase 6's org-scoped
+      "my profitability" self-service view have no frontend yet — out of
+      scope for what the client brief actually asked for here. Group-charge
+      admin screens (Phase 5) likewise. `OrgGroupMembership` (which scopes a
+      group superadmin to specific holding groups) has no admin UI to grant
+      it — the single-holding-group fallback in `authorizeGroupSuperadmin`
+      covers today's local dev setup, but a second real holding group would
+      need this.
+- [ ] **Verification caveat**: this machine is severely RAM-constrained
+      (5.9 GB total, well under 1 GB free even at idle) — an automated
+      Playwright smoke-run across every new page hit a genuine browser OOM
+      partway through (Finance hub + Timesheets came back with an empty
+      page body, no console error — consistent with a silent renderer
+      crash, not a code defect). Confirmed instead via: `npm run lint` (0
+      errors across every new file), Vite transforming every new file
+      without error, a full static read-through of the flagged files, and
+      `curl`-verified 200s on every backend endpoint the new pages call.
+      **Still needs an actual human click-through** before calling it done.
+- [x] **2026-09-18 follow-up — Org Chart tree re-architecture, Phase 4
+      (Payroll) frontend, and the remaining Phase 5 screens.** Closes the
+      three gaps the previous entry (above) explicitly left open.
+  - [x] **Org Chart re-architecture** (`OrgChartPage.jsx`) — replaced the
+        left-indented nested list with a real top-down tree: pure-CSS
+        parent/child connector lines (`.org-tree` rules in `global.css`,
+        the standard flex + `::before`/`::after` branch-line technique, no
+        chart library needed), and every tree is now rooted under one
+        synthetic top node (the company, or "Group" in group mode) instead
+        of rendering N unconnected root cards when several employees have
+        no manager set — which is what this repo's actual seed data does
+        (13 memberships, 0 with a manager). New-hire / notice-period / on-
+        leave / terminated badges carried over unchanged. Single-org and
+        group (`groupOrgs` prop, used by Group Overview) modes both
+        supported from the same component.
+  - [x] **Payroll frontend** (Phase 4, `pages/payroll/PayrollHubPage.jsx`,
+        new `/payroll` route + nav item, `viewPayroll` self-service for
+        every role, `managePayroll`-equivalent admin tabs matching the
+        backend's own `authorize('admin')` gating) — Salary Structure
+        Configurator (employee picker off the new `useOrgMembershipOptions`
+        lookup, CTC + dynamic components that must sum to CTC, client-side
+        balance check before enabling submit — a deduction-type component
+        is just a negative amount, since the backend models CTC as one
+        additive breakdown, not gross-minus-deductions); Payroll Run screen
+        (create a draft run for a period, process it, see skipped-employee
+        reasons); Payslip viewer (gross/deductions/net + the full attendance
+        breakdown the backend already computes) with a "Print / Save as
+        PDF" action. **No server-side payslip PDF exists** (pre-existing,
+        documented backend gap) — the print action opens a small standalone
+        HTML document in a new window and calls the browser print dialog,
+        which sidesteps fighting the app shell's animated/fixed layout for
+        an in-page `@media print` rule and gives the same "save as PDF"
+        outcome without a new dependency.
+  - [x] **Phase 5 remainder** — Billing Rate admin screen
+        (`finance/BillingRatesTab.jsx`, new Finance-hub tab: per-client,
+        optionally per-requirement, hourly/monthly rate with an effective
+        date) and Intra-Group Billing Charges (raise + view-all as a new
+        Group Overview tab, `groupOverview/GroupOverviewPage.jsx`'s
+        `GroupChargesTab`, gated the same way Group Overview itself is —
+        `isGroupSuperadmin`, not a role capability; plus a read-only
+        "charges against this company" view in the Finance hub,
+        `finance/GroupChargesTab.jsx`, matching the backend's own split
+        between `authorize('admin')` reads and `authorizeGroupSuperadmin`
+        writes/all-reads).
+  - [x] **Verification** — `npm run lint`: 0 errors (3 `react/no-unescaped-
+        entities` from this pass fixed; same pre-existing `exhaustive-deps`
+        warning style as every other tab file). Every new/changed endpoint
+        exercised for real against the running dev server — not just a GET
+        200 this time: created a salary structure, created and **processed**
+        a payroll run (confirmed skipped-reason payloads and a generated
+        payslip's breakdown match the component's field assumptions
+        exactly), fetched the payslip both ways (`/payslips/me` and
+        `/payslips/:id`), created a billing rate and confirmed its
+        `account_not_found` error shape, and created + listed an intra-group
+        charge both scoped ("mine") and unscoped ("all", with the `org`
+        relation the group view needs). All matched what the frontend
+        sends/expects.
+  - [ ] **Same RAM-constrained-machine caveat as the previous entry** — no
+        in-browser click-through of these new screens either; verification
+        here is lint + live API round-trips + static review, not a human
+        looking at the rendered page. This is still the one meaningfully
+        open item.
+  - [ ] Not built (still correctly out of scope): payroll run
+        correction/re-run, salary-structure history editing beyond
+        append-a-new-effective-dated-row, and a real `OrgGroupMembership`
+        grant UI — none of these were asked for here either.
 
 **⚠️ RESUME POINT — read [PROGRESS.md](PROGRESS.md) top entries first.** Product UI + role pipelines + V2 lead/rounds/bench + **2026-08-29** closure-progress rings + requirement × stage matrix (`GET /pipeline/board`) + form field wiring are implemented locally on `main` but **still uncommitted**. **Also landing via cherry-pick `7ba5c90`:** internal-round interviewer multiselect + alert banners. **Open:** commit/push the uncommitted pile; V2 + matrix manual browser click-through; RD-119 E2E; RD-122 deploy day (`DEPLOY_ENABLED` + VPS secrets). See PROGRESS.md 2026-08-29 and 2026-08-27. Manual reports/password: [TESTING-RD-114-128.md](../testing/TESTING-RD-114-128.md). Spec: [RD-115-SPEC-WALKTHROUGH.md](../ui/RD-115-SPEC-WALKTHROUGH.md). Redesign: [UI-REDESIGN.md](../ui/UI-REDESIGN.md). V2 design: [V2-LEAD-PIPELINE-REQUIREMENTS.md](../architecture/V2-LEAD-PIPELINE-REQUIREMENTS.md).
 

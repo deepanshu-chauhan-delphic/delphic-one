@@ -22,7 +22,7 @@ const listQuerySchema = z.object({
 const rollupQuerySchema = z.object({
   from: requiredDate,
   to: requiredDate,
-  group_by: z.enum(['day', 'month']).default('month'),
+  group_by: z.enum(['day', 'month', 'quarter', 'year']).default('month'),
   org_membership_id: z.string().uuid().optional(),
 });
 

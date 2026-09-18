@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate, authorizeGroupSuperadmin, requireOrgMembership } = require('../../middleware/auth');
-const { ok } = require('../../utils/response');
+const { ok, fail } = require('../../utils/response');
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./orgChart.service');
 const { orgChartQuerySchema, groupOrgChartQuerySchema } = require('./orgChart.validation');
@@ -25,7 +25,10 @@ router.get(
   authorizeGroupSuperadmin,
   asyncHandler(async (req, res) => {
     const query = groupOrgChartQuerySchema.parse(req.query);
-    const rows = await service.getGroupOrgChart(query);
+    if (query.org_group_id && !req.user.org_group_ids.includes(query.org_group_id)) {
+      return fail(res, 403, 'Holding company is outside your authorized scope');
+    }
+    const rows = await service.getGroupOrgChart(query, req.user.org_group_ids);
     return ok(res, rows);
   })
 );

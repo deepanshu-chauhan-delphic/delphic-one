@@ -128,7 +128,7 @@ describe('Phase 2 — attendance', () => {
 
   test('admin can list the whole team and regularize a record', async () => {
     const { org, access_token: adminToken, admin } = await seedOrgAdmin();
-    const { access_token: empToken, membership } = await seedOrgEmployee(org);
+    const { access_token: empToken } = await seedOrgEmployee(org);
     await authed(request(app).post('/api/v1/attendance/check-in'), empToken);
 
     const team = await authed(request(app).get('/api/v1/attendance'), adminToken);
@@ -202,6 +202,70 @@ describe('Phase 2 — leave', () => {
       adminToken
     ).send({ status: 'approved' });
     expect(reDecide.status).toBe(409);
+  });
+
+  test('half-day leave persists its session and consumes half a balance day', async () => {
+    const { org, access_token: adminToken } = await seedOrgAdmin();
+    const { access_token: empToken, membership } = await seedOrgEmployee(org);
+    const leaveType = await seedLeaveType(adminToken);
+
+    const missingSession = await authed(request(app).post('/api/v1/leave/requests'), empToken).send({
+      leave_type_id: leaveType.id,
+      from_date: '2026-12-01',
+      to_date: '2026-12-01',
+      is_half_day: true,
+    });
+    expect(missingSession.status).toBe(422);
+
+    const created = await authed(request(app).post('/api/v1/leave/requests'), empToken).send({
+      leave_type_id: leaveType.id,
+      from_date: '2026-12-01',
+      to_date: '2026-12-01',
+      is_half_day: true,
+      half_day_session: 'SECOND_HALF',
+      reason: 'Personal appointment',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data.is_half_day).toBe(true);
+    expect(created.body.data.half_day_session).toBe('SECOND_HALF');
+
+    const decision = await authed(
+      request(app).post(`/api/v1/leave/requests/${created.body.data.id}/decision`),
+      adminToken
+    ).send({ status: 'approved' });
+    expect(decision.status).toBe(200);
+
+    const balance = await prisma.leaveBalance.findFirst({
+      where: { org_membership_id: membership.id, leave_type_id: leaveType.id },
+    });
+    expect(Number(balance.used)).toBe(0.5);
+  });
+
+  test('employee can read a leave balance breakdown for the current year', async () => {
+    const { org, access_token: adminToken } = await seedOrgAdmin();
+    const { access_token: empToken, membership } = await seedOrgEmployee(org);
+    const leaveType = await seedLeaveType(adminToken);
+
+    await prisma.leaveBalance.create({
+      data: {
+        org_membership_id: membership.id,
+        leave_type_id: leaveType.id,
+        year: 2026,
+        accrued: 10,
+        used: 2.5,
+      },
+    });
+
+    const response = await authed(request(app).get('/api/v1/leave/balances/me').query({ year: 2026 }), empToken);
+    expect(response.status).toBe(200);
+    const balance = response.body.data.find((item) => item.leave_type_id === leaveType.id);
+    expect(balance).toMatchObject({
+      leave_type_name: 'Earned Leave',
+      allocated: 10,
+      accrued: 10,
+      used: 2.5,
+      remaining: 7.5,
+    });
   });
 
   test('employee can cancel their own pending request but not after it is decided', async () => {

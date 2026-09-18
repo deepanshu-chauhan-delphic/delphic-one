@@ -14,6 +14,22 @@ function ym(date) {
   return ymd(date).slice(0, 7);
 }
 
+function yq(date) {
+  const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
+  return `${date.getUTCFullYear()}-Q${quarter}`;
+}
+
+function yr(date) {
+  return String(date.getUTCFullYear());
+}
+
+function bucketKey(date, groupBy) {
+  if (groupBy === 'day') return ymd(date);
+  if (groupBy === 'quarter') return yq(date);
+  if (groupBy === 'year') return yr(date);
+  return ym(date);
+}
+
 function daysInMonth(date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
 }
@@ -126,8 +142,10 @@ async function computeRangeForOrg(orgId, dateFrom, dateTo) {
 // The "nightly batch job" entry point (jobs/profitabilityCompute.js) —
 // every active org, one date. Per-org try/catch so one org's failure
 // doesn't block the rest (mirrors jobs/interviewReminders.js).
-async function computeAllOrgsForDate(date) {
-  const orgs = await prisma.org.findMany({ where: { status: 'active' } });
+async function computeAllOrgsForDate(date, orgGroupIds) {
+  const orgs = await prisma.org.findMany({
+    where: { status: 'active', org_group_id: { in: orgGroupIds } },
+  });
   let orgsProcessed = 0;
   let membershipsComputed = 0;
   for (const org of orgs) {
@@ -144,13 +162,13 @@ async function computeAllOrgsForDate(date) {
 
 // Cross-org catch-up/testing trigger for the super dashboard — same shape as
 // computeAllOrgsForDate but over a date range.
-async function computeAllOrgsForDateRange(dateFrom, dateTo) {
+async function computeAllOrgsForDateRange(dateFrom, dateTo, orgGroupIds) {
   let orgsProcessed = 0;
   let membershipsComputed = 0;
   const days = Math.round((dateTo - dateFrom) / 86400000) + 1;
   for (let i = 0; i < days; i += 1) {
     const date = new Date(dateFrom.getTime() + i * 86400000);
-    const result = await computeAllOrgsForDate(date);
+    const result = await computeAllOrgsForDate(date, orgGroupIds);
     orgsProcessed = Math.max(orgsProcessed, result.orgs_processed);
     membershipsComputed += result.memberships_computed;
   }
@@ -195,10 +213,11 @@ async function listTeam(orgId, { org_membership_id, from, to, page, limit }) {
 // read from. `group_by: 'day'` still sums across every contributing
 // membership for that day (a company/group total), not a raw row dump —
 // pass `org_membership_id` to narrow to one person's trend instead.
-async function rollup({ orgId, orgMembershipId, from, to, groupBy }) {
+async function rollup({ orgId, orgMembershipId, orgGroupIds, from, to, groupBy }) {
   const rows = await prisma.dailyEmployeeProfitability.findMany({
     where: {
       ...(orgId ? { org_id: orgId } : {}),
+      ...(orgGroupIds?.length ? { org: { org_group_id: { in: orgGroupIds } } } : {}),
       ...(orgMembershipId ? { org_membership_id: orgMembershipId } : {}),
       date: { gte: from, lte: to },
     },
@@ -207,7 +226,7 @@ async function rollup({ orgId, orgMembershipId, from, to, groupBy }) {
 
   const buckets = new Map();
   for (const row of rows) {
-    const key = groupBy === 'day' ? ymd(row.date) : ym(row.date);
+    const key = bucketKey(row.date, groupBy);
     const bucket = buckets.get(key) || { period: key, revenue: 0, cost: 0, margin: 0, memberships: new Set() };
     bucket.revenue = round2(bucket.revenue + Number(row.revenue));
     bucket.cost = round2(bucket.cost + Number(row.cost));
@@ -229,4 +248,6 @@ module.exports = {
   listMine,
   listTeam,
   rollup,
+  bucketKey,
+  round2,
 };

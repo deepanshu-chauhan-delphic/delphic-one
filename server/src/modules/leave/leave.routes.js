@@ -7,6 +7,7 @@ const {
   createLeaveTypeSchema,
   createLeaveRequestSchema,
   decisionSchema,
+  balanceQuerySchema,
   listRequestsQuerySchema,
 } = require('./leave.validation');
 
@@ -17,6 +18,15 @@ router.get(
   '/types',
   asyncHandler(async (req, res) => {
     const rows = await service.listTypes(req.user.org_id);
+    return ok(res, rows);
+  })
+);
+
+router.get(
+  '/balances/me',
+  asyncHandler(async (req, res) => {
+    const { year } = balanceQuerySchema.parse(req.query);
+    const rows = await service.listMyBalances(req.user.org_id, req.user.org_membership_id, year);
     return ok(res, rows);
   })
 );
@@ -46,7 +56,7 @@ router.get(
   '/requests/me',
   asyncHandler(async (req, res) => {
     const query = listRequestsQuerySchema.omit({ org_membership_id: true, from: true, to: true }).parse(req.query);
-    const result = await service.listMine(req.user.org_membership_id, query);
+    const result = await service.listMine(req.user.org_id, req.user.org_membership_id, query);
     return ok(res, result.data, { pagination: result.pagination });
   })
 );
@@ -76,7 +86,7 @@ router.post(
 router.post(
   '/requests/:id/cancel',
   asyncHandler(async (req, res) => {
-    const result = await service.cancel(req.user.org_membership_id, req.params.id);
+    const result = await service.cancel(req.user.org_id, req.user.org_membership_id, req.params.id);
     if (result.error === 'not_found') return fail(res, 404, 'Leave request not found');
     if (result.error === 'not_pending') return fail(res, 409, 'Leave request is not pending');
     return ok(res, result.request);

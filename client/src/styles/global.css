@@ -240,3 +240,114 @@ h3,
     animation: none;
   }
 }
+
+/* Org chart — classic pure-CSS tree connectors (parent/child branch lines).
+   Structural nesting is plain <ul>/<li>; this file only draws the lines.
+   Adapted from the well-known "CSS org chart" pattern so no chart library
+   is needed for something this shape-constrained. */
+.org-tree,
+.org-tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 2.25rem;
+  position: relative;
+  margin: 0;
+}
+
+.org-tree ul {
+  padding-top: 2rem;
+}
+
+.org-tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  list-style: none;
+  position: relative;
+  padding: 2rem 0.75rem 0 0.75rem;
+}
+
+.org-tree > li {
+  padding-top: 0;
+}
+
+/* Horizontal sibling connector, split in two so the vertical drop from the
+   parent can land exactly between them. */
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  border-top: 1px solid #b8c0d0;
+  width: 50%;
+  height: 2rem;
+}
+
+.org-tree li::before {
+  left: 0;
+}
+
+.org-tree li::after {
+  right: 0;
+}
+
+.org-tree li:only-child {
+  padding-top: 0;
+}
+
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+
+.org-tree li:last-child::before {
+  border-right: 1px solid #b8c0d0;
+  border-radius: 0 0.5rem 0 0;
+}
+
+.org-tree li:first-child::after {
+  border-left: 1px solid #b8c0d0;
+  border-radius: 0.5rem 0 0 0;
+}
+
+.org-tree > li::before,
+.org-tree > li::after {
+  display: none;
+}
+
+/* Vertical drop from a parent node down into its children row. */
+.org-tree ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: 1px solid #b8c0d0;
+  width: 0;
+  height: 2rem;
+}
+
+/* Print-to-PDF for a single card (payslip, invoice, …): everything except
+   the marked area is hidden, and that area is promoted to fill the page.
+   Browser's own "Save as PDF" print target covers the download action. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 1.5rem;
+  }
+}

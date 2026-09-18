@@ -11,19 +11,16 @@ const { fail } = require('../utils/response');
 // and everything below no-ops back to today's global-role behavior, so old
 // tokens keep working until they expire/refresh.
 //
-// Role is then resolved *for that org*, live from the DB, mirroring the
-// existing authorizeSuperadmin/loadSuperadminFlag pattern (re-read, never
-// trust a JWT claim) — HLD §2. If the membership is missing or has since
-// ended, this falls back to the JWT's role claim rather than failing the
-// request: no route reads req.user.org_id / org_membership_id yet, so this
-// is inert plumbing, not an access-control change.
+// Role is resolved *for that org*, live from the DB. A token carrying an org
+// context without a matching active membership is rejected rather than
+// falling back to a global role, which would make tenant isolation optional.
 async function resolveOrgContext(user, orgId) {
   if (!orgId) return user;
   const membership = await prisma.orgMembership.findUnique({
     where: { person_id_org_id: { person_id: user.id, org_id: orgId } },
     select: { id: true, role: true, employment_status: true },
   });
-  if (!membership || membership.employment_status !== 'active') return user;
+  if (!membership || membership.employment_status !== 'active') return null;
   return { ...user, role: membership.role, org_id: orgId, org_membership_id: membership.id };
 }
 
@@ -37,6 +34,7 @@ function authenticate(req, res, next) {
     const base = { id: payload.sub, role: payload.role, name: payload.name, email: payload.email };
     resolveOrgContext(base, payload.org_id)
       .then((user) => {
+        if (!user) return fail(res, 403, 'Active organization membership required');
         req.user = user;
         // Multi-company ERP (HLD §5, layer 1): the rest of this request runs
         // inside an AsyncLocalStorage context carrying the resolved org_id,
@@ -47,7 +45,7 @@ function authenticate(req, res, next) {
         orgContext.run({ org_id: user.org_id, org_membership_id: user.org_membership_id }, next);
       })
       .catch(next);
-  } catch (err) {
+  } catch (_err) {
     return fail(res, 401, 'Invalid or expired access token');
   }
 }
@@ -103,10 +101,24 @@ async function authorizeGroupSuperadmin(req, res, next) {
     if (!req.user) return fail(res, 401, 'Not authenticated');
     const u = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { is_group_superadmin: true, active: true },
+      select: {
+        is_group_superadmin: true,
+        active: true,
+        org_group_memberships: { select: { org_group_id: true } },
+      },
     });
     if (!u || !u.active || !u.is_group_superadmin) return fail(res, 403, 'Group superadmin only');
     req.user.is_group_superadmin = true;
+    let groupIds = u.org_group_memberships.map((membership) => membership.org_group_id);
+    // Local single-holding deployments created before group memberships were
+    // introduced remain usable; once multiple holding groups exist, explicit
+    // memberships are mandatory.
+    if (groupIds.length === 0) {
+      const groups = await prisma.orgGroup.findMany({ select: { id: true }, take: 2 });
+      if (groups.length !== 1) return fail(res, 403, 'No authorized holding company');
+      groupIds = [groups[0].id];
+    }
+    req.user.org_group_ids = groupIds;
     return next();
   } catch (err) {
     return next(err);

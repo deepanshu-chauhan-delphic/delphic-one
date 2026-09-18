@@ -10,7 +10,7 @@ const MEMBERSHIP_SELECT = {
   org_id: true,
   role: true,
   employment_status: true,
-  org: { select: { id: true, name: true, slug: true, status: true } },
+  org: { select: { id: true, name: true, slug: true, logo_url: true, status: true } },
 };
 
 // A user with no OrgMembership yet (any token issued before Phase 0/1, or a

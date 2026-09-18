@@ -20,7 +20,7 @@ router.post(
 router.post(
   '/check-out',
   asyncHandler(async (req, res) => {
-    const result = await service.checkOut(req.user.org_membership_id);
+    const result = await service.checkOut(req.user.org_id, req.user.org_membership_id);
     if (result.error === 'not_checked_in') return fail(res, 409, 'Not checked in today');
     if (result.error === 'already_checked_out') return fail(res, 409, 'Already checked out today');
     return ok(res, result.record);
@@ -31,7 +31,7 @@ router.get(
   '/me',
   asyncHandler(async (req, res) => {
     const query = listQuerySchema.omit({ org_membership_id: true }).parse(req.query);
-    const result = await service.listMine(req.user.org_membership_id, query);
+    const result = await service.listMine(req.user.org_id, req.user.org_membership_id, query);
     return ok(res, result.data, { pagination: result.pagination });
   })
 );

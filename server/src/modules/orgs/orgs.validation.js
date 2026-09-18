@@ -7,6 +7,14 @@ const createLocationSchema = z.object({
   is_default: z.boolean().default(false),
 });
 
+const createOrgSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: z.string().trim().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  logo_url: z.string().url().max(500).nullable().optional(),
+  timezone: z.string().min(1).max(80).default('Asia/Kolkata'),
+  default_currency: z.enum(['INR', 'USD', 'AED', 'SAR', 'EUR', 'GBP']).default('INR'),
+});
+
 // Admin sets an employee's directory/reporting fields — all optional, patch
 // semantics. `null` clears a field (e.g. removing a manager).
 const updateMembershipSchema = z.object({
@@ -19,4 +27,21 @@ const updateMembershipSchema = z.object({
   designation_id: z.string().uuid().nullable().optional(),
 });
 
-module.exports = { createLocationSchema, updateMembershipSchema };
+const membershipListQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  include_terminated: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+});
+
+// Group superadmin, Group Overview dashboard — a manually-entered figure,
+// null clears it back to "not set".
+const updateValuationSchema = z.object({
+  valuation: z.coerce.number().nonnegative().nullable(),
+});
+
+module.exports = {
+  createOrgSchema,
+  createLocationSchema,
+  updateMembershipSchema,
+  membershipListQuerySchema,
+  updateValuationSchema,
+};
