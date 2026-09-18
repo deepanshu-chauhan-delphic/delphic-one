@@ -85,6 +85,10 @@ function flattenTree(roots) {
   return flat;
 }
 
+function getRoleTitle(node) {
+  return node.designation?.name || ROLE_LABEL[node.role] || 'Team member';
+}
+
 function countDescendants(node, getChildren) {
   const children = getChildren(node) || [];
   return children.reduce((sum, child) => sum + 1 + countDescendants(child, getChildren), 0);
@@ -123,9 +127,10 @@ function buildDepartmentBranches(roots) {
 /** A single employee card — role/designation is the primary heading; name, department, and avatar sit underneath. */
 function PersonCard({ node, hasChildren, collapsed, onToggle, hiddenCount }) {
   const tier = ROLE_TIERS[tierIndexFor(node)];
-  const title = node.designation?.name || ROLE_LABEL[node.role] || 'Team member';
+  const title = getRoleTitle(node);
+
   return (
-    <div className={`inline-flex w-64 items-start gap-2 rounded-xl border border-tertiary-100 border-l-4 bg-white p-3 text-left shadow-card ${tier.border}`}>
+    <div className={`org-node-card inline-flex w-64 items-start gap-2 rounded-xl border border-tertiary-100 border-l-4 bg-white p-3 text-left shadow-card ${tier.border}`}>
       {hasChildren ? (
         <button
           type="button"
@@ -140,14 +145,14 @@ function PersonCard({ node, hasChildren, collapsed, onToggle, hiddenCount }) {
       )}
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm font-bold ${tier.text}`} title={title}>{title}</p>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="org-node-card__meta mt-2 flex items-center gap-2">
           <Avatar name={node.person.name} size="sm" />
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-tertiary-800" title={node.person.name}>{node.person.name}</p>
+            <p className="truncate text-xs font-semibold text-tertiary-800" title={node.person.name}>{node.person.name}</p>
             <p className="truncate text-[11px] text-tertiary-500">{node.department?.name || 'No department'}</p>
           </div>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex flex-wrap items-center gap-1">
           <LifecycleBadge node={node} />
           {collapsed && hiddenCount > 0 && (
             <span className="inline-flex items-center rounded-full bg-tertiary-100 px-2 py-0.5 text-[10px] font-medium text-tertiary-600">+{hiddenCount} hidden</span>
@@ -161,7 +166,7 @@ function PersonCard({ node, hasChildren, collapsed, onToggle, hiddenCount }) {
 /** The top node of a tree, or a department-group header — styled distinctly from employee cards. */
 function EntityCard({ label, sublabel, icon: Icon = Building2, hasChildren, collapsed, onToggle }) {
   return (
-    <div className="inline-flex min-w-[13rem] max-w-[16rem] items-center gap-2 rounded-xl border-2 border-primary-600 bg-primary-50 p-3 text-left shadow-card">
+    <div className="org-entity-card inline-flex min-w-[13rem] max-w-[16rem] items-center gap-2 rounded-xl border-2 border-primary-600 bg-primary-50 p-3 text-left shadow-card">
       {hasChildren ? (
         <button
           type="button"
@@ -303,21 +308,21 @@ export default function OrgChartPage({ groupOrgs }) {
 
   const viewToggle = (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="inline-flex rounded-lg border border-tertiary-200 bg-white p-0.5">
+      <div className="inline-flex rounded-lg border border-tertiary-200 bg-white p-0.5 shadow-sm">
         {VIEW_MODES.map(({ key, label }) => (
           <button
             key={key}
             type="button"
             onClick={() => setViewMode(key)}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              viewMode === key ? 'bg-primary-600 text-white' : 'text-tertiary-600 hover:bg-tertiary-50'
+              viewMode === key ? 'bg-primary-600 text-white shadow-sm' : 'text-tertiary-600 hover:bg-tertiary-50'
             }`}
           >
             {label}
           </button>
         ))}
       </div>
-      <p className="text-xs text-tertiary-400">Card color reflects seniority inferred from designation title — reporting lines (the tree itself) are unaffected.</p>
+      <p className="text-xs text-tertiary-400">Strictly role-based reporting order remains intact; department view simply re-groups the same employees without changing reporting lines.</p>
     </div>
   );
 

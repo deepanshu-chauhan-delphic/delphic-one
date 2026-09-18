@@ -249,9 +249,11 @@ h3,
 .org-tree ul {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   padding-top: 2.25rem;
   position: relative;
   margin: 0;
+  gap: 0;
 }
 
 .org-tree ul {
@@ -265,10 +267,26 @@ h3,
   list-style: none;
   position: relative;
   padding: 2rem 0.75rem 0 0.75rem;
+  min-width: 0;
 }
 
 .org-tree > li {
   padding-top: 0;
+}
+
+.org-node-card,
+.org-entity-card {
+  position: relative;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.org-node-card:hover,
+.org-entity-card:hover {
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.org-node-card__meta {
+  min-height: 2.5rem;
 }
 
 /* Horizontal sibling connector, split in two so the vertical drop from the
@@ -278,7 +296,7 @@ h3,
   content: '';
   position: absolute;
   top: 0;
-  border-top: 1px solid #b8c0d0;
+  border-top: 1px solid #c5cedb;
   width: 50%;
   height: 2rem;
 }
@@ -306,12 +324,12 @@ h3,
 }
 
 .org-tree li:last-child::before {
-  border-right: 1px solid #b8c0d0;
+  border-right: 1px solid #c5cedb;
   border-radius: 0 0.5rem 0 0;
 }
 
 .org-tree li:first-child::after {
-  border-left: 1px solid #b8c0d0;
+  border-left: 1px solid #c5cedb;
   border-radius: 0.5rem 0 0 0;
 }
 
@@ -326,9 +344,22 @@ h3,
   position: absolute;
   top: 0;
   left: 50%;
-  border-left: 1px solid #b8c0d0;
+  border-left: 1px solid #c5cedb;
   width: 0;
   height: 2rem;
+}
+
+@media (max-width: 768px) {
+  .org-tree,
+  .org-tree ul {
+    justify-content: flex-start;
+    min-width: 620px;
+  }
+
+  .org-node-card,
+  .org-entity-card {
+    width: 15rem;
+  }
 }
 
 /* Print-to-PDF for a single card (payslip, invoice, …): everything except
